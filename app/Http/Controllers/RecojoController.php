@@ -12,21 +12,27 @@ use App\Models\Recojo;
 use App\Models\SolicitudCliente;
 use App\Models\TarifaContrato;
 use App\Models\User;
+use App\Services\ContratoCodigoService;
+use App\Support\StoredImage;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
 
 class RecojoController extends Controller
 {
+    public function __construct(private readonly ContratoCodigoService $contratoCodigoService) {}
+
     private const EVENTO_ID_CONTRATO_CREADO = 318;
+
     private const DEPARTAMENTOS = [
         'LA PAZ',
         'COCHABAMBA',
@@ -97,7 +103,7 @@ class RecojoController extends Controller
         if ($data['rows']->isEmpty()) {
             return redirect()
                 ->route('dashboard.reimprimir-cn33', ['despacho' => $despacho, 'origen' => $origen, 'destino' => $destino])
-                ->with('error', 'No se encontraron paquetes/contratos/solicitudes para el despacho ' . $despacho . '.');
+                ->with('error', 'No se encontraron paquetes/contratos/solicitudes para el despacho '.$despacho.'.');
         }
 
         $generatedAt = $data['generatedAt'];
@@ -116,7 +122,7 @@ class RecojoController extends Controller
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
-        }, 'cn33-' . $despacho . '-reimpresion.pdf');
+        }, 'cn33-'.$despacho.'-reimpresion.pdf');
     }
 
     public function reimprimirCn33DespachoExcel(Request $request)
@@ -150,7 +156,7 @@ class RecojoController extends Controller
                 $origen,
                 $destino
             ),
-            'cn33-' . $despacho . '-reimpresion.xlsx'
+            'cn33-'.$despacho.'-reimpresion.xlsx'
         );
     }
 
@@ -163,75 +169,269 @@ class RecojoController extends Controller
 
         return Excel::download(
             new ContratoCn33Export($contrato, $generatedAt, $this->verificationUrlFor($contrato)),
-            'cn33-' . $contrato->codigo . '-' . $generatedAt->format('Ymd-His') . '.xlsx'
+            'cn33-'.$contrato->codigo.'-'.$generatedAt->format('Ymd-His').'.xlsx'
         );
     }
 
     public function gestor(Request $request)
     {
         $user = Auth::user();
-        $empresaId = (int) ($user?->empresa_id ?? 0);
-        $search = trim((string) $request->query('q', ''));
-        $estadoId = (int) $request->query('estado_id', 0);
-        $empresa = $empresaId > 0
-            ? Empresa::query()->find($empresaId, ['id', 'nombre', 'sigla', 'codigo_cliente'])
-            : null;
+        $context = $this->gestorContext($request, $user);
+        $empresa = $context['empresa'];
+        $search = $context['search'];
+        $estadoFiltro = $context['estadoFiltro'];
+        $estadoEntregadoId = $context['estadoEntregadoId'];
+        $estadoCanceladoId = $context['estadoCanceladoId'];
+        $baseQuery = $context['baseQuery'];
 
-        $baseQuery = Recojo::query()
-            ->with([
-                'empresa:id,nombre,sigla,codigo_cliente',
-                'estadoRegistro:id,nombre_estado',
-            ])
-            ->where('empresa_id', $empresaId > 0 ? $empresaId : -1);
-
-        $contratos = (clone $baseQuery)
-            ->when($estadoId > 0, function ($query) use ($estadoId) {
-                $query->where('estados_id', $estadoId);
-            })
-            ->when($search !== '', function ($query) use ($search) {
-                $query->where(function ($sub) use ($search) {
-                    $sub->where('codigo', 'like', '%' . $search . '%')
-                        ->orWhere('cod_especial', 'like', '%' . $search . '%')
-                        ->orWhere('nombre_r', 'like', '%' . $search . '%')
-                        ->orWhere('telefono_r', 'like', '%' . $search . '%')
-                        ->orWhere('direccion_r', 'like', '%' . $search . '%')
-                        ->orWhere('nombre_d', 'like', '%' . $search . '%')
-                        ->orWhere('telefono_d', 'like', '%' . $search . '%')
-                        ->orWhere('direccion_d', 'like', '%' . $search . '%')
-                        ->orWhere('origen', 'like', '%' . $search . '%')
-                        ->orWhere('destino', 'like', '%' . $search . '%')
-                        ->orWhere('provincia', 'like', '%' . $search . '%')
-                        ->orWhere('contenido', 'like', '%' . $search . '%');
-                });
-            })
+        $contratos = $this->aplicarFiltrosGestor(
+            clone $baseQuery,
+            $estadoFiltro,
+            $estadoEntregadoId,
+            $estadoCanceladoId,
+            $search
+        )
             ->orderByDesc('id')
             ->paginate(20)
             ->withQueryString();
 
-        $estadoCounts = (clone $baseQuery)
-            ->select('estados_id', DB::raw('count(*) as total'))
-            ->groupBy('estados_id')
-            ->pluck('total', 'estados_id');
+        $totalEntregados = $estadoEntregadoId > 0
+            ? (clone $baseQuery)->where('estados_id', $estadoEntregadoId)->count()
+            : 0;
+        $totalPendientes = (clone $baseQuery)
+            ->when($estadoEntregadoId > 0 || $estadoCanceladoId > 0, function ($query) use ($estadoEntregadoId, $estadoCanceladoId) {
+                $estadosExcluidos = array_values(array_filter([$estadoEntregadoId, $estadoCanceladoId]));
+                $query->where(function ($estadoQuery) use ($estadosExcluidos) {
+                    $estadoQuery->whereNull('estados_id')
+                        ->orWhereNotIn('estados_id', $estadosExcluidos);
+                });
+            })
+            ->count();
 
         $totalContratos = (clone $baseQuery)->count();
         $totalPeso = (float) ((clone $baseQuery)->sum('peso') ?? 0);
-        $estados = Cache::remember('lookup:paquetes-contrato:estados', now()->addMinutes(30), function () {
-            return Estado::query()
-                ->orderBy('nombre_estado')
-                ->get(['id', 'nombre_estado']);
-        });
 
         return view('paquetes_contrato.gestor', [
             'contratos' => $contratos,
             'empresa' => $empresa,
             'search' => $search,
-            'estadoId' => $estadoId,
-            'estados' => $estados,
-            'estadoCounts' => $estadoCounts,
+            'estadoFiltro' => $estadoFiltro,
+            'totalEntregados' => $totalEntregados,
+            'totalPendientes' => $totalPendientes,
             'totalContratos' => $totalContratos,
             'totalPeso' => $totalPeso,
-            'canContratoGestorPrint' => (bool) optional($user)->can('feature.paquetes-contrato.index.print'),
+            'canContratoGestorSearch' => (bool) optional($user)->can('feature.paquetes-contrato.gestor.search'),
+            'canContratoGestorView' => (bool) optional($user)->can('feature.paquetes-contrato.gestor.view'),
+            'canContratoGestorExport' => (bool) optional($user)->can('feature.paquetes-contrato.gestor.export'),
+            'canContratoGestorPrint' => (bool) optional($user)->can('feature.paquetes-contrato.gestor.print'),
+            'canContratoGestorReport' => (bool) optional($user)->can('feature.paquetes-contrato.gestor.report'),
         ]);
+    }
+
+    public function gestorPdf(Request $request)
+    {
+        $user = Auth::user();
+        abort_unless($user && $user->can('feature.paquetes-contrato.gestor.report'), 403);
+
+        $context = $this->gestorContext($request, $user);
+        $contratos = $this->aplicarFiltrosGestor(
+            clone $context['baseQuery'],
+            $context['estadoFiltro'],
+            $context['estadoEntregadoId'],
+            $context['estadoCanceladoId'],
+            $context['search']
+        )
+            ->orderByDesc('id')
+            ->get();
+
+        if ($contratos->isEmpty()) {
+            return redirect()
+                ->route('paquetes-contrato.gestor', $request->only(['q', 'estado']))
+                ->with('error', 'No hay contratos para generar el reporte con los filtros seleccionados.');
+        }
+
+        $contratos->each(function (Recojo $contrato) {
+            $imagenPdf = $this->imagenGestorParaPdf($contrato->imagen_entrega_gestor ?: $contrato->imagen);
+            $contrato->setAttribute('imagen_pdf', $imagenPdf);
+            $contrato->setAttribute(
+                'imagen_descarga_url',
+                $imagenPdf ? $this->imagenGestorDescargaPublicaUrl($contrato) : null
+            );
+        });
+
+        @ini_set('memory_limit', '1024M');
+        @set_time_limit(180);
+
+        $generatedAt = now();
+        $pdf = Pdf::loadView('paquetes_contrato.gestor-pdf', [
+            'contratos' => $contratos,
+            'empresa' => $context['empresa'],
+            'estadoFiltro' => $context['estadoFiltro'],
+            'search' => $context['search'],
+            'generatedAt' => $generatedAt,
+            'usuarioNombre' => trim((string) $user->name),
+            'totalPeso' => (float) $contratos->sum('peso'),
+            'totalImagenes' => $contratos->whereNotNull('imagen_pdf')->count(),
+            'publicImageLinkDays' => max(1, (int) config('app.public_image_link_days', 30)),
+        ])->setPaper('a4', 'landscape');
+
+        $codigoCliente = preg_replace('/[^A-Za-z0-9_-]+/', '-', (string) ($context['empresa']?->codigo_cliente ?: 'sin-codigo'));
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'reporte-contratos-'.$codigoCliente.'-'.$context['estadoFiltro'].'-'.$generatedAt->format('Ymd-His').'.pdf');
+    }
+
+    private function gestorContext(Request $request, ?User $user): array
+    {
+        $empresaId = (int) ($user?->empresa_id ?? 0);
+        $search = trim((string) $request->query('q', ''));
+        $estadoFiltro = strtolower(trim((string) $request->query('estado', 'pendientes')));
+        $estadoFiltro = in_array($estadoFiltro, ['entregados', 'pendientes', 'todos'], true)
+            ? $estadoFiltro
+            : 'pendientes';
+        $estadoIdsGestor = Cache::remember('lookup:paquetes-contrato:gestor-estados', now()->addMinutes(30), function () {
+            return Estado::query()
+                ->whereIn(DB::raw('TRIM(UPPER(nombre_estado))'), ['ENTREGADO', 'CANCELADO'])
+                ->selectRaw('id, TRIM(UPPER(nombre_estado)) AS nombre_normalizado')
+                ->pluck('id', 'nombre_normalizado')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+        });
+        $empresa = $empresaId > 0
+            ? Empresa::query()->find($empresaId, ['id', 'nombre', 'sigla', 'codigo_cliente'])
+            : null;
+        $empresaIds = $this->empresaIdsPorCodigoCliente($empresa);
+
+        return [
+            'empresa' => $empresa,
+            'search' => $search,
+            'estadoFiltro' => $estadoFiltro,
+            'estadoEntregadoId' => (int) ($estadoIdsGestor['ENTREGADO'] ?? 0),
+            'estadoCanceladoId' => (int) ($estadoIdsGestor['CANCELADO'] ?? 0),
+            'baseQuery' => Recojo::query()
+                ->select('paquetes_contrato.*')
+                ->addSelect([
+                    'imagen_entrega_gestor' => DB::table('cartero as entrega_gestor')
+                        ->select('entrega_gestor.imagen')
+                        ->whereColumn('entrega_gestor.id_paquetes_contrato', 'paquetes_contrato.id')
+                        ->whereNotNull('entrega_gestor.imagen')
+                        ->where('entrega_gestor.imagen', '<>', '')
+                        ->orderByDesc('entrega_gestor.updated_at')
+                        ->orderByDesc('entrega_gestor.id')
+                        ->limit(1),
+                ])
+                ->with([
+                    'empresa:id,nombre,sigla,codigo_cliente',
+                    'estadoRegistro:id,nombre_estado',
+                ])
+                ->where(function ($query) use ($empresaIds) {
+                    $query->whereIn('paquetes_contrato.empresa_id', $empresaIds)
+                        ->orWhere(function ($legacyQuery) use ($empresaIds) {
+                            $legacyQuery->whereNull('paquetes_contrato.empresa_id')
+                                ->whereHas('user', function ($userQuery) use ($empresaIds) {
+                                    $userQuery->whereIn('empresa_id', $empresaIds);
+                                });
+                        });
+                }),
+        ];
+    }
+
+    private function aplicarFiltrosGestor($query, string $estadoFiltro, int $estadoEntregadoId, int $estadoCanceladoId, string $search)
+    {
+        return $query
+            ->when($estadoFiltro === 'entregados', function ($query) use ($estadoEntregadoId) {
+                $query->where('estados_id', $estadoEntregadoId > 0 ? $estadoEntregadoId : -1);
+            })
+            ->when($estadoFiltro === 'pendientes', function ($query) use ($estadoEntregadoId, $estadoCanceladoId) {
+                $estadosExcluidos = array_values(array_filter([$estadoEntregadoId, $estadoCanceladoId]));
+
+                if ($estadosExcluidos !== []) {
+                    $query->where(function ($estadoQuery) use ($estadosExcluidos) {
+                        $estadoQuery->whereNull('estados_id')
+                            ->orWhereNotIn('estados_id', $estadosExcluidos);
+                    });
+                }
+            })
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($sub) use ($search) {
+                    $sub->where('codigo', 'like', '%'.$search.'%')
+                        ->orWhere('cod_especial', 'like', '%'.$search.'%')
+                        ->orWhere('nombre_r', 'like', '%'.$search.'%')
+                        ->orWhere('telefono_r', 'like', '%'.$search.'%')
+                        ->orWhere('direccion_r', 'like', '%'.$search.'%')
+                        ->orWhere('nombre_d', 'like', '%'.$search.'%')
+                        ->orWhere('telefono_d', 'like', '%'.$search.'%')
+                        ->orWhere('direccion_d', 'like', '%'.$search.'%')
+                        ->orWhere('origen', 'like', '%'.$search.'%')
+                        ->orWhere('destino', 'like', '%'.$search.'%')
+                        ->orWhere('provincia', 'like', '%'.$search.'%')
+                        ->orWhere('contenido', 'like', '%'.$search.'%');
+                });
+            });
+    }
+
+    private function imagenGestorParaPdf(?string $imagen): ?string
+    {
+        $imagen = trim((string) $imagen);
+
+        if ($imagen === '') {
+            return null;
+        }
+
+        $url = StoredImage::url($imagen);
+        if ($url && str_starts_with($url, 'data:image/')) {
+            return $url;
+        }
+
+        if (! StoredImage::isStoragePath($imagen) || ! Storage::disk('public')->exists($imagen)) {
+            return null;
+        }
+
+        $contenido = Storage::disk('public')->get($imagen);
+        $mime = Storage::disk('public')->mimeType($imagen) ?: 'image/jpeg';
+
+        return 'data:'.$mime.';base64,'.base64_encode($contenido);
+    }
+
+    private function imagenGestorDescargaPublicaUrl(Recojo $contrato): string
+    {
+        $vigenciaDias = max(1, (int) config('app.public_image_link_days', 30));
+        $relativeUrl = URL::temporarySignedRoute(
+            'delivery-images.package.public-download',
+            now()->addDays($vigenciaDias),
+            [
+                'type' => 'contrato',
+                'id' => $contrato->id,
+                'kind' => 'entrega',
+            ],
+            false
+        );
+        $publicBaseUrl = rtrim((string) (config('app.public_download_url') ?: config('app.url')), '/');
+
+        return $publicBaseUrl.'/'.ltrim($relativeUrl, '/');
+    }
+
+    private function empresaIdsPorCodigoCliente(?Empresa $empresa): array
+    {
+        if (! $empresa) {
+            return [-1];
+        }
+
+        $codigoCliente = strtoupper(trim((string) $empresa->codigo_cliente));
+        $codigoCliente = preg_replace('/\s+/', '', $codigoCliente) ?: '';
+
+        if ($codigoCliente === '') {
+            return [(int) $empresa->id];
+        }
+
+        $empresaIds = Empresa::query()
+            ->whereRaw("REPLACE(TRIM(UPPER(COALESCE(codigo_cliente, ''))), ' ', '') = ?", [$codigoCliente])
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        return $empresaIds !== [] ? $empresaIds : [(int) $empresa->id];
     }
 
     public function entregados(Request $request)
@@ -256,9 +456,43 @@ class RecojoController extends Controller
             'canContratoEntregadoExport' => (bool) optional($user)->can('feature.paquetes-contrato.entregados.export'),
         ]);
 
-    // Si el usuario no tiene empresa, no mostramos nada
-    if ($empresaId <= 0) {
-        $contratos = Recojo::query()->whereRaw('1=0')->paginate(15);
+        // Si el usuario no tiene empresa, no mostramos nada
+        if ($empresaId <= 0) {
+            $contratos = Recojo::query()->whereRaw('1=0')->paginate(15);
+
+            return view('paquetes_contrato.entregados', [
+                'contratos' => $contratos,
+                'canContratoEntregadoPrint' => (bool) optional($user)->can('feature.paquetes-contrato.entregados.print'),
+                'canContratoEntregadoExport' => (bool) optional($user)->can('feature.paquetes-contrato.entregados.export'),
+            ]);
+        }
+
+        // Buscar el ID del estado ENTREGADO (sin importar mayÃºsculas/espacios)
+        $estadoEntregadoId = (int) (Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', ['ENTREGADO'])
+            ->value('id') ?? 0);
+
+        // Si no existe ese estado, no mostramos nada (evita bugs silenciosos)
+        if ($estadoEntregadoId <= 0) {
+            $contratos = Recojo::query()->whereRaw('1=0')->paginate(15);
+
+            return view('paquetes_contrato.entregados', [
+                'contratos' => $contratos,
+                'canContratoEntregadoPrint' => (bool) optional($user)->can('feature.paquetes-contrato.entregados.print'),
+                'canContratoEntregadoExport' => (bool) optional($user)->can('feature.paquetes-contrato.entregados.export'),
+            ]);
+        }
+
+        $contratos = Recojo::query()
+            ->with([
+                'empresa:id,nombre,sigla',
+                'user:id,name,empresa_id',
+                'estadoRegistro:id,nombre_estado',
+            ])
+            ->where('empresa_id', $empresaId)                 // âœ… misma empresa
+            ->where('estados_id', $estadoEntregadoId)         // âœ… ENTREGADO
+            ->orderByDesc('id')
+            ->paginate(15);
 
         return view('paquetes_contrato.entregados', [
             'contratos' => $contratos,
@@ -266,40 +500,6 @@ class RecojoController extends Controller
             'canContratoEntregadoExport' => (bool) optional($user)->can('feature.paquetes-contrato.entregados.export'),
         ]);
     }
-
-    // Buscar el ID del estado ENTREGADO (sin importar mayÃºsculas/espacios)
-    $estadoEntregadoId = (int) (Estado::query()
-        ->whereRaw('trim(upper(nombre_estado)) = ?', ['ENTREGADO'])
-        ->value('id') ?? 0);
-
-    // Si no existe ese estado, no mostramos nada (evita bugs silenciosos)
-    if ($estadoEntregadoId <= 0) {
-        $contratos = Recojo::query()->whereRaw('1=0')->paginate(15);
-
-        return view('paquetes_contrato.entregados', [
-            'contratos' => $contratos,
-            'canContratoEntregadoPrint' => (bool) optional($user)->can('feature.paquetes-contrato.entregados.print'),
-            'canContratoEntregadoExport' => (bool) optional($user)->can('feature.paquetes-contrato.entregados.export'),
-        ]);
-    }
-
-    $contratos = Recojo::query()
-        ->with([
-            'empresa:id,nombre,sigla',
-            'user:id,name,empresa_id',
-            'estadoRegistro:id,nombre_estado',
-        ])
-        ->where('empresa_id', $empresaId)                 // âœ… misma empresa
-        ->where('estados_id', $estadoEntregadoId)         // âœ… ENTREGADO
-        ->orderByDesc('id')
-        ->paginate(15);
-
-    return view('paquetes_contrato.entregados', [
-        'contratos' => $contratos,
-        'canContratoEntregadoPrint' => (bool) optional($user)->can('feature.paquetes-contrato.entregados.print'),
-        'canContratoEntregadoExport' => (bool) optional($user)->can('feature.paquetes-contrato.entregados.export'),
-    ]);
-}
 
     public function entregadosPdf(Request $request)
     {
@@ -334,13 +534,13 @@ class RecojoController extends Controller
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
-        }, 'contratos-entregados-' . $generatedAt->format('Ymd-His') . '.pdf');
+        }, 'contratos-entregados-'.$generatedAt->format('Ymd-His').'.pdf');
     }
 
     public function create()
     {
         $user = Auth::user();
-        if (!$user || empty($user->empresa_id)) {
+        if (! $user || empty($user->empresa_id)) {
             return redirect()
                 ->route('paquetes-contrato.index')
                 ->with('error', $this->missingEmpresaMessage());
@@ -365,7 +565,7 @@ class RecojoController extends Controller
     public function createConTarifa()
     {
         $user = Auth::user();
-        if (!$user || empty($user->empresa_id)) {
+        if (! $user || empty($user->empresa_id)) {
             return redirect()
                 ->route('paquetes-contrato.index')
                 ->with('error', $this->missingEmpresaMessage());
@@ -426,7 +626,7 @@ class RecojoController extends Controller
     public function storeConTarifa(Request $request)
     {
         $user = Auth::user();
-        if (!$user) {
+        if (! $user) {
             return redirect()->guest(route('paquetes-contrato.index', absolute: false));
         }
 
@@ -449,7 +649,7 @@ class RecojoController extends Controller
             'nombre_d' => 'required|string|max:255',
             'telefono_d' => 'required|string|max:50',
             'servicio' => 'required|string|max:255',
-            'destino' => 'required|string|in:' . implode(',', self::DEPARTAMENTOS),
+            'destino' => 'required|string|in:'.implode(',', self::DEPARTAMENTOS),
             'direccion' => 'required|string|max:255',
             'mapa' => 'nullable|string|max:500',
             'numero_copias' => 'nullable|integer|min:1|max:3',
@@ -466,7 +666,7 @@ class RecojoController extends Controller
         ]);
 
         $empresa = Empresa::query()->find((int) $user->empresa_id);
-        if (!$empresa) {
+        if (! $empresa) {
             return redirect()
                 ->back()
                 ->withInput()
@@ -491,7 +691,7 @@ class RecojoController extends Controller
 
         $destino = $this->normalizeDepartamentoContrato((string) $data['destino']);
         $servicio = $this->normalizeServicioTarifa((string) $data['servicio']);
-        $provincia = !empty($data['provincia']) ? strtoupper(trim((string) $data['provincia'])) : null;
+        $provincia = ! empty($data['provincia']) ? strtoupper(trim((string) $data['provincia'])) : null;
 
         $tarifa = $this->resolveTarifaContrato(
             (int) $empresa->id,
@@ -501,7 +701,7 @@ class RecojoController extends Controller
             $provincia
         );
 
-        if (!$tarifa) {
+        if (! $tarifa) {
             return redirect()
                 ->back()
                 ->withInput()
@@ -523,11 +723,11 @@ class RecojoController extends Controller
             ->where('id', self::EVENTO_ID_CONTRATO_CREADO)
             ->exists();
 
-        if (!$eventoExiste) {
+        if (! $eventoExiste) {
             return redirect()
                 ->back()
                 ->withInput()
-                ->with('error', 'No existe el evento con ID ' . self::EVENTO_ID_CONTRATO_CREADO . ' en la tabla eventos.');
+                ->with('error', 'No existe el evento con ID '.self::EVENTO_ID_CONTRATO_CREADO.' en la tabla eventos.');
         }
 
         $contrato = null;
@@ -544,8 +744,8 @@ class RecojoController extends Controller
             $tarifa,
             &$contrato
         ) {
-            $correlativo = $this->nextCorrelativo((int) $empresa->id, $codigoCliente);
-            $codigo = $this->buildCodigo($codigoCliente, $correlativo);
+            $correlativo = $this->contratoCodigoService->reservarSiguiente($codigoCliente);
+            $codigo = $this->contratoCodigoService->construirCodigo($codigoCliente, $correlativo);
             $empresaIdDetectada = $this->resolveEmpresaIdByCodigo($codigo) ?? (int) $empresa->id;
 
             $contrato = Recojo::query()->create([
@@ -565,7 +765,7 @@ class RecojoController extends Controller
                 'nombre_d' => strtoupper(trim((string) $data['nombre_d'])),
                 'telefono_d' => trim((string) $data['telefono_d']),
                 'direccion_d' => strtoupper(trim((string) $data['direccion'])),
-                'mapa' => !empty($data['mapa']) ? trim((string) $data['mapa']) : null,
+                'mapa' => ! empty($data['mapa']) ? trim((string) $data['mapa']) : null,
                 'provincia' => $provincia,
                 'peso' => 0,
                 'precio' => null,
@@ -603,7 +803,7 @@ class RecojoController extends Controller
     public function store(Request $request)
     {
         $user = Auth::user();
-        if (!$user) {
+        if (! $user) {
             return redirect()->guest(route('paquetes-contrato.index', absolute: false));
         }
 
@@ -656,7 +856,7 @@ class RecojoController extends Controller
 
         $user = $this->resolveApiUser($data);
 
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'message' => 'Los datos enviados no son validos.',
                 'errors' => [
@@ -708,7 +908,7 @@ class RecojoController extends Controller
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
-        }, 'contrato-' . $contrato->codigo . '-' . $generatedAt->format('Ymd-His') . '.pdf');
+        }, 'contrato-'.$contrato->codigo.'-'.$generatedAt->format('Ymd-His').'.pdf');
     }
 
     public function reporteHoy()
@@ -741,7 +941,7 @@ class RecojoController extends Controller
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
-        }, 'contratos-generados-hoy-' . $generatedAt->format('Ymd-His') . '.pdf');
+        }, 'contratos-generados-hoy-'.$generatedAt->format('Ymd-His').'.pdf');
     }
 
     public function verificarGuia(Request $request)
@@ -770,7 +970,7 @@ class RecojoController extends Controller
             'verificationUrl' => $this->verificationUrlFor($contrato),
         ])->setPaper('letter', 'portrait');
 
-        return $pdf->stream('guia-verificacion-' . $contrato->codigo . '.pdf');
+        return $pdf->stream('guia-verificacion-'.$contrato->codigo.'.pdf');
     }
 
     private function verificationUrlFor(Recojo $contrato): string
@@ -1034,7 +1234,7 @@ class RecojoController extends Controller
             return $nombre;
         }
 
-        return $nombre . ' / ' . $empresa;
+        return $nombre.' / '.$empresa;
     }
 
     private function entregadosQueryForUser($user, ?string $fechaDesde = null, ?string $fechaHasta = null)
@@ -1131,77 +1331,6 @@ class RecojoController extends Controller
         return Recojo::query()->findOrFail((int) $id);
     }
 
-    protected function nextCorrelativo(int $empresaId, string $codigoCliente): int
-    {
-        $cliente = $this->normalizarCodigoCliente($codigoCliente);
-        $prefix = 'C' . $cliente . 'A';
-        $pattern = '/^C' . preg_quote($cliente, '/') . 'A(\d{5})BO$/';
-        $empresaIds = $this->empresaIdsConMismoCodigoCliente($empresaId, $cliente);
-        $max = 0;
-
-        $codigosEmpresa = CodigoEmpresa::query()
-            ->whereIn('empresa_id', $empresaIds)
-            ->where(function ($query) use ($prefix) {
-                $query->where('codigo', 'like', $prefix . '%BO')
-                    ->orWhere('barcode', 'like', $prefix . '%BO');
-            })
-            ->get(['codigo', 'barcode'])
-            ->flatMap(fn ($row) => [$row->codigo, $row->barcode]);
-
-        foreach ($codigosEmpresa as $codigo) {
-            if (preg_match($pattern, strtoupper(trim((string) $codigo)), $matches)) {
-                $valor = (int) $matches[1];
-                if ($valor > $max) {
-                    $max = $valor;
-                }
-            }
-        }
-
-        $codigosContrato = Recojo::query()
-            ->where('codigo', 'like', $prefix . '%BO')
-            ->pluck('codigo');
-
-        foreach ($codigosContrato as $codigo) {
-            if (preg_match($pattern, strtoupper(trim((string) $codigo)), $matches)) {
-                $valor = (int) $matches[1];
-                if ($valor > $max) {
-                    $max = $valor;
-                }
-            }
-        }
-
-        return $max + 1;
-    }
-
-    protected function buildCodigo(string $codigoCliente, int $correlativo): string
-    {
-        return 'C' . $this->normalizarCodigoCliente($codigoCliente) . 'A' . str_pad((string) $correlativo, 5, '0', STR_PAD_LEFT) . 'BO';
-    }
-
-    protected function normalizarCodigoCliente(string $codigoCliente): string
-    {
-        $cliente = strtoupper(trim($codigoCliente));
-
-        return preg_replace('/\s+/', '', $cliente) ?: '';
-    }
-
-    protected function empresaIdsConMismoCodigoCliente(int $empresaId, string $codigoCliente): array
-    {
-        $cliente = $this->normalizarCodigoCliente($codigoCliente);
-
-        if ($cliente === '') {
-            return [$empresaId];
-        }
-
-        $ids = Empresa::query()
-            ->whereRaw("REPLACE(TRIM(UPPER(COALESCE(codigo_cliente, ''))), ' ', '') = ?", [$cliente])
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
-
-        return !empty($ids) ? $ids : [$empresaId];
-    }
-
     protected function normalizeServicioTarifa(string $servicio): string
     {
         $servicio = strtoupper(trim($servicio));
@@ -1266,7 +1395,7 @@ class RecojoController extends Controller
             ->whereRaw('trim(upper(codigo)) = ?', [$codigoNormalizado])
             ->value('empresa_id');
 
-        if (!empty($empresaIdPorCodigo)) {
+        if (! empty($empresaIdPorCodigo)) {
             return (int) $empresaIdPorCodigo;
         }
 
@@ -1277,7 +1406,7 @@ class RecojoController extends Controller
                     ->whereRaw('trim(upper(codigo_cliente)) = ?', [$codigoCliente])
                     ->value('id');
 
-                if (!empty($empresaIdPorCliente)) {
+                if (! empty($empresaIdPorCliente)) {
                     return (int) $empresaIdPorCliente;
                 }
             }
@@ -1296,7 +1425,7 @@ class RecojoController extends Controller
             'direccion_r' => 'required|string|max:255',
             'nombre_d' => 'required|string|max:255',
             'telefono_d' => 'required|string|max:50',
-            'destino' => 'required|string|in:' . implode(',', self::DEPARTAMENTOS),
+            'destino' => 'required|string|in:'.implode(',', self::DEPARTAMENTOS),
             'direccion' => 'required|string|max:255',
             'mapa' => 'nullable|string|max:500',
             'provincia' => 'nullable|string|max:255',
@@ -1312,7 +1441,7 @@ class RecojoController extends Controller
         }
 
         $empresa = Empresa::query()->find((int) $user->empresa_id);
-        if (!$empresa) {
+        if (! $empresa) {
             throw new \RuntimeException('No se encontro la empresa asociada al usuario.');
         }
 
@@ -1341,14 +1470,14 @@ class RecojoController extends Controller
             ->where('id', self::EVENTO_ID_CONTRATO_CREADO)
             ->exists();
 
-        if (!$eventoExiste) {
-            throw new \RuntimeException('No existe el evento con ID ' . self::EVENTO_ID_CONTRATO_CREADO . ' en la tabla eventos.');
+        if (! $eventoExiste) {
+            throw new \RuntimeException('No existe el evento con ID '.self::EVENTO_ID_CONTRATO_CREADO.' en la tabla eventos.');
         }
 
         $contrato = null;
         DB::transaction(function () use ($data, $user, $empresa, $codigoCliente, $origen, $provinciaOrigen, $estadoSolicitudId, &$contrato) {
-            $correlativo = $this->nextCorrelativo((int) $empresa->id, $codigoCliente);
-            $codigo = $this->buildCodigo($codigoCliente, $correlativo);
+            $correlativo = $this->contratoCodigoService->reservarSiguiente($codigoCliente);
+            $codigo = $this->contratoCodigoService->construirCodigo($codigoCliente, $correlativo);
             $empresaIdDetectada = $this->resolveEmpresaIdByCodigo($codigo) ?? (int) $empresa->id;
 
             $contrato = Recojo::query()->create([
@@ -1368,8 +1497,8 @@ class RecojoController extends Controller
                 'nombre_d' => strtoupper(trim((string) $data['nombre_d'])),
                 'telefono_d' => trim((string) $data['telefono_d']),
                 'direccion_d' => strtoupper(trim((string) $data['direccion'])),
-                'mapa' => !empty($data['mapa']) ? trim((string) $data['mapa']) : null,
-                'provincia' => !empty($data['provincia']) ? strtoupper(trim((string) $data['provincia'])) : null,
+                'mapa' => ! empty($data['mapa']) ? trim((string) $data['mapa']) : null,
+                'provincia' => ! empty($data['provincia']) ? strtoupper(trim((string) $data['provincia'])) : null,
                 'peso' => $data['peso'] ?? 0,
                 'fecha_recojo' => null,
                 'observacion' => null,
@@ -1445,17 +1574,17 @@ class RecojoController extends Controller
 
     protected function resolveApiUser(array $data): ?User
     {
-        if (!empty($data['user_id'])) {
+        if (! empty($data['user_id'])) {
             return User::query()->find((int) $data['user_id']);
         }
 
-        if (!empty($data['user_email'])) {
+        if (! empty($data['user_email'])) {
             return User::query()
                 ->where('email', trim((string) $data['user_email']))
                 ->first();
         }
 
-        if (!empty($data['user_ci'])) {
+        if (! empty($data['user_ci'])) {
             return User::query()
                 ->where('ci', trim((string) $data['user_ci']))
                 ->first();
@@ -1491,7 +1620,7 @@ class RecojoController extends Controller
     {
         $user = $request->user();
 
-        if (!$user) {
+        if (! $user) {
             abort(403, 'No autenticado.');
         }
 
@@ -1504,4 +1633,3 @@ class RecojoController extends Controller
         abort(403, 'No tienes permiso para realizar esta accion.');
     }
 }
-

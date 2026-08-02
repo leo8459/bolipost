@@ -498,7 +498,7 @@
                         @endif
                         @if ($canContratoCreateSubmit ?? false)
                         <button type="submit" class="btn btn-primary">
-                            Guardar contrato
+                            Solicitar envío
                         </button>
                         @endif
                     </div>
@@ -551,7 +551,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" id="confirmarCopiasGuiaBtn">Guardar contrato</button>
+                <button type="button" class="btn btn-primary" id="confirmarCopiasGuiaBtn">Solicitar envío</button>
             </div>
         </div>
     </div>

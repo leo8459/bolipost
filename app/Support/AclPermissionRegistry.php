@@ -2,8 +2,9 @@
 
 namespace App\Support;
 
-use Illuminate\Routing\Route as IlluminateRoute;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Route as IlluminateRoute;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Livewire\Component as LivewireComponent;
@@ -49,6 +50,7 @@ class AclPermissionRegistry
      */
     private const FEATURE_ACTION_LABELS = [
         'view' => 'Botones de visualizacion',
+        'search' => 'Botones de busqueda',
         'create' => 'Botones de registro',
         'save' => 'Botones de guardado',
         'edit' => 'Botones de edicion',
@@ -306,6 +308,7 @@ class AclPermissionRegistry
         'eventos-tiktoker.index' => ['create', 'edit', 'delete'],
         'eventos-siop.index' => ['create', 'edit', 'delete'],
         'paquetes-contrato.index' => ['create', 'manage', 'edit', 'delete', 'print', 'report'],
+        'paquetes-contrato.gestor' => ['search', 'view', 'export', 'print', 'report'],
         'paquetes-contrato.almacen' => ['edit', 'delete', 'print', 'report'],
         'paquetes-contrato.recoger-envios' => ['assign', 'print'],
         'paquetes-contrato.cartero' => ['print'],
@@ -767,10 +770,19 @@ class AclPermissionRegistry
         ],
         'paquetes-contrato.gestor' => [
             'paquetes-contrato.gestor',
-            'paquetes-contrato.index',
-            'feature.paquetes-contrato.index.create',
-            'feature.paquetes-contrato.index.manage',
+        ],
+        'paquetes-contrato.gestor.pdf' => [
+            'paquetes-contrato.gestor.pdf',
+            'feature.paquetes-contrato.gestor.report',
+        ],
+        'paquetes-contrato.reporte' => [
+            'paquetes-contrato.reporte',
             'feature.paquetes-contrato.index.print',
+            'feature.paquetes-contrato.almacen.print',
+            'feature.paquetes-contrato.recoger-envios.print',
+            'feature.paquetes-contrato.cartero.print',
+            'feature.paquetes-contrato.entregados.print',
+            'feature.paquetes-contrato.gestor.print',
         ],
         'paquetes-contrato.entregados.pdf' => [
             'paquetes-contrato.entregados.pdf',
@@ -1106,8 +1118,7 @@ class AclPermissionRegistry
         string $moduleKey,
         string $featureAction,
         bool $includeManage = true
-    ): array
-    {
+    ): array {
         if ($moduleKey === '' || $featureAction === '') {
             return [];
         }
@@ -1798,6 +1809,7 @@ class AclPermissionRegistry
     private static function actionLabel(string $permissionName, string $actionKey): string
     {
         $specialLabels = [
+            'paquetes-contrato.gestor' => 'Ventana: Gestor',
             'feature.paquetes-ordinarios.restore' => 'Botones: Alta y Devolver',
             'feature.paquetes-ordinarios.print' => 'Botones: Reimprimir',
             'feature.paquetes-certificados.assign' => 'Botones: Alta/Devuelto a ventanilla',
@@ -1891,6 +1903,11 @@ class AclPermissionRegistry
             'feature.paquetes-contrato.index.manage' => 'Boton: Crear con tarifa',
             'feature.paquetes-contrato.index.report' => 'Boton: Imprimir generados hoy',
             'feature.paquetes-contrato.index.print' => 'Boton: Reimprimir rotulo',
+            'feature.paquetes-contrato.gestor.search' => 'Botones: Buscar y limpiar',
+            'feature.paquetes-contrato.gestor.view' => 'Botones: Rastreo y ver imagen',
+            'feature.paquetes-contrato.gestor.export' => 'Boton: Descargar imagen',
+            'feature.paquetes-contrato.gestor.print' => 'Boton: Reimprimir rotulo',
+            'feature.paquetes-contrato.gestor.report' => 'Boton: Descargar reporte PDF',
             'feature.paquetes-contrato.almacen.report' => 'Boton: Imprimir generados hoy',
             'feature.paquetes-contrato.almacen.print' => 'Boton: Reimprimir rotulo',
             'feature.paquetes-contrato.recoger-envios.assign' => 'Boton: Mandar seleccionados a almacen',
@@ -1999,7 +2016,7 @@ class AclPermissionRegistry
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<string, array<string, mixed>>  $groupsByModule
+     * @param  Collection<string, array<string, mixed>>  $groupsByModule
      * @return array<string, mixed>|null
      */
     private static function buildMenuSummaryNode(array $item, $groupsByModule, bool $isTopLevel = false): ?array
@@ -2054,18 +2071,18 @@ class AclPermissionRegistry
             (array) ($windowFeatureGroup['permissions'] ?? [])
         ))
             ->unique(fn (array $permission): string => (string) ($permission['name'] ?? ''))
-                ->filter(function (array $permission) use ($routeName): bool {
-                    if (($permission['type'] ?? null) !== 'feature') {
-                        return false;
-                    }
+            ->filter(function (array $permission) use ($routeName): bool {
+                if (($permission['type'] ?? null) !== 'feature') {
+                    return false;
+                }
 
-                    return self::isSupportedWindowFeaturePermission(
-                        (string) ($permission['name'] ?? ''),
-                        $routeName
-                    );
-                })
-                ->values()
-                ->all();
+                return self::isSupportedWindowFeaturePermission(
+                    (string) ($permission['name'] ?? ''),
+                    $routeName
+                );
+            })
+            ->values()
+            ->all();
 
         $moduleLabels = (array) config('acl.module_labels', []);
 
@@ -2083,7 +2100,7 @@ class AclPermissionRegistry
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<string, array<string, mixed>>  $groupsByModule
+     * @param  Collection<string, array<string, mixed>>  $groupsByModule
      * @return array<int, array<string, mixed>>
      */
     private static function menuItemAccessPermissions(array $item, $groupsByModule): array
@@ -2149,6 +2166,7 @@ class AclPermissionRegistry
     private static function permissionHint(string $permissionName, string $moduleKey, string $actionKey): ?string
     {
         $specialHints = [
+            'paquetes-contrato.gestor' => 'Controla el acceso a la ventana Gestor desde el menu Paquetes Contratos.',
             'feature.paquetes-ordinarios.restore' => 'Controla los botones Alta en Entregado, Devolver en Rezago y Devolver en Despacho.',
             'feature.paquetes-ordinarios.print' => 'Controla Reimprimir manifiesto en Despacho y Reimprimir formulario en Entregado.',
             'feature.paquetes-ordinarios.assign' => 'Controla Recibir paquetes y Despachar en Ordinarios.',
@@ -2245,6 +2263,11 @@ class AclPermissionRegistry
             'feature.paquetes-contrato.index.manage' => 'Controla el boton Crear con tarifa dentro de Gestion contratos.',
             'feature.paquetes-contrato.index.report' => 'Controla el boton Imprimir generados hoy dentro de Gestion contratos.',
             'feature.paquetes-contrato.index.print' => 'Controla Reimprimir rotulo dentro de Gestion contratos.',
+            'feature.paquetes-contrato.gestor.search' => 'Controla los botones Buscar y Limpiar dentro de Gestor.',
+            'feature.paquetes-contrato.gestor.view' => 'Controla Rastreo y Ver imagen dentro de Gestor.',
+            'feature.paquetes-contrato.gestor.export' => 'Controla Descargar imagen dentro de Gestor.',
+            'feature.paquetes-contrato.gestor.print' => 'Controla Reimprimir rotulo dentro de Gestor.',
+            'feature.paquetes-contrato.gestor.report' => 'Controla Descargar PDF dentro de Gestor.',
             'feature.paquetes-contrato.almacen.report' => 'Controla el boton Imprimir generados hoy dentro de Almacen contratos.',
             'feature.paquetes-contrato.almacen.print' => 'Controla Reimprimir rotulo dentro de Almacen contratos.',
             'feature.paquetes-contrato.recoger-envios.assign' => 'Controla Mandar seleccionados a ALMACEN dentro de Recoger envios contratos.',
@@ -2391,4 +2414,3 @@ class AclPermissionRegistry
         return false;
     }
 }
-

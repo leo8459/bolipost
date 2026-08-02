@@ -2,8 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\CodigoEmpresa;
 use App\Models\Cartero;
+use App\Models\CodigoEmpresa;
+use App\Models\Destino;
 use App\Models\Empresa;
 use App\Models\Estado;
 use App\Models\Origen;
@@ -11,16 +12,16 @@ use App\Models\PaqueteCerti;
 use App\Models\PaqueteEms;
 use App\Models\PaqueteOrdi;
 use App\Models\Recojo as RecojoContrato;
-use App\Models\Destino;
 use App\Models\ServicioExtra;
 use App\Models\SolicitudCliente;
 use App\Models\TarifarioTiktoker;
 use App\Models\User;
-use App\Support\TiktokerTariffPriceCalculator;
+use App\Services\ContratoCodigoService;
 use App\Services\FacturacionCartService;
 use App\Support\SolicitudCode;
 use App\Support\StoredImage;
 use App\Support\TiktokerEvent;
+use App\Support\TiktokerTariffPriceCalculator;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -33,17 +34,28 @@ use Illuminate\Validation\ValidationException;
 
 class PaquetesEmsController extends Controller
 {
+    public function __construct(private readonly ContratoCodigoService $contratoCodigoService) {}
+
     private const SERVICIO_EXTRAS_CACHE_KEY = 'lookup:paquetes-ems:servicio-extras';
 
     private const EVENTO_ID_CONTRATO_CREADO = 318;
+
     private const EVENTO_ID_CONTRATO_RECIBIDO = 295;
+
     private const EVENTO_ID_CONTRATO_RECOGIDO = 295;
+
     private const EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE = 316;
+
     private const EVENTO_ID_INTENTO_FALLIDO_ENTREGA = 315;
+
     private const EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE = 295;
+
     private const EVENTO_ID_PAQUETE_RECIBIDO_ORIGEN_TRANSITO = 297;
+
     private const EVENTO_ID_CERTI_RECIBIDO_OFICINA_ENTREGA = 172;
+
     private const DIRECCION_DESTINATARIO_VENTANILLA = 'CORREOS DE BOLIVIA';
+
     private const ENCARGADO_CARTERO_ROLES = [
         'auxiliar_urbano',
         'auxiliar_urbano_dnd',
@@ -297,7 +309,7 @@ class PaquetesEmsController extends Controller
             ->with(
                 $updated > 0 ? 'success' : 'error',
                 $updated > 0
-                    ? $updated . ' solicitud(es) enviada(s) a ALMACEN correctamente.'
+                    ? $updated.' solicitud(es) enviada(s) a ALMACEN correctamente.'
                     : 'No se actualizo ninguna solicitud. Verifica que sigan en estado SOLICITUD.'
             );
     }
@@ -321,7 +333,7 @@ class PaquetesEmsController extends Controller
             ->whereRaw('trim(upper(codigo_solicitud)) = ?', [$codigoSolicitud])
             ->first();
 
-        if (!$solicitud) {
+        if (! $solicitud) {
             return response()->json([
                 'message' => 'No se encontro una solicitud con ese codigo.',
             ], 404);
@@ -445,7 +457,7 @@ class PaquetesEmsController extends Controller
             ? self::DIRECCION_DESTINATARIO_VENTANILLA
             : trim((string) ($data['direccion_entrega'] ?? ''));
 
-        if (!$isPuertaAVentanilla && $direccionEntrega === '') {
+        if (! $isPuertaAVentanilla && $direccionEntrega === '') {
             return redirect()
                 ->back()
                 ->withInput()
@@ -542,14 +554,14 @@ class PaquetesEmsController extends Controller
     private function applySolicitudSearch($query, string $search): void
     {
         $query->where(function ($sub) use ($search) {
-            $sub->where('codigo_solicitud', 'like', '%' . $search . '%')
-                ->orWhere('barcode', 'like', '%' . $search . '%')
-                ->orWhere('nombre_remitente', 'like', '%' . $search . '%')
-                ->orWhere('nombre_destinatario', 'like', '%' . $search . '%')
-                ->orWhere('telefono_destinatario', 'like', '%' . $search . '%')
-                ->orWhere('telefono_remitente', 'like', '%' . $search . '%')
-                ->orWhere('ciudad', 'like', '%' . $search . '%')
-                ->orWhere('origen', 'like', '%' . $search . '%');
+            $sub->where('codigo_solicitud', 'like', '%'.$search.'%')
+                ->orWhere('barcode', 'like', '%'.$search.'%')
+                ->orWhere('nombre_remitente', 'like', '%'.$search.'%')
+                ->orWhere('nombre_destinatario', 'like', '%'.$search.'%')
+                ->orWhere('telefono_destinatario', 'like', '%'.$search.'%')
+                ->orWhere('telefono_remitente', 'like', '%'.$search.'%')
+                ->orWhere('ciudad', 'like', '%'.$search.'%')
+                ->orWhere('origen', 'like', '%'.$search.'%');
         });
     }
 
@@ -610,7 +622,7 @@ class PaquetesEmsController extends Controller
                 DB::raw("coalesce(nullif(trim(formulario.nombre_remitente), ''), paquetes_ems.nombre_remitente) as remitente"),
                 DB::raw("coalesce(nullif(trim(formulario.nombre_destinatario), ''), paquetes_ems.nombre_destinatario) as destinatario"),
                 DB::raw("coalesce(nullif(trim(formulario.ciudad), ''), paquetes_ems.ciudad) as destino"),
-                DB::raw("coalesce(formulario.peso, paquetes_ems.peso, 0) as peso"),
+                DB::raw('coalesce(formulario.peso, paquetes_ems.peso, 0) as peso'),
                 'paquetes_ems.created_at',
                 'paquetes_ems.updated_at',
                 'users.name as usuario',
@@ -622,15 +634,15 @@ class PaquetesEmsController extends Controller
             })
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($sub) use ($search) {
-                    $sub->where('paquetes_ems.codigo', 'like', '%' . $search . '%')
-                        ->orWhere('formulario.codigo', 'like', '%' . $search . '%')
-                        ->orWhere('paquetes_ems.nombre_remitente', 'like', '%' . $search . '%')
-                        ->orWhere('formulario.nombre_remitente', 'like', '%' . $search . '%')
-                        ->orWhere('paquetes_ems.nombre_destinatario', 'like', '%' . $search . '%')
-                        ->orWhere('formulario.nombre_destinatario', 'like', '%' . $search . '%')
-                        ->orWhere('paquetes_ems.ciudad', 'like', '%' . $search . '%')
-                        ->orWhere('formulario.ciudad', 'like', '%' . $search . '%')
-                        ->orWhere('users.name', 'like', '%' . $search . '%');
+                    $sub->where('paquetes_ems.codigo', 'like', '%'.$search.'%')
+                        ->orWhere('formulario.codigo', 'like', '%'.$search.'%')
+                        ->orWhere('paquetes_ems.nombre_remitente', 'like', '%'.$search.'%')
+                        ->orWhere('formulario.nombre_remitente', 'like', '%'.$search.'%')
+                        ->orWhere('paquetes_ems.nombre_destinatario', 'like', '%'.$search.'%')
+                        ->orWhere('formulario.nombre_destinatario', 'like', '%'.$search.'%')
+                        ->orWhere('paquetes_ems.ciudad', 'like', '%'.$search.'%')
+                        ->orWhere('formulario.ciudad', 'like', '%'.$search.'%')
+                        ->orWhere('users.name', 'like', '%'.$search.'%');
                 });
             })
             ->orderByDesc('paquetes_ems.updated_at')
@@ -854,6 +866,7 @@ class PaquetesEmsController extends Controller
             ->when($restrictToUserCity, function ($query) use ($userCity) {
                 if ($userCity === '') {
                     $query->whereRaw('1 = 0');
+
                     return;
                 }
 
@@ -932,7 +945,7 @@ class PaquetesEmsController extends Controller
                     (int) $estadoCanceladoId,
                     $servicio,
                     $actorUserId,
-                    'Envio cancelado por ' . $actorName . '.',
+                    'Envio cancelado por '.$actorName.'.',
                     $justificacion
                 ),
                 'CONTRATO' => $this->moveEncargadoRecordAndRegisterEvent(
@@ -941,7 +954,7 @@ class PaquetesEmsController extends Controller
                     (int) $estadoCanceladoId,
                     $servicio,
                     $actorUserId,
-                    'Envio cancelado por ' . $actorName . '.',
+                    'Envio cancelado por '.$actorName.'.',
                     $justificacion
                 ),
                 'CERTI' => $this->moveEncargadoRecordAndRegisterEvent(
@@ -950,7 +963,7 @@ class PaquetesEmsController extends Controller
                     (int) $estadoCanceladoId,
                     $servicio,
                     $actorUserId,
-                    'Envio cancelado por ' . $actorName . '.',
+                    'Envio cancelado por '.$actorName.'.',
                     $justificacion
                 ),
                 'ORDI' => $this->moveEncargadoRecordAndRegisterEvent(
@@ -959,7 +972,7 @@ class PaquetesEmsController extends Controller
                     (int) $estadoCanceladoId,
                     $servicio,
                     $actorUserId,
-                    'Envio cancelado por ' . $actorName . '.',
+                    'Envio cancelado por '.$actorName.'.',
                     $justificacion
                 ),
                 'SOLICITUD' => $this->moveEncargadoRecordAndRegisterEvent(
@@ -968,7 +981,7 @@ class PaquetesEmsController extends Controller
                     (int) $estadoCanceladoId,
                     $servicio,
                     $actorUserId,
-                    'Envio cancelado por ' . $actorName . '.',
+                    'Envio cancelado por '.$actorName.'.',
                     $justificacion
                 ),
                 default => 0,
@@ -1055,7 +1068,7 @@ class PaquetesEmsController extends Controller
                         (int) $estadoAlmacenId,
                         $servicio,
                         $actorUserId,
-                        'Devuelto a almacen origen por ' . $actorName . '.'
+                        'Devuelto a almacen origen por '.$actorName.'.'
                     )
                     : $this->moveEncargadoRecordAndRegisterEvent(
                         PaqueteEms::query()->whereKey($id)->first(),
@@ -1063,7 +1076,7 @@ class PaquetesEmsController extends Controller
                         (int) $estadoRecibidoId,
                         $servicio,
                         $actorUserId,
-                        'Devuelto a almacen destino por ' . $actorName . '.'
+                        'Devuelto a almacen destino por '.$actorName.'.'
                     );
 
                 return;
@@ -1077,7 +1090,7 @@ class PaquetesEmsController extends Controller
                         (int) $estadoAlmacenId,
                         $servicio,
                         $actorUserId,
-                        'Devuelto a almacen origen por ' . $actorName . '.'
+                        'Devuelto a almacen origen por '.$actorName.'.'
                     )
                     : $this->moveEncargadoRecordAndRegisterEvent(
                         RecojoContrato::query()->whereKey($id)->first(),
@@ -1085,7 +1098,7 @@ class PaquetesEmsController extends Controller
                         (int) $estadoRecibidoId,
                         $servicio,
                         $actorUserId,
-                        'Devuelto a almacen destino por ' . $actorName . '.'
+                        'Devuelto a almacen destino por '.$actorName.'.'
                     );
 
                 return;
@@ -1099,7 +1112,7 @@ class PaquetesEmsController extends Controller
                         (int) $estadoAlmacenId,
                         $servicio,
                         $actorUserId,
-                        'Devuelto a almacen origen por ' . $actorName . '.'
+                        'Devuelto a almacen origen por '.$actorName.'.'
                     )
                     : $this->moveEncargadoRecordAndRegisterEvent(
                         SolicitudCliente::query()->whereKey($id)->first(),
@@ -1107,7 +1120,7 @@ class PaquetesEmsController extends Controller
                         (int) $estadoRecibidoId,
                         $servicio,
                         $actorUserId,
-                        'Devuelto a almacen destino por ' . $actorName . '.'
+                        'Devuelto a almacen destino por '.$actorName.'.'
                     );
 
                 return;
@@ -1120,7 +1133,7 @@ class PaquetesEmsController extends Controller
                     (int) $estadoVentanillaId,
                     $servicio,
                     $actorUserId,
-                    'Envio devuelto a ventanilla por ' . $actorName . '.'
+                    'Envio devuelto a ventanilla por '.$actorName.'.'
                 );
 
                 return;
@@ -1133,7 +1146,7 @@ class PaquetesEmsController extends Controller
                     (int) $estadoVentanillaId,
                     $servicio,
                     $actorUserId,
-                    'Envio devuelto a ventanilla por ' . $actorName . '.'
+                    'Envio devuelto a ventanilla por '.$actorName.'.'
                 );
             }
         });
@@ -1386,14 +1399,14 @@ class PaquetesEmsController extends Controller
             })
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($sub) use ($search) {
-                    $sub->where('paquetes_ems.codigo', 'like', '%' . $search . '%')
-                        ->orWhere('paquetes_ems.cod_especial', 'like', '%' . $search . '%')
-                        ->orWhere('paquetes_ems.nombre_destinatario', 'like', '%' . $search . '%')
-                        ->orWhere('paquetes_ems.telefono_destinatario', 'like', '%' . $search . '%')
-                        ->orWhere('paquetes_ems.ciudad', 'like', '%' . $search . '%')
-                        ->orWhere('asignacion.recibido_por', 'like', '%' . $search . '%')
-                        ->orWhere('asignacion.descripcion', 'like', '%' . $search . '%')
-                        ->orWhere('cartero_user.name', 'like', '%' . $search . '%');
+                    $sub->where('paquetes_ems.codigo', 'like', '%'.$search.'%')
+                        ->orWhere('paquetes_ems.cod_especial', 'like', '%'.$search.'%')
+                        ->orWhere('paquetes_ems.nombre_destinatario', 'like', '%'.$search.'%')
+                        ->orWhere('paquetes_ems.telefono_destinatario', 'like', '%'.$search.'%')
+                        ->orWhere('paquetes_ems.ciudad', 'like', '%'.$search.'%')
+                        ->orWhere('asignacion.recibido_por', 'like', '%'.$search.'%')
+                        ->orWhere('asignacion.descripcion', 'like', '%'.$search.'%')
+                        ->orWhere('cartero_user.name', 'like', '%'.$search.'%');
                 });
             });
 
@@ -1422,14 +1435,14 @@ class PaquetesEmsController extends Controller
             })
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($sub) use ($search) {
-                    $sub->where('paquetes_contrato.codigo', 'like', '%' . $search . '%')
-                        ->orWhere('paquetes_contrato.cod_especial', 'like', '%' . $search . '%')
-                        ->orWhere('paquetes_contrato.nombre_d', 'like', '%' . $search . '%')
-                        ->orWhere('paquetes_contrato.telefono_d', 'like', '%' . $search . '%')
-                        ->orWhere('paquetes_contrato.destino', 'like', '%' . $search . '%')
-                        ->orWhere('asignacion.recibido_por', 'like', '%' . $search . '%')
-                        ->orWhere('asignacion.descripcion', 'like', '%' . $search . '%')
-                        ->orWhere('cartero_user.name', 'like', '%' . $search . '%');
+                    $sub->where('paquetes_contrato.codigo', 'like', '%'.$search.'%')
+                        ->orWhere('paquetes_contrato.cod_especial', 'like', '%'.$search.'%')
+                        ->orWhere('paquetes_contrato.nombre_d', 'like', '%'.$search.'%')
+                        ->orWhere('paquetes_contrato.telefono_d', 'like', '%'.$search.'%')
+                        ->orWhere('paquetes_contrato.destino', 'like', '%'.$search.'%')
+                        ->orWhere('asignacion.recibido_por', 'like', '%'.$search.'%')
+                        ->orWhere('asignacion.descripcion', 'like', '%'.$search.'%')
+                        ->orWhere('cartero_user.name', 'like', '%'.$search.'%');
                 });
             });
 
@@ -1456,12 +1469,12 @@ class PaquetesEmsController extends Controller
             })
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($sub) use ($search) {
-                    $sub->where('solicitud_clientes.codigo_solicitud', 'like', '%' . $search . '%')
-                        ->orWhere('solicitud_clientes.barcode', 'like', '%' . $search . '%')
-                        ->orWhere('solicitud_clientes.cod_especial', 'like', '%' . $search . '%')
-                        ->orWhere('solicitud_clientes.nombre_destinatario', 'like', '%' . $search . '%')
-                        ->orWhere('solicitud_clientes.telefono_destinatario', 'like', '%' . $search . '%')
-                        ->orWhere('solicitud_clientes.ciudad', 'like', '%' . $search . '%');
+                    $sub->where('solicitud_clientes.codigo_solicitud', 'like', '%'.$search.'%')
+                        ->orWhere('solicitud_clientes.barcode', 'like', '%'.$search.'%')
+                        ->orWhere('solicitud_clientes.cod_especial', 'like', '%'.$search.'%')
+                        ->orWhere('solicitud_clientes.nombre_destinatario', 'like', '%'.$search.'%')
+                        ->orWhere('solicitud_clientes.telefono_destinatario', 'like', '%'.$search.'%')
+                        ->orWhere('solicitud_clientes.ciudad', 'like', '%'.$search.'%');
                 });
             });
 
@@ -1512,13 +1525,13 @@ class PaquetesEmsController extends Controller
             })
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($sub) use ($search) {
-                    $sub->where('paquetes_ems.codigo', 'like', '%' . $search . '%')
-                        ->orWhere('paquetes_ems.nombre_destinatario', 'like', '%' . $search . '%')
-                        ->orWhere('paquetes_ems.telefono_destinatario', 'like', '%' . $search . '%')
-                        ->orWhere('paquetes_ems.ciudad', 'like', '%' . $search . '%')
-                        ->orWhere('asignacion.recibido_por', 'like', '%' . $search . '%')
-                        ->orWhere('asignacion.descripcion', 'like', '%' . $search . '%')
-                        ->orWhere('cartero_user.name', 'like', '%' . $search . '%');
+                    $sub->where('paquetes_ems.codigo', 'like', '%'.$search.'%')
+                        ->orWhere('paquetes_ems.nombre_destinatario', 'like', '%'.$search.'%')
+                        ->orWhere('paquetes_ems.telefono_destinatario', 'like', '%'.$search.'%')
+                        ->orWhere('paquetes_ems.ciudad', 'like', '%'.$search.'%')
+                        ->orWhere('asignacion.recibido_por', 'like', '%'.$search.'%')
+                        ->orWhere('asignacion.descripcion', 'like', '%'.$search.'%')
+                        ->orWhere('cartero_user.name', 'like', '%'.$search.'%');
                 });
             });
 
@@ -1546,13 +1559,13 @@ class PaquetesEmsController extends Controller
             })
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($sub) use ($search) {
-                    $sub->where('paquetes_contrato.codigo', 'like', '%' . $search . '%')
-                        ->orWhere('paquetes_contrato.nombre_d', 'like', '%' . $search . '%')
-                        ->orWhere('paquetes_contrato.telefono_d', 'like', '%' . $search . '%')
-                        ->orWhere('paquetes_contrato.destino', 'like', '%' . $search . '%')
-                        ->orWhere('asignacion.recibido_por', 'like', '%' . $search . '%')
-                        ->orWhere('asignacion.descripcion', 'like', '%' . $search . '%')
-                        ->orWhere('cartero_user.name', 'like', '%' . $search . '%');
+                    $sub->where('paquetes_contrato.codigo', 'like', '%'.$search.'%')
+                        ->orWhere('paquetes_contrato.nombre_d', 'like', '%'.$search.'%')
+                        ->orWhere('paquetes_contrato.telefono_d', 'like', '%'.$search.'%')
+                        ->orWhere('paquetes_contrato.destino', 'like', '%'.$search.'%')
+                        ->orWhere('asignacion.recibido_por', 'like', '%'.$search.'%')
+                        ->orWhere('asignacion.descripcion', 'like', '%'.$search.'%')
+                        ->orWhere('cartero_user.name', 'like', '%'.$search.'%');
                 });
             });
 
@@ -1580,14 +1593,14 @@ class PaquetesEmsController extends Controller
             })
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($sub) use ($search) {
-                    $sub->where('solicitud_clientes.codigo_solicitud', 'like', '%' . $search . '%')
-                        ->orWhere('solicitud_clientes.barcode', 'like', '%' . $search . '%')
-                        ->orWhere('solicitud_clientes.nombre_destinatario', 'like', '%' . $search . '%')
-                        ->orWhere('solicitud_clientes.telefono_destinatario', 'like', '%' . $search . '%')
-                        ->orWhere('solicitud_clientes.ciudad', 'like', '%' . $search . '%')
-                        ->orWhere('asignacion.recibido_por', 'like', '%' . $search . '%')
-                        ->orWhere('asignacion.descripcion', 'like', '%' . $search . '%')
-                        ->orWhere('cartero_user.name', 'like', '%' . $search . '%');
+                    $sub->where('solicitud_clientes.codigo_solicitud', 'like', '%'.$search.'%')
+                        ->orWhere('solicitud_clientes.barcode', 'like', '%'.$search.'%')
+                        ->orWhere('solicitud_clientes.nombre_destinatario', 'like', '%'.$search.'%')
+                        ->orWhere('solicitud_clientes.telefono_destinatario', 'like', '%'.$search.'%')
+                        ->orWhere('solicitud_clientes.ciudad', 'like', '%'.$search.'%')
+                        ->orWhere('asignacion.recibido_por', 'like', '%'.$search.'%')
+                        ->orWhere('asignacion.descripcion', 'like', '%'.$search.'%')
+                        ->orWhere('cartero_user.name', 'like', '%'.$search.'%');
                 });
             });
 
@@ -1632,14 +1645,14 @@ class PaquetesEmsController extends Controller
             ->where('paquetes_ems.estado_id', $estadoEntregadoId)
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($sub) use ($search) {
-                    $sub->where('paquetes_ems.codigo', 'like', '%' . $search . '%')
-                        ->orWhere('paquetes_ems.nombre_destinatario', 'like', '%' . $search . '%')
-                        ->orWhere('paquetes_ems.telefono_destinatario', 'like', '%' . $search . '%')
-                        ->orWhere('paquetes_ems.ciudad', 'like', '%' . $search . '%')
-                        ->orWhere('paquetes_ems.nombre_remitente', 'like', '%' . $search . '%')
-                        ->orWhere('paquetes_ems.contenido', 'like', '%' . $search . '%')
-                        ->orWhere('asignacion.recibido_por', 'like', '%' . $search . '%')
-                        ->orWhere('asignacion.descripcion', 'like', '%' . $search . '%');
+                    $sub->where('paquetes_ems.codigo', 'like', '%'.$search.'%')
+                        ->orWhere('paquetes_ems.nombre_destinatario', 'like', '%'.$search.'%')
+                        ->orWhere('paquetes_ems.telefono_destinatario', 'like', '%'.$search.'%')
+                        ->orWhere('paquetes_ems.ciudad', 'like', '%'.$search.'%')
+                        ->orWhere('paquetes_ems.nombre_remitente', 'like', '%'.$search.'%')
+                        ->orWhere('paquetes_ems.contenido', 'like', '%'.$search.'%')
+                        ->orWhere('asignacion.recibido_por', 'like', '%'.$search.'%')
+                        ->orWhere('asignacion.descripcion', 'like', '%'.$search.'%');
                 });
             })
             ->orderBy('paquetes_ems.id')
@@ -1661,7 +1674,7 @@ class PaquetesEmsController extends Controller
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
-        }, 'planilla-ems-entregados-' . $generatedAt->format('Ymd-His') . '.pdf');
+        }, 'planilla-ems-entregados-'.$generatedAt->format('Ymd-His').'.pdf');
     }
 
     public function createSolicitudDesdeEntregados(Request $request)
@@ -1773,8 +1786,8 @@ class PaquetesEmsController extends Controller
         $contrato = null;
 
         DB::transaction(function () use ($empresa, $user, $data, $codigoCliente, $estadoDestinoId, $eventoContratoId, &$contrato) {
-            $correlativo = $this->nextCorrelativoEmpresa((int) $empresa->id, $codigoCliente);
-            $codigo = $this->buildCodigoEmpresa($codigoCliente, $correlativo);
+            $correlativo = $this->contratoCodigoService->reservarSiguiente($codigoCliente);
+            $codigo = $this->contratoCodigoService->construirCodigo($codigoCliente, $correlativo);
             $codigoMadre = strtoupper(trim((string) ($data['codigo_madre'] ?? '')));
 
             $contrato = RecojoContrato::query()->create([
@@ -1832,7 +1845,7 @@ class PaquetesEmsController extends Controller
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
-        }, 'boleta-recibido-' . $contrato->codigo . '-' . $generatedAt->format('Ymd-His') . '.pdf');
+        }, 'boleta-recibido-'.$contrato->codigo.'-'.$generatedAt->format('Ymd-His').'.pdf');
     }
 
     public function createEntregaNoRegistrada(Request $request)
@@ -1934,7 +1947,7 @@ class PaquetesEmsController extends Controller
             return redirect()
                 ->back()
                 ->withInput()
-                ->with('error', 'No existe el estado ' . $estadoObjetivoNombre . ' en la tabla estados.');
+                ->with('error', 'No existe el estado '.$estadoObjetivoNombre.' en la tabla estados.');
         }
 
         $eventoExiste = DB::table('eventos')
@@ -1945,7 +1958,7 @@ class PaquetesEmsController extends Controller
             return redirect()
                 ->back()
                 ->withInput()
-                ->with('error', 'No existe el evento con ID ' . $eventoObjetivoId . '.');
+                ->with('error', 'No existe el evento con ID '.$eventoObjetivoId.'.');
         }
 
         $existeEms = PaqueteEms::query()
@@ -1982,13 +1995,13 @@ class PaquetesEmsController extends Controller
             };
         }
         $empresaIdDetectada = $this->resolveEmpresaIdByCodigoContrato($codigo);
-        $empresaIdManual = !empty($data['empresa_id']) ? (int) $data['empresa_id'] : null;
+        $empresaIdManual = ! empty($data['empresa_id']) ? (int) $data['empresa_id'] : null;
 
         if (! $esEms && $empresaIdDetectada && $empresaIdManual && $empresaIdDetectada !== $empresaIdManual) {
             return redirect()
                 ->back()
                 ->withInput()
-                ->with('error', 'El codigo ' . $codigo . ' ya esta asociado a otra empresa.');
+                ->with('error', 'El codigo '.$codigo.' ya esta asociado a otra empresa.');
         }
 
         if ($esEms) {
@@ -2058,7 +2071,7 @@ class PaquetesEmsController extends Controller
 
             return redirect()
                 ->route($this->routeForEntregaNoRegistradaResultado($resultadoEntrega), ['q' => $codigo])
-                ->with('success', 'Envio EMS no registrado guardado correctamente. Codigo: ' . $codigo . '.');
+                ->with('success', 'Envio EMS no registrado guardado correctamente. Codigo: '.$codigo.'.');
         }
 
         $contrato = null;
@@ -2146,7 +2159,7 @@ class PaquetesEmsController extends Controller
 
         return redirect()
             ->route($this->routeForEntregaNoRegistradaResultado($resultadoEntrega), ['q' => $codigo])
-            ->with('success', 'Envio no registrado guardado correctamente. Codigo: ' . $codigo . '.');
+            ->with('success', 'Envio no registrado guardado correctamente. Codigo: '.$codigo.'.');
     }
 
     private function routeForEntregaNoRegistradaResultado(string $resultadoEntrega): string
@@ -2161,7 +2174,7 @@ class PaquetesEmsController extends Controller
     public function createRegistroRapidoContrato()
     {
         $user = Auth::user();
-        abort_if(!$user, 403, 'No autenticado.');
+        abort_if(! $user, 403, 'No autenticado.');
         $canRegisterQuickContractFromAlmacen = $user->can('feature.paquetes-ems.almacen.registercontract');
 
         $origen = strtoupper(trim((string) optional($user)->ciudad));
@@ -2203,7 +2216,7 @@ class PaquetesEmsController extends Controller
     public function storeRegistroRapidoContrato(Request $request)
     {
         $user = Auth::user();
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'success' => false,
                 'message' => 'Usuario no autenticado.',
@@ -2251,10 +2264,10 @@ class PaquetesEmsController extends Controller
             ->where('id', self::EVENTO_ID_CONTRATO_RECOGIDO)
             ->exists();
 
-        if (!$eventoExiste) {
+        if (! $eventoExiste) {
             return response()->json([
                 'success' => false,
-                'message' => 'No existe el evento con ID ' . self::EVENTO_ID_CONTRATO_RECOGIDO . ' en la tabla eventos.',
+                'message' => 'No existe el evento con ID '.self::EVENTO_ID_CONTRATO_RECOGIDO.' en la tabla eventos.',
             ], 422);
         }
 
@@ -2268,13 +2281,14 @@ class PaquetesEmsController extends Controller
                 $codigo = strtoupper(trim((string) ($item['codigo'] ?? '')));
                 $codigo = preg_replace('/\s+/', '', $codigo) ?: '';
                 $provincia = strtoupper(trim((string) ($item['provincia'] ?? '')));
+
                 return [
                     'codigo' => $codigo,
                     'destino' => strtoupper(trim((string) ($item['destino'] ?? ''))),
                     'provincia' => $provincia === '' ? null : $provincia,
                     'cantidad' => trim((string) ($item['cantidad'] ?? '')),
                     'peso' => (float) ($item['peso'] ?? 0),
-                    'empresa_id' => !empty($item['empresa_id']) ? (int) $item['empresa_id'] : null,
+                    'empresa_id' => ! empty($item['empresa_id']) ? (int) $item['empresa_id'] : null,
                 ];
             })
             ->values();
@@ -2293,10 +2307,10 @@ class PaquetesEmsController extends Controller
             ->values()
             ->all();
 
-        if (!empty($duplicadosPrelista)) {
+        if (! empty($duplicadosPrelista)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Hay codigos repetidos en la prelista: ' . implode(', ', $duplicadosPrelista),
+                'message' => 'Hay codigos repetidos en la prelista: '.implode(', ', $duplicadosPrelista),
             ], 422);
         }
 
@@ -2313,10 +2327,10 @@ class PaquetesEmsController extends Controller
             ->values()
             ->all();
 
-        if (!empty($existentesEms)) {
+        if (! empty($existentesEms)) {
             return response()->json([
                 'success' => false,
-                'message' => 'No puedes registrar codigos que ya existen en paquetes EMS: ' . implode(', ', $existentesEms),
+                'message' => 'No puedes registrar codigos que ya existen en paquetes EMS: '.implode(', ', $existentesEms),
             ], 422);
         }
 
@@ -2332,21 +2346,21 @@ class PaquetesEmsController extends Controller
             ->values()
             ->all();
 
-        if (!empty($existentes)) {
+        if (! empty($existentes)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Estos codigos ya existen: ' . implode(', ', $existentes),
+                'message' => 'Estos codigos ya existen: '.implode(', ', $existentes),
             ], 422);
         }
 
         foreach ($items as $item) {
             $empresaIdDetectada = $this->resolveEmpresaIdByCodigoContrato((string) $item['codigo']);
-            $empresaIdManual = !empty($item['empresa_id']) ? (int) $item['empresa_id'] : null;
+            $empresaIdManual = ! empty($item['empresa_id']) ? (int) $item['empresa_id'] : null;
 
             if ($empresaIdDetectada && $empresaIdManual && $empresaIdDetectada !== $empresaIdManual) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'El codigo ' . $item['codigo'] . ' ya esta asociado a otra empresa.',
+                    'message' => 'El codigo '.$item['codigo'].' ya esta asociado a otra empresa.',
                 ], 422);
             }
         }
@@ -2356,7 +2370,7 @@ class PaquetesEmsController extends Controller
         DB::transaction(function () use ($items, $user, $estadoAlmacenId, $origen, &$creados, &$eventRows) {
             foreach ($items as $item) {
                 $empresaIdDetectada = $this->resolveEmpresaIdByCodigoContrato($item['codigo']);
-                $empresaIdManual = !empty($item['empresa_id']) ? (int) $item['empresa_id'] : null;
+                $empresaIdManual = ! empty($item['empresa_id']) ? (int) $item['empresa_id'] : null;
 
                 $empresaId = $empresaIdDetectada ?: $empresaIdManual;
                 $contrato = RecojoContrato::query()->create([
@@ -2384,13 +2398,13 @@ class PaquetesEmsController extends Controller
                     'imagen' => null,
                 ]);
 
-                if (!$empresaIdDetectada && !empty($empresaIdManual)) {
+                if (! $empresaIdDetectada && ! empty($empresaIdManual)) {
                     $codigoNormalizado = strtoupper(trim((string) $item['codigo']));
                     $registroCodigoEmpresa = CodigoEmpresa::query()
                         ->whereRaw('trim(upper(codigo)) = ?', [$codigoNormalizado])
                         ->first();
 
-                    if (!$registroCodigoEmpresa) {
+                    if (! $registroCodigoEmpresa) {
                         CodigoEmpresa::query()->create([
                             'codigo' => $codigoNormalizado,
                             'barcode' => $codigoNormalizado,
@@ -2426,14 +2440,14 @@ class PaquetesEmsController extends Controller
                 }
             }
 
-            if (!empty($eventRows)) {
+            if (! empty($eventRows)) {
                 DB::table('eventos_contrato')->insert($eventRows);
             }
         });
 
         return response()->json([
             'success' => true,
-            'message' => 'Se guardaron ' . $creados->count() . ' contrato(s) correctamente.',
+            'message' => 'Se guardaron '.$creados->count().' contrato(s) correctamente.',
             'items' => $creados->values()->all(),
         ]);
     }
@@ -2449,7 +2463,7 @@ class PaquetesEmsController extends Controller
             ->whereRaw('trim(upper(codigo)) = ?', [$codigoNormalizado])
             ->value('empresa_id');
 
-        if (!empty($empresaIdPorCodigo)) {
+        if (! empty($empresaIdPorCodigo)) {
             return (int) $empresaIdPorCodigo;
         }
 
@@ -2460,7 +2474,7 @@ class PaquetesEmsController extends Controller
                     ->whereRaw("REPLACE(TRIM(UPPER(COALESCE(codigo_cliente, ''))), ' ', '') = ?", [$codigoCliente])
                     ->value('id');
 
-                if (!empty($empresaIdPorCliente)) {
+                if (! empty($empresaIdPorCliente)) {
                     return (int) $empresaIdPorCliente;
                 }
             }
@@ -2483,7 +2497,7 @@ class PaquetesEmsController extends Controller
             ->value('id') ?? 0);
 
         if ($origenId <= 0) {
-            throw new \RuntimeException('No existe el origen ' . $origenNombre . ' en la tabla origen.');
+            throw new \RuntimeException('No existe el origen '.$origenNombre.' en la tabla origen.');
         }
 
         $tarifario = TarifarioTiktoker::query()
@@ -2492,7 +2506,7 @@ class PaquetesEmsController extends Controller
             ->where('servicio_extra_id', $servicioExtraId)
             ->first();
 
-        if (!$tarifario) {
+        if (! $tarifario) {
             throw new \RuntimeException('No existe tarifario tiktoker para el servicio, origen y destino seleccionados.');
         }
 
@@ -2513,12 +2527,12 @@ class PaquetesEmsController extends Controller
 
     private function isPuertaAVentanillaService(?ServicioExtra $servicioExtra): bool
     {
-        if (!$servicioExtra) {
+        if (! $servicioExtra) {
             return false;
         }
 
         $text = $this->normalizeServiceText(
-            (string) $servicioExtra->nombre . ' ' . (string) $servicioExtra->descripcion
+            (string) $servicioExtra->nombre.' '.(string) $servicioExtra->descripcion
         );
 
         return str_contains($text, 'puerta a ventanilla');
@@ -2552,7 +2566,7 @@ class PaquetesEmsController extends Controller
         int|string $eventReference,
         ?string $justificacion = null
     ): int {
-        if (!$record) {
+        if (! $record) {
             return 0;
         }
 
@@ -2563,7 +2577,7 @@ class PaquetesEmsController extends Controller
         $record->updated_at = now();
         $saved = $record->save();
 
-        if (!$saved) {
+        if (! $saved) {
             return 0;
         }
 
@@ -2574,7 +2588,7 @@ class PaquetesEmsController extends Controller
 
     private function registerEncargadoEvent(string $servicio, $record, int $userId, int|string $eventReference): void
     {
-        if ($userId <= 0 || !$record) {
+        if ($userId <= 0 || ! $record) {
             return;
         }
 
@@ -2673,7 +2687,7 @@ class PaquetesEmsController extends Controller
 
     private function updateEncargadoPesoAndRegisterEvent($record, float $peso, string $servicio, int $userId): int
     {
-        if (!$record) {
+        if (! $record) {
             return 0;
         }
 
@@ -2681,7 +2695,7 @@ class PaquetesEmsController extends Controller
         $record->updated_at = now();
         $saved = $record->save();
 
-        if (!$saved) {
+        if (! $saved) {
             return 0;
         }
 
@@ -2725,7 +2739,7 @@ class PaquetesEmsController extends Controller
             ->values()
             ->all();
 
-        if (!empty($rows)) {
+        if (! empty($rows)) {
             DB::table('eventos_tiktoker')->insert($rows);
         }
     }
@@ -2815,12 +2829,12 @@ class PaquetesEmsController extends Controller
         $newName = trim((string) ($newAssignee?->name ?? 'SIN USUARIO'));
 
         return 'El usuario '
-            . ($actorName !== '' ? $actorName : 'SIN USUARIO')
-            . ' cambio el cartero asignado desde Encargado EMS. Cartero anterior: '
-            . ($previousName !== '' ? $previousName : 'SIN CARTERO')
-            . '. Asigno al cartero: '
-            . ($newName !== '' ? $newName : 'SIN USUARIO')
-            . '.';
+            .($actorName !== '' ? $actorName : 'SIN USUARIO')
+            .' cambio el cartero asignado desde Encargado EMS. Cartero anterior: '
+            .($previousName !== '' ? $previousName : 'SIN CARTERO')
+            .'. Asigno al cartero: '
+            .($newName !== '' ? $newName : 'SIN USUARIO')
+            .'.';
     }
 
     private function normalizeEncargadoCity(string $city): string
@@ -2875,66 +2889,6 @@ class PaquetesEmsController extends Controller
             ->get(['id', 'name', 'ciudad']);
     }
 
-    private function nextCorrelativoEmpresa(int $empresaId, string $codigoCliente): int
-    {
-        $cliente = $this->normalizarCodigoClienteEmpresa($codigoCliente);
-        $pattern = '/^C'.preg_quote($cliente, '/').'A(\d{5})BO$/';
-        $prefix = 'C'.$cliente.'A';
-        $empresaIds = $this->empresaIdsConMismoCodigoCliente($empresaId, $cliente);
-        $max = 0;
-
-        $codigosEmpresa = CodigoEmpresa::query()
-            ->whereIn('empresa_id', $empresaIds)
-            ->where(function ($query) use ($prefix) {
-                $query->where('codigo', 'like', $prefix.'%BO')
-                    ->orWhere('barcode', 'like', $prefix.'%BO');
-            })
-            ->get(['codigo', 'barcode'])
-            ->flatMap(fn ($row) => [$row->codigo, $row->barcode]);
-
-        foreach ($codigosEmpresa as $codigo) {
-            if (preg_match($pattern, strtoupper(trim((string) $codigo)), $matches)) {
-                $max = max($max, (int) $matches[1]);
-            }
-        }
-
-        $codigosContrato = RecojoContrato::query()
-            ->where('codigo', 'like', $prefix.'%BO')
-            ->pluck('codigo');
-
-        foreach ($codigosContrato as $codigo) {
-            if (preg_match($pattern, strtoupper(trim((string) $codigo)), $matches)) {
-                $max = max($max, (int) $matches[1]);
-            }
-        }
-
-        return $max + 1;
-    }
-
-    private function normalizarCodigoClienteEmpresa(string $codigoCliente): string
-    {
-        $cliente = strtoupper(trim($codigoCliente));
-
-        return preg_replace('/\s+/', '', $cliente) ?: '';
-    }
-
-    private function empresaIdsConMismoCodigoCliente(int $empresaId, string $codigoCliente): array
-    {
-        $cliente = $this->normalizarCodigoClienteEmpresa($codigoCliente);
-
-        if ($cliente === '') {
-            return [$empresaId];
-        }
-
-        $ids = Empresa::query()
-            ->whereRaw("REPLACE(TRIM(UPPER(COALESCE(codigo_cliente, ''))), ' ', '') = ?", [$cliente])
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
-
-        return !empty($ids) ? $ids : [$empresaId];
-    }
-
     private function insertCodigoContinuacionEvents(string $codigoMadre, string $codigoHijo, int $userId): void
     {
         $codigoMadre = strtoupper(trim($codigoMadre));
@@ -2945,13 +2899,13 @@ class PaquetesEmsController extends Controller
         }
 
         $eventoMadreId = (int) DB::table('eventos')->insertGetId([
-            'nombre_evento' => 'Se genero el codigo hijo ' . $codigoHijo . ' como continuacion de este codigo madre.',
+            'nombre_evento' => 'Se genero el codigo hijo '.$codigoHijo.' como continuacion de este codigo madre.',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
 
         $eventoHijoId = (int) DB::table('eventos')->insertGetId([
-            'nombre_evento' => 'Este codigo es la continuacion del codigo madre ' . $codigoMadre . '.',
+            'nombre_evento' => 'Este codigo es la continuacion del codigo madre '.$codigoMadre.'.',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -3012,10 +2966,4 @@ class PaquetesEmsController extends Controller
 
         return 'eventos_contrato';
     }
-
-    private function buildCodigoEmpresa(string $codigoCliente, int $correlativo): string
-    {
-        return 'C'.$this->normalizarCodigoClienteEmpresa($codigoCliente).'A'.str_pad((string) $correlativo, 5, '0', STR_PAD_LEFT).'BO';
-    }
 }
-

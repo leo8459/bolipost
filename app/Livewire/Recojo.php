@@ -2,11 +2,12 @@
 
 namespace App\Livewire;
 
-use App\Models\Recojo as RecojoModel;
-use App\Models\Estado as EstadoModel;
 use App\Models\CodigoEmpresa as CodigoEmpresaModel;
 use App\Models\Empresa as EmpresaModel;
+use App\Models\Estado as EstadoModel;
+use App\Models\Recojo as RecojoModel;
 use App\Models\User;
+use App\Services\ContratoCodigoService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -24,32 +25,57 @@ class Recojo extends Component
     ];
 
     public $mode = 'general';
+
     public $search = '';
+
     public $searchQuery = '';
+
     public $editingId = null;
+
     public $userCity = '';
+
     public $estadoAlmacenId = null;
 
     public $user_id = '';
+
     public $codigo = '';
+
     public $cod_especial = '';
+
     public $estados_id = null;
+
     public $origen = '';
+
     public $destino = '';
+
     public $nombre_r = '';
+
     public $telefono_r = '';
+
     public $contenido = '';
+
     public $cantidad = '';
+
     public $direccion_r = '';
+
     public $nombre_d = '';
+
     public $telefono_d = '';
+
     public $direccion_d = '';
+
     public $mapa = '';
+
     public $provincia = '';
+
     public $peso = '';
+
     public $fecha_recojo = '';
+
     public $observacion = '';
+
     public $justificacion = '';
+
     public $imagen = '';
 
     protected $paginationTheme = 'bootstrap';
@@ -202,6 +228,13 @@ class Recojo extends Component
         ];
     }
 
+    protected function messages(): array
+    {
+        return [
+            'codigo.unique' => ContratoCodigoService::MENSAJE_CODIGO_DUPLICADO,
+        ];
+    }
+
     protected function payload()
     {
         $estadoId = $this->estados_id ?: $this->resolveSolicitudEstadoId();
@@ -223,7 +256,7 @@ class Recojo extends Component
             'telefono_d' => $this->nullIfEmpty($this->telefono_d),
             'direccion_d' => $this->normalizeUpper($this->direccion_d),
             'mapa' => $this->nullIfEmpty($this->mapa),
-            'provincia' => !is_null($this->nullIfEmpty($this->provincia))
+            'provincia' => ! is_null($this->nullIfEmpty($this->provincia))
                 ? strtoupper($this->nullIfEmpty($this->provincia))
                 : null,
             'peso' => $this->peso,
@@ -247,6 +280,7 @@ class Recojo extends Component
     protected function nullIfEmpty($value): ?string
     {
         $clean = $this->normalize($value);
+
         return $clean === '' ? null : $clean;
     }
 
@@ -266,7 +300,7 @@ class Recojo extends Component
             ->whereRaw('trim(upper(nombre_estado)) = ?', ['SOLICITUD'])
             ->value('id');
 
-        return !empty($id) ? (int) $id : null;
+        return ! empty($id) ? (int) $id : null;
     }
 
     protected function resolveEmpresaIdByCodigo($codigo): ?int
@@ -280,7 +314,7 @@ class Recojo extends Component
             ->whereRaw('trim(upper(codigo)) = ?', [$codigoNormalizado])
             ->value('empresa_id');
 
-        if (!empty($empresaIdPorCodigo)) {
+        if (! empty($empresaIdPorCodigo)) {
             return (int) $empresaIdPorCodigo;
         }
 
@@ -291,7 +325,7 @@ class Recojo extends Component
                     ->whereRaw('trim(upper(codigo_cliente)) = ?', [$codigoCliente])
                     ->value('id');
 
-                if (!empty($empresaIdPorCliente)) {
+                if (! empty($empresaIdPorCliente)) {
                     return (int) $empresaIdPorCliente;
                 }
             }
@@ -300,92 +334,93 @@ class Recojo extends Component
         return null;
     }
 
-   public function render()
-{
-    $q = trim((string) $this->searchQuery);
+    public function render()
+    {
+        $q = trim((string) $this->searchQuery);
 
-    $authUser = Auth::user();
-    $authUserId = (int) ($authUser?->id ?? 0);
-    $authEmpresaId = (int) ($authUser?->empresa_id ?? 0);
-    $hasGlobalDepartmentAccess = (bool) ($authUser?->hasGlobalDepartmentAccess() ?? false);
+        $authUser = Auth::user();
+        $authUserId = (int) ($authUser?->id ?? 0);
+        $authEmpresaId = (int) ($authUser?->empresa_id ?? 0);
+        $hasGlobalDepartmentAccess = (bool) ($authUser?->hasGlobalDepartmentAccess() ?? false);
 
-    $recojos = RecojoModel::query()
-        ->with([
-            'empresa:id,nombre,sigla',
-            'user:id,name,empresa_id',
-            'user.empresa:id,nombre,sigla',
-            'estadoRegistro:id,nombre_estado',
-        ])
-        ->when(!$this->isAlmacenMode && !$hasGlobalDepartmentAccess, function ($query) use ($authUserId) {
-            if ($authUserId > 0) {
-                $query->where('user_id', $authUserId);
-                return;
-            }
-            $query->whereRaw('1 = 0');
-        })
-        ->when($this->isAlmacenMode, function ($query) use ($hasGlobalDepartmentAccess, $authEmpresaId) {
-            $query->where('estados_id', (int) $this->estadoAlmacenId)
-                ->when(!$hasGlobalDepartmentAccess && $authEmpresaId > 0, function ($sub) use ($authEmpresaId) {
-                    $sub->where('empresa_id', $authEmpresaId);
-                }, function ($sub) use ($hasGlobalDepartmentAccess) {
-                    if ($hasGlobalDepartmentAccess) {
-                        return;
-                    }
+        $recojos = RecojoModel::query()
+            ->with([
+                'empresa:id,nombre,sigla',
+                'user:id,name,empresa_id',
+                'user.empresa:id,nombre,sigla',
+                'estadoRegistro:id,nombre_estado',
+            ])
+            ->when(! $this->isAlmacenMode && ! $hasGlobalDepartmentAccess, function ($query) use ($authUserId) {
+                if ($authUserId > 0) {
+                    $query->where('user_id', $authUserId);
 
-                    $sub->whereRaw('1 = 0');
-                })
-                ->when(!$hasGlobalDepartmentAccess && $this->userCity !== '', function ($sub) {
-                    $sub->whereRaw('trim(upper(origen)) = ?', [$this->userCity]);
-                }, function ($sub) use ($hasGlobalDepartmentAccess) {
-                    if ($hasGlobalDepartmentAccess) {
-                        return;
-                    }
+                    return;
+                }
+                $query->whereRaw('1 = 0');
+            })
+            ->when($this->isAlmacenMode, function ($query) use ($hasGlobalDepartmentAccess, $authEmpresaId) {
+                $query->where('estados_id', (int) $this->estadoAlmacenId)
+                    ->when(! $hasGlobalDepartmentAccess && $authEmpresaId > 0, function ($sub) use ($authEmpresaId) {
+                        $sub->where('empresa_id', $authEmpresaId);
+                    }, function ($sub) use ($hasGlobalDepartmentAccess) {
+                        if ($hasGlobalDepartmentAccess) {
+                            return;
+                        }
 
-                    $sub->whereRaw('1 = 0');
-                });
-        })
-
-        // Búsqueda
-        ->when($q !== '', function ($query) use ($q) {
-            $query->where(function ($sub) use ($q) {
-                $sub->where('codigo', 'like', "%{$q}%")
-                    ->orWhere('origen', 'like', "%{$q}%")
-                    ->orWhere('destino', 'like', "%{$q}%")
-                    ->orWhere('nombre_r', 'like', "%{$q}%")
-                    ->orWhere('nombre_d', 'like', "%{$q}%")
-                    ->orWhere('cantidad', 'like', "%{$q}%")
-                    ->orWhereHas('estadoRegistro', function ($estadoQuery) use ($q) {
-                        $estadoQuery->where('nombre_estado', 'like', "%{$q}%");
+                        $sub->whereRaw('1 = 0');
                     })
-                    ->orWhereHas('user', function ($userQuery) use ($q) {
-                        $userQuery->where('name', 'like', "%{$q}%");
-                    })
-                    ->orWhereHas('user.empresa', function ($empresaQuery) use ($q) {
-                        $empresaQuery->where('nombre', 'like', "%{$q}%")
-                            ->orWhere('sigla', 'like', "%{$q}%");
-                    })
-                    ->orWhereHas('empresa', function ($empresaQuery) use ($q) {
-                        $empresaQuery->where('nombre', 'like', "%{$q}%")
-                            ->orWhere('sigla', 'like', "%{$q}%");
+                    ->when(! $hasGlobalDepartmentAccess && $this->userCity !== '', function ($sub) {
+                        $sub->whereRaw('trim(upper(origen)) = ?', [$this->userCity]);
+                    }, function ($sub) use ($hasGlobalDepartmentAccess) {
+                        if ($hasGlobalDepartmentAccess) {
+                            return;
+                        }
+
+                        $sub->whereRaw('1 = 0');
                     });
-            });
-        })
-        ->orderByDesc('id')
-        ->paginate(10);
+            })
+
+            // Búsqueda
+            ->when($q !== '', function ($query) use ($q) {
+                $query->where(function ($sub) use ($q) {
+                    $sub->where('codigo', 'like', "%{$q}%")
+                        ->orWhere('origen', 'like', "%{$q}%")
+                        ->orWhere('destino', 'like', "%{$q}%")
+                        ->orWhere('nombre_r', 'like', "%{$q}%")
+                        ->orWhere('nombre_d', 'like', "%{$q}%")
+                        ->orWhere('cantidad', 'like', "%{$q}%")
+                        ->orWhereHas('estadoRegistro', function ($estadoQuery) use ($q) {
+                            $estadoQuery->where('nombre_estado', 'like', "%{$q}%");
+                        })
+                        ->orWhereHas('user', function ($userQuery) use ($q) {
+                            $userQuery->where('name', 'like', "%{$q}%");
+                        })
+                        ->orWhereHas('user.empresa', function ($empresaQuery) use ($q) {
+                            $empresaQuery->where('nombre', 'like', "%{$q}%")
+                                ->orWhere('sigla', 'like', "%{$q}%");
+                        })
+                        ->orWhereHas('empresa', function ($empresaQuery) use ($q) {
+                            $empresaQuery->where('nombre', 'like', "%{$q}%")
+                                ->orWhere('sigla', 'like', "%{$q}%");
+                        });
+                });
+            })
+            ->orderByDesc('id')
+            ->paginate(10);
 
         return view('livewire.recojo', [
-        'recojos' => $recojos,
-        'users' => Cache::remember('lookup:recojo:users:minimal', now()->addMinutes(15), function () {
-            return User::query()->orderBy('name')->get(['id', 'name']);
-        }),
-        'canRecojoEdit' => $this->userCan($this->modeFeaturePermission('edit')),
-        'canRecojoDelete' => $this->userCan($this->modeFeaturePermission('delete')),
-        'canRecojoPrint' => $this->userCan($this->modeFeaturePermission('print')),
-        'canRecojoReport' => $this->userCan($this->modeFeaturePermission('report')),
-        'canCreateContrato' => $this->userCan($this->modeFeaturePermission('create')) || $this->userCanRoute('paquetes-contrato.create'),
-        'canCreateContratoTarifa' => $this->userCan($this->modeFeaturePermission('manage')) || $this->userCanRoute('paquetes-contrato.create-con-tarifa'),
-    ]);
-}
+            'recojos' => $recojos,
+            'users' => Cache::remember('lookup:recojo:users:minimal', now()->addMinutes(15), function () {
+                return User::query()->orderBy('name')->get(['id', 'name']);
+            }),
+            'canRecojoEdit' => $this->userCan($this->modeFeaturePermission('edit')),
+            'canRecojoDelete' => $this->userCan($this->modeFeaturePermission('delete')),
+            'canRecojoPrint' => $this->userCan($this->modeFeaturePermission('print')),
+            'canRecojoReport' => $this->userCan($this->modeFeaturePermission('report')),
+            'canCreateContrato' => $this->userCan($this->modeFeaturePermission('create')) || $this->userCanRoute('paquetes-contrato.create'),
+            'canCreateContratoTarifa' => $this->userCan($this->modeFeaturePermission('manage')) || $this->userCanRoute('paquetes-contrato.create-con-tarifa'),
+        ]);
+    }
 
     private function modeFeaturePermission(string $action, ?string $mode = null): string
     {

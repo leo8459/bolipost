@@ -75,9 +75,13 @@ class DeliveryImageController extends Controller
             return null;
         }
 
-        return DB::table($table . ' as p')
+        $query = DB::table($table . ' as p')
             ->leftJoin('cartero as c', 'c.' . $carteroColumn, '=', 'p.id')
-            ->where('p.id', $id)
+            ->where('p.id', $id);
+
+        $this->whereImageAvailable($query, $kind, 'p');
+
+        return $query
             ->orderByRaw('c.updated_at DESC NULLS LAST, c.id DESC')
             ->value($this->imageExpression($kind, 'p'));
     }
@@ -88,9 +92,13 @@ class DeliveryImageController extends Controller
             return null;
         }
 
-        return DB::table($table . ' as p')
+        $query = DB::table($table . ' as p')
             ->leftJoin('cartero as c', 'c.' . $carteroColumn, '=', 'p.id')
-            ->whereRaw('TRIM(UPPER(p.codigo)) = TRIM(UPPER(?))', [$codigo])
+            ->whereRaw('TRIM(UPPER(p.codigo)) = TRIM(UPPER(?))', [$codigo]);
+
+        $this->whereImageAvailable($query, $kind, 'p');
+
+        return $query
             ->orderByRaw('c.updated_at DESC NULLS LAST, c.id DESC, p.id DESC')
             ->value($this->imageExpression($kind, 'p'));
     }
@@ -101,9 +109,13 @@ class DeliveryImageController extends Controller
             return null;
         }
 
-        return DB::table('solicitud_clientes as s')
+        $query = DB::table('solicitud_clientes as s')
             ->leftJoin('cartero as c', 'c.id_solicitud_cliente', '=', 's.id')
-            ->where('s.id', $id)
+            ->where('s.id', $id);
+
+        $this->whereImageAvailable($query, $kind, 's');
+
+        return $query
             ->orderByRaw('c.updated_at DESC NULLS LAST, c.id DESC')
             ->value($this->imageExpression($kind, 's'));
     }
@@ -114,15 +126,40 @@ class DeliveryImageController extends Controller
             return null;
         }
 
-        return DB::table('solicitud_clientes as s')
+        $query = DB::table('solicitud_clientes as s')
             ->leftJoin('cartero as c', 'c.id_solicitud_cliente', '=', 's.id')
             ->where(function ($query) use ($codigo) {
                 $query->whereRaw('TRIM(UPPER(COALESCE(s.codigo_solicitud, \'\'))) = TRIM(UPPER(?))', [$codigo])
                     ->orWhereRaw('TRIM(UPPER(COALESCE(s.barcode, \'\'))) = TRIM(UPPER(?))', [$codigo])
                     ->orWhereRaw('TRIM(UPPER(COALESCE(s.cod_especial, \'\'))) = TRIM(UPPER(?))', [$codigo]);
-            })
+            });
+
+        $this->whereImageAvailable($query, $kind, 's');
+
+        return $query
             ->orderByRaw('c.updated_at DESC NULLS LAST, c.id DESC, s.id DESC')
             ->value($this->imageExpression($kind, 's'));
+    }
+
+    private function whereImageAvailable($query, string $kind, string $packageAlias): void
+    {
+        $carteroColumns = strtolower($kind) === 'devolucion'
+            ? ['imagen_devolucion', 'imagen']
+            : ['imagen'];
+
+        $query->where(function ($imageQuery) use ($carteroColumns, $packageAlias) {
+            foreach ($carteroColumns as $column) {
+                $imageQuery->orWhere(function ($columnQuery) use ($column) {
+                    $columnQuery->whereNotNull('c.' . $column)
+                        ->where('c.' . $column, '<>', '');
+                });
+            }
+
+            $imageQuery->orWhere(function ($packageQuery) use ($packageAlias) {
+                $packageQuery->whereNotNull($packageAlias . '.imagen')
+                    ->where($packageAlias . '.imagen', '<>', '');
+            });
+        });
     }
 
     private function imageExpression(string $kind, string $packageAlias)

@@ -11,7 +11,7 @@
             <div>
                 <span class="gestor-kicker">Paquetes Contratos</span>
                 <h3>Gestor</h3>
-                <p>Consulta todos los paquetes registrados para tu empresa.</p>
+                <p>Consulta todos los paquetes asociados al codigo cliente de tu empresa.</p>
             </div>
             <div class="gestor-company">
                 <span>Empresa</span>
@@ -58,26 +58,34 @@
                             placeholder="Codigo, remitente, destinatario, telefono, origen, destino...">
                     </div>
                     <div class="gestor-filter">
-                        <label for="estado_id">Estado</label>
-                        <select id="estado_id" name="estado_id" class="form-control">
-                            <option value="0">Todos los estados</option>
-                            @foreach ($estados as $estado)
-                                <option value="{{ $estado->id }}" @selected((int) $estadoId === (int) $estado->id)>
-                                    {{ $estado->nombre_estado }}
-                                    @if(isset($estadoCounts[$estado->id]))
-                                        ({{ $estadoCounts[$estado->id] }})
-                                    @endif
-                                </option>
-                            @endforeach
+                        <label for="estado">Estado</label>
+                        <select id="estado" name="estado" class="form-control">
+                            <option value="pendientes" @selected($estadoFiltro === 'pendientes')>
+                                Pendientes ({{ number_format((int) $totalPendientes) }})
+                            </option>
+                            <option value="entregados" @selected($estadoFiltro === 'entregados')>
+                                Entregados ({{ number_format((int) $totalEntregados) }})
+                            </option>
+                            <option value="todos" @selected($estadoFiltro === 'todos')>
+                                Todos ({{ number_format((int) $totalContratos) }})
+                            </option>
                         </select>
                     </div>
                     <div class="gestor-actions">
-                        <button type="submit" class="btn gestor-btn-primary">
-                            <i class="fas fa-search mr-1"></i> Buscar
-                        </button>
-                        <a href="{{ route('paquetes-contrato.gestor') }}" class="btn gestor-btn-secondary">
-                            Limpiar
-                        </a>
+                        @if($canContratoGestorSearch)
+                            <button type="submit" class="btn gestor-btn-primary">
+                                <i class="fas fa-search mr-1"></i> Buscar
+                            </button>
+                            <a href="{{ route('paquetes-contrato.gestor') }}" class="btn gestor-btn-secondary">
+                                Limpiar
+                            </a>
+                        @endif
+                        @if($canContratoGestorReport)
+                            <a href="{{ route('paquetes-contrato.gestor.pdf', ['q' => $search, 'estado' => $estadoFiltro]) }}"
+                                class="btn gestor-btn-pdf">
+                                <i class="fas fa-file-pdf mr-1"></i> Descargar PDF
+                            </a>
+                        @endif
                     </div>
                 </form>
 
@@ -93,6 +101,7 @@
                                 <th>Peso</th>
                                 <th>Contenido</th>
                                 <th>Fecha</th>
+                                <th class="text-center gestor-image-col">Imagen</th>
                                 <th class="text-center gestor-action-col">Acciones</th>
                             </tr>
                         </thead>
@@ -128,22 +137,10 @@
                                     <td>{{ $contrato->peso !== null ? number_format((float) $contrato->peso, 3) : '-' }}</td>
                                     <td>{{ $contrato->contenido ?: '-' }}</td>
                                     <td>{{ optional($contrato->created_at)->format('d/m/Y H:i') ?: '-' }}</td>
-                                    <td class="text-center gestor-action-col">
-                                        @include('partials.rastreo-eventos-button', [
-                                            'tipo' => 'contrato',
-                                            'codigo' => $contrato->codigo,
-                                            'class' => 'btn btn-sm btn-outline-primary rastreo-action-btn',
-                                        ])
-                                        @if($canContratoGestorPrint)
-                                            <a href="{{ route('paquetes-contrato.reporte', $contrato->id) }}"
-                                                target="_blank"
-                                                class="gestor-action-btn"
-                                                title="Ver reporte">
-                                                <i class="fas fa-print"></i>
-                                            </a>
-                                        @endif
+                                    <td class="text-center gestor-image-col">
                                         @php
-                                            $imagenUrl = \App\Support\StoredImage::url($contrato->imagen ?? null);
+                                            $imagenDisponible = $contrato->imagen_entrega_gestor ?: $contrato->imagen;
+                                            $imagenUrl = \App\Support\StoredImage::url($imagenDisponible);
                                             $imagenOpenUrl = route('delivery-images.package', [
                                                 'type' => 'contrato',
                                                 'id' => $contrato->id,
@@ -156,24 +153,46 @@
                                             ]);
                                         @endphp
                                         @if ($imagenUrl)
-                                            <a href="{{ $imagenOpenUrl }}"
+                                            @if($canContratoGestorView)
+                                                <a href="{{ $imagenOpenUrl }}" target="_blank" rel="noopener"
+                                                    class="gestor-image-link" title="Ver imagen de entrega">
+                                                    <img src="{{ $imagenOpenUrl }}" alt="Imagen de entrega de {{ $contrato->codigo }}"
+                                                        class="gestor-image-thumb" loading="lazy">
+                                                </a>
+                                            @endif
+                                            @if($canContratoGestorExport)
+                                                <a href="{{ $imagenDownloadUrl }}" class="gestor-image-download">
+                                                    <i class="fas fa-download mr-1"></i> Descargar
+                                                </a>
+                                            @endif
+                                            @if(! $canContratoGestorView && ! $canContratoGestorExport)
+                                                <span class="text-muted small">Imagen disponible</span>
+                                            @endif
+                                        @else
+                                            <span class="text-muted small">Sin imagen</span>
+                                        @endif
+                                    </td>
+                                    <td class="text-center gestor-action-col">
+                                        @if($canContratoGestorView)
+                                            @include('partials.rastreo-eventos-button', [
+                                                'tipo' => 'contrato',
+                                                'codigo' => $contrato->codigo,
+                                                'class' => 'btn btn-sm btn-outline-primary rastreo-action-btn',
+                                            ])
+                                        @endif
+                                        @if($canContratoGestorPrint)
+                                            <a href="{{ route('paquetes-contrato.reporte', $contrato->id) }}"
                                                 target="_blank"
-                                                rel="noopener"
                                                 class="gestor-action-btn"
-                                                title="Ver imagen">
-                                                <i class="fas fa-image"></i>
-                                            </a>
-                                            <a href="{{ $imagenDownloadUrl }}"
-                                                class="gestor-action-btn"
-                                                title="Descargar imagen">
-                                                <i class="fas fa-download"></i>
+                                                title="Ver reporte">
+                                                <i class="fas fa-print"></i>
                                             </a>
                                         @endif
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="9" class="text-center py-5">
+                                    <td colspan="10" class="text-center py-5">
                                         <strong>No hay paquetes para mostrar.</strong>
                                         <div class="text-muted">Prueba con otro filtro o verifica que tu usuario tenga empresa asignada.</div>
                                     </td>
@@ -322,7 +341,8 @@
         }
 
         .gestor-btn-primary,
-        .gestor-btn-secondary {
+        .gestor-btn-secondary,
+        .gestor-btn-pdf {
             border-radius: 10px;
             font-weight: 800;
             min-height: 44px;
@@ -367,6 +387,49 @@
         .gestor-action-col {
             min-width: 190px;
             width: 190px;
+        }
+
+        .gestor-btn-pdf {
+            background: #b42318;
+            border-color: #b42318;
+            color: #fff;
+        }
+
+        .gestor-btn-pdf:hover {
+            background: #912018;
+            border-color: #912018;
+            color: #fff;
+        }
+
+        .gestor-image-col {
+            min-width: 125px;
+            width: 125px;
+        }
+
+        .gestor-image-link {
+            display: inline-block;
+        }
+
+        .gestor-image-thumb {
+            border: 2px solid #dbe6f5;
+            border-radius: 10px;
+            height: 58px;
+            object-fit: cover;
+            width: 74px;
+        }
+
+        .gestor-image-download {
+            color: #20539A;
+            display: block;
+            font-size: .75rem;
+            font-weight: 700;
+            margin-top: 4px;
+            text-decoration: none;
+        }
+
+        .gestor-image-download:hover {
+            color: #1b4a8a;
+            text-decoration: underline;
         }
 
         .gestor-action-btn {

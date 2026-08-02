@@ -1,86 +1,78 @@
 <?php
 
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\QzSecurityController;
-use App\Http\Controllers\UserController;
-use App\Http\Controllers\UserLoginLogController;
-use App\Http\Controllers\RoleController;
-use App\Http\Controllers\PermissionController;
-use App\Http\Controllers\RoleHasPermissionController;
-use App\Http\Controllers\PlantillaController;
-use App\Http\Controllers\PaquetesEmsController;
-use App\Http\Controllers\PaquetesEmsBoletaController;
-use App\Http\Controllers\ConceptoFacturacionController;
-use App\Http\Controllers\ServicioController;
-use App\Http\Controllers\DestinoController;
-use App\Http\Controllers\PesoController;
-use App\Http\Controllers\OrigenController;
-use App\Http\Controllers\MalencaminadoController;
-use App\Http\Controllers\SucursalController;
-use App\Http\Controllers\TarifarioController;
-use App\Http\Controllers\TarifaContratoController;
-use App\Http\Controllers\TarifarioTiktokerController;
-use App\Http\Controllers\TodosPaquetesController;
-use App\Http\Controllers\ServicioExtraController;
-use App\Http\Controllers\ImportController;
-use App\Http\Controllers\PaquetesCertiController;
-use App\Http\Controllers\EstadoController;
-use App\Http\Controllers\VentanillaController;
-use App\Http\Controllers\DespachoController;
-use App\Http\Controllers\DeliveryImageController;
-use App\Http\Controllers\SacaController;
-use App\Http\Controllers\CarterosController;
-use App\Http\Controllers\BackupController;
-use App\Http\Controllers\BusquedaController;
-use App\Http\Controllers\EventoController;
-use App\Http\Controllers\PaquetesOrdiController;
-use App\Http\Controllers\AuditoriaController;
-use App\Http\Controllers\EventosAuditoriaController;
-use App\Http\Controllers\EmpresaController;
-use App\Http\Controllers\CodigoEmpresaController;
-use App\Http\Controllers\AreaContratosController;
-use App\Http\Controllers\IndicadorController;
-use App\Http\Controllers\RecojoController;
-use App\Http\Controllers\ZonaPaqueteController;
-use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\PerformanceController;
-use App\Http\Controllers\ReportesController;
-use App\Http\Controllers\MisVentasController;
 use App\Http\Controllers\AclController;
+use App\Http\Controllers\AppConfigController;
+use App\Http\Controllers\AreaContratosController;
+use App\Http\Controllers\AuditoriaController;
+use App\Http\Controllers\BackupController;
 use App\Http\Controllers\BitacoraController;
-use App\Http\Controllers\FacturacionCartController;
-use App\Http\Controllers\FacturacionServicioController;
+use App\Http\Controllers\BusquedaController;
+use App\Http\Controllers\CarterosController;
 use App\Http\Controllers\ClientManagementController;
 use App\Http\Controllers\ClientRoleController;
+use App\Http\Controllers\CodigoEmpresaController;
+use App\Http\Controllers\ConceptoFacturacionController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DeliveryImageController;
+use App\Http\Controllers\DespachoController;
+use App\Http\Controllers\DestinoController;
+use App\Http\Controllers\EmpresaController;
+use App\Http\Controllers\EstadoController;
+use App\Http\Controllers\EventoController;
+use App\Http\Controllers\EventosAuditoriaController;
+use App\Http\Controllers\ExternalApiTokenController;
+use App\Http\Controllers\FacturacionCartController;
+use App\Http\Controllers\FacturacionServicioController;
+use App\Http\Controllers\ImportController;
+use App\Http\Controllers\IndicadorController;
+use App\Http\Controllers\MalencaminadoController;
+use App\Http\Controllers\MisVentasController;
+use App\Http\Controllers\OrigenController;
+use App\Http\Controllers\PaquetesCertiController;
+use App\Http\Controllers\PaquetesEmsBoletaController;
+use App\Http\Controllers\PaquetesEmsController;
+use App\Http\Controllers\PaquetesOrdiController;
+use App\Http\Controllers\PerformanceController;
+use App\Http\Controllers\PermissionController;
+use App\Http\Controllers\PesoController;
+use App\Http\Controllers\PlantillaController;
 use App\Http\Controllers\PreregistroController;
-use App\Http\Controllers\Web\FuelLogController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\QzSecurityController;
+use App\Http\Controllers\RecojoController;
+use App\Http\Controllers\ReportesController;
+use App\Http\Controllers\RoleController;
+use App\Http\Controllers\RoleHasPermissionController;
+use App\Http\Controllers\SacaController;
+use App\Http\Controllers\ServicioController;
+use App\Http\Controllers\ServicioExtraController;
+use App\Http\Controllers\SucursalController;
+use App\Http\Controllers\TarifaContratoController;
+use App\Http\Controllers\TarifarioController;
+use App\Http\Controllers\TarifarioTiktokerController;
+use App\Http\Controllers\TodosPaquetesController;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\UserLoginLogController;
+use App\Http\Controllers\VentanillaController;
 use App\Http\Controllers\Web\DriverMemorandumController;
 use App\Http\Controllers\Web\FuelInvoiceFileController;
+use App\Http\Controllers\Web\FuelLogController;
+use App\Http\Controllers\Web\MaintenanceApprovedAppointmentReportController;
+use App\Http\Controllers\Web\MaintenanceDocumentReportController;
 use App\Http\Controllers\Web\MaintenanceFileController;
 use App\Http\Controllers\Web\MaintenanceIncentiveReportController;
-use App\Http\Controllers\Web\MaintenanceDocumentReportController;
-use App\Http\Controllers\Web\MaintenanceApprovedAppointmentReportController;
 use App\Http\Controllers\Web\MaintenanceRequestFormController;
 use App\Http\Controllers\Web\MapController;
 use App\Http\Controllers\Web\QrDecoderController;
-use App\Http\Controllers\AppConfigController;
-use App\Http\Controllers\ExternalApiTokenController;
+use App\Http\Controllers\Web\VehicleAssignmentReportController;
 use App\Http\Controllers\Web\VehicleLogMapController;
 use App\Http\Controllers\Web\VehicleLogMapPageController;
-use App\Http\Controllers\Web\VehicleAssignmentReportController;
-use App\Http\Controllers\Web\VehicleMaintenanceReportController;
 use App\Http\Controllers\Web\VehicleLogOdometerController;
 use App\Http\Controllers\Web\VehicleLogStagePhotoController;
-use App\Http\Controllers\Web\WorkshopLocationReportController;
+use App\Http\Controllers\Web\VehicleMaintenanceReportController;
 use App\Http\Controllers\Web\WorkshopActaReportController;
-use App\Livewire\FuelLogManager;
-use App\Livewire\MapTracker;
-use App\Livewire\MaintenanceAlertManager;
-use App\Livewire\MaintenanceAppointmentManager;
-use App\Livewire\MaintenanceCalendarManager;
-use App\Livewire\MaintenanceLogManager;
-use App\Livewire\MaintenanceTypeManager;
-use App\Livewire\VehicleLogManager;
+use App\Http\Controllers\Web\WorkshopLocationReportController;
+use App\Http\Controllers\ZonaPaqueteController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -117,6 +109,10 @@ Route::get('/imagenes-entrega/paquete/{type}/{id}/{kind?}/descargar', [DeliveryI
     ->middleware(['auth', 'internal.only'])
     ->where('kind', 'entrega|devolucion')
     ->name('delivery-images.package.download');
+Route::get('/publico/imagenes-entrega/paquete/{type}/{id}/{kind?}/descargar', [DeliveryImageController::class, 'downloadPackage'])
+    ->middleware(['signed:relative', 'throttle:60,1'])
+    ->where('kind', 'entrega|devolucion')
+    ->name('delivery-images.package.public-download');
 Route::get('/imagenes-entrega/evento/{source}/{codigo}/{kind?}', [DeliveryImageController::class, 'event'])
     ->middleware(['auth', 'internal.only'])
     ->where('kind', 'entrega|devolucion')
@@ -137,9 +133,9 @@ Route::get('/vgc/pdf', [RecojoController::class, 'verificarGuiaPdf'])
     ->name('paquetes-contrato.verificar-guia.pdf');
 Route::middleware(['auth', 'internal.only'])->get('/acl/livewire-actions', [AclController::class, 'livewireActions'])
     ->name('acl.livewire-actions');
-  Route::middleware(['auth', 'internal.only'])->group(function () {
-      Route::get('/qz/certificate', [QzSecurityController::class, 'qzCertificate'])->name('qz.certificate');
-      Route::post('/qz/sign', [QzSecurityController::class, 'qzSign'])->name('qz.sign');
+Route::middleware(['auth', 'internal.only'])->group(function () {
+    Route::get('/qz/certificate', [QzSecurityController::class, 'qzCertificate'])->name('qz.certificate');
+    Route::post('/qz/sign', [QzSecurityController::class, 'qzSign'])->name('qz.sign');
     Route::put('/facturacion/cart/billing', [FacturacionCartController::class, 'updateBillingData'])->name('facturacion.cart.billing.update');
     Route::put('/facturacion/cart/items/{itemId}', [FacturacionCartController::class, 'updateItem'])->name('facturacion.cart.items.update');
     Route::post('/facturacion/cart/items/{itemId}/explode', [FacturacionCartController::class, 'explodeItem'])->name('facturacion.cart.items.explode');
@@ -153,7 +149,7 @@ Route::middleware(['auth', 'internal.only'])->get('/acl/livewire-actions', [AclC
     Route::post('/facturacion/cart/conceptos', [FacturacionCartController::class, 'addConcepto'])->name('facturacion.cart.conceptos.store');
     Route::post('/facturacion/cart/clear', [FacturacionCartController::class, 'clear'])->name('facturacion.cart.clear');
     Route::delete('/facturacion/cart/items/{itemId}', [FacturacionCartController::class, 'removeItem'])->name('facturacion.cart.items.destroy');
-  });
+});
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
@@ -287,7 +283,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::put('utest/{id}/restoring', [UserController::class, 'restoring'])->name('users.restoring');
     Route::put('users/{user}', [UserController::class, 'update'])->name('users.update');
 
-    //Roles
+    // Roles
     Route::get('/roles', [RoleController::class, 'index'])->name('roles.index');
     Route::get('/role/create', [RoleController::class, 'create'])->name('roles.create');
     // Route::get('/role/{role}', [RoleController::class, 'show'])->name('roles.show');
@@ -306,7 +302,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::put('/cliente-roles/{clientRole}', [ClientRoleController::class, 'update'])->name('client-roles.update');
     Route::delete('/cliente-roles/{clientRole}', [ClientRoleController::class, 'destroy'])->name('client-roles.destroy');
 
-    //Permisos
+    // Permisos
     Route::get('/permissions', [PermissionController::class, 'index'])->name('permissions.index');
     Route::post('/permissions/sync', [PermissionController::class, 'sync'])->name('permissions.sync');
     Route::get('/permission/create', [PermissionController::class, 'create'])->name('permissions.create');
@@ -316,7 +312,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::put('/permission/{permission}', [PermissionController::class, 'update'])->name('permissions.update');
     Route::delete('/permission/{permission}', [PermissionController::class, 'destroy'])->name('permissions.destroy');
 
-    //Accesos
+    // Accesos
     Route::get('/role-has-permissions', [RoleHasPermissionController::class, 'index'])->name('role-has-permissions.index');
     Route::get('/role-has-permission/create', [RoleHasPermissionController::class, 'create'])->name('role-has-permissions.create');
     // Route::get('/role-has-permission/{roleHasPermission}', [RoleHasPermissionController::class, 'show'])->name('role-has-permissions.show');
@@ -325,13 +321,11 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::put('/role-has-permission/{roleHasPermission}', [RoleHasPermissionController::class, 'update'])->name('role-has-permissions.update');
     Route::delete('/role-has-permission/{roleHasPermission}', [RoleHasPermissionController::class, 'destroy'])->name('role-has-permissions.destroy');
 
-
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-
-    //gets
+    // gets
     Route::get('/plantilla', [PlantillaController::class, 'getplantilla']);
     Route::get('/paquetes-ems', [PaquetesEmsController::class, 'index'])->name('paquetes-ems.index');
     Route::get('/paquetes-ems/create', [PaquetesEmsController::class, 'create'])->name('paquetes-ems.create');
@@ -481,6 +475,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/paquetes-contrato/entregados/pdf', [RecojoController::class, 'entregadosPdf'])->name('paquetes-contrato.entregados.pdf');
     Route::get('/paquetes-contrato/cartero', [RecojoController::class, 'cartero'])->name('paquetes-contrato.cartero');
     Route::get('/paquetes-contrato/gestor', [RecojoController::class, 'gestor'])->name('paquetes-contrato.gestor');
+    Route::get('/paquetes-contrato/gestor/pdf', [RecojoController::class, 'gestorPdf'])->name('paquetes-contrato.gestor.pdf');
     Route::get('/dir-operaciones/reimprimir-cn33', [RecojoController::class, 'reimprimirCn33'])->name('dashboard.reimprimir-cn33');
     Route::get('/dir-operaciones/reimprimir-cn33/pdf', [RecojoController::class, 'reimprimirCn33DespachoPdf'])->name('dashboard.reimprimir-cn33.pdf');
     Route::get('/dir-operaciones/reimprimir-cn33/excel', [RecojoController::class, 'reimprimirCn33DespachoExcel'])->name('dashboard.reimprimir-cn33.despacho-excel');
@@ -535,7 +530,6 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::post('/carteros/entrega', [CarterosController::class, 'deliverPackage'])->name('carteros.entrega.store');
     Route::post('/carteros/entrega/ida-vuelta', [CarterosController::class, 'deliverRoundTripPackage'])->name('carteros.entrega.ida-vuelta');
     Route::post('/carteros/entrega/intento', [CarterosController::class, 'addAttempt'])->name('carteros.entrega.intento');
-
 
     // Modulos de Gestiones (Bitacora / Gasolina / Mantenimiento)
     Route::view('/livewire/vehicles', 'livewire.pages.vehicles')->name('livewire.vehicles');
@@ -623,11 +617,4 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/respaldos/descargar/{file}', [BackupController::class, 'download'])->name('backups.download');
 });
 
-require __DIR__ . '/auth.php';
-
-
-
-
-
-
-
+require __DIR__.'/auth.php';

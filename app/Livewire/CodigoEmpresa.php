@@ -4,7 +4,7 @@ namespace App\Livewire;
 
 use App\Models\CodigoEmpresa as CodigoEmpresaModel;
 use App\Models\Empresa as EmpresaModel;
-use App\Models\Recojo as RecojoContratoModel;
+use App\Services\ContratoCodigoService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -15,19 +15,31 @@ class CodigoEmpresa extends Component
     use WithPagination;
 
     public $search = '';
+
     public $searchQuery = '';
+
     public $editingId = null;
 
     public $codigo = '';
+
     public $barcode = '';
+
     public $empresa_id = '';
+
     public $operacion = 'IMPRIMIR';
+
     public $operacion_empresa_id = '';
+
     public $cantidad_generar = 1;
+
     public $reimprimir_desde = '';
+
     public $reimprimir_hasta = '';
+
     public $reporte_empresa_id = '';
+
     public $reporte_fecha_desde = '';
+
     public $reporte_fecha_hasta = '';
 
     protected $paginationTheme = 'bootstrap';
@@ -121,7 +133,7 @@ class CodigoEmpresa extends Component
     {
         $allowed = ['IMPRIMIR', 'REIMPRIMIR', 'REPORTE'];
         $op = strtoupper(trim((string) $operacion));
-        if (!in_array($op, $allowed, true)) {
+        if (! in_array($op, $allowed, true)) {
             return;
         }
 
@@ -152,27 +164,31 @@ class CodigoEmpresa extends Component
         ]);
 
         $empresa = EmpresaModel::findOrFail((int) $this->operacion_empresa_id);
-        $inicio = $this->nextCorrelativo($empresa);
         $cantidad = (int) $this->cantidad_generar;
         $now = now();
+        $codigos = DB::transaction(function () use ($empresa, $cantidad, $now) {
+            $codigoService = app(ContratoCodigoService::class);
+            $inicio = $codigoService->reservarRango((string) $empresa->codigo_cliente, $cantidad);
+            $rows = [];
+            $codigosGenerados = [];
 
-        $rows = [];
-        $codigos = [];
+            for ($i = 0; $i < $cantidad; $i++) {
+                $correlativo = $inicio + $i;
+                $codigo = $codigoService->construirCodigo((string) $empresa->codigo_cliente, $correlativo);
+                $rows[] = [
+                    'codigo' => $codigo,
+                    'barcode' => $codigo,
+                    'empresa_id' => (int) $empresa->id,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+                $codigosGenerados[] = $codigo;
+            }
 
-        for ($i = 0; $i < $cantidad; $i++) {
-            $correlativo = $inicio + $i;
-            $codigo = $this->buildCodigo((string) $empresa->codigo_cliente, $correlativo);
-            $rows[] = [
-                'codigo' => $codigo,
-                'barcode' => $codigo,
-                'empresa_id' => (int) $empresa->id,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ];
-            $codigos[] = $codigo;
-        }
+            DB::table('codigo_empresa')->insert($rows);
 
-        DB::table('codigo_empresa')->insert($rows);
+            return $codigosGenerados;
+        });
 
         $pdf = Pdf::loadView('codigo_empresa.etiquetas-oficio', [
             'codigos' => $codigos,
@@ -180,11 +196,11 @@ class CodigoEmpresa extends Component
             'generatedAt' => $now,
         ])->setPaper([0, 0, 612, 936], 'portrait');
 
-        session()->flash('success', count($codigos) . ' codigo(s) generado(s) correctamente.');
+        session()->flash('success', count($codigos).' codigo(s) generado(s) correctamente.');
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
-        }, 'codigos-' . strtoupper((string) $empresa->sigla) . '-' . $now->format('Ymd-His') . '.pdf');
+        }, 'codigos-'.strtoupper((string) $empresa->sigla).'-'.$now->format('Ymd-His').'.pdf');
     }
 
     protected function reimprimirCodigos()
@@ -201,6 +217,7 @@ class CodigoEmpresa extends Component
         $hasta = (int) $this->reimprimir_hasta;
         if ($hasta < $desde) {
             $this->addError('reimprimir_hasta', 'El numero final debe ser mayor o igual al inicial.');
+
             return;
         }
 
@@ -223,6 +240,7 @@ class CodigoEmpresa extends Component
 
         if (empty($codigos)) {
             session()->flash('error', 'No se encontraron codigos en ese rango para reimprimir.');
+
             return;
         }
 
@@ -233,11 +251,11 @@ class CodigoEmpresa extends Component
             'generatedAt' => $now,
         ])->setPaper([0, 0, 612, 936], 'portrait');
 
-        session()->flash('success', count($codigos) . ' codigo(s) reimpreso(s) correctamente.');
+        session()->flash('success', count($codigos).' codigo(s) reimpreso(s) correctamente.');
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
-        }, 'reimpresion-codigos-' . strtoupper((string) $empresa->sigla) . '-' . $now->format('Ymd-His') . '.pdf');
+        }, 'reimpresion-codigos-'.strtoupper((string) $empresa->sigla).'-'.$now->format('Ymd-His').'.pdf');
     }
 
     protected function reporteCodigos()
@@ -252,7 +270,7 @@ class CodigoEmpresa extends Component
 
         $query = CodigoEmpresaModel::query()
             ->join('empresa', 'empresa.id', '=', 'codigo_empresa.empresa_id')
-            ->when(!empty($this->reporte_empresa_id), function ($subQuery) {
+            ->when(! empty($this->reporte_empresa_id), function ($subQuery) {
                 $subQuery->where('codigo_empresa.empresa_id', (int) $this->reporte_empresa_id);
             })
             ->whereDate('codigo_empresa.created_at', '>=', $this->reporte_fecha_desde)
@@ -273,11 +291,12 @@ class CodigoEmpresa extends Component
 
         if ($resumen->isEmpty()) {
             session()->flash('error', 'No hay codigos para generar el reporte.');
+
             return;
         }
 
         $empresa = null;
-        if (!empty($this->reporte_empresa_id)) {
+        if (! empty($this->reporte_empresa_id)) {
             $empresa = EmpresaModel::find((int) $this->reporte_empresa_id);
         }
 
@@ -294,7 +313,7 @@ class CodigoEmpresa extends Component
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
-        }, 'reporte-codigos-' . $now->format('Ymd-His') . '.pdf');
+        }, 'reporte-codigos-'.$now->format('Ymd-His').'.pdf');
     }
 
     protected function prepareRuntimeForPdf(): void
@@ -308,7 +327,7 @@ class CodigoEmpresa extends Component
         $cliente = strtoupper(trim($codigoCliente));
         $cliente = preg_replace('/\s+/', '', $cliente) ?: '';
 
-        return 'C' . $cliente . 'A' . str_pad((string) $correlativo, 5, '0', STR_PAD_LEFT) . 'BO';
+        return 'C'.$cliente.'A'.str_pad((string) $correlativo, 5, '0', STR_PAD_LEFT).'BO';
     }
 
     protected function normalizarCodigoCliente(string $codigoCliente): string
@@ -332,49 +351,7 @@ class CodigoEmpresa extends Component
             ->map(fn ($id) => (int) $id)
             ->all();
 
-        return !empty($ids) ? $ids : [(int) $empresa->id];
-    }
-
-    protected function nextCorrelativo(EmpresaModel $empresa): int
-    {
-        $cliente = $this->normalizarCodigoCliente((string) $empresa->codigo_cliente);
-        $prefix = 'C' . $cliente . 'A';
-        $pattern = '/^C' . preg_quote($cliente, '/') . 'A(\d{5})BO$/';
-        $empresaIds = $this->empresaIdsConMismoCodigoCliente($empresa);
-
-        $max = 0;
-        $codigos = CodigoEmpresaModel::query()
-            ->whereIn('empresa_id', $empresaIds)
-            ->where(function ($query) use ($prefix) {
-                $query->where('codigo', 'like', $prefix . '%BO')
-                    ->orWhere('barcode', 'like', $prefix . '%BO');
-            })
-            ->get(['codigo', 'barcode'])
-            ->flatMap(fn ($row) => [$row->codigo, $row->barcode]);
-
-        foreach ($codigos as $codigo) {
-            if (preg_match($pattern, strtoupper(trim((string) $codigo)), $matches)) {
-                $valor = (int) $matches[1];
-                if ($valor > $max) {
-                    $max = $valor;
-                }
-            }
-        }
-
-        $codigosContrato = RecojoContratoModel::query()
-            ->where('codigo', 'like', $prefix . '%BO')
-            ->pluck('codigo');
-
-        foreach ($codigosContrato as $codigo) {
-            if (preg_match($pattern, strtoupper(trim((string) $codigo)), $matches)) {
-                $valor = (int) $matches[1];
-                if ($valor > $max) {
-                    $max = $valor;
-                }
-            }
-        }
-
-        return $max + 1;
+        return ! empty($ids) ? $ids : [(int) $empresa->id];
     }
 
     public function render()

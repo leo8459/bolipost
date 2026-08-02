@@ -1,7 +1,23 @@
 <?php
 
-use Illuminate\Foundation\Application;
+use App\Http\Middleware\ApplySecurityHeaders;
+use App\Http\Middleware\EnsureAclPermissionsSynced;
+use App\Http\Middleware\EnsureClienteAclPermissionsSynced;
+use App\Http\Middleware\EnsureClienteProfileComplete;
+use App\Http\Middleware\EnsureClienteRoutePermission;
+use App\Http\Middleware\EnsureEmpresaContractUsersActive;
+use App\Http\Middleware\EnsureExternalApiJwt;
+use App\Http\Middleware\EnsureInternalWebAccess;
+use App\Http\Middleware\EnsureRoutePermission;
+use App\Http\Middleware\EnsureSingleMobileSession;
+use App\Http\Middleware\EnsureSiopApiToken;
+use App\Http\Middleware\RedirectIfClienteAuthenticated;
+use App\Http\Middleware\RegistrarAuditoria;
+use App\Http\Middleware\UseClienteGuard;
+use App\Services\ContratoCodigoService;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Database\QueryException;
+use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
@@ -19,27 +35,49 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: ['api/*']);
 
         $middleware->alias([
-            'route.permission' => \App\Http\Middleware\EnsureRoutePermission::class,
-            'route.permission.cliente' => \App\Http\Middleware\EnsureClienteRoutePermission::class,
-            'guest.cliente' => \App\Http\Middleware\RedirectIfClienteAuthenticated::class,
-            'cliente.guard' => \App\Http\Middleware\UseClienteGuard::class,
-            'cliente.profile.complete' => \App\Http\Middleware\EnsureClienteProfileComplete::class,
-            'cliente.acl.sync' => \App\Http\Middleware\EnsureClienteAclPermissionsSynced::class,
-            'internal.only' => \App\Http\Middleware\EnsureInternalWebAccess::class,
-            'single.mobile.session' => \App\Http\Middleware\EnsureSingleMobileSession::class,
-            'empresa.contract.active' => \App\Http\Middleware\EnsureEmpresaContractUsersActive::class,
-            'siop.api.token' => \App\Http\Middleware\EnsureSiopApiToken::class,
-            'external.api.jwt' => \App\Http\Middleware\EnsureExternalApiJwt::class,
+            'route.permission' => EnsureRoutePermission::class,
+            'route.permission.cliente' => EnsureClienteRoutePermission::class,
+            'guest.cliente' => RedirectIfClienteAuthenticated::class,
+            'cliente.guard' => UseClienteGuard::class,
+            'cliente.profile.complete' => EnsureClienteProfileComplete::class,
+            'cliente.acl.sync' => EnsureClienteAclPermissionsSynced::class,
+            'internal.only' => EnsureInternalWebAccess::class,
+            'single.mobile.session' => EnsureSingleMobileSession::class,
+            'empresa.contract.active' => EnsureEmpresaContractUsersActive::class,
+            'siop.api.token' => EnsureSiopApiToken::class,
+            'external.api.jwt' => EnsureExternalApiJwt::class,
         ]);
 
         $middleware->web(append: [
-            \App\Http\Middleware\ApplySecurityHeaders::class,
-            \App\Http\Middleware\EnsureAclPermissionsSynced::class,
-            \App\Http\Middleware\EnsureEmpresaContractUsersActive::class,
-            \App\Http\Middleware\RegistrarAuditoria::class,
+            ApplySecurityHeaders::class,
+            EnsureAclPermissionsSynced::class,
+            EnsureEmpresaContractUsersActive::class,
+            RegistrarAuditoria::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->render(function (QueryException $e, Request $request) {
+            $sqlState = (string) ($e->errorInfo[0] ?? $e->getCode());
+            $detail = strtolower($e->getMessage());
+            $esCodigoContratoDuplicado = in_array($sqlState, ['23000', '23505'], true)
+                && (
+                    str_contains($detail, 'paquetes_contrato_codigo_unique')
+                    || str_contains($detail, 'paquetes_contrato.codigo')
+                );
+
+            if (! $esCodigoContratoDuplicado) {
+                return null;
+            }
+
+            $message = ContratoCodigoService::MENSAJE_CODIGO_DUPLICADO;
+
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message], 409);
+            }
+
+            return redirect()->back()->withInput()->with('error', $message);
+        });
+
         $exceptions->render(function (TokenMismatchException $e, Request $request) {
             $message = 'Sesion vencida, por favor actualice la pagina.';
 
@@ -70,4 +108,3 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('tracking:check')->cron('0 */8 * * *')->withoutOverlapping();
     })
     ->create();
-

@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Services\ContratoCodigoService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Schema;
 
 class Recojo extends Model
 {
@@ -45,6 +47,15 @@ class Recojo extends Model
         'precio' => 'decimal:2',
         'fecha_recojo' => 'datetime',
     ];
+
+    protected static function booted(): void
+    {
+        static::created(function (Recojo $recojo) {
+            if (Schema::hasTable('correlativos_contrato')) {
+                app(ContratoCodigoService::class)->sincronizarDesdeCodigo((string) $recojo->codigo);
+            }
+        });
+    }
 
     public function user()
     {

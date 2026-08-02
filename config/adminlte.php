@@ -1,5 +1,16 @@
 <?php
 
+use App\Menu\Filters\MaintenanceAlertBadgeFilter;
+use App\Menu\Filters\PanelContextFilter;
+use App\Menu\Filters\RoutePermissionFilter;
+use JeroenNoten\LaravelAdminLte\Menu\Filters\ActiveFilter;
+use JeroenNoten\LaravelAdminLte\Menu\Filters\ClassesFilter;
+use JeroenNoten\LaravelAdminLte\Menu\Filters\DataFilter;
+use JeroenNoten\LaravelAdminLte\Menu\Filters\GateFilter;
+use JeroenNoten\LaravelAdminLte\Menu\Filters\HrefFilter;
+use JeroenNoten\LaravelAdminLte\Menu\Filters\LangFilter;
+use JeroenNoten\LaravelAdminLte\Menu\Filters\SearchFilter;
+
 return [
 
     /*
@@ -396,7 +407,7 @@ return [
                     'url' => '/dir-comercial/rendimiento-servicios',
                     'icon' => 'fas fa-chart-pie',
                 ],
-                
+
             ],
         ],
         [
@@ -551,6 +562,7 @@ return [
                             'text' => 'Gestor',
                             'url' => 'paquetes-contrato/gestor',
                             'icon' => 'fas fa-list-check',
+                            'can' => 'paquetes-contrato.gestor',
                         ],
                     ],
                 ],
@@ -1201,16 +1213,16 @@ return [
     */
 
     'filters' => [
-        App\Menu\Filters\PanelContextFilter::class,
-        App\Menu\Filters\RoutePermissionFilter::class,
-        App\Menu\Filters\MaintenanceAlertBadgeFilter::class,
-        JeroenNoten\LaravelAdminLte\Menu\Filters\GateFilter::class,
-        JeroenNoten\LaravelAdminLte\Menu\Filters\HrefFilter::class,
-        JeroenNoten\LaravelAdminLte\Menu\Filters\SearchFilter::class,
-        JeroenNoten\LaravelAdminLte\Menu\Filters\ActiveFilter::class,
-        JeroenNoten\LaravelAdminLte\Menu\Filters\ClassesFilter::class,
-        JeroenNoten\LaravelAdminLte\Menu\Filters\LangFilter::class,
-        JeroenNoten\LaravelAdminLte\Menu\Filters\DataFilter::class,
+        PanelContextFilter::class,
+        RoutePermissionFilter::class,
+        MaintenanceAlertBadgeFilter::class,
+        GateFilter::class,
+        HrefFilter::class,
+        SearchFilter::class,
+        ActiveFilter::class,
+        ClassesFilter::class,
+        LangFilter::class,
+        DataFilter::class,
     ],
 
     /*

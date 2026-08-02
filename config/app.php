@@ -56,6 +56,8 @@ return [
 
     'public_download_url' => env('PUBLIC_DOWNLOAD_URL'),
 
+    'public_image_link_days' => (int) env('PUBLIC_IMAGE_LINK_DAYS', 30),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone
