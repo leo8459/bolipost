@@ -9,6 +9,7 @@ use App\Models\Cartero;
 use App\Models\Estado;
 use App\Models\Recojo;
 use App\Support\BitacoraCn33Service;
+use App\Support\BoliviaBusinessCalendar;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Database\Query\Builder;
@@ -20,7 +21,8 @@ use Maatwebsite\Excel\Facades\Excel;
 class DashboardController extends Controller
 {
     public function __construct(
-        private readonly BitacoraCn33Service $cn33Service
+        private readonly BitacoraCn33Service $cn33Service,
+        private readonly BoliviaBusinessCalendar $businessCalendar
     ) {
     }
 
@@ -448,16 +450,35 @@ class DashboardController extends Controller
         );
 
         $contratosPorRecoger = 0;
+        $contratosPorRecogerPorDepartamento = collect();
         if ($estadoSolicitudId && ($hasGlobalDepartmentAccess || $userCity !== '')) {
-            $contratosPorRecoger = (int) Recojo::query()
+            $pickupQuery = Recojo::query()
                 ->where('estados_id', $estadoSolicitudId)
                 ->when(!$hasGlobalDepartmentAccess, function ($query) use ($userCity) {
                     $query->whereRaw('trim(upper(origen)) = ?', [$userCity]);
-                })
-                ->count();
+                });
+
+            $contratosPorRecoger = (int) (clone $pickupQuery)->count();
+
+            if ($hasGlobalDepartmentAccess) {
+                $departmentExpression = "coalesce(nullif(trim(upper(origen)), ''), 'SIN DEPARTAMENTO')";
+                $contratosPorRecogerPorDepartamento = (clone $pickupQuery)
+                    ->selectRaw("{$departmentExpression} as departamento, count(*) as total")
+                    ->groupByRaw($departmentExpression)
+                    ->orderByDesc('total')
+                    ->orderBy('departamento')
+                    ->get()
+                    ->map(function ($row) {
+                        $row->departamento = (string) ($row->departamento ?? 'SIN DEPARTAMENTO');
+                        $row->total = (int) ($row->total ?? 0);
+
+                        return $row;
+                    })
+                    ->values();
+            }
         }
 
-        $regionalPendingAlert = $this->buildRegionalPendingAlert($userCity);
+        $regionalPendingAlert = $this->buildRegionalPendingAlert($userCity, $hasGlobalDepartmentAccess);
         $carteroPendingAlert = $this->buildCarteroPendingAlert($authUser, $userRoles);
         $carteroPendingSummary = $this->buildCarteroPendingSummary($authUser, $userRoles, $hasGlobalDepartmentAccess, $userCity);
         $pendingCn33Alert = $this->cn33Service->getPendingRegistrationAlert(
@@ -504,6 +525,8 @@ class DashboardController extends Controller
             'insightsEjecutivos' => $insightsEjecutivos,
             'userCity' => $userCity,
             'contratosPorRecoger' => $contratosPorRecoger,
+            'contratosPorRecogerPorDepartamento' => $contratosPorRecogerPorDepartamento,
+            'pickupAlertIsNational' => $hasGlobalDepartmentAccess,
             'canPlayPickupAlertSound' => $canPlayPickupAlertSound,
             'regionalPendingAlert' => $regionalPendingAlert,
             'carteroPendingAlert' => $carteroPendingAlert,
@@ -542,24 +565,29 @@ class DashboardController extends Controller
             && $user->hasRole($role);
     }
 
-    private function buildRegionalPendingAlert(string $userCity): array
+    private function buildRegionalPendingAlert(string $userCity, bool $hasGlobalDepartmentAccess = false): array
     {
         $regional = strtoupper(trim($userCity));
-        if ($regional === '') {
+        if (!$hasGlobalDepartmentAccess && $regional === '') {
             return [
                 'count' => 0,
                 'regional' => '',
                 'hours' => 72,
+                'scope' => 'regional',
+                'departments' => collect(),
             ];
         }
 
         $estadoEntregadoId = $this->resolveEstadoIdByName('ENTREGADO');
         $estadoCanceladoId = $this->resolveEstadoIdByName('CANCELADO');
         $pendingCount = 0;
+        $pendingByDepartment = [];
 
         foreach (self::MODULOS as $moduloKey => $config) {
             $query = DB::table($config['table'] . ' as t');
-            $this->applyDepartamentoFilter($query, $config, $regional, 't');
+            if (!$hasGlobalDepartmentAccess) {
+                $this->applyDepartamentoFilter($query, $config, $regional, 't');
+            }
             $this->excludeCanceledState($query, 't.' . $config['estado_column'], $estadoCanceladoId);
 
             if ($estadoEntregadoId) {
@@ -569,23 +597,60 @@ class DashboardController extends Controller
             $startColumn = $moduloKey === 'contrato'
                 ? DB::raw('coalesce(t.fecha_recojo, t.created_at) as start_at')
                 : DB::raw('t.created_at as start_at');
+            $departmentExpression = $this->effectiveDepartamentoExpression($config, 't');
 
             $rows = $query
-                ->select($startColumn)
+                ->select([
+                    $startColumn,
+                    DB::raw(($departmentExpression !== '' ? $departmentExpression : "''") . ' as departamento'),
+                ])
                 ->get();
 
             foreach ($rows as $row) {
                 if ($this->hasExceededBusinessHours($row->start_at ?? null, 72)) {
                     $pendingCount++;
+
+                    if ($hasGlobalDepartmentAccess) {
+                        $department = $this->normalizePendingAlertDepartment(
+                            (string) ($row->departamento ?? '')
+                        );
+                        $pendingByDepartment[$department] = ($pendingByDepartment[$department] ?? 0) + 1;
+                    }
                 }
             }
         }
 
+        $departments = collect($pendingByDepartment)
+            ->map(fn ($total, $department) => (object) [
+                'departamento' => (string) $department,
+                'total' => (int) $total,
+            ])
+            ->sort(function ($left, $right) {
+                return $right->total <=> $left->total
+                    ?: strcmp($left->departamento, $right->departamento);
+            })
+            ->values();
+
         return [
             'count' => $pendingCount,
-            'regional' => $regional,
+            'regional' => $hasGlobalDepartmentAccess ? '' : $regional,
             'hours' => 72,
+            'scope' => $hasGlobalDepartmentAccess ? 'nacional' : 'regional',
+            'departments' => $departments,
         ];
+    }
+
+    private function normalizePendingAlertDepartment(string $department): string
+    {
+        $department = strtoupper(trim($department));
+
+        return match ($department) {
+            'CHUQUISACA' => 'SUCRE',
+            'BENI', 'RURRENABAQUE' => 'TRINIDAD',
+            'PANDO' => 'COBIJA',
+            '' => 'SIN DEPARTAMENTO',
+            default => $department,
+        };
     }
 
     private function buildCarteroPendingAlert($authUser, array $userRoles): array
@@ -684,25 +749,7 @@ class DashboardController extends Controller
 
         $start = $startAt instanceof Carbon ? $startAt->copy() : Carbon::parse($startAt);
 
-        return $this->addBusinessHours($start, $hours)->lte(now());
-    }
-
-    private function addBusinessHours(Carbon $start, int $hours): Carbon
-    {
-        $current = $start->copy();
-        $remaining = $hours;
-
-        while ($remaining > 0) {
-            $current->addHour();
-
-            if ($current->isWeekend()) {
-                continue;
-            }
-
-            $remaining--;
-        }
-
-        return $current;
+        return $this->businessCalendar->addBusinessHours($start, $hours)->lte(now());
     }
 
     private function resolveModulosSeleccionados(Request $request): array

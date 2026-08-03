@@ -1486,17 +1486,17 @@
                                 <label>Cod. especial (CN-33)</label>
                                 <input
                                     type="text"
-                                    class="form-control"
+                                    class="form-control text-uppercase"
                                     placeholder="Ingresa cod_especial (ej: SRZ00001)"
                                     wire:model.live.debounce.300ms="cn33ManualCodigo"
+                                    wire:keydown.enter.prevent="prepararAnadirSeleccionadosCn33"
                                 >
                             </div>
                             <div class="form-group col-md-6 mb-2 d-flex gap-2">
                                 <button
                                     class="btn btn-azul"
                                     type="button"
-                                    data-toggle="modal"
-                                    data-target="#confirmarCn33Modal"
+                                    wire:click="prepararAnadirSeleccionadosCn33"
                                 >
                                     Confirmar
                                 </button>
@@ -2487,7 +2487,7 @@
                         </div>
                         <div class="d-flex justify-content-between align-items-center">
                             <span>Nuevo destino</span>
-                            <strong>RAFOVAR</strong>
+                            <strong>{{ $cn33DestinoConfirmacion !== '' ? $cn33DestinoConfirmacion : 'SIN DESTINO' }}</strong>
                         </div>
                     </div>
 
@@ -2519,6 +2519,25 @@
                             Procesando...
                         </span>
                     </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="cn33CodeErrorModal" tabindex="-1" aria-labelledby="cn33CodeErrorModalLabel" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="cn33CodeErrorModalLabel">Código incorrecto</h5>
+                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Cerrar">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">Por favor, coloque el código del CN-33, no el código del paquete.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
                 </div>
             </div>
         </div>
@@ -3760,6 +3779,9 @@
             closeRecibirRegionalModal: '#recibirRegionalModal',
             openCodEspecialDetalleModal: '#codEspecialDetalleModal',
             closeCodEspecialDetalleModal: '#codEspecialDetalleModal',
+            openConfirmarCn33Modal: '#confirmarCn33Modal',
+            closeConfirmarCn33Modal: '#confirmarCn33Modal',
+            openCn33CodeErrorModal: '#cn33CodeErrorModal',
         };
 
         const handleModalEvent = (eventName, selector) => {

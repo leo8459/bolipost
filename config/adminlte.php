@@ -552,6 +552,11 @@ return [
                             'url' => 'area-contratos/reportes',
                             'icon' => 'fas fa-file-excel',
                         ],
+                        [
+                            'text' => 'Contratos escaneados',
+                            'url' => 'area-contratos/contratos-escaneados',
+                            'icon' => 'fas fa-file-pdf',
+                        ],
                     ],
                 ],
                 [

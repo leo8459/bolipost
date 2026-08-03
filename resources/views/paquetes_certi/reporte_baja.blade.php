@@ -22,7 +22,11 @@
         .details-table td { width: 50%; padding-right: 18px; }
         .sign-table { margin-top: 10px; }
         .sign-table td { width: 50%; padding: 0 10px; }
-        body { padding-top: 0.90cm; }
+        body {
+            padding-top: 0.90cm;
+            color: #000;
+            font-family: "DejaVu Sans", sans-serif;
+        }
     </style>
 </head>
 <body>
@@ -45,7 +49,7 @@
                     </td>
                     <td>
                         <p class="small-text"><strong>Nro. Factura:</strong></p>
-                        <p class="small-text"><strong>Usuario:</strong> {{ auth()->user()->name }}</p>
+                        <p class="small-text"><strong>Usuario:</strong> {{ $printedByName ?? auth()->user()->name }}</p>
                         <p class="small-text"><strong>Tipo:</strong> {{ $package->tipo }}</p>
                         <p class="small-text"><strong>Peso:</strong> {{ $package->peso }} gr.</p>
                         <p class="small-text"><strong>Precio:</strong> {{ $package->precio ? $package->precio . ' Bs' : '-' }}</p>
@@ -65,7 +69,7 @@
                     <td>
                         <p class="special-text">__________________________</p>
                         <p class="special-text">ENTREGADO POR</p>
-                        <p class="special-text">{{ auth()->user()->name }}</p>
+                        <p class="special-text">{{ $printedByName ?? auth()->user()->name }}</p>
                     </td>
                 </tr>
             </table>
@@ -90,7 +94,7 @@
                         </td>
                         <td>
                             <p class="small-text"><strong>Nro. Factura:</strong></p>
-                            <p class="small-text"><strong>Usuario:</strong> {{ auth()->user()->name }}</p>
+                            <p class="small-text"><strong>Usuario:</strong> {{ $printedByName ?? auth()->user()->name }}</p>
                             <p class="small-text"><strong>Tipo:</strong> {{ $package->tipo }}</p>
                             <p class="small-text"><strong>Peso:</strong> {{ $package->peso }} gr.</p>
                             <p class="small-text"><strong>Precio:</strong> {{ $package->precio ? $package->precio . ' Bs' : '-' }}</p>
@@ -110,7 +114,7 @@
                         <td>
                             <p class="special-text">__________________________</p>
                             <p class="special-text">ENTREGADO POR</p>
-                            <p class="special-text">{{ auth()->user()->name }}</p>
+                            <p class="special-text">{{ $printedByName ?? auth()->user()->name }}</p>
                         </td>
                     </tr>
                 </table>

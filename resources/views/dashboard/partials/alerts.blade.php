@@ -3,7 +3,20 @@
     <div>
         <strong>Tienes paquetes por recoger:</strong>
         {{ number_format((int) $contratosPorRecoger) }}
-        en {{ $userCity !== '' ? $userCity : 'tu regional' }}.
+        @if(($pickupAlertIsNational ?? false) === true)
+            a nivel nacional.
+            @if(collect($contratosPorRecogerPorDepartamento ?? [])->isNotEmpty())
+                <div class="mt-2 d-flex flex-wrap">
+                    @foreach($contratosPorRecogerPorDepartamento as $departamento)
+                        <span class="btn btn-sm btn-light border mr-2 mb-2">
+                            {{ $departamento->departamento }}: {{ number_format((int) $departamento->total) }}
+                        </span>
+                    @endforeach
+                </div>
+            @endif
+        @else
+            en {{ $userCity !== '' ? $userCity : 'tu regional' }}.
+        @endif
     </div>
     <div class="d-flex flex-column flex-md-row mt-2 mt-md-0">
         @if(($canPlayPickupAlertSound ?? false) === true)
@@ -23,11 +36,24 @@
     <div>
         <strong>Tiene paquetes pendientes:</strong>
         {{ number_format((int) data_get($regionalPendingAlert, 'count', 0)) }}
-        con mas de {{ (int) data_get($regionalPendingAlert, 'hours', 72) }} horas habiles en
-        {{ data_get($regionalPendingAlert, 'regional', $userCity !== '' ? $userCity : 'tu regional') }}.
+        con mas de {{ (int) data_get($regionalPendingAlert, 'hours', 72) }} horas habiles
+        @if(data_get($regionalPendingAlert, 'scope') === 'nacional')
+            a nivel nacional.
+            @if(collect(data_get($regionalPendingAlert, 'departments', []))->isNotEmpty())
+                <div class="mt-2 d-flex flex-wrap">
+                    @foreach(data_get($regionalPendingAlert, 'departments', []) as $departamento)
+                        <span class="btn btn-sm btn-light border mr-2 mb-2">
+                            {{ $departamento->departamento }}: {{ number_format((int) $departamento->total) }}
+                        </span>
+                    @endforeach
+                </div>
+            @endif
+        @else
+            en {{ data_get($regionalPendingAlert, 'regional', $userCity !== '' ? $userCity : 'tu regional') }}.
+        @endif
     </div>
     <div class="text-muted small mt-2 mt-md-0">
-        Se descuentan sabados y domingos.
+        Se descuentan sabados, domingos y feriados nacionales de Bolivia.
     </div>
 </div>
 @endif
@@ -128,9 +154,19 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach(($department->rows ?? collect()) as $row)
+                                @foreach(($department->rows ?? collect()) as $cnIndex => $row)
                                     <tr>
-                                        <td>{{ $row->numero_despacho ?? $row->cod_especial }}</td>
+                                        <td>
+                                            <button
+                                                type="button"
+                                                class="btn btn-link font-weight-bold p-0"
+                                                data-toggle="modal"
+                                                data-target="#pendingCn33PackagesModal{{ $index }}_{{ $cnIndex }}"
+                                                title="Ver todos los paquetes del CN-33"
+                                            >
+                                                {{ $row->numero_despacho ?? $row->cod_especial }}
+                                            </button>
+                                        </td>
                                         <td class="text-right">{{ number_format((int) ($row->days_delay ?? 0)) }}</td>
                                         <td class="text-right">{{ number_format((float) ($row->peso_total ?? 0), 3) }}</td>
                                         <td class="text-right">{{ number_format((int) ($row->total_registros ?? 0)) }}</td>
@@ -150,7 +186,85 @@
             </div>
         </div>
     </div>
+
+    @foreach(($department->rows ?? collect()) as $cnIndex => $row)
+        <div class="modal fade cn33-packages-modal" id="pendingCn33PackagesModal{{ $index }}_{{ $cnIndex }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <div>
+                            <h5 class="modal-title">CN-33 {{ $row->numero_despacho ?? $row->cod_especial }}</h5>
+                            <small>Paquetes incluidos en este despacho</small>
+                        </div>
+                        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-light border d-flex flex-wrap justify-content-between">
+                            <span><strong>Regional:</strong> {{ $row->regional ?: 'Sin regional' }}</span>
+                            <span><strong>Total paquetes:</strong> {{ number_format(collect($row->packages ?? [])->count()) }}</span>
+                            <span><strong>Peso total:</strong> {{ number_format((float) ($row->peso_total ?? 0), 3) }}</span>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-striped table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Servicio</th>
+                                        <th>Codigo del paquete</th>
+                                        <th>Origen</th>
+                                        <th>Destino</th>
+                                        <th>Destinatario</th>
+                                        <th class="text-right">Peso</th>
+                                        <th>Registrado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse(collect($row->packages ?? []) as $package)
+                                        <tr>
+                                            <td>{{ $loop->iteration }}</td>
+                                            <td>{{ $package->servicio ?: '-' }}</td>
+                                            <td><strong>{{ $package->codigo ?: '-' }}</strong></td>
+                                            <td>{{ $package->origen ?: '-' }}</td>
+                                            <td>{{ $package->destino ?: '-' }}</td>
+                                            <td>{{ $package->destinatario ?: '-' }}</td>
+                                            <td class="text-right">{{ number_format((float) $package->peso, 3) }}</td>
+                                            <td>{{ optional($package->created_at)->format('d/m/Y H:i') ?: '-' }}</td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="8" class="text-center text-muted py-4">
+                                                No se encontraron paquetes para este CN-33.
+                                            </td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endforeach
 @endforeach
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        if (!window.jQuery) {
+            return;
+        }
+
+        window.jQuery('.cn33-packages-modal').on('hidden.bs.modal', function () {
+            if (window.jQuery('.modal.show').length > 0) {
+                document.body.classList.add('modal-open');
+            }
+        });
+    });
+</script>
 @endif
 
 @if((bool) data_get($carteroPendingSummary ?? [], 'enabled', false))

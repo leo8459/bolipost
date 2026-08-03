@@ -142,6 +142,64 @@ class BitacoraCn33Service
             })
             ->values();
 
+        if ($rows->isNotEmpty()) {
+            $pendingCodes = $rows
+                ->pluck('cod_especial')
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            $packagesByCn33 = DB::query()
+                ->fromSub($this->cn33SourceUnionQuery(), 'cn33_packages')
+                ->select([
+                    'cn33_packages.cod_especial_normalizado',
+                    'cn33_packages.regional_normalizada',
+                    'cn33_packages.servicio',
+                    'cn33_packages.package_id',
+                    'cn33_packages.codigo',
+                    'cn33_packages.origen',
+                    'cn33_packages.destino',
+                    'cn33_packages.destinatario',
+                    'cn33_packages.peso',
+                    'cn33_packages.created_at',
+                ])
+                ->whereIn('cn33_packages.cod_especial_normalizado', $pendingCodes)
+                ->when($regional !== null, function ($query) use ($regional) {
+                    $query->where('cn33_packages.regional_normalizada', $regional);
+                })
+                ->orderBy('cn33_packages.cod_especial_normalizado')
+                ->orderBy('cn33_packages.codigo')
+                ->get()
+                ->map(function ($package) {
+                    $package->servicio = (string) ($package->servicio ?? '');
+                    $package->package_id = (int) ($package->package_id ?? 0);
+                    $package->codigo = (string) ($package->codigo ?? '');
+                    $package->origen = (string) ($package->origen ?? '');
+                    $package->destino = (string) ($package->destino ?? '');
+                    $package->destinatario = (string) ($package->destinatario ?? '');
+                    $package->peso = round((float) ($package->peso ?? 0), 3);
+                    $package->created_at = !empty($package->created_at)
+                        ? Carbon::parse($package->created_at)
+                        : null;
+
+                    return $package;
+                })
+                ->groupBy(fn ($package) => $this->packageGroupKey(
+                    (string) ($package->cod_especial_normalizado ?? ''),
+                    (string) ($package->regional_normalizada ?? '')
+                ));
+
+            $rows = $rows->map(function ($row) use ($packagesByCn33) {
+                $row->packages = $packagesByCn33->get(
+                    $this->packageGroupKey($row->cod_especial, $row->regional),
+                    collect()
+                )->values();
+
+                return $row;
+            });
+        }
+
         $pendingCount = (int) $rows->count();
 
         if ($pendingCount === 0) {
@@ -240,6 +298,12 @@ class BitacoraCn33Service
             ->selectRaw("
                 trim(upper(cod_especial)) as cod_especial_normalizado,
                 {$emsRegionalExpression} as regional_normalizada,
+                'EMS' as servicio,
+                paquetes_ems.id as package_id,
+                coalesce(paquetes_ems.codigo, '') as codigo,
+                coalesce(paquetes_ems.origen, '') as origen,
+                coalesce(paquetes_ems.ciudad, '') as destino,
+                coalesce(paquetes_ems.nombre_destinatario, '') as destinatario,
                 paquetes_ems.created_at,
                 ems_dispatch_events.dispatch_created_at as dispatch_created_at,
                 coalesce(paquetes_ems.peso, 0) as peso,
@@ -255,6 +319,12 @@ class BitacoraCn33Service
             ->selectRaw("
                 trim(upper(cod_especial)) as cod_especial_normalizado,
                 {$contratoRegionalExpression} as regional_normalizada,
+                'CONTRATO' as servicio,
+                paquetes_contrato.id as package_id,
+                coalesce(paquetes_contrato.codigo, '') as codigo,
+                coalesce(paquetes_contrato.origen, '') as origen,
+                coalesce(paquetes_contrato.destino, '') as destino,
+                coalesce(paquetes_contrato.nombre_d, '') as destinatario,
                 paquetes_contrato.created_at,
                 contrato_dispatch_events.dispatch_created_at as dispatch_created_at,
                 coalesce(paquetes_contrato.peso, 0) as peso,
@@ -266,6 +336,11 @@ class BitacoraCn33Service
         $ems->unionAll($contratos);
 
         return $ems;
+    }
+
+    private function packageGroupKey(string $codEspecial, string $regional): string
+    {
+        return $this->normalizeCode($codEspecial) . '|' . strtoupper(trim($regional));
     }
 
     private function normalizeCode(string $codEspecial): string

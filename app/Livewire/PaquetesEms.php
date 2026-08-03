@@ -152,6 +152,7 @@ class PaquetesEms extends Component
     public $showCn38Generate = false;
     public $cn33Despacho = '';
     public $cn33ManualCodigo = '';
+    public $cn33DestinoConfirmacion = '';
     public $cn38Despacho = '';
     public $cn38TransportMode = 'TERRESTRE';
     public $cn38BagCount = 1;
@@ -2275,6 +2276,27 @@ class PaquetesEms extends Component
         }
     }
 
+    public function prepararAnadirSeleccionadosCn33(): void
+    {
+        $this->authorizePermission(self::ALMACEN_EMS_SEND_REGIONAL_PERMISSION);
+
+        if (!$this->isAlmacenEms) {
+            return;
+        }
+
+        $this->cn33ManualCodigo = strtoupper(trim((string) $this->cn33ManualCodigo));
+        $this->cn33DestinoConfirmacion = '';
+
+        if (!$this->isExistingCn33Code($this->cn33ManualCodigo)) {
+            $this->dispatch('openCn33CodeErrorModal');
+            return;
+        }
+
+        $this->cn33DestinoConfirmacion = (string) $this->resolveCn33Destino($this->cn33ManualCodigo);
+
+        $this->dispatch('openConfirmarCn33Modal');
+    }
+
     public function reimprimirCn33()
     {
         $this->authorizePermission(self::ALMACEN_EMS_REPRINT_CN33_PERMISSION);
@@ -2880,8 +2902,9 @@ class PaquetesEms extends Component
         }
 
         $codEspecial = strtoupper(trim((string) $this->cn33ManualCodigo));
-        if ($codEspecial === '') {
-            session()->flash('error', 'Ingresa el cod_especial para asignarlo a los seleccionados.');
+        if (!$this->isExistingCn33Code($codEspecial)) {
+            $this->dispatch('closeConfirmarCn33Modal');
+            $this->dispatch('openCn33CodeErrorModal');
             return;
         }
 
@@ -3047,6 +3070,7 @@ class PaquetesEms extends Component
 
         session()->flash('success', 'cod_especial ' . $codEspecial . ' asignado con destino ' . $cn33Destino . ' y enviado a TRANSITO: ' . $updated . ' registro(s).');
         $this->cn33ManualCodigo = '';
+        $this->cn33DestinoConfirmacion = '';
         $this->selectedPaquetes = [];
         $this->selectedPaquetesInt = [];
         $this->selectedContratos = [];
@@ -8841,6 +8865,25 @@ class PaquetesEms extends Component
         }
 
         return null;
+    }
+
+    protected function isExistingCn33Code(string $codigo): bool
+    {
+        $codigoNormalizado = strtoupper(trim($codigo));
+        $prefixes = array_values(array_unique(array_merge(
+            array_values(self::SPECIAL_CODE_PREFIX_BY_CITY),
+            ['EMS']
+        )));
+        $prefixPattern = implode('|', array_map(
+            fn (string $prefix) => preg_quote($prefix, '/'),
+            $prefixes
+        ));
+
+        if (preg_match('/^(?:' . $prefixPattern . ')\d{5}$/', $codigoNormalizado) !== 1) {
+            return false;
+        }
+
+        return $this->resolveCn33Destino($codigoNormalizado) !== null;
     }
 
     protected function regionalMismatchItemsForSelection(

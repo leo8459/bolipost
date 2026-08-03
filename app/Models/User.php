@@ -124,7 +124,10 @@ class User extends Authenticatable
 
         return $this->getRoleNames()
             ->map(fn ($role) => mb_strtolower(trim((string) $role)))
-            ->contains('gestor');
+            ->contains(fn ($role) => in_array($role, [
+                'gestor',
+                'administrador_operaciones',
+            ], true));
     }
 
     public function driver(): HasOne

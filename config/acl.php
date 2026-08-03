@@ -360,6 +360,7 @@ return [
         'paquetes-contrato' => 'Paquetes Contrato',
         'paquetes-contrato.gestor' => 'Gestor contratos',
         'area-contratos' => 'Area Contratos',
+        'area-contratos.contratos-escaneados' => 'Contratos escaneados',
         'indicadores' => 'Indicadores',
         'despachos' => 'Despachos',
         'sacas' => 'Sacas',

@@ -7,6 +7,8 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
@@ -21,6 +23,61 @@ class EmpresaController extends Controller
     public function index()
     {
         return view('empresa.index');
+    }
+
+    public function scannedContracts(Request $request)
+    {
+        $search = trim((string) $request->query('q', ''));
+
+        $empresas = Empresa::query()
+            ->whereNotNull('documento_pdf_path')
+            ->where('documento_pdf_path', '<>', '')
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($query) use ($search) {
+                    $query->where('nombre', 'ILIKE', "%{$search}%")
+                        ->orWhere('sigla', 'ILIKE', "%{$search}%")
+                        ->orWhere('codigo_cliente', 'ILIKE', "%{$search}%")
+                        ->orWhere('clasificacion', 'ILIKE', "%{$search}%")
+                        ->orWhere('documentacion_legal', 'ILIKE', "%{$search}%");
+                });
+            })
+            ->orderBy('codigo_cliente')
+            ->orderBy('nombre')
+            ->paginate(25)
+            ->withQueryString();
+
+        return view('area_contratos.contratos-escaneados', [
+            'empresas' => $empresas,
+            'search' => $search,
+        ]);
+    }
+
+    public function viewScannedContract(Empresa $empresa)
+    {
+        return $this->scannedContractResponse($empresa, 'inline');
+    }
+
+    public function downloadScannedContract(Empresa $empresa)
+    {
+        return $this->scannedContractResponse($empresa, 'attachment');
+    }
+
+    private function scannedContractResponse(Empresa $empresa, string $disposition)
+    {
+        $path = trim((string) $empresa->documento_pdf_path);
+        $disk = Storage::disk('public');
+
+        if ($path === '' || ! $disk->exists($path)) {
+            abort(404, 'El contrato escaneado no se encuentra disponible.');
+        }
+
+        $identifier = $empresa->sigla ?: ($empresa->codigo_cliente ?: $empresa->nombre);
+        $filename = 'contrato-' . (Str::slug((string) $identifier) ?: $empresa->id) . '.pdf';
+
+        return $disk->response($path, $filename, [
+            'Content-Type' => 'application/pdf',
+            'X-Content-Type-Options' => 'nosniff',
+        ], $disposition);
     }
 
     public function importForm()

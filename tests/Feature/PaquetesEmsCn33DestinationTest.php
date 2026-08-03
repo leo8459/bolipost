@@ -69,6 +69,29 @@ class PaquetesEmsCn33DestinationTest extends TestCase
         $this->assertNull($component->cn33Destino('NO-EXISTE'));
     }
 
+    public function test_only_accepts_an_existing_cn33_code_and_rejects_package_codes(): void
+    {
+        DB::table('paquetes_ems')->insert([
+            'cod_especial' => 'LPZ00001',
+            'ciudad' => 'Santa Cruz',
+        ]);
+
+        $component = $this->makePaquetesEmsComponent();
+
+        $this->assertTrue($component->isCn33Code(' lpz00001 '));
+        $this->assertFalse($component->isCn33Code('SL00000015LP'));
+        $this->assertFalse($component->isCn33Code('LPZ99999'));
+        $this->assertFalse($component->isCn33Code('cualquier texto'));
+    }
+
+    public function test_confirmation_modal_displays_the_resolved_department_instead_of_a_fixed_value(): void
+    {
+        $template = file_get_contents(resource_path('views/livewire/paquetes-ems.blade.php'));
+
+        $this->assertStringContainsString('$cn33DestinoConfirmacion', $template);
+        $this->assertStringNotContainsString('<strong>RAFOVAR</strong>', $template);
+    }
+
     private function makePaquetesEmsComponent(): PaquetesEms
     {
         return new class extends PaquetesEms
@@ -76,6 +99,11 @@ class PaquetesEmsCn33DestinationTest extends TestCase
             public function cn33Destino(string $codEspecial): ?string
             {
                 return $this->resolveCn33Destino($codEspecial);
+            }
+
+            public function isCn33Code(string $codigo): bool
+            {
+                return $this->isExistingCn33Code($codigo);
             }
         };
     }

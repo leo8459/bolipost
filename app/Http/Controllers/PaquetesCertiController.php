@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\PaqueteCerti;
+use App\Models\User as UserModel;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 
@@ -56,8 +57,17 @@ class PaquetesCertiController extends Controller
             ->orderBy('id')
             ->get();
 
+        abort_if(
+            $packages->isEmpty(),
+            404,
+            'No se encontraron paquetes autorizados para generar el formulario de entrega.'
+        );
+
+        $printedByName = $this->resolvePrintedByName($request);
+
         $pdf = Pdf::loadView('paquetes_certi.reporte_baja', [
             'packages' => $packages,
+            'printedByName' => $printedByName,
         ])->setPaper('A4');
 
         return $pdf->download('reporte-baja.pdf');
@@ -151,6 +161,13 @@ class PaquetesCertiController extends Controller
             return null;
         }
 
+        // Debe coincidir con el alcance usado por el componente de Inventario.
+        // Sin este caso, un usuario de Ventanilla Unica ve el paquete en pantalla,
+        // pero la consulta del PDF lo excluye y DomPDF genera una hoja en blanco.
+        if ($user->hasRole('encargado_unica') || $user->hasRole('auxiliar_unica')) {
+            return ['UNICA'];
+        }
+
         foreach (self::ROLE_VENTANILLA_MAP as $role => $ventanillas) {
             if ($user->hasRole($role)) {
                 return $ventanillas;
@@ -158,5 +175,25 @@ class PaquetesCertiController extends Controller
         }
 
         return null;
+    }
+
+    private function resolvePrintedByName(Request $request): string
+    {
+        $authenticatedUser = $request->user() ?? auth()->user();
+        abort_unless($authenticatedUser, 403, 'No tienes permiso para realizar esta accion.');
+
+        $selectedUserId = (int) $request->query('printed_for_user_id', 0);
+        if ($selectedUserId <= 0) {
+            return (string) $authenticatedUser->name;
+        }
+
+        $superAdminRole = trim((string) config('acl.super_admin_role', 'administrador'));
+        $isAdministrator = $superAdminRole !== ''
+            && method_exists($authenticatedUser, 'hasRole')
+            && $authenticatedUser->hasRole($superAdminRole);
+
+        abort_unless($isAdministrator, 403, 'Solo un administrador puede elegir el usuario de la reimpresion.');
+
+        return (string) UserModel::query()->findOrFail($selectedUserId)->name;
     }
 }

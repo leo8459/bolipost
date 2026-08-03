@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\Estado as EstadoModel;
 use App\Models\PaqueteCerti as PaqueteCertiModel;
 use App\Models\Servicio as ServicioModel;
+use App\Models\User as UserModel;
 use App\Models\Ventanilla as VentanillaModel;
 use App\Services\FacturacionCartService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -53,6 +54,9 @@ class PaqueteCerti extends Component
     public $selectedPaquetes = [];
     public $reencaminarCuidad = '';
     public $previewReencaminarIds = [];
+    public $reprintPaqueteId = null;
+    public $reprintPaqueteCodigo = '';
+    public $reprintUserId = '';
 
     public $codigo = '';
     public $cod_especial = '';
@@ -532,9 +536,42 @@ class PaqueteCerti extends Component
 
         $paquete = $this->findAuthorizedPaqueteOrFail($id);
 
+        if ($this->isAdministrator()) {
+            $this->reprintPaqueteId = $paquete->id;
+            $this->reprintPaqueteCodigo = (string) $paquete->codigo;
+            $this->reprintUserId = '';
+            $this->resetValidation('reprintUserId');
+            $this->dispatch('openReprintUserModal');
+
+            return;
+        }
+
         $this->dispatch('openBajaPdf', [
             'url' => route('paquetes-certificados.baja-pdf', ['ids' => $paquete->id]),
         ]);
+    }
+
+    public function confirmarReimpresion()
+    {
+        $this->authorizePermission($this->modeFeaturePermission('export', 'inventario'));
+
+        abort_unless($this->isAdministrator(), 403, 'Solo un administrador puede elegir el usuario de la reimpresion.');
+
+        $this->validate([
+            'reprintUserId' => 'required|integer|exists:users,id',
+        ], [], [
+            'reprintUserId' => 'usuario',
+        ]);
+
+        $paquete = $this->findAuthorizedPaqueteOrFail((int) $this->reprintPaqueteId);
+        $url = route('paquetes-certificados.baja-pdf', [
+            'ids' => $paquete->id,
+            'printed_for_user_id' => (int) $this->reprintUserId,
+        ]);
+
+        $this->reset(['reprintPaqueteId', 'reprintPaqueteCodigo', 'reprintUserId']);
+        $this->dispatch('closeReprintUserModal');
+        $this->dispatch('openBajaPdf', ['url' => $url]);
     }
 
     public function resetForm()
@@ -885,6 +922,9 @@ class PaqueteCerti extends Component
             'canCertiRezago' => $this->userCan($this->modeFeaturePermission('rezago')),
             'canCertiAssign' => $this->userCan($this->modeFeaturePermission('assign')),
             'canCertiExport' => $this->userCan($this->modeFeaturePermission('export')),
+            'reprintUsers' => $this->isInventory && $this->isAdministrator()
+                ? UserModel::query()->orderBy('name')->get(['id', 'name', 'email'])
+                : collect(),
         ]);
     }
 
@@ -904,6 +944,17 @@ class PaqueteCerti extends Component
         }
 
         return $user->can($permission);
+    }
+
+    private function isAdministrator(): bool
+    {
+        $user = auth()->user();
+        $superAdminRole = trim((string) config('acl.super_admin_role', 'administrador'));
+
+        return (bool) ($user
+            && $superAdminRole !== ''
+            && method_exists($user, 'hasRole')
+            && $user->hasRole($superAdminRole));
     }
 
     private function authorizePermission(string $permission): void

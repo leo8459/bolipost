@@ -490,6 +490,9 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/area-contratos/entregados', [AreaContratosController::class, 'entregados'])->name('area-contratos.entregados');
     Route::get('/area-contratos/reportes', [AreaContratosController::class, 'reportes'])->name('area-contratos.reportes');
     Route::get('/area-contratos/reportes/excel', [AreaContratosController::class, 'exportReportesExcel'])->name('area-contratos.reportes.excel');
+    Route::get('/area-contratos/contratos-escaneados', [EmpresaController::class, 'scannedContracts'])->name('area-contratos.contratos-escaneados');
+    Route::get('/area-contratos/contratos-escaneados/{empresa}/ver', [EmpresaController::class, 'viewScannedContract'])->name('area-contratos.contratos-escaneados.view');
+    Route::get('/area-contratos/contratos-escaneados/{empresa}/descargar', [EmpresaController::class, 'downloadScannedContract'])->name('area-contratos.contratos-escaneados.download');
     Route::get('/indicadores/contratos/entregados', [IndicadorController::class, 'contratosEntregados'])->name('indicadores.contratos.entregados');
     Route::get('/indicadores/contratos/inventario', [IndicadorController::class, 'contratosInventario'])->name('indicadores.contratos.inventario');
     Route::get('/indicadores/ems/entregados', [IndicadorController::class, 'emsEntregados'])->name('indicadores.ems.entregados');

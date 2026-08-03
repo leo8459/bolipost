@@ -789,6 +789,20 @@ class AclPermissionRegistry
             'paquetes-contrato.entregados',
             'feature.paquetes-contrato.entregados.export',
         ],
+        'area-contratos.contratos-escaneados' => [
+            'area-contratos.contratos-escaneados',
+            'area-contratos.reportes',
+        ],
+        'area-contratos.contratos-escaneados.view' => [
+            'area-contratos.contratos-escaneados.view',
+            'area-contratos.contratos-escaneados',
+            'area-contratos.reportes',
+        ],
+        'area-contratos.contratos-escaneados.download' => [
+            'area-contratos.contratos-escaneados.download',
+            'area-contratos.contratos-escaneados',
+            'area-contratos.reportes',
+        ],
         'empresas.import-form' => [
             'empresas.import-form',
             'feature.empresas.import',

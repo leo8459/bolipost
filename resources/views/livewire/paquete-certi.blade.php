@@ -416,6 +416,44 @@
         </div>
     </div>
 
+    <div class="modal fade" id="reprintUserModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form wire:submit.prevent="confirmarReimpresion">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Reimprimir formulario de entrega</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-3">
+                            Paquete: <strong>{{ $reprintPaqueteCodigo ?: '-' }}</strong>
+                        </p>
+                        <div class="form-group mb-0">
+                            <label for="reprint-user-id">Reimprimir a nombre de</label>
+                            <select id="reprint-user-id" wire:model.defer="reprintUserId" class="form-control">
+                                <option value="">Seleccione un usuario</option>
+                                @foreach ($reprintUsers as $reprintUser)
+                                    <option value="{{ $reprintUser->id }}">
+                                        {{ $reprintUser->name }}{{ $reprintUser->email ? ' - '.$reprintUser->email : '' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('reprintUserId') <small class="text-danger">{{ $message }}</small> @enderror
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-azul">
+                            <i class="fas fa-print mr-1"></i> Reimprimir
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="paqueteCertiModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -761,6 +799,14 @@
 
     window.addEventListener('closeZonaModal', () => {
         $('#zonaModal').modal('hide');
+    });
+
+    window.addEventListener('openReprintUserModal', () => {
+        $('#reprintUserModal').modal('show');
+    });
+
+    window.addEventListener('closeReprintUserModal', () => {
+        $('#reprintUserModal').modal('hide');
     });
 
     window.addEventListener('openBajaPdf', (event) => {

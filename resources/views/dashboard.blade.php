@@ -1234,7 +1234,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse($rankingEntregadores as $item)
+                            @forelse($rankingEntregadores->take(5) as $item)
                                 <tr>
                                     <td>
                                         <strong>{{ $item->name }}</strong><br>
@@ -1267,7 +1267,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse($rankingRegistradores as $item)
+                            @forelse($rankingRegistradores->take(5) as $item)
                                 <tr>
                                     <td>
                                         <strong>{{ $item->name }}</strong><br>
