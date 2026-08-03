@@ -22,6 +22,7 @@
     $showFacturaElectronicaButton = \App\Models\AppSetting::getValue('facturacion.show_factura_electronica', '1') === '1';
     $showQrFacturaButton = \App\Models\AppSetting::getValue('facturacion.show_qr_factura', '1') === '1';
     $showQrSoloButton = \App\Models\AppSetting::getValue('facturacion.show_qr_solo', '1') === '1';
+    $facturacionMonitorDefaultUrl = \App\Models\AppSetting::getValue('facturacion.monitor_default_url', '');
     $activeFacturacionCart = $facturacionContext['draft'] ?? null;
     $ultimaFacturacionEmitida = $facturacionContext['last'] ?? null;
     $facturacionItems = collect($activeFacturacionCart?->items ?? []);
@@ -252,9 +253,15 @@
                 <div>
                     <h3 id="facturacionShortcutTitle" class="global-shortcut-modal__title">Facturacion</h3>
                 </div>
-                <button type="button" class="global-shortcut-modal__close" id="closeFacturacionShortcut" aria-label="Cerrar modal de Facturacion">
-                    <i class="fas fa-times"></i>
-                </button>
+                <div class="global-shortcut-modal__head-actions">
+                    <button type="button" class="global-shortcut-monitor-btn" id="facturacionMonitorConfigBtn">
+                        <i class="fas fa-desktop"></i>
+                        <span>Pantalla QR</span>
+                    </button>
+                    <button type="button" class="global-shortcut-modal__close" id="closeFacturacionShortcut" aria-label="Cerrar modal de Facturacion">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
             </div>
 
             @if ($shouldRenderShortcutFeedback)
@@ -1579,6 +1586,38 @@
             justify-content: space-between;
             gap: 16px;
             margin-bottom: 14px;
+        }
+        .global-shortcut-modal__head-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .global-shortcut-monitor-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 42px;
+            padding: 0 14px;
+            border-radius: 999px;
+            border: 1px solid #d8e3f4;
+            background: linear-gradient(180deg, #ffffff, #f6f9ff);
+            color: #204d95;
+            font-size: .88rem;
+            font-weight: 700;
+            box-shadow: 0 10px 20px rgba(17, 47, 92, .06);
+            transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+        }
+        .global-shortcut-monitor-btn:hover,
+        .global-shortcut-monitor-btn:focus {
+            outline: none;
+            transform: translateY(-1px);
+            border-color: #bbd0ee;
+            box-shadow: 0 14px 24px rgba(17, 47, 92, .10);
+        }
+        .global-shortcut-monitor-btn.is-active {
+            border-color: #cfe1a2;
+            color: #2b6d16;
+            background: linear-gradient(180deg, #f7ffe8, #eef9d1);
         }
         .global-shortcut-modal__eyebrow {
             margin: 0 0 6px;
@@ -3946,6 +3985,7 @@
             const facturacionQrViewerEmpty = document.getElementById('facturacionQrViewerEmpty');
             const facturacionQrViewerCartId = document.getElementById('facturacionQrViewerCartId');
             const facturacionQrViewerAutoEmitInvoice = document.getElementById('facturacionQrViewerAutoEmitInvoice');
+            const facturacionMonitorConfigBtn = document.getElementById('facturacionMonitorConfigBtn');
             const facturacionResultModal = document.getElementById('facturacionResultModal');
             const facturacionResultModalClose = document.getElementById('facturacionResultModalClose');
             const facturacionResultModalAccept = document.getElementById('facturacionResultModalAccept');
@@ -3960,6 +4000,8 @@
             const facturacionDownloadPdf = @json($facturacionDownloadPdf);
             const facturacionQrData = @json($facturacionQrData);
             const facturacionQrForceOpen = @json($facturacionQrForceOpen);
+            const facturacionMonitorDefaultUrl = @json($facturacionMonitorDefaultUrl);
+            const facturacionMonitorUserId = @json((string) (auth()->id() ?? 'guest'));
             const facturacionItemUpdateRouteTemplate = @json(route('facturacion.cart.items.update', ['itemId' => '__ITEM__']));
             const facturacionItemCustomizeGroupedRouteTemplate = @json(route('facturacion.cart.items.customize-grouped', ['itemId' => '__ITEM__']));
             const facturacionConsultarRoute = @json(route('facturacion.cart.consultar'));
@@ -4015,6 +4057,218 @@
             const FACTURACION_RESULT_MODAL_DISMISSED_PREFIX = 'facturacion-result-dismissed:';
             const FACTURACION_QR_VIEWER_DISMISSED_PREFIX = 'facturacion-qr-dismissed:';
             const FACTURACION_QR_FINAL_STATUSES = ['pagado', 'success', 'paid', 'completed', 'approved', 'confirmed', 'cancelado', 'cancelled', 'rejected', 'failed', 'expired'];
+            const FACTURACION_MONITOR_CONFIG_STORAGE_KEY = 'facturacion-monitor-config:' + facturacionMonitorUserId;
+            const FACTURACION_MONITOR_BROADCAST_NAME = 'facturacion-qr-monitor';
+            let facturacionMonitorChannel = null;
+
+            const readFacturacionMonitorConfig = () => {
+                try {
+                    const raw = window.localStorage.getItem(FACTURACION_MONITOR_CONFIG_STORAGE_KEY);
+                    if (!raw) {
+                        return {
+                            enabled: false,
+                            url: String(facturacionMonitorDefaultUrl || '').trim(),
+                        };
+                    }
+
+                    const parsed = JSON.parse(raw);
+                    return {
+                        enabled: parsed && parsed.enabled === true,
+                        url: String(parsed && parsed.url ? parsed.url : facturacionMonitorDefaultUrl || '').trim(),
+                    };
+                } catch (error) {
+                    return {
+                        enabled: false,
+                        url: String(facturacionMonitorDefaultUrl || '').trim(),
+                    };
+                }
+            };
+
+            const persistFacturacionMonitorConfig = (config) => {
+                try {
+                    window.localStorage.setItem(FACTURACION_MONITOR_CONFIG_STORAGE_KEY, JSON.stringify({
+                        enabled: !!(config && config.enabled),
+                        url: String(config && config.url ? config.url : '').trim(),
+                    }));
+                } catch (error) {
+                    // Ignora errores de storage.
+                }
+            };
+
+            const resolveFacturacionMonitorConfig = () => {
+                const config = readFacturacionMonitorConfig();
+                const url = String(config.url || '').trim();
+                return {
+                    enabled: config.enabled && url !== '',
+                    url,
+                };
+            };
+
+            const setFacturacionMonitorButtonState = () => {
+                if (!(facturacionMonitorConfigBtn instanceof HTMLButtonElement)) {
+                    return;
+                }
+
+                const config = resolveFacturacionMonitorConfig();
+                facturacionMonitorConfigBtn.classList.toggle('is-active', config.enabled);
+                facturacionMonitorConfigBtn.setAttribute('title', config.enabled
+                    ? 'Pantalla QR activa en este navegador'
+                    : 'Configurar pantalla QR externa');
+            };
+
+            const extractFacturacionMonitorKeyFromUrl = (url) => {
+                try {
+                    const parsed = new URL(String(url || ''), window.location.origin);
+                    const match = parsed.pathname.match(/\/facturacion\/monitor\/display\/([^/?#]+)/i);
+                    return match ? String(match[1] || '').trim() : '';
+                } catch (error) {
+                    return '';
+                }
+            };
+
+            const getFacturacionMonitorStorageKey = (monitorKey) => {
+                return monitorKey ? 'facturacion-monitor-state:' + monitorKey : '';
+            };
+
+            const getFacturacionMonitorEnvelope = (state, urlOverride = '') => {
+                const config = resolveFacturacionMonitorConfig();
+                const effectiveUrl = String(urlOverride || config.url || '').trim();
+                if (!config.enabled || effectiveUrl === '') {
+                    return null;
+                }
+
+                let parsedUrl;
+                try {
+                    parsedUrl = new URL(effectiveUrl, window.location.origin);
+                } catch (error) {
+                    return null;
+                }
+
+                if (parsedUrl.origin !== window.location.origin) {
+                    return null;
+                }
+
+                const monitorKey = extractFacturacionMonitorKeyFromUrl(parsedUrl.href);
+                if (monitorKey === '') {
+                    return null;
+                }
+
+                return {
+                    monitor_key: monitorKey,
+                    state: {
+                        ...(state || {}),
+                        updated_at: state && state.updated_at ? state.updated_at : new Date().toISOString(),
+                    },
+                };
+            };
+
+            const ensureFacturacionMonitorChannel = () => {
+                if (facturacionMonitorChannel || !('BroadcastChannel' in window)) {
+                    return facturacionMonitorChannel;
+                }
+
+                facturacionMonitorChannel = new BroadcastChannel(FACTURACION_MONITOR_BROADCAST_NAME);
+                return facturacionMonitorChannel;
+            };
+
+            const publishFacturacionMonitorState = (state, urlOverride = '') => {
+                const envelope = getFacturacionMonitorEnvelope(state, urlOverride);
+                if (!envelope) {
+                    return false;
+                }
+
+                const storageKey = getFacturacionMonitorStorageKey(envelope.monitor_key);
+                if (storageKey !== '') {
+                    try {
+                        window.localStorage.setItem(storageKey, JSON.stringify(envelope.state));
+                    } catch (error) {
+                        // Ignora errores de storage.
+                    }
+                }
+
+                const channel = ensureFacturacionMonitorChannel();
+                if (channel) {
+                    channel.postMessage(envelope);
+                }
+
+                return true;
+            };
+
+            const publishFacturacionMonitorAdsState = () => {
+                publishFacturacionMonitorState({
+                    mode: 'ads',
+                    title: 'Pagos QR',
+                    message: 'Escanea o acerca tu codigo QR para realizar el pago.',
+                });
+            };
+
+            const publishFacturacionMonitorTerminalState = (payload = {}, success = true) => {
+                publishFacturacionMonitorState({
+                    mode: 'terminal',
+                    subtitle: success ? 'Pago actualizado' : 'Estado actualizado',
+                    title: success ? 'Pago confirmado' : 'Estado final del QR',
+                    message: success
+                        ? 'La transaccion fue validada. La pantalla volvera automaticamente al modo de espera.'
+                        : 'El estado del QR cambio. La pantalla volvera automaticamente al modo de espera.',
+                    transaction_id: String(payload.transaction_id || '').trim(),
+                    internal_code: String(payload.internal_code || '').trim(),
+                    payment_status: String(payload.payment_status || '').trim(),
+                    amount: payload.amount || 0,
+                    terminal_status: String(payload.payment_status || '').trim(),
+                    auto_reset_ms: 9000,
+                });
+            };
+
+            const ensureFacturacionMonitorTab = (urlOverride = '') => {
+                const config = resolveFacturacionMonitorConfig();
+                const effectiveUrl = String(urlOverride || config.url || '').trim();
+                if (!config.enabled || effectiveUrl === '') {
+                    return false;
+                }
+
+                try {
+                    window.open(effectiveUrl, 'facturacionQrMonitorDisplay', 'noopener');
+                    return true;
+                } catch (error) {
+                    return false;
+                }
+            };
+
+            const configureFacturacionMonitor = () => {
+                const current = readFacturacionMonitorConfig();
+                const enteredUrl = window.prompt(
+                    'Pega la URL firmada del monitor QR. Deja vacio para desactivar esta pantalla en este navegador.',
+                    String(current.url || facturacionMonitorDefaultUrl || '').trim()
+                );
+
+                if (enteredUrl === null) {
+                    return;
+                }
+
+                const normalizedUrl = String(enteredUrl || '').trim();
+                if (normalizedUrl === '') {
+                    persistFacturacionMonitorConfig({ enabled: false, url: '' });
+                    setFacturacionMonitorButtonState();
+                    renderFacturacionShortcutFeedback({
+                        type: 'info',
+                        title: 'Pantalla QR desactivada',
+                        message: 'Este navegador ya no enviara el QR a una pestaña externa.',
+                        detail: 'Las demas cajas seguiran funcionando con su propia configuracion.',
+                    });
+                    return;
+                }
+
+                persistFacturacionMonitorConfig({ enabled: true, url: normalizedUrl });
+                setFacturacionMonitorButtonState();
+                ensureFacturacionMonitorTab(normalizedUrl);
+                publishFacturacionMonitorAdsState();
+                renderFacturacionShortcutFeedback({
+                    type: 'success',
+                    title: 'Pantalla QR configurada',
+                    message: 'Este navegador replicara el QR en la pestaña externa configurada.',
+                    detail: normalizedUrl,
+                });
+            };
 
             const resolveProcessingCopy = (form = null) => {
                 if (!(form instanceof HTMLFormElement)) {
@@ -4992,6 +5246,18 @@
                         facturacionQrViewerEmpty.classList.remove('is-hidden');
                     }
                 }
+
+                publishFacturacionMonitorState({
+                    mode: 'qr',
+                    subtitle: 'Cobro QR activo',
+                    title: 'Escanea para pagar',
+                    message,
+                    image_data: String(qrData.image_data || '').trim(),
+                    transaction_id: transactionId,
+                    internal_code: internalCode,
+                    payment_status: paymentStatus !== '' ? paymentStatus : 'HOLDING',
+                    amount: Number((cartData && cartData.total) || qrData.amount || 0),
+                });
             };
 
             const handleFacturacionDownloadPdf = (downloadPdf) => {
@@ -5143,6 +5409,9 @@
                 if (!(form instanceof HTMLFormElement)) {
                     return false;
                 }
+
+                ensureFacturacionMonitorTab();
+                publishFacturacionMonitorAdsState();
 
                 const tokenMeta = document.querySelector('meta[name="csrf-token"]');
                 const csrfToken = tokenMeta instanceof HTMLMetaElement ? tokenMeta.content : '';
@@ -5388,6 +5657,7 @@
 
             const continueAutomaticQrFacturaFlow = (data) => {
                 if (!shouldAutoEmitQrInvoice(data)) {
+                    publishFacturacionMonitorTerminalState(data && data.qr_data ? data.qr_data : {}, true);
                     closeFacturacionQrViewer();
 
                     const qrOnlyFeedback = data && data.feedback ? data.feedback : {
@@ -5409,6 +5679,7 @@
                     return true;
                 }
 
+                publishFacturacionMonitorTerminalState(data && data.qr_data ? data.qr_data : {}, true);
                 closeFacturacionQrViewer();
 
                 renderFacturacionShortcutFeedback({
@@ -5731,6 +6002,15 @@
                         || !!data.download_pdf;
 
                     if (shouldCloseQrViewer) {
+                        if (data.qr_data) {
+                            publishFacturacionMonitorTerminalState(
+                                data.qr_data,
+                                ['pagado', 'success', 'paid', 'completed', 'approved', 'confirmed'].includes(paymentStatus)
+                            );
+                        } else {
+                            publishFacturacionMonitorAdsState();
+                        }
+
                         if (isQrPaymentConfirmed(data)) {
                             continueAutomaticQrFacturaFlow(data);
                             return;
@@ -5948,6 +6228,11 @@
                 }
             };
 
+            setFacturacionMonitorButtonState();
+            if (facturacionMonitorConfigBtn instanceof HTMLButtonElement) {
+                facturacionMonitorConfigBtn.addEventListener('click', configureFacturacionMonitor);
+            }
+
             const openFacturacionResultModal = () => {
                 if (!facturacionResultModal) {
                     return;
@@ -6056,7 +6341,7 @@
                                 <textarea rows="2" maxlength="255" data-description-editable="true"></textarea>
                                 <small class="global-shortcut-field__hint is-hidden" data-description-locked data-description-lock-container></small>
                             </div>
-                            <p class="facturacion-item-edit-batch__help">Si el precio queda igual, el sistema intentara mantener este grupo junto. Si cambias precio o detalle, se individualizara automaticamente.</p>
+                            <p class="facturacion-item-edit-batch__help">El sistema solo mantiene agrupadas las unidades que conserven el mismo codigo, precio y detalle. Si cambias alguno de esos datos, se individualizaran automaticamente.</p>
                         </div>
                     `;
                     facturacionItemEditBatch.appendChild(card);
@@ -6680,7 +6965,10 @@
                 && (String(facturacionQrForceOpen || '') === '1' || !isFacturacionQrViewerDismissed(facturacionInitialQrKey))
             ) {
                 updateFacturacionQrViewer(facturacionQrData, null);
+                ensureFacturacionMonitorTab();
                 openFacturacionQrViewer(String(facturacionQrForceOpen || '') === '1');
+            } else {
+                publishFacturacionMonitorAdsState();
             }
 
             if (facturacionQrViewerClose) {

@@ -2471,17 +2471,20 @@ class FacturacionCartService
         $expectedMontoExtras = round((float) ($expectedPayload['monto_extras'] ?? 0), 2);
         $expectedTitulo = trim((string) ($expectedPayload['titulo'] ?? ''));
         $expectedNombreServicio = trim((string) ($expectedPayload['nombre_servicio'] ?? ''));
+        $expectedCode = mb_strtolower(trim((string) ($expectedPayload['codigo'] ?? '')));
 
         return collect($draft->items ?? [])
-            ->first(function ($item) use ($concepto, $expectedTitulo, $expectedNombreServicio, $expectedMontoBase, $expectedMontoExtras) {
+            ->first(function ($item) use ($concepto, $expectedTitulo, $expectedNombreServicio, $expectedMontoBase, $expectedMontoExtras, $expectedCode) {
                 $itemConceptoId = (int) data_get(
                     $item,
                     'resumen_origen.concepto_facturacion_id',
                     data_get($item, 'origen_id', 0)
                 );
+                $itemCode = mb_strtolower(trim((string) data_get($item, 'codigo', '')));
 
                 return ltrim((string) data_get($item, 'origen_tipo', ''), '\\') === ltrim(ConceptoFacturacion::class, '\\')
                     && $itemConceptoId === (int) $concepto->id
+                    && $itemCode === $expectedCode
                     && trim((string) data_get($item, 'titulo', '')) === $expectedTitulo
                     && trim((string) data_get($item, 'nombre_servicio', '')) === $expectedNombreServicio
                     && round((float) data_get($item, 'monto_base', 0), 2) === $expectedMontoBase
@@ -3347,6 +3350,7 @@ class FacturacionCartService
                     'resumen_origen.concepto_facturacion_id',
                     data_get($item, 'origen_id', 0)
                 );
+                $codigo = mb_strtolower(trim((string) data_get($item, 'codigo', '')));
                 $montoBase = round((float) data_get($item, 'monto_base', data_get($item, 'precio', 0)), 2);
                 $montoExtras = round((float) data_get($item, 'monto_extras', 0), 2);
                 $titulo = trim((string) data_get($item, 'titulo', ''));
@@ -3354,6 +3358,7 @@ class FacturacionCartService
 
                 return implode('|', [
                     $conceptoId,
+                    $codigo,
                     number_format($montoBase, 2, '.', ''),
                     number_format($montoExtras, 2, '.', ''),
                     $titulo,

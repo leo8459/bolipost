@@ -22,6 +22,7 @@ use App\Http\Controllers\EventoController;
 use App\Http\Controllers\EventosAuditoriaController;
 use App\Http\Controllers\ExternalApiTokenController;
 use App\Http\Controllers\FacturacionCartController;
+use App\Http\Controllers\FacturacionQrMonitorController;
 use App\Http\Controllers\FacturacionServicioController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\IndicadorController;
@@ -113,6 +114,9 @@ Route::get('/publico/imagenes-entrega/paquete/{type}/{id}/{kind?}/descargar', [D
     ->middleware(['signed:relative', 'throttle:60,1'])
     ->where('kind', 'entrega|devolucion')
     ->name('delivery-images.package.public-download');
+Route::get('/facturacion/monitor/display/{monitor}', [FacturacionQrMonitorController::class, 'display'])
+    ->middleware('signed')
+    ->name('facturacion.monitor.display');
 Route::get('/imagenes-entrega/evento/{source}/{codigo}/{kind?}', [DeliveryImageController::class, 'event'])
     ->middleware(['auth', 'internal.only'])
     ->where('kind', 'entrega|devolucion')

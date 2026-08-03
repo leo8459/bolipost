@@ -71,6 +71,19 @@
                     <label class="form-check-label" for="facturacionShowQrSolo">Mostrar boton QR solo pago</label>
                 </div>
 
+                <div class="form-group">
+                    <label>URL por defecto del monitor QR</label>
+                    <input
+                        type="url"
+                        name="facturacionMonitorDefaultUrl"
+                        class="form-control"
+                        value="{{ old('facturacionMonitorDefaultUrl', $settings['facturacionMonitorDefaultUrl']) }}"
+                        placeholder="http://127.0.0.1:8000/facturacion/monitor/display/monitor-...">
+                    <small class="form-text text-muted">
+                        Se usa como valor inicial para la pestaña externa del monitor. Cada caja puede activarla o desactivarla en su propio navegador.
+                    </small>
+                </div>
+
                 <button type="submit" class="btn btn-primary">Guardar</button>
             </form>
         </div>

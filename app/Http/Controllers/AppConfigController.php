@@ -19,6 +19,7 @@ class AppConfigController extends Controller
             'facturacionShowFacturaElectronica' => AppSetting::getValue('facturacion.show_factura_electronica', '1') === '1',
             'facturacionShowQrFactura' => AppSetting::getValue('facturacion.show_qr_factura', '1') === '1',
             'facturacionShowQrSolo' => AppSetting::getValue('facturacion.show_qr_solo', '1') === '1',
+            'facturacionMonitorDefaultUrl' => AppSetting::getValue('facturacion.monitor_default_url', ''),
         ];
 
         return view('configuracion.aplicacion', compact('settings'));
@@ -36,6 +37,7 @@ class AppConfigController extends Controller
             'facturacionShowFacturaElectronica' => ['nullable', 'boolean'],
             'facturacionShowQrFactura' => ['nullable', 'boolean'],
             'facturacionShowQrSolo' => ['nullable', 'boolean'],
+            'facturacionMonitorDefaultUrl' => ['nullable', 'url', 'max:2048'],
         ]);
 
         AppSetting::setValue('mobile.latestVersion', $data['latestVersion']);
@@ -47,6 +49,7 @@ class AppConfigController extends Controller
         AppSetting::setValue('facturacion.show_factura_electronica', !empty($data['facturacionShowFacturaElectronica']) ? '1' : '0');
         AppSetting::setValue('facturacion.show_qr_factura', !empty($data['facturacionShowQrFactura']) ? '1' : '0');
         AppSetting::setValue('facturacion.show_qr_solo', !empty($data['facturacionShowQrSolo']) ? '1' : '0');
+        AppSetting::setValue('facturacion.monitor_default_url', $data['facturacionMonitorDefaultUrl'] ?? '');
 
         return back()->with('status', 'Configuracion de aplicacion actualizada.');
     }
