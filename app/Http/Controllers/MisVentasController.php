@@ -293,10 +293,37 @@ class MisVentasController extends Controller
 
     private function fetchOwnRawRows(FacturacionCartService $service, User $user, array $filters): Collection
     {
-        $kardex = $service->fetchKardexVentas($user, $filters);
-        $ventas = $service->fetchVentas($user, $filters);
+        $fullRangeFilters = $filters;
+        $fullRangeFilters['page'] = 1;
+        $fullRangeFilters['per_page'] = 100;
+        $fullRangeFilters['limite'] = 500;
 
-        return collect($ventas['carts'] ?? [])
+        $kardex = $service->fetchKardexVentas($user, $fullRangeFilters);
+
+        $ventasPages = collect();
+        $currentPage = 1;
+        $lastPage = 1;
+
+        do {
+            $ventasFilters = $fullRangeFilters;
+            $ventasFilters['page'] = $currentPage;
+
+            $ventasPage = $service->fetchVentas($user, $ventasFilters);
+            $ventasPages = $ventasPages->concat(collect($ventasPage['carts'] ?? []));
+
+            $pagination = (array) ($ventasPage['pagination'] ?? []);
+            $lastPage = max(
+                (int) ($pagination['last_page'] ?? 0),
+                (int) ($pagination['lastPage'] ?? 0),
+                (int) ($pagination['total_pages'] ?? 0),
+                (int) ($pagination['pages'] ?? 0),
+                1
+            );
+
+            $currentPage++;
+        } while ($currentPage <= $lastPage);
+
+        return $ventasPages
             ->concat(collect($kardex['detalle'] ?? []))
             ->map(fn ($row) => is_array($row) ? (object) $row : $row)
             ->filter(fn ($row) => is_object($row))
@@ -389,14 +416,25 @@ class MisVentasController extends Controller
 
     private function summaryFromKardex(array $resumen): array
     {
+        $pendientes = (int) ($resumen['pendientes'] ?? 0);
+        $qrPendientes = (int) ($resumen['ventasQrPendientes'] ?? 0);
+        $qrNoFacturados = (int) ($resumen['ventasQrNoFacturadas'] ?? 0);
+
         return [
             'totalVentas' => (int) ($resumen['ventas'] ?? 0),
             'totalBorradores' => 0,
             'facturadas' => (int) ($resumen['facturadas'] ?? 0),
-            'pendientes' => (int) ($resumen['pendientes'] ?? 0),
+            'efectivoCount' => (int) ($resumen['ventasEfectivo'] ?? 0),
+            'pendientes' => $pendientes,
             'anuladas' => (int) ($resumen['anuladas'] ?? 0),
             'rechazadas' => (int) ($resumen['observadas'] ?? 0),
+            'qrPagados' => (int) ($resumen['ventasQr'] ?? 0),
+            'qrPendientes' => $qrPendientes,
+            'qrNoFacturados' => $qrNoFacturados,
+            'pendientesOperativas' => $pendientes + $qrPendientes + $qrNoFacturados,
+            'montoQr' => (float) ($resumen['totalQr'] ?? 0),
             'montoAnulado' => (float) ($resumen['totalAnulado'] ?? 0),
+            'montoEfectivo' => (float) ($resumen['totalVendido'] ?? 0),
             'montoTotal' => (float) ($resumen['totalVendido'] ?? 0),
         ];
     }
@@ -404,12 +442,26 @@ class MisVentasController extends Controller
     private function summaryFromRows(Collection $rows): array
     {
         $paidStatuses = ['FACTURADA'];
+        $effectiveRows = $rows->filter(fn ($row) => strtolower((string) data_get($row, 'estado', '')) === 'emitido'
+            && $this->contabilizaEnCaja($row)
+            && !$this->isQrPaymentRow($row)
+            && strtolower((string) data_get($row, 'estado_pago', 'pendiente')) === 'pagado'
+            && strtoupper((string) data_get($row, 'estado_emision', '')) === 'FACTURADA');
+        $qrPaidRows = $rows->filter(fn ($row) => $this->isQrPaymentRow($row)
+            && strtolower((string) data_get($row, 'estado', '')) === 'emitido'
+            && strtolower((string) data_get($row, 'estado_pago', 'pendiente')) === 'pagado');
+        $pendientes = $rows->filter(fn ($row) => strtoupper((string) data_get($row, 'estado_emision', '')) === 'PENDIENTE')->count();
+        $qrPendientes = $rows->filter(fn ($row) => $this->isQrPaymentRow($row)
+            && strtolower((string) data_get($row, 'estado', '')) === 'pendiente_pago'
+            && strtolower((string) data_get($row, 'estado_pago', 'pendiente')) === 'pendiente')->count();
+        $qrNoFacturados = $qrPaidRows->filter(fn ($row) => strtoupper((string) data_get($row, 'estado_emision', '')) !== 'FACTURADA')->count();
 
         return [
             'totalVentas' => $rows->filter(fn ($row) => (string) data_get($row, 'estado', '') === 'emitido')->count(),
             'totalBorradores' => $rows->filter(fn ($row) => (string) data_get($row, 'estado', '') === 'borrador')->count(),
             'facturadas' => $rows->filter(fn ($row) => in_array(strtoupper((string) data_get($row, 'estado_emision', '')), $paidStatuses, true))->count(),
-            'pendientes' => $rows->filter(fn ($row) => strtoupper((string) data_get($row, 'estado_emision', '')) === 'PENDIENTE')->count(),
+            'efectivoCount' => $effectiveRows->count(),
+            'pendientes' => $pendientes,
             'anuladas' => $rows->filter(fn ($row) => strtolower((string) data_get($row, 'estado', '')) === 'anulado'
                 || in_array(strtoupper((string) data_get($row, 'estado_emision', '')), ['ANULADA', 'ANULADO'], true))->count(),
             'rechazadas' => $rows->filter(function ($row) {
@@ -420,30 +472,21 @@ class MisVentasController extends Controller
                 return $estadoEmision === 'RECHAZADA'
                     || ($isQrPayment && $estadoPago === 'cancelado');
             })->count(),
-            'qrPagados' => $rows->filter(fn ($row) => $this->isQrPaymentRow($row)
-                && strtolower((string) data_get($row, 'estado', '')) === 'emitido'
-                && strtolower((string) data_get($row, 'estado_pago', 'pendiente')) === 'pagado')->count(),
-            'qrFacturados' => $rows->filter(fn ($row) => $this->isQrPaymentRow($row)
-                && strtolower((string) data_get($row, 'estado', '')) === 'emitido'
-                && strtolower((string) data_get($row, 'estado_pago', 'pendiente')) === 'pagado'
-                && strtoupper((string) data_get($row, 'estado_emision', '')) === 'FACTURADA')->count(),
-            'qrPendientes' => $rows->filter(fn ($row) => $this->isQrPaymentRow($row)
-                && strtolower((string) data_get($row, 'estado', '')) === 'pendiente_pago'
-                && strtolower((string) data_get($row, 'estado_pago', 'pendiente')) === 'pendiente')->count(),
-            'montoQr' => round((float) $rows
-                ->filter(fn ($row) => $this->isQrPaymentRow($row)
-                    && strtolower((string) data_get($row, 'estado', '')) === 'emitido'
-                    && strtolower((string) data_get($row, 'estado_pago', 'pendiente')) === 'pagado')
+            'qrPagados' => $qrPaidRows->count(),
+            'qrNoFacturados' => $qrNoFacturados,
+            'qrFacturados' => $qrPaidRows->filter(fn ($row) => strtoupper((string) data_get($row, 'estado_emision', '')) === 'FACTURADA'
+            )->count(),
+            'qrPendientes' => $qrPendientes,
+            'pendientesOperativas' => $pendientes + $qrPendientes + $qrNoFacturados,
+            'montoQr' => round((float) $qrPaidRows
                 ->sum(fn ($row) => (float) data_get($row, 'total', 0)), 2),
             'montoAnulado' => round((float) $rows
                 ->filter(fn ($row) => strtolower((string) data_get($row, 'estado', '')) === 'anulado'
                     || in_array(strtoupper((string) data_get($row, 'estado_emision', '')), ['ANULADA', 'ANULADO'], true))
                 ->sum(fn ($row) => (float) data_get($row, 'total', 0)), 2),
-            'montoTotal' => round((float) $rows
-                ->filter(fn ($row) => strtolower((string) data_get($row, 'estado', '')) === 'emitido'
-                    && $this->contabilizaEnCaja($row)
-                    && !$this->isQrPaymentRow($row)
-                    && strtolower((string) data_get($row, 'estado_pago', 'pendiente')) === 'pagado')
+            'montoEfectivo' => round((float) $effectiveRows
+                ->sum(fn ($row) => (float) data_get($row, 'total', 0)), 2),
+            'montoTotal' => round((float) $effectiveRows
                 ->sum(fn ($row) => (float) data_get($row, 'total', 0)), 2),
         ];
     }
@@ -459,14 +502,18 @@ class MisVentasController extends Controller
             'totalVentas' => 0,
             'totalBorradores' => 0,
             'facturadas' => 0,
+            'efectivoCount' => 0,
             'pendientes' => 0,
             'anuladas' => 0,
             'rechazadas' => 0,
             'qrPagados' => 0,
+            'qrNoFacturados' => 0,
             'qrFacturados' => 0,
             'qrPendientes' => 0,
+            'pendientesOperativas' => 0,
             'montoQr' => 0.0,
             'montoAnulado' => 0.0,
+            'montoEfectivo' => 0.0,
             'montoTotal' => 0.0,
         ];
     }
@@ -556,8 +603,8 @@ class MisVentasController extends Controller
             ));
             $estadoSufe = strtoupper(trim((string) (
                 data_get($row, 'estadoSufe')
-                ?? data_get($row, 'estado_emision')
                 ?? data_get($row, 'respuesta_emision.estadoSufe')
+                ?? data_get($row, 'estado_emision')
                 ?? ''
             )));
             $cuf = trim((string) (
@@ -585,6 +632,16 @@ class MisVentasController extends Controller
             $canalEmision = $this->resolveCanalEmisionVentaPayload($row, null, null, $isOficial);
             $metodoPago = $this->resolveMetodoPagoVentaPayload($row, null, null, $canalEmision);
             $emision = $this->mapEstadoSufeToBridge($estadoSufe);
+            if (
+                in_array($estadoSufe, ['FACTURADA', 'PROCESADA'], true)
+                || $numeroFactura !== ''
+                || $pdfUrl !== ''
+            ) {
+                $emision = [
+                    'estado' => 'FACTURADA',
+                    'mensaje' => 'Factura emitida correctamente.',
+                ];
+            }
             $estadoCart = strtolower(trim((string) data_get($row, 'estado', '')));
             if ($estadoCart === '') {
                 $estadoCart = 'emitido';
@@ -602,17 +659,27 @@ class MisVentasController extends Controller
                 ?? 0
             ), 3);
             if ($metodoPago === 'qr') {
+                $qrEstadoEmision = strtoupper(trim((string) data_get($row, 'estado_emision', 'NO_APLICA')));
+
+                if (
+                    in_array($estadoSufe, ['FACTURADA', 'PROCESADA'], true)
+                    || $numeroFactura !== ''
+                    || $pdfUrl !== ''
+                ) {
+                    $qrEstadoEmision = 'FACTURADA';
+                }
+
                 $emision = [
-                    'estado' => strtoupper(trim((string) data_get($row, 'estado_emision', 'NO_APLICA'))),
+                    'estado' => $qrEstadoEmision,
                     'mensaje' => $this->buildQrStatusMessage($estadoPago, trim((string) data_get($row, 'mensaje_emision', ''))),
                 ];
             }
 
-            if ($estadoCart === 'descartado' && strtoupper((string) ($emision['estado'] ?? '')) === 'RECHAZADA') {
+            if ($estadoCart === 'descartado') {
                 $estadoCart = 'anulado';
                 $emision = [
                     'estado' => 'ANULADA',
-                    'mensaje' => trim((string) data_get($row, 'mensaje_emision', '')) ?: 'Venta anulada localmente tras rechazo de factura.',
+                    'mensaje' => trim((string) data_get($row, 'mensaje_emision', '')) ?: 'Venta descartada localmente tras rechazo o anulacion de la factura.',
                 ];
             }
 

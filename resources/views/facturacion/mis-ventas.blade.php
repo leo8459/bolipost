@@ -72,36 +72,38 @@
 
         $summaryCards = [
             [
-                'label' => 'Facturadas',
-                'value' => number_format($summary['facturadas']),
-                'meta' => '',
-                'params' => array_merge($baseFilterParams, ['estado' => 'all', 'estado_emision' => 'FACTURADA']),
-                'active' => $filters['estado'] === 'all' && $filters['estado_emision'] === 'FACTURADA',
+                'label' => 'Total ventas',
+                'value' => number_format($summary['totalVentas'] ?? 0),
+                'meta' => 'Ventas emitidas del rango seleccionado',
+                'params' => array_merge($baseFilterParams, ['estado' => 'emitido', 'estado_emision' => 'all']),
+                'active' => $filters['estado'] === 'emitido' && $filters['estado_emision'] === 'all',
+                'accent' => false,
+            ],
+            [
+                'label' => 'Efectivo',
+                'value' => number_format($summary['efectivoCount'] ?? 0),
+                'meta' => 'Bs ' . number_format((float) ($summary['montoEfectivo'] ?? 0), 2),
+                'params' => $baseFilterParams,
+                'active' => false,
+                'accent' => false,
+            ],
+            [
+                'label' => 'Pago QR',
+                'value' => number_format($summary['qrPagados'] ?? 0),
+                'meta' => 'Bs ' . number_format((float) ($summary['montoQr'] ?? 0), 2),
+                'params' => $baseFilterParams,
+                'active' => false,
                 'accent' => false,
             ],
             [
                 'label' => 'Pendientes',
-                'value' => number_format($summary['pendientes']),
-                'meta' => '',
-                'params' => array_merge($baseFilterParams, ['estado' => 'all', 'estado_emision' => 'PENDIENTE']),
-                'active' => $filters['estado'] === 'all' && $filters['estado_emision'] === 'PENDIENTE',
-                'accent' => false,
-            ],
-            [
-                'label' => 'QR pendientes',
-                'value' => number_format($summary['qrPendientes'] ?? 0),
-                'meta' => '',
-                'params' => array_merge($baseFilterParams, ['estado' => 'pendiente_pago', 'estado_emision' => 'NO_APLICA']),
-                'active' => $filters['estado'] === 'pendiente_pago' && $filters['estado_emision'] === 'NO_APLICA',
-                'accent' => false,
-            ],
-            [
-                'label' => 'QR facturados',
-                'value' => number_format($summary['qrFacturados'] ?? 0),
-                'meta' => 'Cobro QR convertido a factura',
-                'params' => array_merge($baseFilterParams, ['estado' => 'emitido', 'estado_emision' => 'FACTURADA']),
+                'value' => number_format($summary['pendientesOperativas'] ?? 0),
+                'meta' => 'QR pendientes: ' . number_format($summary['qrPendientes'] ?? 0)
+                    . ' | QR no facturados: ' . number_format($summary['qrNoFacturados'] ?? 0)
+                    . ' | Ventas pendientes: ' . number_format($summary['pendientes'] ?? 0),
+                'params' => $baseFilterParams,
                 'active' => false,
-                'accent' => true,
+                'accent' => false,
             ],
             [
                 'label' => 'Anuladas',
@@ -112,17 +114,9 @@
                 'accent' => false,
             ],
             [
-                'label' => 'Rechazadas',
-                'value' => number_format($summary['rechazadas']),
-                'meta' => '',
-                'params' => array_merge($baseFilterParams, ['estado' => 'all', 'estado_emision' => 'RECHAZADA']),
-                'active' => $filters['estado'] === 'all' && $filters['estado_emision'] === 'RECHAZADA',
-                'accent' => false,
-            ],
-            [
                 'label' => 'Total en caja',
                 'value' => 'Bs ' . number_format($summary['montoTotal'], 2),
-                'meta' => 'No incluye QR facturado',
+                'meta' => 'Suma solo ventas en efectivo',
                 'params' => array_merge($baseFilterParams, ['estado' => 'emitido', 'estado_emision' => 'all']),
                 'active' => $filters['estado'] === 'emitido' && $filters['estado_emision'] === 'all',
                 'accent' => true,
@@ -338,7 +332,7 @@
                         <tr>
                             <th class="text-center">N°</th>
                             <th>Fecha</th>
-                            <th>Codigo orden</th>
+                            <th>Numero de factura</th>
                             @if($pageContext['show_cashier_column'])
                                 <th>Cajero</th>
                             @endif
@@ -422,16 +416,17 @@
                                 $empresaContrato = trim((string) data_get($cart, 'empresa_nombre', ''));
 
                                 $canalBadgeLabel = $isQrPayment
-                                    ? ($estadoPago === 'cancelado'
-                                        ? 'QR ANULADO'
-                                        : ($facturaEstado === 'FACTURADA' ? 'QR -> Factura electronica' : 'Pago QR'))
+                                    ? 'QR'
                                     : ($canalEmision === 'oficial'
                                         ? 'Registro oficial'
-                                        : ($esCuentaPorCobrar ? 'Cuenta por cobrar' : 'Factura electronica'));
+                                        : ($esCuentaPorCobrar ? 'Cuenta por cobrar' : 'Efectivo'));
                                 $canalBadgeClass = $isQrPayment
                                     ? 'ventas-channel-chip--qr'
                                     : 'ventas-channel-chip--factura';
                                 $estadoCart = (string) data_get($cart, 'estado', '');
+                                $normalizedEstadoCart = strtolower(trim($estadoCart));
+                                $isAnnulledSale = $facturaEstado === 'ANULADA'
+                                    || in_array($normalizedEstadoCart, ['anulado', 'descartado'], true);
                                 $codigoSeguimiento = trim((string) data_get($cart, 'codigo_seguimiento', ''));
                                 $codigoSeguimientoFiscal = trim((string) data_get($cart, 'codigo_seguimiento_fiscal', $codigoSeguimiento));
                                 $qrTransactionId = trim((string) data_get($cart, 'qr_transaction_id', ''));
@@ -443,10 +438,18 @@
                                 $itemsCountApi = (int) data_get($cart, 'items_count', 0);
                                 $fechaRaw = data_get($cart, 'emitido_en') ?: data_get($cart, 'created_at');
                                 $fecha = null;
-                                $showConsultAction = $cartId > 0
+                                $showConsultAction = !$isAnnulledSale
+                                    && $facturaEstado !== 'FACTURADA'
+                                    && $cartId > 0
                                     && !($isQrPayment && $estadoPago === 'cancelado')
                                     && ($referenciaConsulta !== '' || $isQrPayment || $facturaEstado === 'PENDIENTE');
                                 $consultActionLabel = 'Consultar';
+                                $actionRoute = route('facturacion.cart.consultar');
+                                $showPdfAction = $pdfUrl !== '' && !$isAnnulledSale;
+                                $showQrAction = false;
+                                $showEmitQrAction = false;
+                                $showStandardConsultAction = false;
+                                $autoEmitInvoice = false;
 
                                 if ($fechaRaw instanceof \Carbon\CarbonInterface) {
                                     $fecha = $fechaRaw;
@@ -459,17 +462,25 @@
                                 }
 
                                 if ($isQrPayment) {
-                                    if ($estadoPago === 'pendiente') {
+                                    if (!$isAnnulledSale && $estadoPago === 'pendiente') {
+                                        $showQrAction = true;
                                         $consultActionLabel = 'Ver QR';
-                                    } elseif ($facturaEstado === 'FACTURADA') {
-                                        $consultActionLabel = 'Consultar';
-                                    } elseif (in_array($facturaEstado, ['PENDIENTE', 'NO_APLICA', 'ERROR', 'RECHAZADA'], true)) {
-                                        $consultActionLabel = 'Facturar venta';
-                                    } else {
-                                        $consultActionLabel = 'Consultar';
+                                        $actionRoute = route('facturacion.cart.ver-qr');
+                                    } elseif (
+                                        !$isAnnulledSale
+                                        && in_array($estadoPago, ['pagado', 'success', 'paid', 'completed', 'approved', 'confirmed'], true)
+                                        && $facturaEstado !== 'FACTURADA'
+                                    ) {
+                                        $showEmitQrAction = true;
+                                        $consultActionLabel = 'Emitir factura';
+                                        $actionRoute = route('facturacion.cart.consultar');
+                                        $autoEmitInvoice = true;
                                     }
                                 } elseif ($facturaEstado === 'PENDIENTE') {
                                     $consultActionLabel = 'Actualizar estado';
+                                    $showStandardConsultAction = $showConsultAction;
+                                } elseif ($showConsultAction) {
+                                    $showStandardConsultAction = true;
                                 }
                             @endphp
                             <tr>
@@ -481,14 +492,9 @@
                                     <div class="ventas-table__secondary">{{ $fecha ? $fecha->format('H:i') : '-' }}</div>
                                 </td>
                                 <td>
-                                    <div class="ventas-table__primary">{{ $codigoOrden !== '' ? $codigoOrden : 'Sin codigo' }}</div>
+                                    <div class="ventas-table__primary">{{ $numeroFactura !== '' ? $numeroFactura : 'S/N' }}</div>
                                     @if ($isOficial)
-                                        <div class="ventas-table__secondary">Fact: {{ $numeroFactura !== '' ? $numeroFactura : 'S/N' }}</div>
-                                    @else
-                                        <div class="ventas-table__secondary">Doc: {{ $numeroDocumento !== '' ? $numeroDocumento : 'S/N' }} · Fact: {{ $numeroFactura !== '' ? $numeroFactura : 'S/N' }}</div>
-                                    @endif
-                                    @if($referenciaConsulta !== '')
-                                        <div class="ventas-table__secondary">{{ $referenciaLabel }}: {{ $referenciaConsulta }}</div>
+                                        <div class="ventas-table__secondary">Registro oficial</div>
                                     @endif
                                 </td>
                                 @if($pageContext['show_cashier_column'])
@@ -499,7 +505,7 @@
                                 @endif
                                 <td>
                                     <div class="ventas-table__primary">{{ $razonSocial !== '' ? $razonSocial : 'SIN NOMBRE' }}</div>
-                                    <div class="ventas-table__secondary">{{ $isOficial ? 'Registro interno' : ucfirst(str_replace('_', ' ', $modalidadFacturacion)) }}</div>
+                                    <div class="ventas-table__secondary">{{ $isOficial ? 'Registro interno' : ('Doc: ' . ($numeroDocumento !== '' ? $numeroDocumento : 'S/N')) }}</div>
                                     <div class="ventas-table__secondary">
                                         <span class="ventas-channel-chip {{ $canalBadgeClass }}">{{ $canalBadgeLabel }}</span>
                                     </div>
@@ -548,9 +554,6 @@
                                     @else
                                         <span class="ventas-status-chip ventas-status-chip--muted">{{ $facturaEstado !== '' ? $facturaEstado : 'SIN ESTADO' }}</span>
                                     @endif
-                                    <div class="ventas-table__secondary mt-1">
-                                        {{ $mensajeEmision !== '' ? \Illuminate\Support\Str::limit($mensajeEmision, 65) : 'Sin observaciones registradas.' }}
-                                    </div>
                                     @if($facturaEstado === 'PENDIENTE' && $canalEmision !== 'qr')
                                         <div class="ventas-table__secondary ventas-table__secondary--hint">
                                             Si fue por contingencia, usa actualizar estado hasta que llegue la factura.
@@ -577,8 +580,6 @@
                                         <div class="ventas-table__secondary mt-1">Pago QR pendiente de confirmacion.</div>
                                     @elseif($estadoCart === 'pendiente_pago' && $isQrPayment && $estadoPago === 'cancelado')
                                         <div class="ventas-table__secondary mt-1">El QR fue cerrado, cancelado o no completado.</div>
-                                    @elseif($facturaEstado === 'ANULADA')
-                                        <div class="ventas-table__secondary mt-1">Venta anulada localmente. No se contabiliza en caja ni en los totales operativos.</div>
                                     @elseif($esCuentaPorCobrar)
                                         <div class="ventas-table__secondary mt-1">Facturada y registrada como cuenta por cobrar. No se contabiliza en caja.</div>
                                     @endif
@@ -622,10 +623,10 @@
                                 </td>
                                 <td class="text-center">
                                     <div class="ventas-actions-grid">
-                                        @if($showConsultAction && ($pageContext['scope'] ?? 'own') !== 'branch')
+                                        @if(($showQrAction || $showEmitQrAction || $showStandardConsultAction) && ($pageContext['scope'] ?? 'own') !== 'branch')
                                             <form
                                                 method="POST"
-                                                action="{{ $isQrPayment && in_array($estadoPago, ['pendiente', 'cancelado'], true) ? route('facturacion.cart.ver-qr') : route('facturacion.cart.consultar') }}"
+                                                action="{{ $actionRoute }}"
                                                 class="ventas-actions-grid__item"
                                                 @if($facturaEstado === 'PENDIENTE' || $isQrPayment)
                                                     data-pending-consult="true"
@@ -634,7 +635,7 @@
                                                 @csrf
                                                 <input type="hidden" name="cart_id" value="{{ $cartId }}">
                                                 <input type="hidden" name="codigo_seguimiento" value="{{ $referenciaConsulta }}">
-                                                @if($isQrPayment && in_array($facturaEstado, ['PENDIENTE', 'NO_APLICA', 'ERROR', 'RECHAZADA'], true))
+                                                @if($autoEmitInvoice)
                                                     <input type="hidden" name="auto_emit_invoice" value="1">
                                                 @endif
                                                 <button type="submit" class="btn btn-xs btn-outline-secondary btn-block">
@@ -642,8 +643,8 @@
                                                 </button>
                                             </form>
                                         @endif
-                                        @if($pdfUrl !== '')
-                                            <a href="{{ $pdfUrl }}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary ventas-actions-grid__item">PDF original</a>
+                                        @if($showPdfAction)
+                                            <a href="{{ $pdfUrl }}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary ventas-actions-grid__item">PDF factura</a>
                                         @endif
                                     </div>
                                 </td>

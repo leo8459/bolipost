@@ -73,9 +73,10 @@
         }
         .content {
             min-height: 0;
+            display: grid;
         }
         .state {
-            height: 100%;
+            min-height: clamp(520px, 72vh, 980px);
             border-radius: 32px;
             overflow: hidden;
             background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(248,251,255,.95));
@@ -380,10 +381,10 @@
         .flow {
             min-height: 100%;
             display: grid;
-            align-content: start;
+            align-content: center;
             justify-items: center;
             gap: 24px;
-            padding: 32px 28px;
+            padding: 40px 28px;
         }
         .flow__hero {
             width: min(100%, 860px);
@@ -400,7 +401,8 @@
         }
         .flow__visual {
             width: min(100%, 460px);
-            min-height: 400px;
+            min-height: 0;
+            aspect-ratio: 1 / 1;
             display: grid;
             place-items: center;
             padding: 24px;
@@ -451,6 +453,17 @@
             display: grid;
             grid-template-columns: repeat(3, minmax(180px, 1fr));
             gap: 16px;
+        }
+        .flow--waiting {
+            min-height: 100%;
+        }
+        .flow--waiting .flow__hero {
+            width: min(100%, 980px);
+            min-height: calc(clamp(520px, 72vh, 980px) - 80px);
+            align-content: center;
+        }
+        .flow--waiting .flow__visual {
+            width: min(100%, 520px);
         }
         .flow__card {
             min-height: 104px;
@@ -521,6 +534,9 @@
             .flow__hero,
             .flow__grid {
                 width: 100%;
+            }
+            .flow--waiting .flow__hero {
+                min-height: auto;
             }
         }
         @media (max-width: 1240px) {
@@ -606,6 +622,9 @@
                 aspect-ratio: 1 / 1;
                 padding: 20px;
             }
+            .state {
+                min-height: auto;
+            }
             .flow__visual--compact {
                 width: auto;
                 min-height: auto;
@@ -626,6 +645,9 @@
                 right: 14px;
                 bottom: 88px;
                 width: min(280px, calc(100vw - 28px));
+            }
+            .flow--waiting .flow__hero {
+                min-height: auto;
             }
         }
     </style>
@@ -798,7 +820,7 @@
                 statusText.textContent = resolveMonitorStatusLabel(state.payment_status, 'Esperando QR');
                 const caption = resolveMonitorStatusCaption(state.payment_status, 'Esperando QR...');
                 stateRoot.innerHTML = `
-                    <div class="flow">
+                    <div class="flow flow--waiting">
                         <div class="flow__hero">
                             <div class="flow__visual">
                                 <div class="ads__qr-shell">
