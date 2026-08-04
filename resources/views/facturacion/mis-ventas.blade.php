@@ -337,6 +337,7 @@
                                 <th>Cajero</th>
                             @endif
                             <th>Cliente</th>
+                            <th>Pago</th>
                             <th>Facturacion</th>
                             <th>Estado</th>
                             <th class="text-center">Detalle</th>
@@ -506,9 +507,6 @@
                                 <td>
                                     <div class="ventas-table__primary">{{ $razonSocial !== '' ? $razonSocial : 'SIN NOMBRE' }}</div>
                                     <div class="ventas-table__secondary">{{ $isOficial ? 'Registro interno' : ('Doc: ' . ($numeroDocumento !== '' ? $numeroDocumento : 'S/N')) }}</div>
-                                    <div class="ventas-table__secondary">
-                                        <span class="ventas-channel-chip {{ $canalBadgeClass }}">{{ $canalBadgeLabel }}</span>
-                                    </div>
                                     @if($esCuentaPorCobrar)
                                         <div class="ventas-table__secondary ventas-table__secondary--hint">
                                             Facturada como cuenta por cobrar{{ $empresaContrato !== '' ? ' para ' . $empresaContrato : '' }}. No suma a caja.
@@ -518,6 +516,20 @@
                                         <div class="ventas-table__secondary ventas-table__secondary--hint">
                                             Cobrado por QR y transformado a factura. No suma a caja.
                                         </div>
+                                    @endif
+                                </td>
+                                <td>
+                                    <span class="ventas-channel-chip {{ $canalBadgeClass }}">{{ $canalBadgeLabel }}</span>
+                                    @if($isQrPayment && $estadoPago === 'pendiente')
+                                        <div class="ventas-table__secondary mt-1">Pendiente de pago.</div>
+                                    @elseif($isQrPayment && $estadoPago === 'cancelado')
+                                        <div class="ventas-table__secondary mt-1">Pago QR cancelado.</div>
+                                    @elseif($isQrPayment)
+                                        <div class="ventas-table__secondary mt-1">Pago QR confirmado.</div>
+                                    @elseif($esCuentaPorCobrar)
+                                        <div class="ventas-table__secondary mt-1">No suma a caja.</div>
+                                    @else
+                                        <div class="ventas-table__secondary mt-1">Cobro en caja.</div>
                                     @endif
                                 </td>
                                 <td>
