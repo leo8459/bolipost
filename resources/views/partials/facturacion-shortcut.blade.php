@@ -4002,6 +4002,7 @@
             const facturacionQrForceOpen = @json($facturacionQrForceOpen);
             const facturacionMonitorDefaultUrl = @json($facturacionMonitorDefaultUrl);
             const facturacionMonitorUserId = @json((string) (auth()->id() ?? 'guest'));
+            const facturacionMonitorSignedUrlRoute = @json(route('facturacion.monitor.signed-url'));
             const facturacionItemUpdateRouteTemplate = @json(route('facturacion.cart.items.update', ['itemId' => '__ITEM__']));
             const facturacionItemCustomizeGroupedRouteTemplate = @json(route('facturacion.cart.items.customize-grouped', ['itemId' => '__ITEM__']));
             const facturacionConsultarRoute = @json(route('facturacion.cart.consultar'));
@@ -4234,11 +4235,84 @@
                 }
             };
 
-            const configureFacturacionMonitor = () => {
+            const activateFacturacionMonitor = (urlOverride = '', showFeedback = true) => {
+                const normalizedUrl = String(urlOverride || '').trim();
+                if (normalizedUrl === '') {
+                    return false;
+                }
+
+                persistFacturacionMonitorConfig({ enabled: true, url: normalizedUrl });
+                setFacturacionMonitorButtonState();
+                ensureFacturacionMonitorTab(normalizedUrl);
+                publishFacturacionMonitorAdsState();
+
+                if (showFeedback) {
+                    renderFacturacionShortcutFeedback({
+                        type: 'success',
+                        title: 'Pantalla QR activada',
+                        message: 'Este navegador replicara el QR en la pantalla configurada.',
+                        detail: normalizedUrl,
+                    });
+                }
+
+                return true;
+            };
+
+            const fetchFacturacionMonitorSignedUrl = async () => {
+                const response = await fetch(facturacionMonitorSignedUrlRoute, {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+                const payload = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(String(payload && payload.message ? payload.message : 'No se pudo generar la URL del monitor QR.'));
+                }
+
+                const signedUrl = String(payload && payload.url ? payload.url : '').trim();
+                if (signedUrl === '') {
+                    throw new Error('El servidor no devolvio una URL valida para el monitor QR.');
+                }
+
+                return signedUrl;
+            };
+
+            const configureFacturacionMonitor = async () => {
                 const current = readFacturacionMonitorConfig();
+                const preferredUrl = String(current.url || facturacionMonitorDefaultUrl || '').trim();
+                if (preferredUrl !== '') {
+                    activateFacturacionMonitor(preferredUrl, true);
+                    return;
+                }
+                try {
+                    const signedUrl = await fetchFacturacionMonitorSignedUrl();
+                    activateFacturacionMonitor(signedUrl, true);
+                } catch (error) {
+                    persistFacturacionMonitorConfig({ enabled: false, url: '' });
+                    setFacturacionMonitorButtonState();
+                    renderFacturacionShortcutFeedback({
+                        type: 'warning',
+                        title: 'Pantalla QR no disponible',
+                        message: String(error && error.message ? error.message : 'No se pudo activar automaticamente la pantalla QR.'),
+                        detail: 'Revisa la sesion o la configuracion del monitor QR e intenta nuevamente.',
+                    });
+                }
+                return;
+                persistFacturacionMonitorConfig({ enabled: false, url: '' });
+                setFacturacionMonitorButtonState();
+                renderFacturacionShortcutFeedback({
+                    type: 'warning',
+                    title: 'Pantalla QR no disponible',
+                    message: 'No hay una URL automatica configurada para este monitor QR.',
+                    detail: 'Configura la URL por defecto del monitor QR en Aplicacion para habilitarlo sin intervencion manual.',
+                });
+                return;
                 const enteredUrl = window.prompt(
                     'Pega la URL firmada del monitor QR. Deja vacio para desactivar esta pantalla en este navegador.',
-                    String(current.url || facturacionMonitorDefaultUrl || '').trim()
+                    preferredUrl
                 );
 
                 if (enteredUrl === null) {

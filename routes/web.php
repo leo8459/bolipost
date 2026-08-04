@@ -146,6 +146,7 @@ Route::middleware(['auth', 'internal.only'])->group(function () {
     Route::post('/facturacion/cart/items/{itemId}/customize-grouped', [FacturacionCartController::class, 'customizeGroupedItem'])->name('facturacion.cart.items.customize-grouped');
     Route::post('/facturacion/cart/caja/abrir', [FacturacionCartController::class, 'abrirCaja'])->name('facturacion.cart.caja.abrir');
     Route::post('/facturacion/cart/caja/cerrar', [FacturacionCartController::class, 'cerrarCaja'])->name('facturacion.cart.caja.cerrar');
+    Route::get('/facturacion/monitor/signed-url', [FacturacionQrMonitorController::class, 'signedUrl'])->name('facturacion.monitor.signed-url');
     Route::post('/facturacion/cart/ver-qr', [FacturacionCartController::class, 'verQr'])->name('facturacion.cart.ver-qr');
     Route::post('/facturacion/cart/consultar', [FacturacionCartController::class, 'consultar'])->name('facturacion.cart.consultar');
     Route::post('/facturacion/cart/emitir', [FacturacionCartController::class, 'emitir'])->name('facturacion.cart.emitir');

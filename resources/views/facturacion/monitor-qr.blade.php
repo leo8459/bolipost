@@ -31,29 +31,10 @@
         .screen {
             min-height: 100vh;
             display: grid;
-            grid-template-rows: auto 1fr auto;
-            gap: 18px;
+            grid-template-rows: 1fr;
             padding: 18px;
         }
-        .topbar, .footer {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
-            padding: 18px 24px;
-            border-radius: 24px;
-            background: var(--panel);
-            border: 1px solid rgba(255, 255, 255, 0.75);
-            box-shadow: var(--shadow);
-            backdrop-filter: blur(16px);
-        }
-        .brand h1 {
-            margin: 0;
-            font-size: 32px;
-            line-height: 1;
-            font-weight: 900;
-        }
-        .brand p, .footer, .status {
+        .status {
             margin: 0;
             color: var(--muted);
             font-size: 15px;
@@ -74,9 +55,12 @@
         .content {
             min-height: 0;
             display: grid;
+            place-items: center;
         }
         .state {
+            width: min(100%, 1280px);
             min-height: clamp(520px, 72vh, 980px);
+            display: grid;
             border-radius: 32px;
             overflow: hidden;
             background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(248,251,255,.95));
@@ -89,16 +73,8 @@
             padding: 36px;
         }
         .ads {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .ads__panel {
-            width: 100%;
-            min-height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            display: grid;
+            place-items: center;
         }
         .ads__badge, .eyebrow {
             display: inline-flex;
@@ -134,14 +110,8 @@
             line-height: 1.5;
             color: var(--muted);
         }
-        .ads__visual {
-            width: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
         .ads__qr-shell {
-            width: min(62vmin, 560px);
+            width: min(100%, 560px);
             aspect-ratio: 1 / 1;
             position: relative;
             padding: 28px;
@@ -153,9 +123,7 @@
             box-shadow: 0 24px 50px rgba(23, 49, 92, 0.10);
         }
         .ads__qr-shell::before,
-        .ads__qr-shell::after,
-        .ads__qr-frame::before,
-        .ads__qr-frame::after {
+        .ads__qr-shell::after {
             content: "";
             position: absolute;
             width: 60px;
@@ -177,7 +145,7 @@
             border-bottom: 0;
             border-radius: 0 26px 0 0;
         }
-        .ads__qr-frame {
+        .ads__qr-shell-inner {
             position: relative;
             width: 100%;
             height: 100%;
@@ -190,14 +158,23 @@
             text-align: center;
             padding: 28px;
         }
-        .ads__qr-frame::before {
+        .ads__qr-shell-inner::before,
+        .ads__qr-shell-inner::after {
+            content: "";
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            border: 5px solid #ffcf3f;
+            filter: drop-shadow(0 0 12px rgba(255, 203, 50, 0.45));
+        }
+        .ads__qr-shell-inner::before {
             bottom: -14px;
             left: -14px;
             border-right: 0;
             border-top: 0;
             border-radius: 0 0 0 26px;
         }
-        .ads__qr-frame::after {
+        .ads__qr-shell-inner::after {
             bottom: -14px;
             right: -14px;
             border-left: 0;
@@ -215,11 +192,86 @@
             width: 104px;
             height: 104px;
         }
+        .ads__animation,
+        .terminal__animation {
+            width: min(100%, 320px);
+            aspect-ratio: 1 / 1;
+            display: grid;
+            place-items: center;
+            margin-inline: auto;
+        }
+        .ads__animation dotlottie-wc,
+        .terminal__animation dotlottie-wc {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
         .ads__qr-caption {
-            margin: 10px 0 0;
+            margin: 2px 0 0;
             font-size: 18px;
-            font-weight: 700;
+            font-weight: 800;
             color: #2450b4;
+        }
+        .ads__note,
+        .terminal__note {
+            margin: 0;
+            max-width: 520px;
+            font-size: 15px;
+            line-height: 1.7;
+            color: var(--muted);
+            text-align: center;
+        }
+        .flow__eyebrow {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 10px 16px;
+            border-radius: 999px;
+            background: #f5f8ff;
+            border: 1px solid rgba(205, 220, 245, 0.95);
+            color: var(--text);
+            font-size: 13px;
+            font-weight: 800;
+        }
+        .flow__eyebrow::before {
+            content: "";
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: var(--accent);
+        }
+        .flow__copy {
+            display: grid;
+            justify-items: center;
+            gap: 12px;
+            animation: monitorCopyFade .55s ease;
+        }
+        .flow__status {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: -.02em;
+            color: #2450b4;
+            animation: monitorPulse 1.8s ease-in-out infinite;
+        }
+        @keyframes monitorCopyFade {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        @keyframes monitorPulse {
+            0%, 100% {
+                opacity: .68;
+            }
+            50% {
+                opacity: 1;
+            }
         }
         .qr {
             display: grid;
@@ -339,45 +391,6 @@
             background: linear-gradient(180deg, rgba(255,255,255,.97), rgba(243,248,255,.98));
             box-shadow: inset 0 1px 0 rgba(255,255,255,.92);
         }
-        .simulator {
-            position: fixed;
-            right: 18px;
-            bottom: 96px;
-            z-index: 20;
-            width: min(320px, calc(100vw - 36px));
-            padding: 16px;
-            border-radius: 22px;
-            background: rgba(255,255,255,.94);
-            border: 1px solid rgba(214,226,244,.95);
-            box-shadow: 0 18px 40px rgba(23,49,92,.16);
-            backdrop-filter: blur(14px);
-        }
-        .simulator__title {
-            margin: 0 0 10px;
-            font-size: 15px;
-            font-weight: 800;
-            color: var(--text);
-        }
-        .simulator__grid {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 10px;
-        }
-        .simulator__button {
-            min-height: 42px;
-            border: 1px solid rgba(201,214,238,.95);
-            border-radius: 14px;
-            background: linear-gradient(180deg, #ffffff, #f4f8ff);
-            color: #214b91;
-            font-size: 13px;
-            font-weight: 700;
-            box-shadow: 0 10px 22px rgba(23,49,92,.06);
-        }
-        .simulator__button:hover,
-        .simulator__button:focus {
-            outline: none;
-            border-color: rgba(147,174,225,.95);
-        }
         .flow {
             min-height: 100%;
             display: grid;
@@ -460,10 +473,15 @@
         .flow--waiting .flow__hero {
             width: min(100%, 980px);
             min-height: calc(clamp(520px, 72vh, 980px) - 80px);
+            justify-content: center;
             align-content: center;
         }
         .flow--waiting .flow__visual {
             width: min(100%, 520px);
+            justify-self: center;
+        }
+        .flow--waiting .ads__qr-shell {
+            width: min(100%, 500px);
         }
         .flow__card {
             min-height: 104px;
@@ -497,9 +515,6 @@
             }
         }
         @media (orientation: portrait) {
-            .screen {
-                grid-template-rows: auto 1fr auto;
-            }
             .ads, .qr, .terminal {
                 padding: 24px;
             }
@@ -540,8 +555,11 @@
             }
         }
         @media (max-width: 1240px) {
-            .ads__panel, .qr, .qr__grid, .terminal__grid {
+            .qr, .qr__grid, .terminal__grid {
                 grid-template-columns: 1fr;
+            }
+            .state {
+                width: 100%;
             }
             .qr__title, .terminal__title {
                 font-size: 46px;
@@ -561,12 +579,13 @@
             }
         }
         @media (max-width: 720px) {
-            body { overflow: auto; }
-            .screen { padding: 14px; }
-            .topbar, .footer {
-                padding: 16px 18px;
-                flex-direction: column;
-                align-items: flex-start;
+            body {
+                overflow-x: hidden;
+                overflow-y: auto;
+            }
+            .screen {
+                min-height: 100dvh;
+                padding: 14px;
             }
             .ads, .qr, .terminal {
                 padding: 20px;
@@ -641,11 +660,6 @@
             .flow__card--wide {
                 grid-column: auto;
             }
-            .simulator {
-                right: 14px;
-                bottom: 88px;
-                width: min(280px, calc(100vw - 28px));
-            }
             .flow--waiting .flow__hero {
                 min-height: auto;
             }
@@ -653,46 +667,19 @@
     </style>
 </head>
 <body>
+    <script
+        src="https://unpkg.com/@lottiefiles/dotlottie-wc@0.9.4/dist/dotlottie-wc.js"
+        type="module"
+    ></script>
     <div class="screen">
-        <div class="topbar">
-            <div class="brand">
-                <h1>Correos de Bolivia</h1>
-                <p>Pantalla de cobro QR</p>
-            </div>
-            <div class="status">
-                <span class="status__dot"></span>
-                <span id="monitorStatusText">Monitor listo</span>
-            </div>
-        </div>
-
         <div class="content">
             <div class="state" id="monitorStateRoot"></div>
         </div>
-
-        <div class="footer">
-            <div>Monitor: {{ $monitorKey }}</div>
-            <div id="updatedAtText">Esperando eventos</div>
-        </div>
     </div>
-    @if (app()->environment('local'))
-        <div class="simulator" id="monitorSimulator">
-            <p class="simulator__title">Simulador</p>
-            <div class="simulator__grid">
-                <button type="button" class="simulator__button" data-sim-state="ads">Esperando QR</button>
-                <button type="button" class="simulator__button" data-sim-state="qr">QR activo</button>
-                <button type="button" class="simulator__button" data-sim-state="paid">Pagado</button>
-                <button type="button" class="simulator__button" data-sim-state="reset">Limpiar</button>
-            </div>
-        </div>
-    @endif
-
     <script>
         (() => {
             const monitorKey = @json($monitorKey);
             const stateRoot = document.getElementById('monitorStateRoot');
-            const statusText = document.getElementById('monitorStatusText');
-            const updatedAtText = document.getElementById('updatedAtText');
-            const simulator = document.getElementById('monitorSimulator');
             const storageKey = 'facturacion-monitor-state:' + monitorKey;
             const broadcastName = 'facturacion-qr-monitor';
             let resetTimer = null;
@@ -708,14 +695,6 @@
             const formatAmount = (amount) => {
                 const numeric = Number(amount || 0);
                 return Number.isFinite(numeric) && numeric > 0 ? 'Bs ' + numeric.toFixed(2) : 'Bs 0.00';
-            };
-
-            const formatDate = (value) => {
-                if (!value) {
-                    return 'Esperando eventos';
-                }
-                const parsed = new Date(value);
-                return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString('es-BO');
             };
 
             const normalizeImageSrc = (value) => {
@@ -817,33 +796,29 @@
             };
 
             const renderAds = (state = {}) => {
-                statusText.textContent = resolveMonitorStatusLabel(state.payment_status, 'Esperando QR');
                 const caption = resolveMonitorStatusCaption(state.payment_status, 'Esperando QR...');
                 stateRoot.innerHTML = `
                     <div class="flow flow--waiting">
                         <div class="flow__hero">
-                            <div class="flow__visual">
-                                <div class="ads__qr-shell">
-                                    <div class="ads__qr-frame">
-                                        <div class="ads__qr-icon" aria-hidden="true">
-                                            <svg viewBox="0 0 64 64" fill="none">
-                                                <rect x="10" y="10" width="16" height="16" rx="2.5" stroke="currentColor" stroke-width="4"/>
-                                                <rect x="38" y="10" width="16" height="16" rx="2.5" stroke="currentColor" stroke-width="4"/>
-                                                <rect x="10" y="38" width="16" height="16" rx="2.5" stroke="currentColor" stroke-width="4"/>
-                                                <path d="M38 40h6v6" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-                                                <path d="M50 40v14" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
-                                                <path d="M38 54h14" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
-                                                <path d="M44 32v10" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
-                                            </svg>
-                                        </div>
+                            <div class="ads__qr-shell">
+                                <div class="ads__qr-shell-inner">
+                                    <div class="ads__animation" aria-hidden="true">
+                                        <dotlottie-wc
+                                            src="https://lottie.host/45c84e67-4e2c-4c9f-a197-5a71ef4f9537/bsLiCO3Odf.lottie"
+                                            autoplay
+                                            loop
+                                        ></dotlottie-wc>
                                     </div>
                                 </div>
                             </div>
                             <div class="flow__headline">
-                                <span class="eyebrow">Cobro QR</span>
-                                <h2 class="flow__title">${escapeHtml(state.title || 'Esperando QR')}</h2>
-                                <p class="flow__text">${escapeHtml(state.message || 'Cuando la venta prepare el cobro, el codigo QR aparecera automaticamente en esta pantalla.')}</p>
-                                <p class="ads__qr-caption">${escapeHtml(caption)}</p>
+                                <span class="flow__eyebrow">Cobro QR</span>
+                                <div class="flow__copy">
+                                    <h2 class="flow__title">${escapeHtml(state.title || 'Pagos QR')}</h2>
+                                    <p class="flow__text">${escapeHtml(state.message || 'Tu codigo de cobro aparecera aqui automaticamente en cuanto el cajero lo prepare.')}</p>
+                                    <p class="flow__status">${escapeHtml(caption)}</p>
+                                    <p class="ads__note">Mantente atento. Cuando el QR este listo, podras escanearlo al instante desde tu banca movil.</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -851,7 +826,6 @@
             };
 
             const renderQr = (state = {}) => {
-                statusText.textContent = resolveMonitorStatusLabel(state.payment_status, 'Esperando pago');
                 const imageSrc = normalizeImageSrc(state.image_data || '');
                 stateRoot.innerHTML = `
                     <div class="flow">
@@ -885,20 +859,27 @@
 
             const renderTerminal = (state = {}) => {
                 const success = ['paid', 'pagado', 'confirmed', 'success', 'approved', 'completed'].includes(String(state.terminal_status || state.payment_status || '').toLowerCase());
-                statusText.textContent = resolveMonitorStatusLabel(
-                    state.terminal_status || state.payment_status,
-                    success ? 'Pagado' : 'Actualizando estado'
-                );
                 stateRoot.innerHTML = `
                     <div class="flow">
                         <div class="flow__hero">
-                            <div class="terminal__icon ${success ? 'terminal__icon--success' : 'terminal__icon--warning'}">
-                                ${success ? '&#10003;' : '!'}
-                            </div>
+                            ${success
+                                ? `<div class="terminal__animation" aria-hidden="true">
+                                        <dotlottie-wc
+                                            src="https://lottie.host/526540f0-307c-47db-8d4c-e53afbbdb180/C5OfkKXIVn.lottie"
+                                            autoplay
+                                            loop
+                                        ></dotlottie-wc>
+                                   </div>`
+                                : `<div class="terminal__icon terminal__icon--warning">!</div>`}
                             <div class="flow__headline">
-                                <span class="eyebrow">Estado actualizado</span>
-                                <h2 class="flow__title">${escapeHtml(state.title || 'Operacion finalizada')}</h2>
-                                <p class="flow__text">${escapeHtml(state.message || 'La pantalla volvera automaticamente al modo de espera.')}</p>
+                                <span class="flow__eyebrow">Estado actualizado</span>
+                                <div class="flow__copy">
+                                    <h2 class="flow__title">${escapeHtml(state.title || 'Operacion finalizada')}</h2>
+                                    <p class="flow__text">${escapeHtml(state.message || 'La pantalla volvera automaticamente al modo de espera.')}</p>
+                                    <p class="terminal__note">${success
+                                        ? 'Pago confirmado con exito. Gracias por confiar en Correos de Bolivia.'
+                                        : 'Estamos revisando el resultado del cobro. Si hace falta, intenta nuevamente con el cajero.'}</p>
+                                </div>
                             </div>
                         </div>
                         <div class="flow__grid">
@@ -920,8 +901,6 @@
             };
 
             const renderState = (state = {}) => {
-                updatedAtText.textContent = 'Actualizado: ' + formatDate(state.updated_at);
-
                 if (resetTimer) {
                     clearTimeout(resetTimer);
                     resetTimer = null;
@@ -1009,78 +988,6 @@
                     renderState(baseAdsState());
                 }
             });
-
-            if (simulator instanceof HTMLElement) {
-                simulator.addEventListener('click', (event) => {
-                    const target = event.target;
-                    if (!(target instanceof HTMLButtonElement)) {
-                        return;
-                    }
-
-                    const kind = String(target.dataset.simState || '').trim();
-                    const now = new Date().toISOString();
-                    let state = baseAdsState();
-
-                    if (kind === 'pending') {
-                        state = {
-                            mode: 'qr',
-                            title: 'Escanea para pagar',
-                            message: 'Escanea este codigo con tu app bancaria para completar el pago.',
-                            image_data: sampleQrSvg(),
-                            transaction_id: 'SIM-QR-001',
-                            internal_code: 'ORD-SIM-001',
-                            payment_status: 'HOLDING',
-                            amount: 15.50,
-                            updated_at: now,
-                        };
-                    } else if (kind === 'qr') {
-                        state = {
-                            mode: 'qr',
-                            title: 'QR activo',
-                            message: 'El QR esta visible y listo para escanear.',
-                            image_data: sampleQrSvg(),
-                            transaction_id: 'SIM-QR-002',
-                            internal_code: 'ORD-SIM-002',
-                            payment_status: 'PENDING',
-                            amount: 22.00,
-                            updated_at: now,
-                        };
-                    } else if (kind === 'paid') {
-                        state = {
-                            mode: 'terminal',
-                            title: 'Pago completado',
-                            message: 'La transaccion fue aprobada correctamente.',
-                            transaction_id: 'SIM-QR-003',
-                            internal_code: 'ORD-SIM-003',
-                            payment_status: 'PAID',
-                            terminal_status: 'PAID',
-                            amount: 48.90,
-                            auto_reset_ms: 9000,
-                            updated_at: now,
-                        };
-                    } else if (kind === 'failed') {
-                        state = {
-                            mode: 'terminal',
-                            title: 'Pago no completado',
-                            message: 'La operacion no fue confirmada.',
-                            transaction_id: 'SIM-QR-004',
-                            internal_code: 'ORD-SIM-004',
-                            payment_status: 'FAILED',
-                            terminal_status: 'FAILED',
-                            amount: 48.90,
-                            auto_reset_ms: 9000,
-                            updated_at: now,
-                        };
-                    } else if (kind === 'reset') {
-                        state = baseAdsState();
-                    } else if (kind === 'ads') {
-                        state = baseAdsState();
-                    }
-
-                    persistState(state);
-                    renderState(state);
-                });
-            }
 
             bootstrapBroadcast();
             renderState(readPersistedState());
