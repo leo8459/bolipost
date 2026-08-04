@@ -76,26 +76,6 @@
             display: grid;
             place-items: center;
         }
-        .ads__badge, .eyebrow {
-            display: inline-flex;
-            width: fit-content;
-            align-items: center;
-            gap: 10px;
-            padding: 11px 16px;
-            border-radius: 999px;
-            background: #f5f8ff;
-            border: 1px solid rgba(205, 220, 245, 0.95);
-            color: var(--text);
-            font-size: 13px;
-            font-weight: 700;
-        }
-        .ads__badge::before, .eyebrow::before {
-            content: "";
-            width: 10px;
-            height: 10px;
-            border-radius: 999px;
-            background: var(--accent);
-        }
         .qr__title, .terminal__title {
             margin: 0;
             font-size: 64px;
@@ -220,26 +200,6 @@
             line-height: 1.7;
             color: var(--muted);
             text-align: center;
-        }
-        .flow__eyebrow {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            padding: 10px 16px;
-            border-radius: 999px;
-            background: #f5f8ff;
-            border: 1px solid rgba(205, 220, 245, 0.95);
-            color: var(--text);
-            font-size: 13px;
-            font-weight: 800;
-        }
-        .flow__eyebrow::before {
-            content: "";
-            width: 10px;
-            height: 10px;
-            border-radius: 999px;
-            background: var(--accent);
         }
         .flow__copy {
             display: grid;
@@ -812,7 +772,6 @@
                                 </div>
                             </div>
                             <div class="flow__headline">
-                                <span class="flow__eyebrow">Cobro QR</span>
                                 <div class="flow__copy">
                                     <h2 class="flow__title">${escapeHtml(state.title || 'Pagos QR')}</h2>
                                     <p class="flow__text">${escapeHtml(state.message || 'Tu codigo de cobro aparecera aqui automaticamente en cuanto el cajero lo prepare.')}</p>
@@ -834,7 +793,6 @@
                                 ${imageSrc !== '' ? `<img src="${escapeHtml(imageSrc)}" alt="QR de cobro">` : '<div class="qr__empty">QR no disponible</div>'}
                             </div>
                             <div class="flow__headline">
-                                <span class="eyebrow">Cobro QR activo</span>
                                 <h2 class="flow__title">${escapeHtml(state.title || 'Escanea para pagar')}</h2>
                                 <p class="flow__text">${escapeHtml(state.message || 'Escanea este codigo con tu app bancaria para completar el pago.')}</p>
                             </div>
@@ -872,7 +830,6 @@
                                    </div>`
                                 : `<div class="terminal__icon terminal__icon--warning">!</div>`}
                             <div class="flow__headline">
-                                <span class="flow__eyebrow">Estado actualizado</span>
                                 <div class="flow__copy">
                                     <h2 class="flow__title">${escapeHtml(state.title || 'Operacion finalizada')}</h2>
                                     <p class="flow__text">${escapeHtml(state.message || 'La pantalla volvera automaticamente al modo de espera.')}</p>
