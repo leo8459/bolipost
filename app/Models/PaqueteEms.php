@@ -20,6 +20,7 @@ class PaqueteEms extends Model
         'peso',
         'codigo',
         'cod_especial',
+        'envio_cn33',
         'precio',
         'nombre_remitente',
         'nombre_envia',
@@ -36,6 +37,10 @@ class PaqueteEms extends Model
         'imagen',
         'observacion',
         'justificacion',
+    ];
+
+    protected $casts = [
+        'envio_cn33' => 'datetime',
     ];
 
     public function user()

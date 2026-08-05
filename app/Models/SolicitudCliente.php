@@ -18,6 +18,7 @@ class SolicitudCliente extends Model
         'codigo_solicitud',
         'barcode',
         'cod_especial',
+        'envio_cn33',
         'estado_id',
         'origen',
         'tipo_correspondencia',
@@ -50,6 +51,7 @@ class SolicitudCliente extends Model
         'peso' => 'decimal:3',
         'precio' => 'decimal:2',
         'pago_destinatario' => 'boolean',
+        'envio_cn33' => 'datetime',
     ];
 
     public function cliente(): BelongsTo

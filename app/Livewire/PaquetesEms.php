@@ -2967,8 +2967,9 @@ class PaquetesEms extends Component
 
         $updated = 0;
         $actorUserId = (int) (auth()->id() ?? 0);
+        $envioCn33At = now();
 
-        DB::transaction(function () use ($idsEms, $idsInt, $idsContratos, $idsSolicitudes, $eligibleEstadoIds, $estadoTransitoId, $codEspecial, $cn33Destino, $eventoSacaInternaSalidaId, $actorUserId, &$updated) {
+        DB::transaction(function () use ($idsEms, $idsInt, $idsContratos, $idsSolicitudes, $eligibleEstadoIds, $estadoTransitoId, $codEspecial, $cn33Destino, $eventoSacaInternaSalidaId, $actorUserId, $envioCn33At, &$updated) {
             if (!empty($idsEms)) {
                 $paquetes = PaqueteEms::query()
                     ->whereIn('id', $idsEms)
@@ -2982,6 +2983,7 @@ class PaquetesEms extends Component
                         ->whereIn('id', $paquetes->pluck('id')->all())
                         ->update([
                             'cod_especial' => $codEspecial,
+                            'envio_cn33' => $envioCn33At,
                             'estado_id' => (int) $estadoTransitoId,
                             'ciudad' => $cn33Destino,
                             'updated_at' => now(),
@@ -3011,6 +3013,7 @@ class PaquetesEms extends Component
                         ->whereIn('id', $paquetesInt->pluck('id')->all())
                         ->update([
                             'cod_especial' => $codEspecial,
+                            'envio_cn33' => $envioCn33At,
                             'estado_id' => (int) $estadoTransitoId,
                             'destino' => $cn33Destino,
                             'updated_at' => now(),
@@ -3031,6 +3034,7 @@ class PaquetesEms extends Component
                         ->whereIn('id', $contratos->pluck('id')->all())
                         ->update([
                             'cod_especial' => $codEspecial,
+                            'envio_cn33' => $envioCn33At,
                             'estados_id' => (int) $estadoTransitoId,
                             'destino' => $cn33Destino,
                             'updated_at' => now(),
@@ -3053,6 +3057,7 @@ class PaquetesEms extends Component
                         ->whereIn('id', $solicitudes->pluck('id')->all())
                         ->update([
                             'cod_especial' => $codEspecial,
+                            'envio_cn33' => $envioCn33At,
                             'estado_id' => (int) $estadoTransitoId,
                             'ciudad' => $cn33Destino,
                             'updated_at' => now(),
@@ -3196,7 +3201,8 @@ class PaquetesEms extends Component
             &$contratos,
             &$solicitudes,
             &$paquetesInt,
-            $regionalIntRows
+            $regionalIntRows,
+            $generatedAt
         ) {
             if (!empty($idsEms)) {
                 $paquetes = PaqueteEms::query()
@@ -3301,6 +3307,7 @@ class PaquetesEms extends Component
             foreach ($paquetes as $paquete) {
                 $observacion = $this->regionalObservationForItem('ems', (int) $paquete->id);
                 $paquete->cod_especial = $manifiesto;
+                $paquete->envio_cn33 = $generatedAt;
                 $paquete->estado_id = $estadoRegionalId;
                 $paquete->ciudad = $this->regionalDestino;
                 if ($observacion !== null && $this->paquetesEmsHasObservacionColumn()) {
@@ -3322,6 +3329,7 @@ class PaquetesEms extends Component
             foreach ($contratos as $contrato) {
                 $observacion = $this->regionalObservationForItem('contrato', (int) $contrato->id);
                 $contrato->cod_especial = $manifiesto;
+                $contrato->envio_cn33 = $generatedAt;
                 $contrato->estados_id = (int) $estadoRegionalId;
                 $contrato->destino = $this->regionalDestino;
                 if ($observacion !== null) {
@@ -3334,6 +3342,7 @@ class PaquetesEms extends Component
             foreach ($solicitudes as $solicitud) {
                 $observacion = $this->regionalObservationForItem('solicitud', (int) $solicitud->id);
                 $solicitud->cod_especial = $manifiesto;
+                $solicitud->envio_cn33 = $generatedAt;
                 $solicitud->estado_id = (int) $estadoRegionalId;
                 $solicitud->ciudad = $this->regionalDestino;
                 if ($observacion !== null) {
@@ -3345,15 +3354,17 @@ class PaquetesEms extends Component
 
             foreach ($paquetesIntExistentes as $paqueteIntExistente) {
                 $paqueteIntExistente->cod_especial = $manifiesto;
+                $paqueteIntExistente->envio_cn33 = $generatedAt;
                 $paqueteIntExistente->estado_id = (int) $estadoRegionalId;
                 $paqueteIntExistente->destino = $this->regionalDestino;
                 $paqueteIntExistente->save();
                 $updated++;
             }
 
-            $paquetesInt = collect($regionalIntRows)->map(function (array $row) use ($manifiesto, $loggedInUserCity, $estadoRegionalId) {
+            $paquetesInt = collect($regionalIntRows)->map(function (array $row) use ($manifiesto, $loggedInUserCity, $estadoRegionalId, $generatedAt) {
                 return PaqueteInt::create([
                     'cod_especial' => $manifiesto,
+                    'envio_cn33' => $generatedAt,
                     'codigo' => $row['codigo'],
                     'estado_id' => $estadoRegionalId,
                     'origen' => $loggedInUserCity !== '' ? $loggedInUserCity : null,
@@ -3548,7 +3559,7 @@ class PaquetesEms extends Component
         $contratos = collect();
         $manifiesto = '';
 
-        DB::transaction(function () use ($ids, $estadoRegionalId, $estadoAlmacenId, $actorUserId, &$manifiesto, &$updated, &$contratos) {
+        DB::transaction(function () use ($ids, $estadoRegionalId, $estadoAlmacenId, $actorUserId, $generatedAt, &$manifiesto, &$updated, &$contratos) {
             $contratos = RecojoContrato::query()
                 ->whereIn('id', $ids)
                 ->where('estados_id', (int) $estadoAlmacenId)
@@ -3579,6 +3590,7 @@ class PaquetesEms extends Component
             foreach ($contratos as $contrato) {
                 $observacion = $this->regionalObservationForItem('contrato', (int) $contrato->id);
                 $contrato->cod_especial = $manifiesto;
+                $contrato->envio_cn33 = $generatedAt;
                 $contrato->estados_id = (int) $estadoRegionalId;
                 $contrato->destino = $this->regionalDestinoContrato;
                 if ($observacion !== null) {
