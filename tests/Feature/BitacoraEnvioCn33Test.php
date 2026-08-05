@@ -118,4 +118,32 @@ class BitacoraEnvioCn33Test extends TestCase
         $this->assertSame('2026-08-05 10:15:30', $summary['dispatch_created_at']);
         $this->assertSame('2026-07-01 08:00:00', $summary['first_created_at']);
     }
+
+    public function test_bitacora_mantiene_la_fecha_del_evento_para_cn33_historicos(): void
+    {
+        DB::table('paquetes_ems')->insert([
+            'cod_especial' => 'LPZ00002',
+            'codigo' => 'EMS-002',
+            'origen' => 'LA PAZ',
+            'ciudad' => 'ORURO',
+            'peso' => 1.25,
+            'precio' => 8,
+            'envio_cn33' => null,
+            'created_at' => '2026-07-01 08:00:00',
+            'updated_at' => '2026-07-03 11:20:00',
+        ]);
+
+        DB::table('eventos_ems')->insert([
+            'codigo' => 'EMS-002',
+            'evento_id' => 240,
+            'created_at' => '2026-07-03 11:20:00',
+            'updated_at' => '2026-07-03 11:20:00',
+        ]);
+
+        $summary = app(BitacoraCn33Service::class)->getDispatchSummary('LPZ00002');
+
+        $this->assertTrue($summary['exists']);
+        $this->assertSame('2026-07-03 11:20:00', $summary['dispatch_created_at']);
+        $this->assertSame('2026-07-01 08:00:00', $summary['first_created_at']);
+    }
 }
