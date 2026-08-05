@@ -2,12 +2,17 @@
 
 namespace Tests\Feature;
 
+use App\Exports\AreaContratosEntregadosExport;
 use App\Http\Controllers\AreaContratosController;
+use App\Models\Recojo;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Maatwebsite\Excel\Excel as ExcelWriter;
+use Maatwebsite\Excel\Facades\Excel;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
 
 class AreaContratosReportesTest extends TestCase
@@ -36,6 +41,7 @@ class AreaContratosReportesTest extends TestCase
             $table->unsignedBigInteger('estados_id')->nullable();
             $table->string('codigo')->nullable();
             $table->string('origen')->nullable();
+            $table->text('imagen')->nullable();
             $table->timestamps();
         });
 
@@ -91,5 +97,36 @@ class AreaContratosReportesTest extends TestCase
             fn (string $sql) => str_contains($sql, 'count(*) as total')
                 && str_contains($sql, 'group by "origen"')
         ));
+    }
+
+    public function test_incrusta_una_imagen_base64_en_el_excel_para_impresion(): void
+    {
+        $base64Png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+
+        DB::table('paquetes_contrato')->where('id', 1)->update([
+            'imagen' => 'data:image/png;base64,'.$base64Png,
+        ]);
+
+        $rows = Recojo::query()->where('id', 1)->get();
+        $contents = Excel::raw(new AreaContratosEntregadosExport($rows), ExcelWriter::XLSX);
+        $path = tempnam(sys_get_temp_dir(), 'contratos-excel-');
+        $this->assertNotFalse($path);
+
+        try {
+            file_put_contents($path, $contents);
+            $spreadsheet = IOFactory::load($path);
+            $sheet = $spreadsheet->getSheet(0);
+
+            $deliveryDrawing = collect($sheet->getDrawingCollection())
+                ->first(fn ($drawing) => $drawing->getCoordinates() === 'U13');
+
+            $this->assertNotNull($deliveryDrawing);
+            $this->assertNull($sheet->getCell('U13')->getValue());
+            $this->assertSame(58.0, $sheet->getRowDimension(13)->getRowHeight());
+        } finally {
+            if (is_string($path) && is_file($path)) {
+                unlink($path);
+            }
+        }
     }
 }

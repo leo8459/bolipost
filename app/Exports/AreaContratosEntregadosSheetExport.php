@@ -18,6 +18,7 @@ use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Font;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
+use PhpOffice\PhpSpreadsheet\Worksheet\MemoryDrawing;
 
 class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSize, WithEvents, WithHeadings, WithMapping, WithTitle
 {
@@ -121,7 +122,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
             (string) ($model->nombre_d ?? ''),
             (string) optional($model->user)->name,
             (string) ($model->observacion ?? ''),
-            $this->resolveDeliveryImageUrl($model) !== null ? 'Descargar imagen' : '',
+            $this->hasDeliveryImage($model) ? 'Imagen de entrega' : '',
         ];
     }
 
@@ -271,8 +272,23 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
                         ->getNumberFormat()
                         ->setFormatCode('#,##0.00');
 
-                    $this->applyDeliveryImageLinks($sheet, $dataStartRow);
+                    $this->embedDeliveryImages($sheet, $dataStartRow);
                 }
+
+                $sheet->getColumnDimension('U')->setAutoSize(false);
+                $sheet->getColumnDimension('U')->setWidth(18);
+
+                $sheet->getPageSetup()
+                    ->setOrientation(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::ORIENTATION_LANDSCAPE)
+                    ->setPaperSize(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::PAPERSIZE_A4)
+                    ->setFitToWidth(1)
+                    ->setFitToHeight(0);
+                $sheet->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd($headerTopRow, $headerBottomRow);
+                $sheet->getPageMargins()
+                    ->setTop(0.35)
+                    ->setRight(0.25)
+                    ->setBottom(0.35)
+                    ->setLeft(0.25);
 
                 $totalRow = max($dataStartRow, $highestRow + 1);
                 $sheet->mergeCells("A{$totalRow}:K{$totalRow}");
@@ -390,6 +406,14 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
             return null;
         }
 
+        if (
+            preg_match('/^data:image\//i', $imagePath) === 1
+            || preg_match('/^https?:\/\//i', $imagePath) === 1
+            || $this->looksLikeRawBase64($imagePath)
+        ) {
+            return null;
+        }
+
         if (! Storage::disk('public')->exists($imagePath)) {
             return null;
         }
@@ -401,19 +425,55 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
         return $baseUrl.$path;
     }
 
-    private function applyDeliveryImageLinks($sheet, int $dataStartRow): void
+    private function hasDeliveryImage(Model $model): bool
+    {
+        return trim((string) ($model->imagen ?? '')) !== '';
+    }
+
+    private function embedDeliveryImages($sheet, int $dataStartRow): void
     {
         foreach ($this->rows->values() as $index => $model) {
             if (! $model instanceof Model) {
                 continue;
             }
 
-            $url = $this->resolveDeliveryImageUrl($model);
-            if ($url === null) {
+            if (! $this->hasDeliveryImage($model)) {
                 continue;
             }
 
-            $cell = 'U'.($dataStartRow + $index);
+            $row = $dataStartRow + $index;
+            $cell = 'U'.$row;
+            $binary = $this->resolveDeliveryImageBinary($model);
+
+            if ($binary !== null) {
+                try {
+                    $drawing = MemoryDrawing::fromString($binary);
+                    $drawing->setName('Imagen de entrega '.((string) ($model->codigo ?? $model->id ?? '')));
+                    $drawing->setDescription('Evidencia fotográfica de la entrega');
+                    $drawing->setCoordinates($cell);
+                    $drawing->setResizeProportional(true);
+                    $drawing->setHeight(68);
+                    $drawing->setOffsetX(5);
+                    $drawing->setOffsetY(4);
+                    $drawing->setWorksheet($sheet);
+
+                    $sheet->setCellValue($cell, '');
+                    $sheet->getRowDimension($row)->setRowHeight(58);
+
+                    continue;
+                } catch (\Throwable) {
+                    // Si GD no reconoce el formato, se conserva el enlace como respaldo.
+                }
+            }
+
+            $url = $this->resolveDeliveryImageUrl($model);
+            if ($url === null) {
+                $sheet->setCellValue($cell, 'Formato de imagen no compatible');
+
+                continue;
+            }
+
+            $sheet->setCellValue($cell, 'Descargar imagen');
             $sheet->getCell($cell)->getHyperlink()->setUrl($url);
             $sheet->getStyle($cell)->applyFromArray([
                 'font' => [
@@ -431,5 +491,44 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
                 ],
             ]);
         }
+    }
+
+    private function resolveDeliveryImageBinary(Model $model): ?string
+    {
+        $value = trim((string) ($model->imagen ?? ''));
+        if ($value === '') {
+            return null;
+        }
+
+        if (preg_match('/^data:image\/[a-z0-9.+-]+(?:;[^,]*)?;base64,(.*)$/is', $value, $matches) === 1) {
+            $encoded = preg_replace('/\s+/', '', $matches[1]) ?? '';
+            $binary = base64_decode($encoded, true);
+
+            return is_string($binary) && $binary !== '' ? $binary : null;
+        }
+
+        if ($this->looksLikeRawBase64($value)) {
+            $encoded = preg_replace('/\s+/', '', $value) ?? '';
+            $binary = base64_decode($encoded, true);
+
+            return is_string($binary) && $binary !== '' ? $binary : null;
+        }
+
+        if (preg_match('/^https?:\/\//i', $value) === 1 || ! Storage::disk('public')->exists($value)) {
+            return null;
+        }
+
+        $binary = Storage::disk('public')->get($value);
+
+        return $binary !== '' ? $binary : null;
+    }
+
+    private function looksLikeRawBase64(string $value): bool
+    {
+        $encoded = preg_replace('/\s+/', '', $value) ?? '';
+
+        return strlen($encoded) >= 128
+            && preg_match('/^[A-Za-z0-9+\/=]+$/', $encoded) === 1
+            && base64_decode($encoded, true) !== false;
     }
 }
