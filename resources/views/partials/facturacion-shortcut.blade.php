@@ -4096,12 +4096,33 @@
                 }
             };
 
+            const isValidFacturacionMonitorUrl = (url) => {
+                const normalizedUrl = String(url || '').trim();
+                if (normalizedUrl === '') {
+                    return false;
+                }
+
+                try {
+                    const parsed = new URL(normalizedUrl, window.location.origin);
+                    return /\/facturacion\/monitor\/display\/[^/?#]+/i.test(parsed.pathname)
+                        && parsed.searchParams.has('signature');
+                } catch (error) {
+                    return false;
+                }
+            };
+
             const resolveFacturacionMonitorConfig = () => {
                 const config = readFacturacionMonitorConfig();
                 const url = String(config.url || '').trim();
+                const valid = isValidFacturacionMonitorUrl(url);
+
+                if (config.enabled && url !== '' && !valid) {
+                    persistFacturacionMonitorConfig({ enabled: false, url: '' });
+                }
+
                 return {
-                    enabled: config.enabled && url !== '',
-                    url,
+                    enabled: config.enabled && valid,
+                    url: valid ? url : '',
                 };
             };
 
@@ -4281,8 +4302,8 @@
             };
 
             const configureFacturacionMonitor = async () => {
-                const current = readFacturacionMonitorConfig();
-                const preferredUrl = String(current.url || facturacionMonitorDefaultUrl || '').trim();
+                const current = resolveFacturacionMonitorConfig();
+                const preferredUrl = String(current.url || '').trim();
                 if (preferredUrl !== '') {
                     activateFacturacionMonitor(preferredUrl, true);
                     return;
@@ -4310,10 +4331,7 @@
                     detail: 'Configura la URL por defecto del monitor QR en Aplicacion para habilitarlo sin intervencion manual.',
                 });
                 return;
-                const enteredUrl = window.prompt(
-                    'Pega la URL firmada del monitor QR. Deja vacio para desactivar esta pantalla en este navegador.',
-                    preferredUrl
-                );
+                const enteredUrl = null;
 
                 if (enteredUrl === null) {
                     return;
