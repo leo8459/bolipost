@@ -217,7 +217,7 @@
                                         <th>Destino</th>
                                         <th>Destinatario</th>
                                         <th class="text-right">Peso</th>
-                                        <th>Registrado</th>
+                                        <th>Envio CN-33</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -230,7 +230,7 @@
                                             <td>{{ $package->destino ?: '-' }}</td>
                                             <td>{{ $package->destinatario ?: '-' }}</td>
                                             <td class="text-right">{{ number_format((float) $package->peso, 3) }}</td>
-                                            <td>{{ optional($package->created_at)->format('d/m/Y H:i') ?: '-' }}</td>
+                                            <td>{{ optional($package->dispatch_created_at ?? $package->created_at)->format('d/m/Y H:i') ?: '-' }}</td>
                                         </tr>
                                     @empty
                                         <tr>

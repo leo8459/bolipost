@@ -163,6 +163,7 @@ class BitacoraCn33Service
                     'cn33_packages.destinatario',
                     'cn33_packages.peso',
                     'cn33_packages.created_at',
+                    'cn33_packages.dispatch_created_at',
                 ])
                 ->whereIn('cn33_packages.cod_especial_normalizado', $pendingCodes)
                 ->when($regional !== null, function ($query) use ($regional) {
@@ -182,6 +183,9 @@ class BitacoraCn33Service
                     $package->created_at = !empty($package->created_at)
                         ? Carbon::parse($package->created_at)
                         : null;
+                    $package->dispatch_created_at = !empty($package->dispatch_created_at)
+                        ? Carbon::parse($package->dispatch_created_at)
+                        : $package->created_at;
 
                     return $package;
                 })
@@ -233,7 +237,7 @@ class BitacoraCn33Service
                 trim(upper(cod_especial)) as cod_especial_normalizado,
                 trim(upper(coalesce(origen, ''))) as regional_normalizada,
                 paquetes_ems.created_at,
-                ems_dispatch_events.dispatch_created_at as dispatch_created_at,
+                coalesce(paquetes_ems.envio_cn33, ems_dispatch_events.dispatch_created_at) as dispatch_created_at,
                 coalesce(paquetes_ems.peso, 0) as peso,
                 coalesce(paquetes_ems.precio, 0) as precio
             ")
@@ -248,7 +252,7 @@ class BitacoraCn33Service
                 trim(upper(cod_especial)) as cod_especial_normalizado,
                 trim(upper(coalesce(origen, ''))) as regional_normalizada,
                 paquetes_contrato.created_at,
-                contrato_dispatch_events.dispatch_created_at as dispatch_created_at,
+                coalesce(paquetes_contrato.envio_cn33, contrato_dispatch_events.dispatch_created_at) as dispatch_created_at,
                 coalesce(paquetes_contrato.peso, 0) as peso,
                 coalesce(paquetes_contrato.precio, 0) as precio
             ")
@@ -290,6 +294,8 @@ class BitacoraCn33Service
     {
         $emsRegionalExpression = $this->cn33RegionalExpressionSql("trim(upper(coalesce(origen, '')))");
         $contratoRegionalExpression = $this->cn33RegionalExpressionSql("trim(upper(coalesce(origen, '')))");
+        $solicitudRegionalExpression = $this->cn33RegionalExpressionSql("trim(upper(coalesce(origen, '')))");
+        $intRegionalExpression = $this->cn33RegionalExpressionSql("trim(upper(coalesce(origen, '')))");
 
         $ems = DB::table('paquetes_ems')
             ->leftJoinSub($this->dispatchEventsSubquery('eventos_ems'), 'ems_dispatch_events', function ($join) {
@@ -305,7 +311,7 @@ class BitacoraCn33Service
                 coalesce(paquetes_ems.ciudad, '') as destino,
                 coalesce(paquetes_ems.nombre_destinatario, '') as destinatario,
                 paquetes_ems.created_at,
-                ems_dispatch_events.dispatch_created_at as dispatch_created_at,
+                coalesce(paquetes_ems.envio_cn33, ems_dispatch_events.dispatch_created_at) as dispatch_created_at,
                 coalesce(paquetes_ems.peso, 0) as peso,
                 coalesce(paquetes_ems.precio, 0) as precio
             ")
@@ -326,14 +332,52 @@ class BitacoraCn33Service
                 coalesce(paquetes_contrato.destino, '') as destino,
                 coalesce(paquetes_contrato.nombre_d, '') as destinatario,
                 paquetes_contrato.created_at,
-                contrato_dispatch_events.dispatch_created_at as dispatch_created_at,
+                coalesce(paquetes_contrato.envio_cn33, contrato_dispatch_events.dispatch_created_at) as dispatch_created_at,
                 coalesce(paquetes_contrato.peso, 0) as peso,
                 coalesce(paquetes_contrato.precio, 0) as precio
             ")
             ->whereNotNull('cod_especial')
             ->whereRaw("trim(cod_especial) <> ''");
 
+        $solicitudes = DB::table('solicitud_clientes')
+            ->selectRaw("
+                trim(upper(cod_especial)) as cod_especial_normalizado,
+                {$solicitudRegionalExpression} as regional_normalizada,
+                'SOLICITUD' as servicio,
+                solicitud_clientes.id as package_id,
+                coalesce(nullif(solicitud_clientes.codigo_solicitud, ''), solicitud_clientes.barcode, '') as codigo,
+                coalesce(solicitud_clientes.origen, '') as origen,
+                coalesce(solicitud_clientes.ciudad, '') as destino,
+                coalesce(solicitud_clientes.nombre_destinatario, '') as destinatario,
+                solicitud_clientes.created_at,
+                solicitud_clientes.envio_cn33 as dispatch_created_at,
+                coalesce(solicitud_clientes.peso, 0) as peso,
+                coalesce(solicitud_clientes.precio, 0) as precio
+            ")
+            ->whereNotNull('cod_especial')
+            ->whereRaw("trim(cod_especial) <> ''");
+
+        $paquetesInt = DB::table('paquetes_int')
+            ->selectRaw("
+                trim(upper(cod_especial)) as cod_especial_normalizado,
+                {$intRegionalExpression} as regional_normalizada,
+                'INT' as servicio,
+                paquetes_int.id as package_id,
+                coalesce(paquetes_int.codigo, '') as codigo,
+                coalesce(paquetes_int.origen, '') as origen,
+                coalesce(paquetes_int.destino, '') as destino,
+                '' as destinatario,
+                paquetes_int.created_at,
+                paquetes_int.envio_cn33 as dispatch_created_at,
+                coalesce(paquetes_int.peso, 0) as peso,
+                coalesce(paquetes_int.precio, 0) as precio
+            ")
+            ->whereNotNull('cod_especial')
+            ->whereRaw("trim(cod_especial) <> ''");
+
         $ems->unionAll($contratos);
+        $ems->unionAll($solicitudes);
+        $ems->unionAll($paquetesInt);
 
         return $ems;
     }

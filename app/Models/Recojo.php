@@ -19,6 +19,7 @@ class Recojo extends Model
         'codigo',
         'codigo_madre',
         'cod_especial',
+        'envio_cn33',
         'estados_id',
         'origen',
         'provincia_origen',
@@ -47,6 +48,7 @@ class Recojo extends Model
         'peso' => 'decimal:3',
         'precio' => 'decimal:2',
         'fecha_recojo' => 'datetime',
+        'envio_cn33' => 'datetime',
     ];
 
     protected static function booted(): void

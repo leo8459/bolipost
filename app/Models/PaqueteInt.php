@@ -11,6 +11,7 @@ class PaqueteInt extends Model
 
     protected $fillable = [
         'cod_especial',
+        'envio_cn33',
         'codigo',
         'servicio_id',
         'estado_id',
@@ -20,6 +21,10 @@ class PaqueteInt extends Model
         'destino',
         'tramo',
         'enviado_admision_at',
+    ];
+
+    protected $casts = [
+        'envio_cn33' => 'datetime',
     ];
 
     public function servicio(): BelongsTo
