@@ -447,6 +447,11 @@
                                 $consultActionLabel = 'Consultar';
                                 $actionRoute = route('facturacion.cart.consultar');
                                 $showPdfAction = $pdfUrl !== '' && !$isAnnulledSale;
+                                $showPdfRecoveryAction = !$isAnnulledSale
+                                    && $facturaEstado === 'FACTURADA'
+                                    && $pdfUrl === ''
+                                    && $cartId > 0
+                                    && $referenciaConsulta !== '';
                                 $showQrAction = false;
                                 $showEmitQrAction = false;
                                 $showStandardConsultAction = false;
@@ -462,7 +467,10 @@
                                     }
                                 }
 
-                                if ($isQrPayment) {
+                                if ($showPdfRecoveryAction) {
+                                    $consultActionLabel = 'Consultar factura';
+                                    $showStandardConsultAction = true;
+                                } elseif ($isQrPayment) {
                                     if (!$isAnnulledSale && $estadoPago === 'pendiente') {
                                         $showQrAction = true;
                                         $consultActionLabel = 'Ver QR';
@@ -650,7 +658,7 @@
                                             </form>
                                         @endif
                                         @if($showPdfAction)
-                                            <a href="{{ $pdfUrl }}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary ventas-actions-grid__item">PDF factura</a>
+                                            <a href="{{ $pdfUrl }}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary ventas-actions-grid__item">Factura</a>
                                         @endif
                                     </div>
                                 </td>
