@@ -642,6 +642,18 @@
                                                     </button>
                                                 @endif
                                             @else
+                                                @if(auth()->user()?->isSuperAdmin() && !session()->has('impersonator_id') && (int) auth()->id() !== (int) $user->id)
+                                                    <form method="POST" action="{{ route('users.impersonate', $user) }}" class="d-inline">
+                                                        @csrf
+                                                        <button
+                                                            class="btn btn-sm btn-success"
+                                                            type="submit"
+                                                            title="Ingresar con este usuario"
+                                                        >
+                                                            <i class="fa fa-sign-in-alt mr-1"></i> Ingresar
+                                                        </button>
+                                                    </form>
+                                                @endif
                                                 @if($empresaMode ? auth()->user()?->can('feature.users.empresas.edit') || auth()->user()?->can('feature.users.empresas.manage') || auth()->user()?->can('users.edit') : auth()->user()?->can('users.edit'))
                                                     <button
                                                         wire:click="openEditModal({{ $user->id }})"

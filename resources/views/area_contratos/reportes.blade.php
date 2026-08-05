@@ -137,7 +137,7 @@
                                             <td>{{ $contrato->codigo }}</td>
                                             <td>{{ $contrato->origen ?: '-' }}</td>
                                             <td>{{ $contrato->provincia ?: '-' }}</td>
-                                            <td>{{ $contrato->destino ?: '-' }}</td>
+                                            <td>{{ $contrato->destino_registrado ?: '-' }}</td>
                                             <td>{{ $contrato->nombre_r ?: '-' }}</td>
                                             <td>{{ $contrato->nombre_d ?: '-' }}</td>
                                             <td>

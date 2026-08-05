@@ -64,6 +64,8 @@ return [
         'profile.edit',
         'profile.update',
         'profile.destroy',
+        'users.impersonate',
+        'users.impersonate.destroy',
         'acl.livewire-actions',
         'paquetes-certificados.baja-pdf',
         'paquetes-certificados.rezago-pdf',

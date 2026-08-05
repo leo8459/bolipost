@@ -41,6 +41,48 @@
             transform: translateX(24px);
             pointer-events: none;
         }
+
+        .impersonation-navbar-item {
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            min-height: 38px;
+            margin-right: 0.45rem;
+            padding: 0.2rem 0.3rem 0.2rem 0.7rem;
+            border: 1px solid rgba(0, 0, 0, 0.2);
+            border-radius: 0.35rem;
+            background: rgba(255, 255, 255, 0.28);
+            color: #172b4d;
+            font-size: 0.78rem;
+            line-height: 1.1;
+            white-space: nowrap;
+        }
+
+        .impersonation-navbar-item form {
+            margin: 0;
+        }
+
+        .impersonation-navbar-item .btn {
+            padding: 0.3rem 0.55rem;
+            font-size: 0.74rem;
+            font-weight: 700;
+        }
+
+        @media (max-width: 991.98px) {
+            .impersonation-navbar-user {
+                display: none;
+            }
+        }
+
+        @media (max-width: 575.98px) {
+            .impersonation-navbar-label {
+                display: none;
+            }
+
+            .impersonation-navbar-item {
+                padding-left: 0.3rem;
+            }
+        }
     </style>
     @stack('css')
     @yield('css')
@@ -49,6 +91,25 @@
 @section('classes_body', $layoutHelper->makeBodyClasses())
 
 @section('body_data', $layoutHelper->makeBodyData())
+
+@section('content_top_nav_right')
+    @auth
+        @if(session()->has('impersonator_id'))
+            <li class="nav-item impersonation-navbar-item" title="Estas usando el perfil de {{ auth()->user()?->name }}">
+                <span class="impersonation-navbar-label">
+                    <i class="fas fa-user-secret mr-1"></i>
+                    Vista como <strong class="impersonation-navbar-user">{{ auth()->user()?->name }}</strong>
+                </span>
+                <form method="POST" action="{{ route('users.impersonate.destroy') }}">
+                    @csrf
+                    <button type="submit" class="btn btn-dark btn-sm text-nowrap" title="Volver a tu cuenta de administrador">
+                        <i class="fas fa-undo-alt mr-1"></i> Administrador
+                    </button>
+                </form>
+            </li>
+        @endif
+    @endauth
+@stop
 
 @section('body')
     <div class="wrapper">

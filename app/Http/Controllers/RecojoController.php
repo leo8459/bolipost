@@ -757,6 +757,7 @@ class RecojoController extends Controller
                 'origen' => $origen,
                 'provincia_origen' => $provinciaOrigen,
                 'destino' => $destino,
+                'destino_registrado' => $destino,
                 'nombre_r' => strtoupper(trim((string) $data['nombre_r'])),
                 'telefono_r' => trim((string) $data['telefono_r']),
                 'contenido' => trim((string) $data['contenido']),
@@ -818,19 +819,58 @@ class RecojoController extends Controller
         try {
             $contrato = $this->createContratoDesdePayload($data, $user);
         } catch (\RuntimeException $exception) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => $exception->getMessage(),
+                    'persisted' => false,
+                ], 422);
+            }
+
             return redirect()
                 ->back()
                 ->withInput()
                 ->with('error', $exception->getMessage());
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            $message = 'No se pudo confirmar la creacion del paquete en la base de datos. No se genero la guia; revisa los datos e intenta nuevamente.';
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => $message,
+                    'persisted' => false,
+                ], 500);
+            }
+
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('error', $message);
+        }
+
+        $reporteUrl = route('paquetes-contrato.reporte', [
+            'contrato' => $contrato->id,
+            'copias' => $this->normalizeNumeroCopias($data['numero_copias'] ?? null),
+        ], false);
+
+        if ($request->expectsJson()) {
+            session()->flash('success', 'GUARDADO');
+            session()->flash('download_reporte_url', $reporteUrl);
+
+            return response()->json([
+                'message' => 'Paquete creado y confirmado en la base de datos.',
+                'persisted' => true,
+                'contrato_id' => (int) $contrato->id,
+                'codigo' => (string) $contrato->codigo,
+                'redirect_url' => route('paquetes-contrato.index', [], false),
+                'reporte_url' => $reporteUrl,
+            ]);
         }
 
         return redirect()
             ->route('paquetes-contrato.index')
             ->with('success', 'GUARDADO')
-            ->with('download_reporte_url', route('paquetes-contrato.reporte', [
-                'contrato' => $contrato->id,
-                'copias' => $this->normalizeNumeroCopias($data['numero_copias'] ?? null),
-            ], false));
+            ->with('download_reporte_url', $reporteUrl);
     }
 
     public function storePublic(Request $request)
@@ -1489,6 +1529,7 @@ class RecojoController extends Controller
                 'origen' => $origen,
                 'provincia_origen' => $provinciaOrigen,
                 'destino' => $this->normalizeDepartamentoContrato((string) $data['destino']),
+                'destino_registrado' => $this->normalizeDepartamentoContrato((string) $data['destino']),
                 'nombre_r' => strtoupper(trim((string) $data['nombre_r'])),
                 'telefono_r' => trim((string) $data['telefono_r']),
                 'contenido' => trim((string) $data['contenido']),
@@ -1522,7 +1563,35 @@ class RecojoController extends Controller
             ]);
         });
 
-        return $contrato;
+        return $this->confirmarContratoPersistido($contrato, $user);
+    }
+
+    /**
+     * Confirma contra la conexion de escritura que la transaccion realmente dejo
+     * el paquete disponible antes de permitir la redireccion o generar su guia.
+     */
+    protected function confirmarContratoPersistido(?Recojo $contrato, User $user): Recojo
+    {
+        $contratoId = (int) ($contrato?->getKey() ?? 0);
+        $codigo = trim((string) ($contrato?->codigo ?? ''));
+
+        if ($contratoId <= 0 || $codigo === '') {
+            throw new \RuntimeException('El paquete no pudo confirmarse en la base de datos. La guia no sera generada.');
+        }
+
+        $persistido = Recojo::query()
+            ->useWritePdo()
+            ->whereKey($contratoId)
+            ->where('codigo', $codigo)
+            ->where('user_id', (int) $user->id)
+            ->where('empresa_id', (int) $contrato->empresa_id)
+            ->first();
+
+        if (! $persistido) {
+            throw new \RuntimeException('El paquete no quedo guardado en la base de datos. La guia no sera generada y permaneceremos en este formulario.');
+        }
+
+        return $persistido;
     }
 
     protected function normalizeApiOrigen(string $origen): string

@@ -19,14 +19,13 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Font;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 
-class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSize, WithHeadings, WithMapping, WithTitle, WithEvents
+class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSize, WithEvents, WithHeadings, WithMapping, WithTitle
 {
     public function __construct(
         private readonly string $origin,
         private readonly Collection $rows,
         private readonly array $filters = []
-    ) {
-    }
+    ) {}
 
     public function collection(): Collection
     {
@@ -91,7 +90,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
 
     public function map($row): array
     {
-        if (!is_array($row) || !isset($row['row']) || !$row['row'] instanceof Model) {
+        if (! is_array($row) || ! isset($row['row']) || ! $row['row'] instanceof Model) {
             return [];
         }
 
@@ -108,7 +107,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
             (string) ($model->origen ?? ''),
             $provinciaOrigen,
             $provinciaOrigen === '' ? 'X' : '',
-            (string) ($model->destino ?? ''),
+            (string) ($model->destino_registrado ?? ''),
             $provincia,
             $provincia === '' ? 'X' : '',
             1,
@@ -159,7 +158,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
                 $sheet->insertNewRowBefore(1, 10);
 
                 if ($headerImagePath !== null) {
-                    $drawing = new Drawing();
+                    $drawing = new Drawing;
                     $drawing->setName('Encabezado Contratos');
                     $drawing->setDescription('Encabezado contratos');
                     $drawing->setPath($headerImagePath);
@@ -198,7 +197,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
                 $sheet->getRowDimension(2)->setRowHeight(10);
                 $sheet->getRowDimension(3)->setRowHeight(10);
 
-                $sheet->getStyle("A4:A8")->getFont()->setBold(true);
+                $sheet->getStyle('A4:A8')->getFont()->setBold(true);
                 $sheet->getStyle('A4')->getFont()->setSize(14);
                 $sheet->getStyle("A4:{$lastColumn}4")->applyFromArray([
                     'font' => [
@@ -305,7 +304,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
     private function resolveEmpresaLabel(): string
     {
         $empresa = $this->filters['empresa'] ?? null;
-        if (!$empresa) {
+        if (! $empresa) {
             return 'Todas las empresas';
         }
 
@@ -324,10 +323,10 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
             return "{$from} AL {$to}";
         }
         if ($from !== '') {
-            return 'DESDE ' . $from;
+            return 'DESDE '.$from;
         }
         if ($to !== '') {
-            return 'HASTA ' . $to;
+            return 'HASTA '.$to;
         }
 
         return 'TODO EL HISTORIAL';
@@ -387,11 +386,11 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
     private function resolveDeliveryImageUrl(Model $model): ?string
     {
         $imagePath = trim((string) ($model->imagen ?? ''));
-        if ($imagePath === '' || !isset($model->id)) {
+        if ($imagePath === '' || ! isset($model->id)) {
             return null;
         }
 
-        if (!Storage::disk('public')->exists($imagePath)) {
+        if (! Storage::disk('public')->exists($imagePath)) {
             return null;
         }
 
@@ -399,13 +398,13 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
         $baseUrl = (string) (config('app.public_download_url') ?: request()->getSchemeAndHttpHost() ?: config('app.url'));
         $baseUrl = rtrim($baseUrl, '/');
 
-        return $baseUrl . $path;
+        return $baseUrl.$path;
     }
 
     private function applyDeliveryImageLinks($sheet, int $dataStartRow): void
     {
         foreach ($this->rows->values() as $index => $model) {
-            if (!$model instanceof Model) {
+            if (! $model instanceof Model) {
                 continue;
             }
 
@@ -414,7 +413,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
                 continue;
             }
 
-            $cell = 'U' . ($dataStartRow + $index);
+            $cell = 'U'.($dataStartRow + $index);
             $sheet->getCell($cell)->getHyperlink()->setUrl($url);
             $sheet->getStyle($cell)->applyFromArray([
                 'font' => [

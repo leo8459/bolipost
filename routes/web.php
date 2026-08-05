@@ -53,6 +53,7 @@ use App\Http\Controllers\TarifarioController;
 use App\Http\Controllers\TarifarioTiktokerController;
 use App\Http\Controllers\TodosPaquetesController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\UserImpersonationController;
 use App\Http\Controllers\UserLoginLogController;
 use App\Http\Controllers\VentanillaController;
 use App\Http\Controllers\Web\DriverMemorandumController;
@@ -279,6 +280,8 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::post('users/import', [UserController::class, 'import'])->name('users.import');
     Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
     Route::post('/users', [UserController::class, 'store'])->name('users.store');
+    Route::post('/users/{user}/ingresar', [UserImpersonationController::class, 'store'])->name('users.impersonate');
+    Route::post('/usuarios/finalizar-ingreso', [UserImpersonationController::class, 'destroy'])->name('users.impersonate.destroy');
     Route::get('/users/{user}', [UserController::class, 'show'])->name('users.show');
     Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
     Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');

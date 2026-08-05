@@ -37,22 +37,22 @@ class AreaContratosController extends Controller
             })
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($sub) use ($search) {
-                    $sub->where('codigo', 'like', '%' . $search . '%')
-                        ->orWhere('cod_especial', 'like', '%' . $search . '%')
-                        ->orWhere('origen', 'like', '%' . $search . '%')
-                        ->orWhere('destino', 'like', '%' . $search . '%')
-                        ->orWhere('nombre_r', 'like', '%' . $search . '%')
-                        ->orWhere('nombre_d', 'like', '%' . $search . '%')
-                        ->orWhere('direccion_r', 'like', '%' . $search . '%')
-                        ->orWhere('direccion_d', 'like', '%' . $search . '%')
-                        ->orWhere('telefono_r', 'like', '%' . $search . '%')
-                        ->orWhere('telefono_d', 'like', '%' . $search . '%')
+                    $sub->where('codigo', 'like', '%'.$search.'%')
+                        ->orWhere('cod_especial', 'like', '%'.$search.'%')
+                        ->orWhere('origen', 'like', '%'.$search.'%')
+                        ->orWhere('destino', 'like', '%'.$search.'%')
+                        ->orWhere('nombre_r', 'like', '%'.$search.'%')
+                        ->orWhere('nombre_d', 'like', '%'.$search.'%')
+                        ->orWhere('direccion_r', 'like', '%'.$search.'%')
+                        ->orWhere('direccion_d', 'like', '%'.$search.'%')
+                        ->orWhere('telefono_r', 'like', '%'.$search.'%')
+                        ->orWhere('telefono_d', 'like', '%'.$search.'%')
                         ->orWhereHas('estadoRegistro', function ($estadoQuery) use ($search) {
-                            $estadoQuery->where('nombre_estado', 'like', '%' . $search . '%');
+                            $estadoQuery->where('nombre_estado', 'like', '%'.$search.'%');
                         })
                         ->orWhereHas('empresa', function ($empresaQuery) use ($search) {
-                            $empresaQuery->where('nombre', 'like', '%' . $search . '%')
-                                ->orWhere('sigla', 'like', '%' . $search . '%');
+                            $empresaQuery->where('nombre', 'like', '%'.$search.'%')
+                                ->orWhere('sigla', 'like', '%'.$search.'%');
                         });
                 });
             })
@@ -105,17 +105,18 @@ class AreaContratosController extends Controller
             ->paginate(25)
             ->withQueryString();
 
-        $rows = (clone $query)
-            ->orderBy('origen')
-            ->orderBy('created_at')
-            ->orderBy('id')
+        $summaryRows = (clone $query)
+            ->toBase()
+            ->select('origen')
+            ->selectRaw('COUNT(*) as total')
+            ->groupBy('origen')
             ->get();
 
-        $groupedSummary = $rows
-            ->groupBy(fn (Recojo $contrato) => $this->normalizeOrigenSheetName($contrato->origen))
+        $groupedSummary = $summaryRows
+            ->groupBy(fn ($row) => $this->normalizeOrigenSheetName($row->origen))
             ->map(fn ($items, $origen) => [
                 'origen' => $origen,
-                'total' => $items->count(),
+                'total' => (int) $items->sum('total'),
             ])
             ->sortBy('origen', SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
@@ -128,7 +129,7 @@ class AreaContratosController extends Controller
             'from' => $from,
             'to' => $to,
             'groupedSummary' => $groupedSummary,
-            'totalReportes' => $rows->count(),
+            'totalReportes' => $contratos->total(),
         ]);
     }
 
@@ -156,7 +157,7 @@ class AreaContratosController extends Controller
             $empresaSlug = 'GENERAL';
         }
 
-        $filename = 'PLANILLA-' . strtoupper($empresaSlug) . '-' . now()->format('Ymd-His') . '.xlsx';
+        $filename = 'PLANILLA-'.strtoupper($empresaSlug).'-'.now()->format('Ymd-His').'.xlsx';
 
         return Excel::download(
             new AreaContratosEntregadosExport($rows, [
@@ -175,13 +176,13 @@ class AreaContratosController extends Controller
         $imagePath = trim((string) ($contrato->imagen ?? ''));
 
         abort_if($imagePath === '', 404);
-        abort_if(!Storage::disk('public')->exists($imagePath), 404);
+        abort_if(! Storage::disk('public')->exists($imagePath), 404);
 
         $extension = pathinfo($imagePath, PATHINFO_EXTENSION);
         $code = preg_replace('/[^A-Za-z0-9_-]+/', '-', (string) ($contrato->codigo ?: $contrato->id)) ?: (string) $contrato->id;
-        $filename = 'imagen-entrega-' . trim($code, '-');
+        $filename = 'imagen-entrega-'.trim($code, '-');
         if ($extension !== '') {
-            $filename .= '.' . $extension;
+            $filename .= '.'.$extension;
         }
 
         return Storage::disk('public')->download($imagePath, $filename);
@@ -195,26 +196,26 @@ class AreaContratosController extends Controller
                 'empresa:id,nombre,sigla',
                 'user:id,name',
             ])
-            ->when(!empty($estadoIds), function ($query) use ($estadoIds) {
+            ->when(! empty($estadoIds), function ($query) use ($estadoIds) {
                 $query->whereIn('estados_id', $estadoIds);
             }, function ($query) {
                 $query->whereRaw('1 = 0');
             })
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($sub) use ($search) {
-                    $sub->where('codigo', 'like', '%' . $search . '%')
-                        ->orWhere('cod_especial', 'like', '%' . $search . '%')
-                        ->orWhere('origen', 'like', '%' . $search . '%')
-                        ->orWhere('destino', 'like', '%' . $search . '%')
-                        ->orWhere('nombre_r', 'like', '%' . $search . '%')
-                        ->orWhere('nombre_d', 'like', '%' . $search . '%')
-                        ->orWhere('direccion_r', 'like', '%' . $search . '%')
-                        ->orWhere('direccion_d', 'like', '%' . $search . '%')
-                        ->orWhere('telefono_r', 'like', '%' . $search . '%')
-                        ->orWhere('telefono_d', 'like', '%' . $search . '%')
+                    $sub->where('codigo', 'like', '%'.$search.'%')
+                        ->orWhere('cod_especial', 'like', '%'.$search.'%')
+                        ->orWhere('origen', 'like', '%'.$search.'%')
+                        ->orWhere('destino', 'like', '%'.$search.'%')
+                        ->orWhere('nombre_r', 'like', '%'.$search.'%')
+                        ->orWhere('nombre_d', 'like', '%'.$search.'%')
+                        ->orWhere('direccion_r', 'like', '%'.$search.'%')
+                        ->orWhere('direccion_d', 'like', '%'.$search.'%')
+                        ->orWhere('telefono_r', 'like', '%'.$search.'%')
+                        ->orWhere('telefono_d', 'like', '%'.$search.'%')
                         ->orWhereHas('empresa', function ($empresaQuery) use ($search) {
-                            $empresaQuery->where('nombre', 'like', '%' . $search . '%')
-                                ->orWhere('sigla', 'like', '%' . $search . '%');
+                            $empresaQuery->where('nombre', 'like', '%'.$search.'%')
+                                ->orWhere('sigla', 'like', '%'.$search.'%');
                         });
                 });
             });
@@ -242,22 +243,22 @@ class AreaContratosController extends Controller
             })
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($sub) use ($search) {
-                    $sub->where('codigo', 'like', '%' . $search . '%')
-                        ->orWhere('cod_especial', 'like', '%' . $search . '%')
-                        ->orWhere('origen', 'like', '%' . $search . '%')
-                        ->orWhere('destino', 'like', '%' . $search . '%')
-                        ->orWhere('nombre_r', 'like', '%' . $search . '%')
-                        ->orWhere('nombre_d', 'like', '%' . $search . '%')
-                        ->orWhere('direccion_r', 'like', '%' . $search . '%')
-                        ->orWhere('direccion_d', 'like', '%' . $search . '%')
-                        ->orWhere('telefono_r', 'like', '%' . $search . '%')
-                        ->orWhere('telefono_d', 'like', '%' . $search . '%')
+                    $sub->where('codigo', 'like', '%'.$search.'%')
+                        ->orWhere('cod_especial', 'like', '%'.$search.'%')
+                        ->orWhere('origen', 'like', '%'.$search.'%')
+                        ->orWhere('destino_registrado', 'like', '%'.$search.'%')
+                        ->orWhere('nombre_r', 'like', '%'.$search.'%')
+                        ->orWhere('nombre_d', 'like', '%'.$search.'%')
+                        ->orWhere('direccion_r', 'like', '%'.$search.'%')
+                        ->orWhere('direccion_d', 'like', '%'.$search.'%')
+                        ->orWhere('telefono_r', 'like', '%'.$search.'%')
+                        ->orWhere('telefono_d', 'like', '%'.$search.'%')
                         ->orWhereHas('empresa', function ($empresaQuery) use ($search) {
-                            $empresaQuery->where('nombre', 'like', '%' . $search . '%')
-                                ->orWhere('sigla', 'like', '%' . $search . '%');
+                            $empresaQuery->where('nombre', 'like', '%'.$search.'%')
+                                ->orWhere('sigla', 'like', '%'.$search.'%');
                         })
                         ->orWhereHas('estadoRegistro', function ($estadoQuery) use ($search) {
-                            $estadoQuery->where('nombre_estado', 'like', '%' . $search . '%');
+                            $estadoQuery->where('nombre_estado', 'like', '%'.$search.'%');
                         });
                 });
             })

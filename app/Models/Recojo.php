@@ -23,6 +23,7 @@ class Recojo extends Model
         'origen',
         'provincia_origen',
         'destino',
+        'destino_registrado',
         'nombre_r',
         'telefono_r',
         'contenido',

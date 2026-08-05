@@ -77,6 +77,59 @@
             color: #64748b;
             margin-top: 4px;
         }
+        .creando-paquete-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 10000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: rgba(15, 23, 42, .78);
+            backdrop-filter: blur(3px);
+        }
+        .creando-paquete-overlay.is-visible {
+            display: flex;
+        }
+        .creando-paquete-card {
+            width: min(440px, 100%);
+            padding: 32px 26px;
+            border-radius: 18px;
+            background: #fff;
+            text-align: center;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, .28);
+        }
+        .creando-paquete-spinner {
+            width: 54px;
+            height: 54px;
+            margin: 0 auto 20px;
+            border: 5px solid #dbeafe;
+            border-top-color: #20539A;
+            border-radius: 50%;
+            animation: creando-paquete-spin .8s linear infinite;
+        }
+        .creando-paquete-card h5 {
+            color: #173b70;
+            font-size: 21px;
+            font-weight: 800;
+        }
+        .creando-paquete-card p {
+            color: #64748b;
+            margin-bottom: 0;
+        }
+        .creando-paquete-error {
+            display: none;
+            margin-top: 18px;
+        }
+        .creando-paquete-overlay.has-error .creando-paquete-spinner {
+            display: none;
+        }
+        .creando-paquete-overlay.has-error .creando-paquete-error {
+            display: block;
+        }
+        @keyframes creando-paquete-spin {
+            to { transform: rotate(360deg); }
+        }
         .frecuente-wrap {
             position: relative;
         }
@@ -508,6 +561,17 @@
     </div>
 </section>
 
+<div id="creandoPaqueteOverlay" class="creando-paquete-overlay" role="dialog" aria-modal="true" aria-labelledby="creandoPaqueteTitulo" aria-live="assertive">
+    <div class="creando-paquete-card">
+        <div class="creando-paquete-spinner" aria-hidden="true"></div>
+        <h5 id="creandoPaqueteTitulo">Creando el paquete, espere por favor...</h5>
+        <p id="creandoPaqueteMensaje">Estamos guardando y verificando el paquete en la base de datos. No cierres esta ventana.</p>
+        <div class="creando-paquete-error">
+            <button type="button" class="btn btn-primary" id="cerrarCreandoPaqueteBtn">Volver al formulario</button>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="envioFrecuenteSavedModal" tabindex="-1" role="dialog" aria-labelledby="envioFrecuenteSavedModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" role="document">
         <div class="modal-content">
@@ -573,6 +637,10 @@
         const numeroCopiasInput = document.getElementById('numeroCopiasInput');
         const numeroCopiasModalSelect = document.getElementById('numeroCopiasModalSelect');
         const confirmarCopiasGuiaBtn = document.getElementById('confirmarCopiasGuiaBtn');
+        const creandoPaqueteOverlay = document.getElementById('creandoPaqueteOverlay');
+        const creandoPaqueteTitulo = document.getElementById('creandoPaqueteTitulo');
+        const creandoPaqueteMensaje = document.getElementById('creandoPaqueteMensaje');
+        const cerrarCreandoPaqueteBtn = document.getElementById('cerrarCreandoPaqueteBtn');
         const saveBtn = document.getElementById('btnGuardarFrecuente');
         const remitenteInput = document.getElementById('nombreRemitenteInput');
         const dropdown = document.getElementById('frecuentesDropdown');
@@ -609,6 +677,63 @@
             'direccion',
             'provincia'
         ];
+        let enviandoContrato = false;
+
+        const mostrarCreandoPaquete = () => {
+            if (!creandoPaqueteOverlay) return;
+            creandoPaqueteOverlay.classList.remove('has-error');
+            creandoPaqueteOverlay.classList.add('is-visible');
+            creandoPaqueteTitulo.textContent = 'Creando el paquete, espere por favor...';
+            creandoPaqueteMensaje.textContent = 'Estamos guardando y verificando el paquete en la base de datos. No cierres esta ventana.';
+        };
+
+        const mostrarErrorCreacion = (message) => {
+            if (!creandoPaqueteOverlay) {
+                setStatus(message, 'danger');
+                return;
+            }
+            creandoPaqueteOverlay.classList.add('is-visible', 'has-error');
+            creandoPaqueteTitulo.textContent = 'El paquete no fue confirmado';
+            creandoPaqueteMensaje.textContent = message;
+        };
+
+        const enviarContrato = async () => {
+            if (enviandoContrato) return;
+
+            enviandoContrato = true;
+            mostrarCreandoPaquete();
+
+            try {
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    body: new FormData(form),
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+
+                const contentType = response.headers.get('content-type') || '';
+                const payload = contentType.includes('application/json') ? await response.json() : null;
+
+                if (!response.ok || payload?.persisted !== true || !payload?.contrato_id || !payload?.redirect_url) {
+                    const validationErrors = payload?.errors
+                        ? Object.values(payload.errors).flat().join(' ')
+                        : '';
+                    throw new Error(validationErrors || payload?.message || 'No fue posible verificar el paquete en la base de datos. No se genero la guia.');
+                }
+
+                creandoPaqueteTitulo.textContent = 'Paquete creado correctamente';
+                creandoPaqueteMensaje.textContent = `Confirmado en la base de datos con el codigo ${payload.codigo}. Preparando la guia...`;
+                window.location.assign(payload.redirect_url);
+            } catch (error) {
+                console.error(error);
+                enviandoContrato = false;
+                form.dataset.copiasConfirmed = '0';
+                mostrarErrorCreacion(error.message || 'No se pudo crear ni confirmar el paquete. Permanece en este formulario e intenta nuevamente.');
+            }
+        };
 
         const setStatus = (message, type) => {
             if (!statusBox) return;
@@ -865,14 +990,19 @@
 
         form.addEventListener('submit', (event) => {
             hideDropdown();
+            event.preventDefault();
             if (form.dataset.copiasConfirmed === '1') {
+                enviarContrato();
                 return;
             }
 
-            event.preventDefault();
             if (typeof window.jQuery !== 'undefined' && copiasGuiaModal) {
                 window.jQuery(copiasGuiaModal).modal('show');
+                return;
             }
+
+            form.dataset.copiasConfirmed = '1';
+            enviarContrato();
         });
 
         if (confirmarCopiasGuiaBtn) {
@@ -886,6 +1016,12 @@
                     window.jQuery(copiasGuiaModal).modal('hide');
                 }
                 form.requestSubmit();
+            });
+        }
+
+        if (cerrarCreandoPaqueteBtn) {
+            cerrarCreandoPaqueteBtn.addEventListener('click', () => {
+                creandoPaqueteOverlay.classList.remove('is-visible', 'has-error');
             });
         }
 
