@@ -570,7 +570,8 @@ class FacturacionCartController extends Controller
             $qrPayload = $this->extractQrSessionData(
                 $respuesta,
                 (string) data_get($resultado, 'carrito.codigo_orden', ''),
-                strtolower(trim((string) data_get($resultado, 'carrito.canal_emision', ''))) === 'qr'
+                strtolower(trim((string) data_get($resultado, 'carrito.canal_emision', ''))) === 'qr',
+                (float) data_get($resultado, 'carrito.total', 0)
             );
             if ($qrPayload !== null) {
                 Log::debug('Facturacion QR detectado en respuesta de emision.', [
@@ -656,7 +657,8 @@ class FacturacionCartController extends Controller
             $qrPayload = $this->extractQrSessionData(
                 $respuesta,
                 (string) data_get($resultado, 'carrito.codigo_orden', $codigoSeguimiento),
-                strtolower(trim((string) data_get($resultado, 'carrito.canal_emision', ''))) === 'qr'
+                strtolower(trim((string) data_get($resultado, 'carrito.canal_emision', ''))) === 'qr',
+                (float) data_get($resultado, 'carrito.total', 0)
             );
             if ($this->shouldShowQrSessionData($qrPayload)) {
                 Log::debug('Facturacion QR detectado en consulta de estado.', [
@@ -744,7 +746,8 @@ class FacturacionCartController extends Controller
             $qrPayload = $this->extractQrSessionData(
                 $respuesta,
                 (string) ($cart->codigo_orden ?? ''),
-                strtolower(trim((string) ($cart->canal_emision ?? ''))) === 'qr'
+                strtolower(trim((string) ($cart->canal_emision ?? ''))) === 'qr',
+                (float) ($cart->total ?? 0)
             );
             $shouldOpenQrViewer = $this->shouldShowQrSessionData($qrPayload);
 
@@ -1076,7 +1079,7 @@ class FacturacionCartController extends Controller
         return $baseUrl . $path;
     }
 
-    private function extractQrSessionData(array $respuesta, string $defaultInternalCode = '', bool $forceQr = false): ?array
+    private function extractQrSessionData(array $respuesta, string $defaultInternalCode = '', bool $forceQr = false, float $defaultAmount = 0): ?array
     {
         $imageKeys = [
             'image_data',
@@ -1108,6 +1111,19 @@ class FacturacionCartController extends Controller
             'items.0.payment_status',
             'items.0.payment_status ',
         ];
+        $amountKeys = [
+            'amount',
+            'checkout_amount',
+            'checkoutAmount',
+            'monto',
+            'monto_total',
+            'total',
+            'total_amount',
+            'items.0.amount',
+            'items.0.checkout_amount',
+            'items.0.checkoutAmount',
+            'items.0.total',
+        ];
 
         $imageData = $this->findFirstResponseValue($respuesta, $imageKeys);
         $hasQrMarkers = $forceQr
@@ -1136,6 +1152,7 @@ class FacturacionCartController extends Controller
             'detail',
             'descripcion',
         ]));
+        $amount = (float) $this->findFirstResponseValue($respuesta, $amountKeys);
 
         $imageData = $this->normalizeQrImageData($imageData);
 
@@ -1149,6 +1166,7 @@ class FacturacionCartController extends Controller
             'transaction_id' => $transactionId,
             'internal_code' => $internalCode !== '' ? $internalCode : $defaultInternalCode,
             'message' => $message !== '' ? $message : 'QR generado.',
+            'amount' => $amount > 0 ? $amount : max(0, $defaultAmount),
         ];
     }
 

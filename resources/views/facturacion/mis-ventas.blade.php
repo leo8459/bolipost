@@ -574,10 +574,6 @@
                                         <div class="ventas-table__secondary ventas-table__secondary--hint">
                                             Si el cliente cerró la ventana o no completó el pago, la venta seguirá pendiente hasta volver a consultar.
                                         </div>
-                                    @elseif($isQrPayment && $facturaEstado === 'NO_APLICA' && $estadoPago === 'cancelado')
-                                        <div class="ventas-table__secondary ventas-table__secondary--hint">
-                                            El intento de pago QR no se concretó. Puedes generar un nuevo QR o dejar la venta sin cobrar.
-                                        </div>
                                     @elseif($isQrPayment && $facturaEstado === 'PENDIENTE')
                                         <div class="ventas-table__secondary ventas-table__secondary--hint">
                                             El pago QR ya fue confirmado y la factura se encuentra en proceso ante SEFE.
@@ -590,8 +586,6 @@
                                     </span>
                                     @if($estadoCart === 'pendiente_pago' && $isQrPayment && $estadoPago === 'pendiente')
                                         <div class="ventas-table__secondary mt-1">Pago QR pendiente de confirmacion.</div>
-                                    @elseif($estadoCart === 'pendiente_pago' && $isQrPayment && $estadoPago === 'cancelado')
-                                        <div class="ventas-table__secondary mt-1">El QR fue cerrado, cancelado o no completado.</div>
                                     @elseif($esCuentaPorCobrar)
                                         <div class="ventas-table__secondary mt-1">Facturada y registrada como cuenta por cobrar. No se contabiliza en caja.</div>
                                     @endif

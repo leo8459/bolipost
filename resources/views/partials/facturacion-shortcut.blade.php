@@ -5298,6 +5298,13 @@
                 const internalCode = String(qrData.internal_code || (cartData && cartData.codigo_orden) || '').trim();
                 const message = String(qrData.message || 'Escanee este QR para completar el pago.').trim();
                 const imageSrc = normalizeQrImageSrc(qrData.image_data || '');
+                const monitorAmount = Number(
+                    qrData.amount
+                    || qrData.checkout_amount
+                    || (cartData && cartData.total)
+                    || (cartData && cartData.total_linea)
+                    || 0
+                );
 
                 if (facturacionQrViewerSubtitle instanceof HTMLElement) {
                     facturacionQrViewerSubtitle.textContent = message;
@@ -5348,7 +5355,7 @@
                     transaction_id: transactionId,
                     internal_code: internalCode,
                     payment_status: paymentStatus !== '' ? paymentStatus : 'HOLDING',
-                    amount: Number((cartData && cartData.total) || qrData.amount || 0),
+                    amount: Number.isFinite(monitorAmount) ? monitorAmount : 0,
                 });
             };
 
@@ -5502,7 +5509,6 @@
                     return false;
                 }
 
-                ensureFacturacionMonitorTab();
                 publishFacturacionMonitorAdsState();
 
                 const tokenMeta = document.querySelector('meta[name="csrf-token"]');
@@ -7057,7 +7063,6 @@
                 && (String(facturacionQrForceOpen || '') === '1' || !isFacturacionQrViewerDismissed(facturacionInitialQrKey))
             ) {
                 updateFacturacionQrViewer(facturacionQrData, null);
-                ensureFacturacionMonitorTab();
                 openFacturacionQrViewer(String(facturacionQrForceOpen || '') === '1');
             } else {
                 publishFacturacionMonitorAdsState();
