@@ -30,15 +30,40 @@
                 </div>
             </div>
         </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="small-box {{ $unregisteredCount > 0 ? 'bg-danger' : 'bg-secondary' }}">
+                <div class="inner">
+                    <h3>{{ number_format($unregisteredCount) }}</h3>
+                    <p>Sesiones sin usuario registrado</p>
+                </div>
+                <div class="icon">
+                    <i class="fas fa-user-shield"></i>
+                </div>
+                <a href="{{ route('ingresos.index', ['view' => 'unregistered']) }}" class="small-box-footer">
+                    Revisar control <i class="fas fa-arrow-circle-right"></i>
+                </a>
+            </div>
+        </div>
     </div>
 
+    <div class="mb-3">
+        <a href="{{ route('ingresos.index') }}" class="btn {{ $view === 'history' ? 'btn-primary' : 'btn-outline-primary' }}">
+            <i class="fas fa-history mr-1"></i> Historial
+        </a>
+        <a href="{{ route('ingresos.index', ['view' => 'unregistered']) }}" class="btn {{ $view === 'unregistered' ? 'btn-danger' : 'btn-outline-danger' }}">
+            <i class="fas fa-user-times mr-1"></i> Logueados sin registro
+            <span class="badge badge-light ml-1">{{ $unregisteredCount }}</span>
+        </a>
+    </div>
+
+    @if ($view === 'history')
     <div class="card">
         <div class="card-header">
             <h3 class="card-title">Filtros</h3>
         </div>
         <div class="card-body">
-            <form method="GET" action="{{ route('ingresos.index') }}" class="row">
-                <div class="col-md-5">
+            <form method="GET" action="{{ route('ingresos.index') }}" class="row" id="loginFiltersForm">
+                <div class="col-lg-4">
                     <div class="form-group">
                         <label for="search">Usuario, alias, correo o IP</label>
                         <input
@@ -51,19 +76,58 @@
                         >
                     </div>
                 </div>
-                <div class="col-md-2">
+                <div class="col-lg-2">
+                    <div class="form-group">
+                        <label for="period">Controlar por</label>
+                        <select name="period" id="period" class="form-control">
+                            <option value="all" @selected($period === 'all')>Todos</option>
+                            <option value="day" @selected($period === 'day')>Día y hora</option>
+                            <option value="month" @selected($period === 'month')>Mes</option>
+                            <option value="range" @selected($period === 'range')>Rango de fechas</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="col-lg-2 period-field" data-period-field="day">
+                    <div class="form-group">
+                        <label for="day">Día</label>
+                        <input type="date" name="day" id="day" class="form-control" value="{{ $day }}" data-period-required>
+                    </div>
+                </div>
+                <div class="col-lg-2 period-field" data-period-field="day">
+                    <div class="form-group">
+                        <label for="time_from">Hora desde</label>
+                        <input type="time" name="time_from" id="time_from" class="form-control" value="{{ $timeFrom }}">
+                    </div>
+                </div>
+                <div class="col-lg-2 period-field" data-period-field="day">
+                    <div class="form-group">
+                        <label for="time_to">Hora hasta</label>
+                        <input type="time" name="time_to" id="time_to" class="form-control" value="{{ $timeTo }}">
+                    </div>
+                </div>
+
+                <div class="col-lg-2 period-field" data-period-field="month">
+                    <div class="form-group">
+                        <label for="month">Mes</label>
+                        <input type="month" name="month" id="month" class="form-control" value="{{ $month }}" data-period-required>
+                    </div>
+                </div>
+
+                <div class="col-lg-2 period-field" data-period-field="range">
                     <div class="form-group">
                         <label for="from">Desde</label>
-                        <input type="date" name="from" id="from" class="form-control" value="{{ $from }}">
+                        <input type="date" name="from" id="from" class="form-control" value="{{ $from }}" data-period-required>
                     </div>
                 </div>
-                <div class="col-md-2">
+                <div class="col-lg-2 period-field" data-period-field="range">
                     <div class="form-group">
                         <label for="to">Hasta</label>
-                        <input type="date" name="to" id="to" class="form-control" value="{{ $to }}">
+                        <input type="date" name="to" id="to" class="form-control" value="{{ $to }}" data-period-required>
                     </div>
                 </div>
-                <div class="col-md-3 d-flex align-items-end">
+
+                <div class="col-lg-4 d-flex align-items-end">
                     <div class="form-group w-100">
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-search mr-1"></i> Buscar
@@ -76,7 +140,9 @@
             </form>
         </div>
     </div>
+    @endif
 
+    @if ($view === 'history')
     <div class="card">
         <div class="card-header">
             <h3 class="card-title">Historial de ingresos</h3>
@@ -160,11 +226,94 @@
             </div>
         @endif
     </div>
+    @else
+        <div class="card card-outline {{ $unregisteredCount > 0 ? 'card-danger' : 'card-success' }}">
+            <div class="card-header">
+                <h3 class="card-title">Usuarios logueados que ya no están registrados</h3>
+                <div class="card-tools">
+                    <span class="badge {{ $unregisteredCount > 0 ? 'badge-danger' : 'badge-success' }}">
+                        {{ $unregisteredCount > 0 ? 'Requiere revisión' : 'Sin novedades' }}
+                    </span>
+                </div>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-0">
+                    Se consideran activas las sesiones con actividad dentro de los últimos
+                    {{ config('session.lifetime', 120) }} minutos. Aquí aparecen únicamente si el usuario fue eliminado
+                    o dado de baja después de iniciar sesión.
+                </p>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-striped table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Última actividad</th>
+                            <th>Usuario registrado al ingresar</th>
+                            <th>ID de usuario</th>
+                            <th>IP</th>
+                            <th>Navegador / equipo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse ($unregisteredSessions as $session)
+                            <tr>
+                                <td>{{ \Carbon\Carbon::createFromTimestamp($session->last_activity)->format('d/m/Y H:i:s') }}</td>
+                                <td>
+                                    <strong>{{ $session->login_log?->user_name ?: 'Sin nombre disponible' }}</strong>
+                                    <small class="d-block text-muted">
+                                        Alias: {{ $session->login_log?->user_alias ?: '-' }}
+                                    </small>
+                                </td>
+                                <td><span class="badge badge-danger">{{ $session->user_id }}</span></td>
+                                <td><span class="badge badge-light">{{ $session->ip_address ?: '-' }}</span></td>
+                                <td class="text-break">{{ $session->user_agent ?: '-' }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="5" class="text-center py-4">
+                                    <i class="fas fa-check-circle text-success mr-1"></i>
+                                    No existen usuarios logueados fuera del registro del sistema.
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+            @if ($unregisteredSessions->hasPages())
+                <div class="card-footer">
+                    {{ $unregisteredSessions->links() }}
+                </div>
+            @endif
+        </div>
+    @endif
 @endsection
 
 @section('js')
     <script>
         (function () {
+            const periodSelect = document.getElementById('period');
+            const periodFields = document.querySelectorAll('[data-period-field]');
+
+            const refreshPeriodFields = function () {
+                if (!periodSelect) {
+                    return;
+                }
+
+                periodFields.forEach(function (field) {
+                    const visible = field.dataset.periodField === periodSelect.value;
+                    field.classList.toggle('d-none', !visible);
+                    field.querySelectorAll('input').forEach(function (input) {
+                        input.disabled = !visible;
+                        input.required = visible && input.hasAttribute('data-period-required');
+                    });
+                });
+            };
+
+            if (periodSelect) {
+                periodSelect.addEventListener('change', refreshPeriodFields);
+                refreshPeriodFields();
+            }
+
             const elapsedBadges = document.querySelectorAll('.elapsed-login-time[data-login-at]');
 
             if (!elapsedBadges.length) {

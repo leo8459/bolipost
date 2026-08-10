@@ -7,6 +7,7 @@ use App\Models\PaqueteOrdi;
 use App\Models\Servicio as ServicioModel;
 use App\Models\Ventanilla;
 use App\Services\FacturacionCartService;
+use App\Services\PackageCancellationService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -89,8 +90,7 @@ class PaquetesOrdi extends Component
         $allowedModes = ['clasificacion', 'despacho', 'almacen', 'entregado', 'rezago', 'todos'];
         $this->mode = in_array($mode, $allowedModes, true) ? $mode : 'clasificacion';
         $this->setDefaultServicioId();
-    }
-
+}
     public function getIsClasificacionProperty()
     {
         return $this->mode === 'clasificacion';
@@ -958,9 +958,14 @@ class PaquetesOrdi extends Component
 
         $paquete = $this->findAuthorizedPaqueteOrFail($id);
         $codigo = (string) $paquete->codigo;
-        $paquete->delete();
+        if (! app(PackageCancellationService::class)->cancel($paquete, 'fk_estado')) {
+            session()->flash('error', 'No existe el estado CANCELADO en la tabla estados.');
+
+            return;
+        }
+
         $this->registrarEventoOrdi($codigo, self::EVENTO_ID_PAQUETE_MARCADO_ELIMINADO);
-        session()->flash('success', 'Paquete ordinario eliminado correctamente.');
+        session()->flash('success', 'Paquete ordinario cancelado correctamente.');
     }
 
     public function devolverAClasificacion($id)

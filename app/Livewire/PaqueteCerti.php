@@ -8,6 +8,7 @@ use App\Models\Servicio as ServicioModel;
 use App\Models\User as UserModel;
 use App\Models\Ventanilla as VentanillaModel;
 use App\Services\FacturacionCartService;
+use App\Services\PackageCancellationService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -78,8 +79,7 @@ class PaqueteCerti extends Component
         $allowedModes = ['almacen', 'inventario', 'rezago', 'todos'];
         $this->mode = in_array($mode, $allowedModes, true) ? $mode : 'almacen';
         $this->setDefaultServicioId();
-    }
-
+}
     public function getIsAlmacenProperty()
     {
         return $this->mode === 'almacen';
@@ -255,9 +255,14 @@ class PaqueteCerti extends Component
 
         $paquete = $this->findAuthorizedPaqueteOrFail($id);
         $codigo = (string) $paquete->codigo;
-        $paquete->delete();
+        if (! app(PackageCancellationService::class)->cancel($paquete, 'fk_estado')) {
+            session()->flash('error', 'No existe el estado CANCELADO en la tabla estados.');
+
+            return;
+        }
+
         $this->registrarEventoCerti($codigo, self::EVENTO_ID_PAQUETE_MARCADO_ELIMINADO);
-        session()->flash('success', 'Paquete certificado eliminado correctamente.');
+        session()->flash('success', 'Paquete certificado cancelado correctamente.');
     }
 
     public function openReencaminarModal()

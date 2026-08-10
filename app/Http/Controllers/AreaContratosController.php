@@ -93,11 +93,11 @@ class AreaContratosController extends Controller
         $empresaId = (int) $request->query('empresa_id', 0);
         $from = trim((string) $request->query('from', ''));
         $to = trim((string) $request->query('to', ''));
-        $empresas = Empresa::query()
-            ->orderBy('nombre')
-            ->get(['id', 'nombre', 'sigla']);
+        $empresas = $this->buildEmpresaGroups();
+        $empresaGroup = $this->resolveEmpresaGroup($empresas, $empresaId);
+        $empresaIds = $empresaGroup['ids'] ?? ($empresaId > 0 ? [$empresaId] : []);
 
-        $query = $this->buildContratosReportQuery($search, $empresaId, $from, $to);
+        $query = $this->buildContratosReportQuery($search, $empresaIds, $from, $to);
 
         $contratos = (clone $query)
             ->orderBy('created_at')
@@ -140,17 +140,26 @@ class AreaContratosController extends Controller
         $from = trim((string) $request->query('from', ''));
         $to = trim((string) $request->query('to', ''));
 
-        $empresa = $empresaId > 0
-            ? Empresa::query()->find($empresaId, ['id', 'nombre', 'sigla'])
+        $empresaGroup = $this->resolveEmpresaGroup($this->buildEmpresaGroups(), $empresaId);
+        $empresaIds = $empresaGroup['ids'] ?? ($empresaId > 0 ? [$empresaId] : []);
+        $empresa = $empresaGroup
+            ? (object) [
+                'nombre' => $empresaGroup['nombres'],
+                'sigla' => null,
+                'codigo_cliente' => $empresaGroup['codigo_cliente'],
+            ]
             : null;
 
-        $rows = $this->buildContratosReportQuery($search, $empresaId, $from, $to)
+        $rows = $this->buildContratosReportQuery($search, $empresaIds, $from, $to)
             ->orderBy('origen')
             ->orderBy('created_at')
             ->orderBy('id')
             ->get();
 
-        $empresaNombre = trim((string) ($empresa->nombre ?? 'GENERAL'));
+        $empresaCodigo = trim((string) ($empresa->codigo_cliente ?? ''));
+        $empresaNombre = $empresaCodigo !== ''
+            ? $empresaCodigo
+            : trim((string) ($empresa->nombre ?? 'GENERAL'));
         $empresaSlug = preg_replace('/[^A-Za-z0-9]+/', '-', $empresaNombre) ?? 'GENERAL';
         $empresaSlug = trim($empresaSlug, '-');
         if ($empresaSlug === '') {
@@ -223,14 +232,14 @@ class AreaContratosController extends Controller
 
     private function buildContratosReportQuery(
         string $search,
-        int $empresaId,
+        array $empresaIds,
         string $from,
         string $to
     ) {
         return Recojo::query()
             ->with([
                 'estadoRegistro:id,nombre_estado',
-                'empresa:id,nombre,sigla',
+                'empresa:id,nombre,sigla,codigo_cliente',
                 'user:id,name',
             ])
             ->whereNotNull('estados_id')
@@ -238,8 +247,8 @@ class AreaContratosController extends Controller
             ->whereDoesntHave('estadoRegistro', function ($query) {
                 $query->whereRaw('trim(upper(nombre_estado)) = ?', ['CANCELADO']);
             })
-            ->when($empresaId > 0, function ($query) use ($empresaId) {
-                $query->where('empresa_id', $empresaId);
+            ->when(! empty($empresaIds), function ($query) use ($empresaIds) {
+                $query->whereIn('empresa_id', $empresaIds);
             })
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($sub) use ($search) {
@@ -255,7 +264,8 @@ class AreaContratosController extends Controller
                         ->orWhere('telefono_d', 'like', '%'.$search.'%')
                         ->orWhereHas('empresa', function ($empresaQuery) use ($search) {
                             $empresaQuery->where('nombre', 'like', '%'.$search.'%')
-                                ->orWhere('sigla', 'like', '%'.$search.'%');
+                                ->orWhere('sigla', 'like', '%'.$search.'%')
+                                ->orWhere('codigo_cliente', 'like', '%'.$search.'%');
                         })
                         ->orWhereHas('estadoRegistro', function ($estadoQuery) use ($search) {
                             $estadoQuery->where('nombre_estado', 'like', '%'.$search.'%');
@@ -268,6 +278,58 @@ class AreaContratosController extends Controller
             ->when($to !== '', function ($query) use ($to) {
                 $query->whereDate('created_at', '<=', $to);
             });
+    }
+
+    private function buildEmpresaGroups()
+    {
+        return Empresa::query()
+            ->orderBy('nombre')
+            ->get(['id', 'nombre', 'sigla', 'codigo_cliente'])
+            ->groupBy(function (Empresa $empresa) {
+                $codigo = $this->normalizeCodigoCliente($empresa->codigo_cliente);
+
+                return $codigo !== '' ? 'codigo:'.$codigo : 'empresa:'.$empresa->id;
+            })
+            ->map(function ($items) {
+                $codigo = $this->normalizeCodigoCliente($items->first()->codigo_cliente);
+                $ids = $items->pluck('id')->map(fn ($id) => (int) $id)->sort()->values();
+                $nombres = $items
+                    ->map(function (Empresa $empresa) {
+                        $nombre = trim((string) $empresa->nombre);
+                        $sigla = trim((string) $empresa->sigla);
+
+                        return $sigla !== '' ? "{$nombre} ({$sigla})" : $nombre;
+                    })
+                    ->filter()
+                    ->unique()
+                    ->implode(' / ');
+
+                return [
+                    'id' => (int) $ids->first(),
+                    'ids' => $ids->all(),
+                    'codigo_cliente' => $codigo,
+                    'nombres' => $nombres,
+                    'label' => $codigo !== '' ? "{$codigo} - {$nombres}" : $nombres,
+                ];
+            })
+            ->sortBy(fn (array $group) => $group['label'], SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
+    }
+
+    private function resolveEmpresaGroup($groups, int $empresaId): ?array
+    {
+        if ($empresaId <= 0) {
+            return null;
+        }
+
+        return $groups->first(
+            fn (array $group) => in_array($empresaId, $group['ids'], true)
+        );
+    }
+
+    private function normalizeCodigoCliente(?string $codigo): string
+    {
+        return preg_replace('/\s+/', '', strtoupper(trim((string) $codigo))) ?? '';
     }
 
     private function resolveEstadoIdByName(string $nombre): int

@@ -8,6 +8,7 @@ use App\Models\Estado as EstadoModel;
 use App\Models\Recojo as RecojoModel;
 use App\Models\User;
 use App\Services\ContratoCodigoService;
+use App\Services\PackageCancellationService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -91,8 +92,7 @@ class Recojo extends Component
                 ->whereRaw('trim(upper(nombre_estado)) = ?', ['ALMACEN'])
                 ->value('id');
         }) ?? 0);
-    }
-
+}
     public function getIsAlmacenModeProperty(): bool
     {
         return $this->mode === 'almacen';
@@ -167,8 +167,13 @@ class Recojo extends Component
         $this->authorizePermission($this->modeFeaturePermission('delete'));
 
         $recojo = RecojoModel::findOrFail((int) $id);
-        $recojo->delete();
-        session()->flash('success', 'Contrato eliminado correctamente.');
+        if (! app(PackageCancellationService::class)->cancel($recojo, 'estados_id')) {
+            session()->flash('error', 'No existe el estado CANCELADO en la tabla estados.');
+
+            return;
+        }
+
+        session()->flash('success', 'Contrato cancelado correctamente.');
     }
 
     public function resetForm()
@@ -303,6 +308,15 @@ class Recojo extends Component
         return ! empty($id) ? (int) $id : null;
     }
 
+    protected function resolveCanceladoEstadoId(): ?int
+    {
+        $id = EstadoModel::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', ['CANCELADO'])
+            ->value('id');
+
+        return ! empty($id) ? (int) $id : null;
+    }
+
     protected function resolveEmpresaIdByCodigo($codigo): ?int
     {
         $codigoNormalizado = strtoupper(trim((string) $codigo));
@@ -337,6 +351,7 @@ class Recojo extends Component
     public function render()
     {
         $q = trim((string) $this->searchQuery);
+        $estadoCanceladoId = $this->resolveCanceladoEstadoId();
 
         $authUser = Auth::user();
         $authUserId = (int) ($authUser?->id ?? 0);
@@ -350,6 +365,12 @@ class Recojo extends Component
                 'user.empresa:id,nombre,sigla',
                 'estadoRegistro:id,nombre_estado',
             ])
+            ->when($estadoCanceladoId, function ($query) use ($estadoCanceladoId) {
+                $query->where(function ($stateQuery) use ($estadoCanceladoId) {
+                    $stateQuery->where('estados_id', '!=', $estadoCanceladoId)
+                        ->orWhereNull('estados_id');
+                });
+            })
             ->when(! $this->isAlmacenMode && ! $hasGlobalDepartmentAccess, function ($query) use ($authUserId) {
                 if ($authUserId > 0) {
                     $query->where('user_id', $authUserId);
