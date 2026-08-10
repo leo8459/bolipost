@@ -25,6 +25,7 @@ class AreaContratosReportesTest extends TestCase
             $table->id();
             $table->string('nombre');
             $table->string('sigla')->nullable();
+            $table->string('codigo_cliente')->nullable();
             $table->timestamps();
         });
 
@@ -128,5 +129,28 @@ class AreaContratosReportesTest extends TestCase
                 unlink($path);
             }
         }
+    }
+
+    public function test_agrupa_empresas_y_filtra_contratos_por_codigo_cliente(): void
+    {
+        DB::table('empresa')->insert([
+            ['id' => 1, 'nombre' => 'ABC Santa Cruz', 'sigla' => 'ABC SC', 'codigo_cliente' => ' CLI 001 '],
+            ['id' => 2, 'nombre' => 'ABC La Paz', 'sigla' => 'ABC LP', 'codigo_cliente' => 'cli001'],
+            ['id' => 3, 'nombre' => 'Otra empresa', 'sigla' => null, 'codigo_cliente' => 'CLI002'],
+        ]);
+
+        DB::table('paquetes_contrato')->where('id', 1)->update(['empresa_id' => 1]);
+        DB::table('paquetes_contrato')->where('id', 2)->update(['empresa_id' => 2]);
+        DB::table('paquetes_contrato')->where('id', 3)->update(['empresa_id' => 3]);
+
+        $view = app(AreaContratosController::class)->reportes(
+            Request::create('/area-contratos/reportes', 'GET', ['empresa_id' => 1])
+        );
+        $data = $view->getData();
+
+        $this->assertSame(2, $data['totalReportes']);
+        $this->assertSame([1, 2], $data['contratos']->pluck('empresa_id')->all());
+        $this->assertCount(2, $data['empresas']);
+        $this->assertSame([1, 2], $data['empresas']->firstWhere('codigo_cliente', 'CLI001')['ids']);
     }
 }

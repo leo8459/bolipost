@@ -25,6 +25,7 @@ use App\Support\TiktokerTariffPriceCalculator;
 use App\Support\TiktokerEvent;
 use App\Support\StoredImage;
 use App\Services\FacturacionCartService;
+use App\Services\PackageCancellationService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -266,8 +267,7 @@ class PaquetesEms extends Component
             $this->servicios = Servicio::orderBy('nombre_servicio')->get();
             $this->loadDestinos();
             $this->setUserOrigenId();
-        }
-
+}
         if ($this->isCreateEms) {
             $this->resetForm();
             $this->setOrigenFromUser();
@@ -5436,14 +5436,10 @@ class PaquetesEms extends Component
         $this->authorizePermission($this->modeFeaturePermission('delete', 'admision'));
 
         $paquete = PaqueteEms::findOrFail($id);
-        $estadoCanceladoId = $this->findEstadoId('CANCELADO');
-        if (!$estadoCanceladoId) {
+        if (! app(PackageCancellationService::class)->cancel($paquete, 'estado_id')) {
             session()->flash('error', 'No existe el estado CANCELADO en la tabla estados.');
             return;
         }
-
-        $paquete->estado_id = (int) $estadoCanceladoId;
-        $paquete->save();
 
         session()->flash('success', 'Paquete cancelado correctamente.');
     }

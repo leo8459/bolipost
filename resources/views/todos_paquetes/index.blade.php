@@ -37,7 +37,7 @@
             </div>
             <div class="card-body">
                 <form method="GET" action="{{ route('todos-paquetes.index') }}" class="row align-items-end">
-                    <div class="col-xl-5 col-lg-5 col-md-12 mb-3">
+                    <div class="col-xl-4 col-lg-4 col-md-12 mb-3">
                         <label class="small font-weight-bold">Buscar por cualquier campo</label>
                         <input
                             type="text"
@@ -56,7 +56,7 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-xl-3 col-lg-3 col-md-4 mb-3">
+                    <div class="col-xl-2 col-lg-2 col-md-4 mb-3">
                         <label class="small font-weight-bold">Estado</label>
                         <select name="estado_id" class="form-control">
                             <option value="0">Todos</option>
@@ -67,6 +67,32 @@
                             @endforeach
                         </select>
                     </div>
+                    <div class="col-xl-1 col-lg-1 col-md-2 col-6 mb-3">
+                        <label for="peso_min" class="small font-weight-bold">Peso mín.</label>
+                        <input
+                            type="number"
+                            name="peso_min"
+                            id="peso_min"
+                            value="{{ request()->filled('peso_min') ? request('peso_min') : '' }}"
+                            class="form-control @error('peso_min') is-invalid @enderror"
+                            min="0"
+                            step="0.001"
+                            placeholder="1"
+                        >
+                    </div>
+                    <div class="col-xl-1 col-lg-1 col-md-2 col-6 mb-3">
+                        <label for="peso_max" class="small font-weight-bold">Peso máx.</label>
+                        <input
+                            type="number"
+                            name="peso_max"
+                            id="peso_max"
+                            value="{{ request()->filled('peso_max') ? request('peso_max') : '' }}"
+                            class="form-control @error('peso_max') is-invalid @enderror"
+                            min="0"
+                            step="0.001"
+                            placeholder="10000"
+                        >
+                    </div>
                     <div class="col-xl-2 col-lg-2 col-md-4 mb-3">
                         <div class="tp-actions">
                             <button type="submit" class="btn btn-primary">Buscar</button>
@@ -74,6 +100,12 @@
                         </div>
                     </div>
                 </form>
+                @error('peso_min')
+                    <div class="text-danger small">{{ $message }}</div>
+                @enderror
+                @error('peso_max')
+                    <div class="text-danger small">{{ $message }}</div>
+                @enderror
             </div>
         </div>
 
@@ -88,6 +120,15 @@
                 </div>
                 <div class="tp-results-tools">
                     <span class="tp-total-pill"><strong>{{ number_format($paquetes->total()) }}</strong> registros</span>
+                    @aclcan('print', null, 'todos-paquetes.index')
+                        <a
+                            href="{{ route('todos-paquetes.export.excel', request()->except(['page', 'create', 'edit_type', 'edit_id'])) }}"
+                            class="btn btn-outline-success tp-create-btn"
+                        >
+                            <i class="fas fa-file-excel"></i>
+                            <span>Exportar Excel</span>
+                        </a>
+                    @endaclcan
                     @aclcan('create', null, 'todos-paquetes.index')
                         <a
                             href="{{ route('todos-paquetes.index', array_merge(request()->except(['edit_type', 'edit_id']), ['create' => 1])) }}"

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\TodosPaquetesExport;
 use App\Models\Estado;
 use App\Models\Cartero;
 use App\Models\CarteroAssignmentReport;
@@ -12,12 +13,15 @@ use App\Models\PaqueteOrdi;
 use App\Models\Recojo;
 use App\Models\SolicitudCliente;
 use App\Models\User;
+use App\Support\PackageWeightFilter;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+use Maatwebsite\Excel\Facades\Excel;
 
 class TodosPaquetesController extends Controller
 {
@@ -152,18 +156,13 @@ class TodosPaquetesController extends Controller
 
     public function index(Request $request)
     {
-        $search = trim((string) $request->query('q', ''));
-        $type = trim((string) $request->query('type', ''));
-        $estadoId = (int) $request->query('estado_id', 0);
-
-        $query = DB::query()->fromSub($this->buildUnionQuery(), 'p')
-            ->when(array_key_exists($type, self::TYPES), fn ($q) => $q->where('type_key', $type))
-            ->when($estadoId > 0, fn ($q) => $q->where('estado_id', $estadoId))
-            ->when($search !== '', function ($q) use ($search) {
-                $q->whereRaw('LOWER(search_blob) LIKE ?', ['%' . mb_strtolower($search) . '%']);
-            })
-            ->orderByDesc('updated_at')
-            ->orderByDesc('record_id');
+        $filters = $this->validatedPackageFilters($request);
+        $search = $filters['search'];
+        $type = $filters['type'];
+        $estadoId = $filters['estado_id'];
+        $pesoMin = $filters['peso_min'];
+        $pesoMax = $filters['peso_max'];
+        $query = $this->filteredPackagesQuery($filters);
 
         $paquetes = $query->paginate(25)->withQueryString();
         $this->attachSalidaReports($paquetes->getCollection());
@@ -182,9 +181,29 @@ class TodosPaquetesController extends Controller
             'search' => $search,
             'type' => $type,
             'estadoId' => $estadoId,
+            'pesoMin' => $pesoMin,
+            'pesoMax' => $pesoMax,
             'editing' => $editing,
             'showCreateModal' => $request->boolean('create') || old('package_type') !== null,
         ]);
+    }
+
+    public function exportExcel(Request $request)
+    {
+        $filters = $this->validatedPackageFilters($request);
+        $rows = $this->filteredPackagesQuery($filters)->get();
+        $filters['type_label'] = array_key_exists($filters['type'], self::TYPES)
+            ? self::TYPES[$filters['type']]['label']
+            : 'TODOS';
+        $filters['estado_label'] = $filters['estado_id'] > 0
+            ? (string) (Estado::query()->whereKey($filters['estado_id'])->value('nombre_estado') ?? 'SIN ESTADO')
+            : 'TODOS';
+        $filters['generated_at'] = now();
+
+        return Excel::download(
+            new TodosPaquetesExport($rows, $filters),
+            'reporte-paquetes-filtrados-'.now()->format('Ymd-His').'.xlsx',
+        );
     }
 
     public function store(Request $request)
@@ -205,7 +224,7 @@ class TodosPaquetesController extends Controller
         });
 
         return redirect()
-            ->route('todos-paquetes.index', $request->only(['q', 'type', 'estado_id', 'page']))
+            ->route('todos-paquetes.index', $request->only(['q', 'type', 'estado_id', 'peso_min', 'peso_max', 'page']))
             ->with('success', self::TYPES[$type]['label'].' creado correctamente.');
     }
 
@@ -258,7 +277,7 @@ class TodosPaquetesController extends Controller
         });
 
         return redirect()
-            ->route('todos-paquetes.index', $request->only(['q', 'type', 'estado_id', 'page']))
+            ->route('todos-paquetes.index', $request->only(['q', 'type', 'estado_id', 'peso_min', 'peso_max', 'page']))
             ->with('success', 'Datos actualizados.');
     }
 
@@ -531,6 +550,47 @@ class TodosPaquetesController extends Controller
             'SOLICITUD' => 'id_solicitud_cliente',
             default => null,
         };
+    }
+
+    private function validatedPackageFilters(Request $request): array
+    {
+        $weightFilters = $request->validate([
+            'peso_min' => ['nullable', 'numeric', 'min:0'],
+            'peso_max' => ['nullable', 'numeric', 'min:0'],
+        ], [], [
+            'peso_min' => 'peso mínimo',
+            'peso_max' => 'peso máximo',
+        ]);
+        $pesoMin = $request->filled('peso_min') ? (float) $weightFilters['peso_min'] : null;
+        $pesoMax = $request->filled('peso_max') ? (float) $weightFilters['peso_max'] : null;
+
+        if ($pesoMin !== null && $pesoMax !== null && $pesoMax < $pesoMin) {
+            throw ValidationException::withMessages([
+                'peso_max' => 'El peso máximo debe ser mayor o igual al peso mínimo.',
+            ]);
+        }
+
+        return [
+            'search' => trim((string) $request->query('q', '')),
+            'type' => trim((string) $request->query('type', '')),
+            'estado_id' => (int) $request->query('estado_id', 0),
+            'peso_min' => $pesoMin,
+            'peso_max' => $pesoMax,
+        ];
+    }
+
+    private function filteredPackagesQuery(array $filters)
+    {
+        $query = DB::query()->fromSub($this->buildUnionQuery(), 'p')
+            ->when(array_key_exists($filters['type'], self::TYPES), fn ($query) => $query->where('type_key', $filters['type']))
+            ->when($filters['estado_id'] > 0, fn ($query) => $query->where('estado_id', $filters['estado_id']))
+            ->when($filters['search'] !== '', function ($query) use ($filters) {
+                $query->whereRaw('LOWER(search_blob) LIKE ?', ['%'.mb_strtolower($filters['search']).'%']);
+            })
+            ->orderByDesc('updated_at')
+            ->orderByDesc('record_id');
+
+        return PackageWeightFilter::apply($query, $filters['peso_min'], $filters['peso_max']);
     }
 
     private function buildUnionQuery()

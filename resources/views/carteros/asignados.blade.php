@@ -8,13 +8,26 @@
     @php
         $canChangeAsignados = auth()->user()?->can('feature.carteros.asignados.change') ?? false;
         $canUnassignAsignados = auth()->user()?->can('feature.carteros.asignados.unassign') ?? false;
+        $canReportAsignados = auth()->user()?->can('feature.carteros.asignados.report') ?? false;
     @endphp
     <div class="carteros-wrap">
         <div class="card card-carteros">
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center flex-wrap">
                     <h3 class="card-title mb-0">Paquetes en Estado CARTERO</h3>
-                    <span class="carteros-chip">Asignados</span>
+                    <div class="d-flex align-items-center flex-wrap asignados-header-actions">
+                        @if($canReportAsignados)
+                            <button
+                                type="button"
+                                class="btn btn-carteros-report"
+                                data-toggle="modal"
+                                data-target="#assignedHistoryReportModal"
+                            >
+                                <i class="fas fa-file-pdf mr-1"></i> Generar reporte
+                            </button>
+                        @endif
+                        <span class="carteros-chip">Asignados</span>
+                    </div>
                 </div>
                 <div class="asignados-toolbar">
                     <div class="asignados-search-cluster">
@@ -141,6 +154,68 @@
             </div>
         </div>
     </div>
+
+    @if($canReportAsignados)
+    <div class="modal fade" id="assignedHistoryReportModal" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <form method="GET" action="{{ route('carteros.asignados.report') }}" target="_blank">
+                    <div class="modal-header report-modal-header">
+                        <div>
+                            <h5 class="modal-title">Generar reporte por cartero</h5>
+                            <small>Paquetes que salieron con el cartero segun el historial de eventos.</small>
+                        </div>
+                        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Cerrar">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label for="reportAssignedCartero" class="font-weight-bold">Cartero</label>
+                            <select
+                                id="reportAssignedCartero"
+                                name="user_id"
+                                class="form-control"
+                                required
+                                @disabled(collect($carterosDisponibles ?? [])->isEmpty())
+                            >
+                                <option value="">Seleccione un cartero...</option>
+                                @foreach(($carterosDisponibles ?? collect()) as $cartero)
+                                    <option value="{{ $cartero->id }}">
+                                        {{ $cartero->name }} - {{ $cartero->ciudad ?: 'SIN CIUDAD' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-md-0">
+                                    <label for="reportFechaDesde" class="font-weight-bold">Fecha desde</label>
+                                    <input id="reportFechaDesde" name="fecha_desde" type="date" class="form-control" value="{{ now()->toDateString() }}" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group mb-0">
+                                    <label for="reportFechaHasta" class="font-weight-bold">Fecha hasta</label>
+                                    <input id="reportFechaHasta" name="fecha_hasta" type="date" class="form-control" value="{{ now()->toDateString() }}" required>
+                                </div>
+                            </div>
+                        </div>
+                        @if(collect($carterosDisponibles ?? [])->isEmpty())
+                            <div class="alert alert-warning mt-3 mb-0">No hay carteros habilitados en tu departamento.</div>
+                        @endif
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-carteros-report" @disabled(collect($carterosDisponibles ?? [])->isEmpty())>
+                            <i class="fas fa-file-pdf mr-1"></i> Generar PDF
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    @endif
 @endsection
 
 @section('css')
@@ -153,6 +228,31 @@
             justify-content: space-between;
             gap: 16px;
             flex-wrap: wrap;
+        }
+
+        .asignados-header-actions {
+            gap: 10px;
+        }
+
+        .btn-carteros-report {
+            background: #dc2626;
+            border: 1px solid #dc2626;
+            color: #fff;
+            border-radius: 10px;
+            font-weight: 800;
+            padding: 8px 14px;
+        }
+
+        .btn-carteros-report:hover,
+        .btn-carteros-report:focus {
+            background: #b91c1c;
+            border-color: #b91c1c;
+            color: #fff;
+        }
+
+        .report-modal-header {
+            background: var(--carteros-primary);
+            color: #fff;
         }
 
         .asignados-search-cluster {

@@ -16,12 +16,12 @@
             <div class="card-body">
                 <form method="GET" action="{{ route('area-contratos.reportes') }}" class="row align-items-end mb-3" id="reportesContratosForm">
                     <div class="col-md-3 mb-2">
-                        <label class="small font-weight-bold mb-1">Empresa</label>
+                        <label class="small font-weight-bold mb-1">Codigo de cliente</label>
                         <select name="empresa_id" class="form-control">
-                            <option value="0">Todas las empresas</option>
+                            <option value="0">Todos los codigos de cliente</option>
                             @foreach ($empresas as $empresa)
-                                <option value="{{ $empresa->id }}" {{ (int) $empresaId === (int) $empresa->id ? 'selected' : '' }}>
-                                    {{ $empresa->nombre }}@if(!empty($empresa->sigla)) ({{ $empresa->sigla }})@endif
+                                <option value="{{ $empresa['id'] }}" {{ in_array((int) $empresaId, $empresa['ids'], true) ? 'selected' : '' }}>
+                                    {{ $empresa['label'] }}
                                 </option>
                             @endforeach
                         </select>
@@ -126,6 +126,7 @@
                                         <th>Remitente</th>
                                         <th>Destinatario</th>
                                         <th>Empresa</th>
+                                        <th>Codigo cliente</th>
                                         <th>Cantidad</th>
                                         <th>Estado</th>
                                         <th>Fecha envio</th>
@@ -146,13 +147,14 @@
                                                     ({{ optional($contrato->empresa)->sigla }})
                                                 @endif
                                             </td>
+                                            <td>{{ optional($contrato->empresa)->codigo_cliente ?: '-' }}</td>
                                             <td>{{ $contrato->cantidad ?: '-' }}</td>
                                             <td>{{ optional($contrato->estadoRegistro)->nombre_estado ?: '-' }}</td>
                                             <td>{{ optional($contrato->created_at)->format('d/m/Y H:i') }}</td>
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="10" class="text-center py-4 text-muted">
+                                            <td colspan="11" class="text-center py-4 text-muted">
                                                 No hay contratos con los filtros seleccionados.
                                             </td>
                                         </tr>

@@ -17,6 +17,7 @@ use App\Support\StoredImage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -90,6 +91,45 @@ class CarterosController extends Controller
             'ciudadesAsignadas' => $ciudadesAsignadas,
             'carterosDisponibles' => $this->availableCarteroUsersForActor(auth()->user()),
         ]);
+    }
+
+    public function assignedHistoryReport(Request $request)
+    {
+        $this->authorizeRoutePermission('carteros.asignados');
+        $this->authorizeFeaturePermission('feature.carteros.asignados.report');
+
+        $validated = $request->validate([
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'fecha_desde' => ['required', 'date_format:Y-m-d'],
+            'fecha_hasta' => ['required', 'date_format:Y-m-d', 'after_or_equal:fecha_desde'],
+        ]);
+
+        $cartero = $this->availableCarteroUsersForActor($request->user())
+            ->firstWhere('id', (int) $validated['user_id']);
+
+        if (! $cartero) {
+            throw ValidationException::withMessages([
+                'user_id' => 'El cartero seleccionado no pertenece a tu departamento o no esta habilitado.',
+            ]);
+        }
+
+        $desde = Carbon::createFromFormat('Y-m-d', $validated['fecha_desde'])->startOfDay();
+        $hasta = Carbon::createFromFormat('Y-m-d', $validated['fecha_hasta'])->endOfDay();
+        $rows = $this->historicalAssignmentEvents($cartero, $desde, $hasta);
+        $summaryByType = $rows->groupBy('tipo_paquete')->map->count()->all();
+
+        $pdf = Pdf::loadView('carteros.asignados-reporte', [
+            'cartero' => $cartero,
+            'actor' => $request->user(),
+            'fechaDesde' => $desde,
+            'fechaHasta' => $hasta,
+            'rows' => $rows,
+            'summaryByType' => $summaryByType,
+        ])->setPaper('A4', 'landscape');
+
+        return $pdf->stream(
+            'reporte-paquetes-cartero-'.Str::slug((string) $cartero->name).'-'.$validated['fecha_desde'].'-'.$validated['fecha_hasta'].'.pdf'
+        );
     }
 
     public function cartero()
@@ -3773,6 +3813,67 @@ class CarterosController extends Controller
             ->whereRaw('TRIM(UPPER(ciudad)) = ?', [$actorCity])
             ->orderBy('name')
             ->get(['id', 'name', 'ciudad']);
+    }
+
+    /**
+     * Recupera las salidas desde los eventos, incluso si el paquete ya fue
+     * entregado, devuelto o reasignado y dejo de estar en estado CARTERO.
+     */
+    protected function historicalAssignmentEvents(User $cartero, Carbon $desde, Carbon $hasta)
+    {
+        $carteroName = mb_strtolower(trim((string) $cartero->name));
+        $changeSuffix = '% a '.$carteroName.'.';
+        $encargadoSuffix = '%asigno al cartero: '.$carteroName.'.';
+        $rows = collect();
+
+        foreach ([
+            'EMS' => 'eventos_ems',
+            'CERTI' => 'eventos_certi',
+            'ORDI' => 'eventos_ordi',
+            'CONTRATO' => 'eventos_contrato',
+            'SOLICITUD' => 'eventos_tiktoker',
+        ] as $tipo => $table) {
+            $events = DB::table($table.' as ep')
+                ->join('eventos as e', 'e.id', '=', 'ep.evento_id')
+                ->whereBetween('ep.created_at', [$desde, $hasta])
+                ->where(function ($query) use ($cartero, $changeSuffix, $encargadoSuffix) {
+                    $query->where(function ($assignment) use ($cartero) {
+                        $assignment->where('ep.user_id', (int) $cartero->id)
+                            ->where(function ($eventName) {
+                                $eventName
+                                    ->whereRaw("LOWER(e.nombre_evento) LIKE ?", ['%camino para entrega fisica%'])
+                                    ->orWhereRaw("LOWER(e.nombre_evento) LIKE ?", ['%asignado a cartero%'])
+                                    ->orWhereRaw("LOWER(e.nombre_evento) LIKE ?", ['%transferido al agente de entrega%']);
+                            });
+                    })
+                    ->orWhere(function ($change) use ($changeSuffix) {
+                        $change->whereRaw("LOWER(e.nombre_evento) LIKE ?", ['cambio de cartero realizado por%'])
+                            ->whereRaw("LOWER(e.nombre_evento) LIKE ?", [$changeSuffix]);
+                    })
+                    ->orWhereRaw("LOWER(e.nombre_evento) LIKE ?", [$encargadoSuffix]);
+                })
+                ->orderBy('ep.created_at')
+                ->orderBy('ep.id')
+                ->get([
+                    'ep.codigo',
+                    'ep.created_at as fecha_evento',
+                    'e.nombre_evento as evento',
+                ])
+                ->map(fn ($event) => [
+                    'tipo_paquete' => $tipo,
+                    'codigo' => trim((string) $event->codigo),
+                    'fecha_evento' => Carbon::parse($event->fecha_evento),
+                    'evento' => trim((string) $event->evento),
+                ]);
+
+            $rows = $rows->concat($events);
+        }
+
+        return $rows
+            ->filter(fn (array $row) => $row['codigo'] !== '')
+            ->sortBy('fecha_evento')
+            ->unique(fn (array $row) => $row['tipo_paquete'].'|'.mb_strtoupper($row['codigo']))
+            ->values();
     }
 
     private function getCodigosPorTipo(string $tipoPaquete, array $ids)

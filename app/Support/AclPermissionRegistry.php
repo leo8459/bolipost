@@ -327,7 +327,7 @@ class AclPermissionRegistry
         'paquetes-ems.recibir-regional' => ['assign', 'edit', 'print'],
         'paquetes-ems.en-transito' => ['edit', 'print'],
         'paquetes-ems.entregados' => ['print', 'deliver'],
-        'carteros.asignados' => ['change', 'unassign'],
+        'carteros.asignados' => ['change', 'unassign', 'report'],
         'paquetes-ordinarios.index' => ['create', 'edit', 'delete', 'assign'],
         'paquetes-ordinarios.almacen' => ['create', 'edit', 'reencaminar', 'assign', 'dropoff', 'rezago'],
         'paquetes-ordinarios.despacho' => ['edit', 'restore', 'print'],
@@ -631,6 +631,10 @@ class AclPermissionRegistry
         'todos-paquetes.store' => [
             'todos-paquetes.store',
             'feature.todos-paquetes.index.create',
+        ],
+        'todos-paquetes.export.excel' => [
+            'todos-paquetes.export.excel',
+            'feature.todos-paquetes.index.print',
         ],
         'todos-paquetes.reporte-salida' => [
             'todos-paquetes.reporte-salida',
@@ -1958,6 +1962,7 @@ class AclPermissionRegistry
             'feature.carteros.entrega.attempt' => 'Boton: Agregar intento',
             'feature.carteros.asignados.change' => 'Boton: Cambiar cartero',
             'feature.carteros.asignados.unassign' => 'Boton: Desasignar',
+            'feature.carteros.asignados.report' => 'Boton: Generar reporte',
             'feature.tarifa-contrato.report' => 'Boton: Generar reporte',
             'feature.bitacoras.index.create' => 'Boton: Nuevo',
             'feature.bitacoras.index.save' => 'Boton: Guardar bitacora',
@@ -2312,6 +2317,7 @@ class AclPermissionRegistry
             'feature.carteros.entrega.attempt' => 'Controla el boton Agregar intento dentro de la ventana Entrega.',
             'feature.carteros.asignados.change' => 'Controla el boton Cambiar cartero dentro de la ventana Asignados.',
             'feature.carteros.asignados.unassign' => 'Controla el boton Desasignar dentro de la ventana Asignados.',
+            'feature.carteros.asignados.report' => 'Controla el boton Generar reporte historico dentro de la ventana Asignados.',
             'feature.tarifa-contrato.report' => 'Controla el boton Generar reporte dentro de Tarifa contrato.',
             'feature.eventos-ems.index.create' => 'Controla el boton Nuevo y Crear dentro de la ventana Eventos EMS.',
             'feature.eventos-ems.index.edit' => 'Controla el boton Editar y Guardar cambios dentro de la ventana Eventos EMS.',

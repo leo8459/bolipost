@@ -420,6 +420,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::post('/importar/paquets', [ImportController::class, 'importPaquets'])->name('importar.paquets.store');
     Route::get('/importar/paquets/plantilla-excel', [ImportController::class, 'downloadPaquetsTemplateExcel'])->name('importar.paquets.template-excel');
     Route::get('/todos-paquetes', [TodosPaquetesController::class, 'index'])->name('todos-paquetes.index');
+    Route::get('/todos-paquetes/export/excel', [TodosPaquetesController::class, 'exportExcel'])->name('todos-paquetes.export.excel');
     Route::post('/todos-paquetes', [TodosPaquetesController::class, 'store'])->name('todos-paquetes.store');
     Route::get('/todos-paquetes/{type}/{id}/guia', [TodosPaquetesController::class, 'reimprimirGuia'])->name('todos-paquetes.guia');
     Route::get('/todos-paquetes/reporte-salida/{codigo}', [TodosPaquetesController::class, 'reporteSalida'])->name('todos-paquetes.reporte-salida');
@@ -519,6 +520,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/carteros/distribucion', [CarterosController::class, 'distribucion'])->name('carteros.distribucion');
     Route::get('/carteros/distribucion/reporte/{token}', [CarterosController::class, 'distributionAssignmentReport'])->name('carteros.distribucion.report');
     Route::get('/carteros/asignados', [CarterosController::class, 'asignados'])->name('carteros.asignados');
+    Route::get('/carteros/asignados/reporte', [CarterosController::class, 'assignedHistoryReport'])->name('carteros.asignados.report');
     Route::get('/carteros/cartero', [CarterosController::class, 'cartero'])->name('carteros.cartero');
     Route::get('/carteros/devolucion', [CarterosController::class, 'devolucion'])->name('carteros.devolucion');
     Route::get('/carteros/domicilio', [CarterosController::class, 'domicilio'])->name('carteros.domicilio');
