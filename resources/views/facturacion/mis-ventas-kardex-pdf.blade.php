@@ -165,6 +165,22 @@
             border-top: 1px solid #cbd5e1;
             padding-top: 10px;
         }
+
+        .detalle-line {
+            margin-top: 2px;
+        }
+
+        .detalle-label {
+            font-weight: 700;
+        }
+
+        .detalle-codes {
+            margin-top: 2px;
+        }
+
+        .detalle-codes div {
+            margin-top: 1px;
+        }
     </style>
 </head>
 <body>
@@ -417,12 +433,14 @@
                                 <td class="center">{{ data_get($row, 'fecha_hora', data_get($row, 'fecha', '-')) }}</td>
                                 <td class="right">{{ number_format((float) data_get($row, 'peso', 0), 3) }}</td>
                                 <td>
-                                    <strong>{{ data_get($row, 'detalle_items', data_get($row, 'tipo_envio', 'Sin detalle')) }}</strong>
-                                    @if((string) data_get($row, 'detalle_resumen', '') !== '')
-                                        <br>{{ data_get($row, 'detalle_resumen') }}
-                                    @endif
-                                    @if((string) data_get($row, 'codigo_referencia', '') !== '')
-                                        <br>Cod: {{ data_get($row, 'codigo_referencia') }}
+                                    @if(collect(data_get($row, 'detalle_codigos', []))->isNotEmpty())
+                                        <div class="detalle-codes">
+                                            @foreach(collect(data_get($row, 'detalle_codigos', [])) as $detalleCodigo)
+                                                <div><span class="detalle-label">{{ data_get($detalleCodigo, 'servicio', 'Servicio') }}:</span> {{ data_get($detalleCodigo, 'codigo', '-') }}</div>
+                                            @endforeach
+                                        </div>
+                                    @elseif((string) data_get($row, 'codigo_referencia', '') !== '')
+                                        <div class="detalle-line"><span class="detalle-label">Codigo:</span> {{ data_get($row, 'codigo_referencia') }}</div>
                                     @endif
                                 </td>
                                 <td class="center">{{ data_get($row, 'numero_factura', '-') }}</td>
@@ -496,12 +514,14 @@
                             <td class="center">{{ data_get($row, 'fecha_hora', data_get($row, 'fecha', '-')) }}</td>
                             <td class="right">{{ number_format((float) data_get($row, 'peso', 0), 3) }}</td>
                             <td>
-                                <strong>{{ data_get($row, 'detalle_items', data_get($row, 'tipo_envio', 'Sin detalle')) }}</strong>
-                                @if((string) data_get($row, 'detalle_resumen', '') !== '')
-                                    <br>{{ data_get($row, 'detalle_resumen') }}
-                                @endif
-                                @if((string) data_get($row, 'codigo_referencia', '') !== '')
-                                    <br>Cod: {{ data_get($row, 'codigo_referencia') }}
+                                @if(collect(data_get($row, 'detalle_codigos', []))->isNotEmpty())
+                                    <div class="detalle-codes">
+                                        @foreach(collect(data_get($row, 'detalle_codigos', [])) as $detalleCodigo)
+                                            <div><span class="detalle-label">{{ data_get($detalleCodigo, 'servicio', 'Servicio') }}:</span> {{ data_get($detalleCodigo, 'codigo', '-') }}</div>
+                                        @endforeach
+                                    </div>
+                                @elseif((string) data_get($row, 'codigo_referencia', '') !== '')
+                                    <div class="detalle-line"><span class="detalle-label">Codigo:</span> {{ data_get($row, 'codigo_referencia') }}</div>
                                 @endif
                             </td>
                             <td class="center">{{ data_get($row, 'numero_factura', '-') }}</td>

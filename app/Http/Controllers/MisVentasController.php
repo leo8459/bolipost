@@ -1207,7 +1207,11 @@ class MisVentasController extends Controller
                 ->unique()
                 ->implode(' / ');
             $codigoOrden = trim((string) data_get($cart, 'codigo_orden', data_get($cart, 'codigo_seguimiento', ''))) ?: '-';
-            $codigosPaquete = $this->extractPackageCodesFromItems($items);
+            $detalleCodigos = $this->buildDetailCodeEntriesFromItems($items);
+            $codigosPaquete = $detalleCodigos
+                ->pluck('codigo')
+                ->filter()
+                ->values();
             $pesoTotal = (float) $items->sum(fn ($item) => (float) data_get($item, 'resumen_origen.peso', 0));
             if ($pesoTotal <= 0) {
                 $pesoTotal = round((float) (
@@ -1245,10 +1249,12 @@ class MisVentasController extends Controller
                 'tipo_envio' => $tipoEnvio !== '' ? $tipoEnvio : 'SIN DETALLE REAL',
                 'detalle_items' => $detalleItems !== '' ? $detalleItems : 'Sin detalle real',
                 'detalle_resumen' => $detalleResumen,
+                'detalle_codigos' => $detalleCodigos,
                 'codigo_item' => $codigoOrden,
                 'codigo_paquetes' => $codigosPaquete,
+                'codigo_paquetes_texto' => $codigosPaquete->implode(', '),
                 'codigo_referencia' => $codigosPaquete->isNotEmpty()
-                    ? $codigoOrden . "\nPaquetes: " . $codigosPaquete->implode(', ')
+                    ? $codigosPaquete->implode(', ')
                     : $codigoOrden,
                 'peso' => $pesoTotal,
                 'cantidad' => $cantidadTotal,
@@ -1272,25 +1278,66 @@ class MisVentasController extends Controller
         })->values();
     }
 
-    private function extractPackageCodesFromItems(Collection $items): Collection
+    private function extractDetailCodesFromItems(Collection $items): Collection
     {
         return $items
             ->flatMap(function ($item) {
-                if (! $this->isPackageCartItem($item)) {
-                    return [];
-                }
-
-                return [
+                $candidates = [
+                    trim((string) data_get($item, 'resumen_origen.codigo_detalle_enviado', '')),
+                    trim((string) data_get($item, 'codigo_detalle_enviado', '')),
                     trim((string) data_get($item, 'codigo_paquete', '')),
                     trim((string) data_get($item, 'resumen_origen.codigo_paquete', '')),
-                    trim((string) data_get($item, 'codigo', '')),
-                    trim((string) data_get($item, 'codigo_item', '')),
                     trim((string) data_get($item, 'resumen_origen.codigo', '')),
                     trim((string) data_get($item, 'resumen_origen.codigo_item', '')),
+                    trim((string) data_get($item, 'codigo', '')),
+                    trim((string) data_get($item, 'codigo_item', '')),
                 ];
+
+                return collect($candidates)
+                    ->filter(fn ($code) => $code !== '' && ! $this->isServiceReferenceCode((string) $code))
+                    ->take(1)
+                    ->all();
             })
             ->filter()
             ->unique()
+            ->values();
+    }
+
+    private function buildDetailCodeEntriesFromItems(Collection $items): Collection
+    {
+        return $items
+            ->map(function ($item) {
+                $codigo = collect([
+                    trim((string) data_get($item, 'resumen_origen.codigo_detalle_enviado', '')),
+                    trim((string) data_get($item, 'codigo_detalle_enviado', '')),
+                    trim((string) data_get($item, 'codigo_paquete', '')),
+                    trim((string) data_get($item, 'resumen_origen.codigo_paquete', '')),
+                    trim((string) data_get($item, 'resumen_origen.codigo', '')),
+                    trim((string) data_get($item, 'resumen_origen.codigo_item', '')),
+                    trim((string) data_get($item, 'codigo', '')),
+                    trim((string) data_get($item, 'codigo_item', '')),
+                ])
+                    ->first(fn ($code) => $code !== '' && ! $this->isServiceReferenceCode((string) $code));
+
+                if (!is_string($codigo) || $codigo === '') {
+                    return null;
+                }
+
+                $servicio = trim((string) (
+                    data_get($item, 'titulo')
+                    ?: data_get($item, 'nombre_servicio')
+                    ?: data_get($item, 'resumen_origen.descripcion_servicio')
+                    ?: data_get($item, 'resumen_origen.servicio_nombre')
+                    ?: 'Sin servicio'
+                ));
+
+                return [
+                    'servicio' => $servicio,
+                    'codigo' => $codigo,
+                ];
+            })
+            ->filter()
+            ->unique(fn ($entry) => mb_strtoupper(trim((string) data_get($entry, 'servicio', ''))) . '|' . mb_strtoupper(trim((string) data_get($entry, 'codigo', ''))))
             ->values();
     }
 
