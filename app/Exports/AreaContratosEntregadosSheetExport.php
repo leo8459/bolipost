@@ -18,10 +18,14 @@ use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Font;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
-use PhpOffice\PhpSpreadsheet\Worksheet\MemoryDrawing;
+use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
 
 class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSize, WithEvents, WithHeadings, WithMapping, WithTitle
 {
+    private static array $temporaryImagePaths = [];
+
+    private static bool $temporaryImageCleanupRegistered = false;
+
     public function __construct(
         private readonly string $origin,
         private readonly Collection $rows,
@@ -279,8 +283,8 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
                 $sheet->getColumnDimension('U')->setWidth(18);
 
                 $sheet->getPageSetup()
-                    ->setOrientation(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::ORIENTATION_LANDSCAPE)
-                    ->setPaperSize(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::PAPERSIZE_A4)
+                    ->setOrientation(PageSetup::ORIENTATION_LANDSCAPE)
+                    ->setPaperSize(PageSetup::PAPERSIZE_A4)
                     ->setFitToWidth(1)
                     ->setFitToHeight(0);
                 $sheet->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd($headerTopRow, $headerBottomRow);
@@ -443,13 +447,14 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
 
             $row = $dataStartRow + $index;
             $cell = 'U'.$row;
-            $binary = $this->resolveDeliveryImageBinary($model);
+            $imagePath = $this->resolveDeliveryImagePath($model);
 
-            if ($binary !== null) {
+            if ($imagePath !== null) {
                 try {
-                    $drawing = MemoryDrawing::fromString($binary);
+                    $drawing = new Drawing;
                     $drawing->setName('Imagen de entrega '.((string) ($model->codigo ?? $model->id ?? '')));
                     $drawing->setDescription('Evidencia fotográfica de la entrega');
+                    $drawing->setPath($imagePath);
                     $drawing->setCoordinates($cell);
                     $drawing->setResizeProportional(true);
                     $drawing->setHeight(68);
@@ -493,7 +498,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
         }
     }
 
-    private function resolveDeliveryImageBinary(Model $model): ?string
+    private function resolveDeliveryImagePath(Model $model): ?string
     {
         $value = trim((string) ($model->imagen ?? ''));
         if ($value === '') {
@@ -504,23 +509,66 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
             $encoded = preg_replace('/\s+/', '', $matches[1]) ?? '';
             $binary = base64_decode($encoded, true);
 
-            return is_string($binary) && $binary !== '' ? $binary : null;
+            return is_string($binary) && $binary !== ''
+                ? $this->storeTemporaryImage($binary)
+                : null;
         }
 
         if ($this->looksLikeRawBase64($value)) {
             $encoded = preg_replace('/\s+/', '', $value) ?? '';
             $binary = base64_decode($encoded, true);
 
-            return is_string($binary) && $binary !== '' ? $binary : null;
+            return is_string($binary) && $binary !== ''
+                ? $this->storeTemporaryImage($binary)
+                : null;
         }
 
         if (preg_match('/^https?:\/\//i', $value) === 1 || ! Storage::disk('public')->exists($value)) {
             return null;
         }
 
+        try {
+            $path = Storage::disk('public')->path($value);
+            if (is_file($path)) {
+                return $path;
+            }
+        } catch (\Throwable) {
+            // Los discos remotos no siempre exponen una ruta local.
+        }
+
         $binary = Storage::disk('public')->get($value);
 
-        return $binary !== '' ? $binary : null;
+        return $binary !== '' ? $this->storeTemporaryImage($binary) : null;
+    }
+
+    private function storeTemporaryImage(string $binary): ?string
+    {
+        $path = tempnam(sys_get_temp_dir(), 'contrato-img-');
+        if ($path === false) {
+            return null;
+        }
+
+        if (file_put_contents($path, $binary) === false) {
+            @unlink($path);
+
+            return null;
+        }
+
+        self::$temporaryImagePaths[] = $path;
+        if (! self::$temporaryImageCleanupRegistered) {
+            self::$temporaryImageCleanupRegistered = true;
+            register_shutdown_function(static function (): void {
+                foreach (self::$temporaryImagePaths as $temporaryPath) {
+                    if (is_file($temporaryPath)) {
+                        @unlink($temporaryPath);
+                    }
+                }
+
+                self::$temporaryImagePaths = [];
+            });
+        }
+
+        return $path;
     }
 
     private function looksLikeRawBase64(string $value): bool
