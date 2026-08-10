@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Exceptions\FacturacionScanConflictException;
 use App\Models\ConceptoFacturacion;
 use App\Services\FacturacionCartService;
+use App\Services\FacturacionClienteFrecuenteService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -16,6 +17,57 @@ use Illuminate\Validation\Rule;
 
 class FacturacionCartController extends Controller
 {
+    public function searchFrequentClients(Request $request, FacturacionClienteFrecuenteService $frequentClients): JsonResponse
+    {
+        $user = $request->user();
+        $this->authorizeFacturacionAccess($user);
+
+        $validated = $request->validate([
+            'q' => ['nullable', 'string', 'max:80'],
+        ]);
+
+        $query = trim((string) ($validated['q'] ?? ''));
+        if ($query === '') {
+            return response()->json([
+                'ok' => true,
+                'results' => [],
+                'message' => '',
+            ]);
+        }
+
+        if (mb_strlen($query) < 3) {
+            return response()->json([
+                'ok' => true,
+                'results' => [],
+                'message' => 'Escribe al menos 3 caracteres del documento para buscar.',
+            ]);
+        }
+
+        $results = $frequentClients->searchByDocument($query)
+            ->map(function ($client) {
+                return [
+                    'id' => (int) $client->id,
+                    'tipo_documento' => (string) $client->tipo_documento,
+                    'tipo_documento_label' => $client->tipoDocumentoLabel(),
+                    'numero_documento' => (string) $client->numero_documento,
+                    'complemento_documento' => (string) ($client->complemento_documento ?? ''),
+                    'razon_social' => (string) $client->razon_social,
+                    'correo_facturacion' => (string) ($client->correo_facturacion ?? ''),
+                    'ultima_venta_id' => (int) ($client->ultima_venta_id ?? 0),
+                    'usos' => (int) ($client->usos ?? 0),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'ok' => true,
+            'results' => $results,
+            'message' => $results->isEmpty()
+                ? 'No encontramos clientes guardados con ese documento. Puedes continuar manualmente y lo guardaremos al emitir.'
+                : '',
+        ]);
+    }
+
     public function updateBillingData(Request $request, FacturacionCartService $service)
     {
         $user = $request->user();
@@ -481,7 +533,11 @@ class FacturacionCartController extends Controller
         }
     }
 
-    public function emitir(Request $request, FacturacionCartService $service): RedirectResponse|JsonResponse
+    public function emitir(
+        Request $request,
+        FacturacionCartService $service,
+        FacturacionClienteFrecuenteService $frequentClients
+    ): RedirectResponse|JsonResponse
     {
         $user = $request->user();
         $this->authorizeFacturacionAccess($user);
@@ -563,6 +619,7 @@ class FacturacionCartController extends Controller
 
         try {
             $resultado = $service->emitirBorrador($user, $billingSnapshot);
+            $frequentClients->rememberFacturadaCart(data_get($resultado, 'carrito'));
             $respuesta = (array) ($resultado['respuesta'] ?? []);
             $feedback = $this->buildBridgeFeedback($respuesta, 'emitir');
             $redirect = back()->with('facturacion_feedback', $feedback);
@@ -630,7 +687,11 @@ class FacturacionCartController extends Controller
         }
     }
 
-    public function consultar(Request $request, FacturacionCartService $service): RedirectResponse|JsonResponse
+    public function consultar(
+        Request $request,
+        FacturacionCartService $service,
+        FacturacionClienteFrecuenteService $frequentClients
+    ): RedirectResponse|JsonResponse
     {
         $user = $request->user();
         $this->authorizeFacturacionAccess($user);
@@ -651,6 +712,7 @@ class FacturacionCartController extends Controller
                 $respuesta = (array) ($resultado['respuesta'] ?? []);
             }
 
+            $frequentClients->rememberFacturadaCart(data_get($resultado, 'carrito'));
             $feedback = $this->buildBridgeFeedback($respuesta, 'consultar');
             $redirect = back()->with('facturacion_feedback', $feedback);
 

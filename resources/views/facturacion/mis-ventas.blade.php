@@ -751,7 +751,6 @@
                                 <table class="table ventas-items-table mb-0" data-ventas-items-table="true">
                                     <thead>
                                         <tr>
-                                            <th>Tipo</th>
                                             <th>Codigo / referencia</th>
                                             <th>Detalle</th>
                                             <th class="text-center">Cant.</th>
@@ -771,24 +770,28 @@
                                                 $itemServicio = trim((string) data_get($item, 'nombre_servicio', ''));
                                                 $itemDestinatario = trim((string) data_get($item, 'nombre_destinatario', ''));
                                                 $itemResumenCodigo = trim((string) data_get($item, 'resumen_origen.codigo', data_get($item, 'resumen_origen.codigo_paquete', '')));
+                                                $itemCodigoReferencia = collect([
+                                                    trim((string) data_get($item, 'resumen_origen.codigo_detalle_enviado', '')),
+                                                    trim((string) data_get($item, 'codigo_detalle_enviado', '')),
+                                                    trim((string) data_get($item, 'codigo_paquete', '')),
+                                                    trim((string) data_get($item, 'resumen_origen.codigo_paquete', '')),
+                                                    trim((string) data_get($item, 'resumen_origen.codigo', '')),
+                                                    trim((string) data_get($item, 'resumen_origen.codigo_item', '')),
+                                                    trim((string) data_get($item, 'codigo', '')),
+                                                    trim((string) data_get($item, 'codigo_item', '')),
+                                                ])->first(fn ($code) => $code !== '' && ! $isServiceReferenceCode($code));
                                                 $itemCantidad = (int) data_get($item, 'cantidad', 0);
                                                 $itemMontoBase = (float) data_get($item, 'monto_base', 0);
                                                 $itemMontoExtras = (float) data_get($item, 'monto_extras', 0);
                                                 $itemTotalLinea = (float) data_get($item, 'total_linea', 0);
-                                                $itemHasPackageCode = $isPackageCartItem($item);
-                                                $itemTipoLabel = $itemHasPackageCode ? 'Paquete' : 'Servicio';
-                                                $itemReferencia = $itemCodigo !== ''
-                                                    ? $itemCodigo
-                                                    : ($itemResumenCodigo !== '' ? $itemResumenCodigo : 'Sin codigo de paquete');
+                                                $itemReferencia = is_string($itemCodigoReferencia) && $itemCodigoReferencia !== ''
+                                                    ? $itemCodigoReferencia
+                                                    : 'Sin codigo de paquete';
                                             @endphp
                                             <tr>
                                                 <td>
-                                                    <div class="ventas-item-kind">{{ $itemTipoLabel }}</div>
-                                                    <div class="ventas-table__secondary">{{ $itemOrigenTipo !== '' ? $itemOrigenTipo : 'Sin origen' }}</div>
-                                                </td>
-                                                <td>
                                                     <div class="ventas-table__primary">{{ $itemReferencia }}</div>
-                                                    @if($itemHasPackageCode && $itemResumenCodigo !== '' && $itemResumenCodigo !== $itemCodigo)
+                                                    @if($itemResumenCodigo !== '' && $itemResumenCodigo !== $itemCodigo && $itemResumenCodigo !== $itemReferencia)
                                                         <div class="ventas-table__secondary">Origen: {{ $itemResumenCodigo }}</div>
                                                     @endif
                                                 </td>
@@ -1597,40 +1600,27 @@
                         || normalized.startsWith('SERVICIO-'));
             };
 
-            const classifyItem = (item) => {
+            const resolveItemReference = (item) => {
                 const references = [
+                    item.codigo_referencia,
+                    item.resumen_origen?.codigo_detalle_enviado,
+                    item.codigo_detalle_enviado,
                     item.codigo_paquete,
                     item.resumen_origen?.codigo_paquete,
-                    item.codigo,
-                    item.codigo_item,
                     item.resumen_origen?.codigo,
                     item.resumen_origen?.codigo_item,
+                    item.codigo,
+                    item.codigo_item,
                 ].map((value) => String(value || '').trim()).filter(Boolean);
-                const originHints = [
-                    item.origen_tipo,
-                    item.titulo,
-                    item.nombre_servicio,
-                    item.resumen_origen?.descripcion_servicio,
-                    item.resumen_origen?.servicio_nombre,
-                ].map((value) => String(value || '').trim().toUpperCase()).filter(Boolean).join(' ');
-                const packageReference = references.find((reference) => !isServiceReferenceCode(reference)) || '';
-                const isPackage = packageReference !== ''
-                    && !originHints.includes('SERVICIO')
-                    && !originHints.includes('ADMISION')
-                    && !originHints.includes('EXTRA');
 
-                return {
-                    kind: isPackage ? 'Paquete' : 'Servicio',
-                    reference: isPackage ? packageReference : 'Sin codigo de paquete',
-                };
+                return references.find((reference) => !isServiceReferenceCode(reference)) || 'Sin codigo de paquete';
             };
 
             const renderDetailRows = (items) => items.map((item) => {
-                const kind = classifyItem(item);
                 const itemTitle = String(item.titulo || 'Sin titulo').trim();
                 const itemService = String(item.nombre_servicio || '').trim();
                 const itemDest = String(item.nombre_destinatario || '').trim();
-                const itemOrigin = String(item.origen_tipo || '').trim();
+                const itemReference = resolveItemReference(item);
                 const base = Number(item.monto_base || 0).toFixed(2);
                 const extras = Number(item.monto_extras || 0).toFixed(2);
                 const total = Number(item.total_linea || 0).toFixed(2);
@@ -1639,11 +1629,7 @@
                 return `
                     <tr>
                         <td>
-                            <div class="ventas-item-kind">${escapeHtml(kind.kind)}</div>
-                            <div class="ventas-table__secondary">${escapeHtml(itemOrigin || 'Sin origen')}</div>
-                        </td>
-                        <td>
-                            <div class="ventas-table__primary">${escapeHtml(kind.reference)}</div>
+                            <div class="ventas-table__primary">${escapeHtml(itemReference)}</div>
                         </td>
                         <td>
                             <div class="ventas-table__primary">${escapeHtml(itemTitle)}</div>

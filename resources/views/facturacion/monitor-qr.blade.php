@@ -68,7 +68,7 @@
             box-shadow: var(--shadow);
             backdrop-filter: blur(18px);
         }
-        .ads, .qr, .terminal {
+        .ads, .qr, .terminal, .preview {
             min-height: 100%;
             padding: 36px;
         }
@@ -76,14 +76,14 @@
             display: grid;
             place-items: center;
         }
-        .qr__title, .terminal__title {
+        .qr__title, .terminal__title, .preview__title {
             margin: 0;
             font-size: 64px;
             line-height: .96;
             letter-spacing: -.05em;
             font-weight: 900;
         }
-        .qr__text, .terminal__text {
+        .qr__text, .terminal__text, .preview__text {
             margin: 0;
             max-width: 560px;
             font-size: 21px;
@@ -193,13 +193,312 @@
             color: #2450b4;
         }
         .ads__note,
-        .terminal__note {
+        .terminal__note,
+        .preview__note {
             margin: 0;
             max-width: 520px;
             font-size: 15px;
             line-height: 1.7;
             color: var(--muted);
             text-align: center;
+        }
+        .preview {
+            display: grid;
+            gap: 26px;
+        }
+        .preview__hero {
+            display: grid;
+            justify-items: center;
+            gap: 18px;
+            text-align: center;
+            padding: 12px 0 6px;
+        }
+        .preview__hero-icon {
+            width: 112px;
+            height: 112px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            color: #f0b323;
+            background:
+                radial-gradient(circle at top, rgba(255,250,240,.98), rgba(255,242,214,.92)),
+                linear-gradient(180deg, rgba(255,255,255,.96), rgba(255,245,225,.92));
+            border: 1px solid rgba(240, 179, 35, 0.16);
+            box-shadow: 0 18px 38px rgba(240, 179, 35, 0.12);
+            font-size: 2.2rem;
+        }
+        .preview__eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            color: #2b58c5;
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+        }
+        .preview__title {
+            font-size: 64px;
+        }
+        .preview__text {
+            max-width: 760px;
+            text-align: center;
+        }
+        .preview__panel {
+            padding: 26px 28px;
+            border-radius: 26px;
+            background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(246,250,255,.94));
+            border: 1px solid rgba(198, 218, 247, 0.85);
+            box-shadow: 0 18px 40px rgba(23,49,92,.06);
+        }
+        .preview__section-title {
+            margin: 0;
+            color: var(--text);
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: -.03em;
+        }
+        .preview__section-accent {
+            width: 210px;
+            height: 4px;
+            margin-top: 12px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #2d62ff 0%, #376ef7 72%, rgba(55, 110, 247, 0.10) 100%);
+        }
+        .preview__facts-shell {
+            margin-top: 22px;
+            border-radius: 22px;
+            background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(248,251,255,.94));
+            border: 1px solid rgba(210, 224, 247, 0.9);
+            overflow: hidden;
+        }
+        .preview__facts {
+            display: grid;
+            gap: 0;
+        }
+        .preview__fact {
+            display: grid;
+            grid-template-columns: 74px minmax(0, 1fr);
+            gap: 18px;
+            align-items: center;
+            padding: 24px 24px;
+            border-bottom: 1px solid rgba(214, 226, 244, 0.95);
+        }
+        .preview__fact:last-child {
+            border-bottom: 0;
+        }
+        .preview__fact-icon {
+            width: 58px;
+            height: 58px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            color: #f0b323;
+            background: linear-gradient(180deg, #fff7e6 0%, #fffdf7 100%);
+            box-shadow: inset 0 0 0 1px rgba(240, 179, 35, 0.12);
+            font-size: 1.45rem;
+        }
+        .preview__fact-copy {
+            display: grid;
+            gap: 10px;
+        }
+        .preview__fact dt {
+            color: #6782aa;
+            font-size: 15px;
+            font-weight: 800;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            margin: 0;
+        }
+        .preview__fact dd {
+            margin: 0;
+            color: var(--text);
+            font-size: 32px;
+            line-height: 1.12;
+            letter-spacing: -.03em;
+            font-weight: 800;
+        }
+        .preview__items-panel {
+            display: grid;
+            gap: 18px;
+        }
+        .preview__items-head {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 14px;
+            align-items: center;
+        }
+        .preview__items-head-icon {
+            width: 54px;
+            height: 54px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            color: #f0b323;
+            background: linear-gradient(180deg, #fff7e6 0%, #fffdf7 100%);
+            box-shadow: inset 0 0 0 1px rgba(240, 179, 35, 0.12);
+            font-size: 1.35rem;
+        }
+        .preview__items-head h3 {
+            margin: 0;
+            color: var(--text);
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: -.03em;
+        }
+        .preview__items-head span {
+            color: #5f78a0;
+            font-size: 15px;
+            font-weight: 700;
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: linear-gradient(180deg, rgba(244,247,255,.95), rgba(238,244,255,.9));
+            border: 1px solid rgba(210, 224, 247, 0.95);
+        }
+        .preview__items-list {
+            display: grid;
+            gap: 0;
+        }
+        .preview__item {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 24px;
+            padding: 18px 6px 18px 0;
+            border-bottom: 1px dashed rgba(205, 220, 242, 0.95);
+        }
+        .preview__item:last-child {
+            border-bottom: 0;
+        }
+        .preview__item strong {
+            display: block;
+            font-size: 24px;
+            line-height: 1.15;
+            letter-spacing: -.03em;
+        }
+        .preview__item p {
+            margin: 8px 0 0;
+            color: var(--muted);
+            font-size: 16px;
+            line-height: 1.45;
+        }
+        .preview__amount {
+            color: var(--text);
+            font-size: 24px;
+            font-weight: 900;
+            white-space: nowrap;
+        }
+        .preview__summary {
+            display: grid;
+            gap: 20px;
+        }
+        .preview__summary-card {
+            display: grid;
+            grid-template-columns: 108px minmax(0, 1fr) 136px;
+            gap: 24px;
+            align-items: center;
+            padding: 28px 24px;
+            border-radius: 22px;
+            background:
+                radial-gradient(circle at center right, rgba(208, 242, 229, 0.36), transparent 36%),
+                linear-gradient(180deg, rgba(245,255,251,.98), rgba(239,251,246,.96));
+            border: 1px solid rgba(173, 230, 207, 0.95);
+        }
+        .preview__summary-badge {
+            width: 92px;
+            height: 92px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            color: #0a8e58;
+            background: radial-gradient(circle at top, rgba(225, 255, 244, 0.96), rgba(205, 244, 228, 0.92));
+            border: 1px solid rgba(151, 223, 192, 0.95);
+            font-size: 2.4rem;
+            box-shadow: inset 0 0 0 1px rgba(10, 142, 88, 0.05);
+        }
+        .preview__summary-copy {
+            display: grid;
+            gap: 10px;
+        }
+        .preview__summary-copy small {
+            color: var(--text);
+            font-size: 16px;
+            font-weight: 700;
+        }
+        .preview__summary-copy strong {
+            color: #0b8c54;
+            font-size: 72px;
+            line-height: .92;
+            letter-spacing: -.06em;
+            font-weight: 900;
+        }
+        .preview__summary-copy p {
+            margin: 0;
+            color: #4a6e82;
+            font-size: 18px;
+        }
+        .preview__summary-art {
+            width: 128px;
+            height: 128px;
+            border-radius: 22px;
+            position: relative;
+            background: linear-gradient(180deg, rgba(255,255,255,.92), rgba(244,255,250,.88));
+            box-shadow: 0 18px 34px rgba(51, 173, 125, 0.10);
+        }
+        .preview__summary-art::before,
+        .preview__summary-art::after {
+            content: "";
+            position: absolute;
+            border-radius: 16px;
+        }
+        .preview__summary-art::before {
+            inset: 14px 20px 18px 18px;
+            background: #ffffff;
+            box-shadow: 0 18px 32px rgba(23,49,92,.08);
+        }
+        .preview__summary-art::after {
+            width: 44px;
+            height: 44px;
+            right: 10px;
+            bottom: 10px;
+            background: radial-gradient(circle at top, #5de0a1, #26b36c);
+            clip-path: polygon(18% 53%, 31% 40%, 45% 55%, 71% 27%, 82% 38%, 46% 76%);
+        }
+        .preview__summary-lines {
+            position: absolute;
+            left: 34px;
+            top: 28px;
+            width: 46px;
+            height: 36px;
+            z-index: 1;
+        }
+        .preview__summary-lines span {
+            display: block;
+            height: 6px;
+            margin-bottom: 7px;
+            border-radius: 999px;
+            background: #d7e6f5;
+        }
+        .preview__summary-lines span:nth-child(1) { width: 100%; }
+        .preview__summary-lines span:nth-child(2) { width: 76%; }
+        .preview__summary-lines span:nth-child(3) { width: 58%; }
+        .preview__note {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            max-width: none;
+            padding: 18px 20px;
+            text-align: left;
+            font-size: 16px;
+            color: #2d58b8;
+            border-radius: 16px;
+            background: linear-gradient(180deg, rgba(244,247,255,.96), rgba(238,243,255,.92));
+            border: 1px solid rgba(203, 218, 247, 0.95);
+        }
+        .preview__note i {
+            font-size: 1.2rem;
+            line-height: 1;
+            margin-top: 2px;
         }
         .flow__copy {
             display: grid;
@@ -475,13 +774,14 @@
             }
         }
         @media (orientation: portrait) {
-            .ads, .qr, .terminal {
+            .ads, .qr, .terminal, .preview {
                 padding: 24px;
             }
             .ads__qr-shell {
                 width: min(74vw, 46vh, 560px);
             }
-            .qr {
+            .qr,
+            .preview {
                 grid-template-columns: 1fr;
                 justify-items: center;
                 text-align: center;
@@ -506,6 +806,12 @@
             .terminal__grid {
                 width: 100%;
             }
+            .preview__main,
+            .preview__side,
+            .preview__facts,
+            .preview__items {
+                width: 100%;
+            }
             .flow__hero,
             .flow__grid {
                 width: 100%;
@@ -515,17 +821,25 @@
             }
         }
         @media (max-width: 1240px) {
-            .qr, .qr__grid, .terminal__grid {
+            .qr, .preview, .qr__grid, .terminal__grid {
                 grid-template-columns: 1fr;
             }
             .state {
                 width: 100%;
             }
-            .qr__title, .terminal__title {
+            .qr__title, .terminal__title, .preview__title {
                 font-size: 46px;
             }
             .qr__meta {
                 justify-items: center;
+                text-align: center;
+            }
+            .preview__fact {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+            .preview__header,
+            .preview__total {
                 text-align: center;
             }
             .qr__box--wide {
@@ -547,14 +861,26 @@
                 min-height: 100dvh;
                 padding: 14px;
             }
-            .ads, .qr, .terminal {
+            .ads, .qr, .terminal, .preview {
                 padding: 20px;
             }
-            .qr__title, .terminal__title {
+            .qr__title, .terminal__title, .preview__title {
                 font-size: 34px;
             }
-            .qr__text, .terminal__text {
+            .qr__text, .terminal__text, .preview__text {
                 font-size: 18px;
+            }
+            .preview__item {
+                flex-direction: column;
+            }
+            .preview__amount,
+            .preview__item strong,
+            .preview__fact dd,
+            .preview__total-amount {
+                font-size: 28px;
+            }
+            .preview__total-caption {
+                font-size: 20px;
             }
             .ads__qr-shell {
                 width: min(86vw, 48vh, 460px);
@@ -755,6 +1081,74 @@
                 return 'data:image/svg+xml;base64,' + btoa(svg);
             };
 
+            const previewIconSvg = (name) => {
+                const icons = {
+                    shield: `
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M12 3l7 3v6c0 4.6-3 7.9-7 9-4-1.1-7-4.4-7-9V6l7-3Z"></path>
+                            <path d="m9.4 12.3 1.8 1.8 3.5-4"></path>
+                        </svg>
+                    `,
+                    file: `
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M7 3.75h7.5L19.25 8.5V19A1.25 1.25 0 0 1 18 20.25H7A1.25 1.25 0 0 1 5.75 19V5A1.25 1.25 0 0 1 7 3.75Z"></path>
+                            <path d="M14.5 3.75V8.5h4.75"></path>
+                            <path d="M8.75 12h6.5M8.75 15.25h6.5"></path>
+                        </svg>
+                    `,
+                    id: `
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="3.75" y="5.25" width="16.5" height="13.5" rx="2"></rect>
+                            <circle cx="8.5" cy="10.2" r="1.5"></circle>
+                            <path d="M6.5 14.5c.8-1.2 3.7-1.2 4.5 0"></path>
+                            <path d="M13.5 10h4M13.5 13h4"></path>
+                        </svg>
+                    `,
+                    hash: `
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M9 3.75 7 20.25"></path>
+                            <path d="M17 3.75 15 20.25"></path>
+                            <path d="M4.75 9.25h14.5"></path>
+                            <path d="M3.75 14.75h14.5"></path>
+                        </svg>
+                    `,
+                    building: `
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M4.75 20.25h14.5"></path>
+                            <path d="M7 20.25V5.75A1.25 1.25 0 0 1 8.25 4.5h5.5A1.25 1.25 0 0 1 15 5.75v14.5"></path>
+                            <path d="M9.25 8.25h1.5M13.25 8.25h1.5M9.25 11.75h1.5M13.25 11.75h1.5M9.25 15.25h1.5M13.25 15.25h1.5"></path>
+                        </svg>
+                    `,
+                    mail: `
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="3.75" y="5.5" width="16.5" height="13" rx="2"></rect>
+                            <path d="m5 7 7 5 7-5"></path>
+                        </svg>
+                    `,
+                    cart: `
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="9" cy="19" r="1.4"></circle>
+                            <circle cx="17" cy="19" r="1.4"></circle>
+                            <path d="M4.25 5.5h2l1.6 8.25h9.4l1.5-6H7.2"></path>
+                        </svg>
+                    `,
+                    check: `
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="m5.5 12.5 4 4 9-10"></path>
+                        </svg>
+                    `,
+                    info: `
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="12" cy="12" r="8.25"></circle>
+                            <path d="M12 10.25v5"></path>
+                            <path d="M12 7.75h.01"></path>
+                        </svg>
+                    `,
+                };
+
+                return icons[name] || '';
+            };
+
             const renderAds = (state = {}) => {
                 const caption = resolveMonitorStatusCaption(state.payment_status, 'Esperando QR...');
                 stateRoot.innerHTML = `
@@ -815,8 +1209,113 @@
                 `;
             };
 
+            const renderPreview = (state = {}) => {
+                const items = Array.isArray(state.items) ? state.items : [];
+                const documentNumber = String(state.document_number || '-').trim();
+                const documentComplement = String(state.document_complement || '').trim();
+                const documentLabel = documentComplement !== ''
+                    ? documentNumber + ' - ' + documentComplement
+                    : documentNumber;
+                const factRows = [
+                    ['file', 'Emision', state.emission_label || '-'],
+                    ['id', 'Documentacion', state.document_type_label || '-'],
+                    ['hash', 'Numero de documento', documentLabel],
+                    ['building', 'Razon social', state.razon_social || '-'],
+                    ['mail', 'Correo para factura', state.correo_facturacion || '-'],
+                ];
+
+                stateRoot.innerHTML = `
+                    <div class="preview">
+                        <section class="preview__hero">
+                            <div class="preview__hero-icon" aria-hidden="true">
+                                ${previewIconSvg('shield')}
+                            </div>
+                            <div class="preview__eyebrow">Confirmacion previa</div>
+                            <h2 class="preview__title">${escapeHtml(state.title || 'Confirma tus datos')}</h2>
+                            <p class="preview__text">${escapeHtml(state.message || 'Verifica con el cliente la informacion antes de continuar con la emision.')}</p>
+                        </section>
+                        <div class="preview__main">
+                            <section class="preview__panel">
+                                <h3 class="preview__section-title">Informacion del cliente</h3>
+                                <div class="preview__section-accent"></div>
+                                <div class="preview__facts-shell">
+                                    <dl class="preview__facts">
+                                        ${factRows.map(([icon, label, value]) => `
+                                            <div class="preview__fact">
+                                                <div class="preview__fact-icon" aria-hidden="true">
+                                                    ${previewIconSvg(icon)}
+                                                </div>
+                                                <div class="preview__fact-copy">
+                                                    <dt>${escapeHtml(label)}</dt>
+                                                    <dd>${escapeHtml(value)}</dd>
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </dl>
+                                </div>
+                            </section>
+                            <section class="preview__panel preview__items-panel">
+                                <div class="preview__items-head">
+                                    <div class="preview__items-head-icon" aria-hidden="true">
+                                        ${previewIconSvg('cart')}
+                                    </div>
+                                    <h3>Detalle de venta</h3>
+                                    <span>${escapeHtml(String(state.items_count || 0))} ${Number(state.items_count || 0) === 1 ? 'item' : 'items'}</span>
+                                </div>
+                                <div class="preview__items-list">
+                                    ${items.length > 0
+                                        ? items.map((item) => `
+                                            <article class="preview__item">
+                                                <div>
+                                                    <strong>${escapeHtml(item && item.title ? item.title : 'Item sin nombre')}</strong>
+                                                    <p>${escapeHtml([item && item.meta ? item.meta : '', item && item.recipient ? item.recipient : ''].filter(Boolean).join(' | ') || 'Sin detalle adicional')}</p>
+                                                </div>
+                                                <div class="preview__amount">${escapeHtml(item && item.amount ? item.amount : 'Bs 0.00')}</div>
+                                            </article>
+                                        `).join('')
+                                        : `<article class="preview__item">
+                                            <div>
+                                                <strong>Sin items</strong>
+                                                <p>No hay detalle para mostrar.</p>
+                                            </div>
+                                            <div class="preview__amount">Bs 0.00</div>
+                                        </article>`}
+                                </div>
+                            </section>
+                            <section class="preview__panel preview__summary">
+                                <div class="preview__summary-card">
+                                    <div class="preview__summary-badge" aria-hidden="true">
+                                        ${previewIconSvg('check')}
+                                    </div>
+                                    <div class="preview__summary-copy">
+                                        <small>Total a confirmar</small>
+                                        <strong>${escapeHtml(formatAmount(state.total))}</strong>
+                                        <p>Revisa los datos antes de emitir</p>
+                                    </div>
+                                    <div class="preview__summary-art" aria-hidden="true">
+                                        <div class="preview__summary-lines">
+                                            <span></span>
+                                            <span></span>
+                                            <span></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+                `;
+            };
+
             const renderTerminal = (state = {}) => {
                 const success = ['paid', 'pagado', 'confirmed', 'success', 'approved', 'completed'].includes(String(state.terminal_status || state.payment_status || '').toLowerCase());
+                const isFacturaFlow = String(state.flow_kind || '').toLowerCase() === 'factura';
+                const terminalNote = isFacturaFlow
+                    ? (success
+                        ? 'La factura fue emitida. Puedes continuar con la siguiente atencion.'
+                        : 'La emision no se completo. Revisa el resultado con el cajero.')
+                    : (success
+                        ? 'Pago confirmado con exito. Gracias por confiar en Correos de Bolivia.'
+                        : 'Estamos revisando el resultado del cobro. Si hace falta, intenta nuevamente con el cajero.');
                 stateRoot.innerHTML = `
                     <div class="flow">
                         <div class="flow__hero">
@@ -833,9 +1332,7 @@
                                 <div class="flow__copy">
                                     <h2 class="flow__title">${escapeHtml(state.title || 'Operacion finalizada')}</h2>
                                     <p class="flow__text">${escapeHtml(state.message || 'La pantalla volvera automaticamente al modo de espera.')}</p>
-                                    <p class="terminal__note">${success
-                                        ? 'Pago confirmado con exito. Gracias por confiar en Correos de Bolivia.'
-                                        : 'Estamos revisando el resultado del cobro. Si hace falta, intenta nuevamente con el cajero.'}</p>
+                                    <p class="terminal__note">${escapeHtml(terminalNote)}</p>
                                 </div>
                             </div>
                         </div>
@@ -865,6 +1362,8 @@
 
                 if (state.mode === 'qr') {
                     renderQr(state);
+                } else if (state.mode === 'preview') {
+                    renderPreview(state);
                 } else if (state.mode === 'terminal') {
                     renderTerminal(state);
                     const resetMs = Number(state.auto_reset_ms || 8000);

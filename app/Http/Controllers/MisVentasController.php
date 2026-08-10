@@ -142,10 +142,24 @@ class MisVentasController extends Controller
         $items = $this->normalizeItems(data_get($venta, 'items', []))
             ->map(function ($item) {
                 $item = is_array($item) ? (object) $item : $item;
+                $codigoReferencia = collect([
+                    trim((string) data_get($item, 'resumen_origen.codigo_detalle_enviado', '')),
+                    trim((string) data_get($item, 'codigo_detalle_enviado', '')),
+                    trim((string) data_get($item, 'codigo_paquete', '')),
+                    trim((string) data_get($item, 'resumen_origen.codigo_paquete', '')),
+                    trim((string) data_get($item, 'resumen_origen.codigo', '')),
+                    trim((string) data_get($item, 'resumen_origen.codigo_item', '')),
+                    trim((string) data_get($item, 'codigo', '')),
+                    trim((string) data_get($item, 'codigo_item', '')),
+                ])->first(fn ($code) => $code !== '' && ! $this->isServiceReferenceCode((string) $code));
 
                 return [
                     'id' => (int) data_get($item, 'id', 0),
                     'codigo' => trim((string) data_get($item, 'codigo', '')),
+                    'codigo_detalle_enviado' => trim((string) data_get($item, 'codigo_detalle_enviado', data_get($item, 'resumen_origen.codigo_detalle_enviado', ''))),
+                    'codigo_paquete' => trim((string) data_get($item, 'codigo_paquete', data_get($item, 'resumen_origen.codigo_paquete', ''))),
+                    'codigo_item' => trim((string) data_get($item, 'codigo_item', '')),
+                    'codigo_referencia' => is_string($codigoReferencia) ? $codigoReferencia : '',
                     'origen_tipo' => trim((string) data_get($item, 'origen_tipo', '')),
                     'titulo' => trim((string) data_get($item, 'titulo', '')),
                     'nombre_servicio' => trim((string) data_get($item, 'nombre_servicio', '')),
@@ -787,11 +801,15 @@ class MisVentasController extends Controller
     private function resolveVentaForDetail(FacturacionCartService $service, object $user, int $cart): ?object
     {
         $venta = $service->fetchVentaById($user, $cart);
-        if ($venta && $this->normalizeItems(data_get($venta, 'items', []))->isNotEmpty()) {
-            return $venta;
+        $ventaId = (int) data_get($venta, 'venta_id', 0);
+        if ($ventaId <= 0) {
+            $ventaId = $this->extractOrigenVentaId($venta);
+        }
+        if ($ventaId <= 0) {
+            $ventaId = $cart;
         }
 
-        $ventaDetalle = $service->fetchVentaDetalleByVentaId($user, $cart);
+        $ventaDetalle = $service->fetchVentaDetalleByVentaId($user, $ventaId);
         if ($ventaDetalle) {
             return $this->mapVentaDetailToCart($ventaDetalle);
         }
@@ -879,6 +897,9 @@ class MisVentasController extends Controller
         return (object) [
             'id' => (int) ($item['id'] ?? 0),
             'codigo' => (string) ($item['codigo'] ?? ''),
+            'codigo_paquete' => (string) ($item['codigo_paquete'] ?? data_get($item, 'resumen_origen.codigo_paquete', '')),
+            'codigo_item' => (string) ($item['codigo_item'] ?? data_get($item, 'resumen_origen.codigo_item', '')),
+            'codigo_detalle_enviado' => (string) ($item['codigo_detalle_enviado'] ?? data_get($item, 'resumen_origen.codigo_detalle_enviado', '')),
             'origen_tipo' => (string) ($item['origen_tipo'] ?? ''),
             'titulo' => (string) ($item['titulo'] ?? $item['descripcion'] ?? 'Sin detalle'),
             'nombre_servicio' => (string) ($item['descripcion'] ?? $item['titulo'] ?? ''),

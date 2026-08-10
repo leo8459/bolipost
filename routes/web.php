@@ -151,6 +151,7 @@ Route::middleware(['auth', 'internal.only'])->group(function () {
     Route::post('/facturacion/cart/ver-qr', [FacturacionCartController::class, 'verQr'])->name('facturacion.cart.ver-qr');
     Route::post('/facturacion/cart/consultar', [FacturacionCartController::class, 'consultar'])->name('facturacion.cart.consultar');
     Route::post('/facturacion/cart/emitir', [FacturacionCartController::class, 'emitir'])->name('facturacion.cart.emitir');
+    Route::get('/facturacion/clientes-frecuentes/search', [FacturacionCartController::class, 'searchFrequentClients'])->name('facturacion.frequent-clients.search');
     Route::post('/facturacion/cart/scan-add', [FacturacionCartController::class, 'scanAdd'])->name('facturacion.cart.scan-add');
     Route::post('/facturacion/cart/conceptos', [FacturacionCartController::class, 'addConcepto'])->name('facturacion.cart.conceptos.store');
     Route::post('/facturacion/cart/clear', [FacturacionCartController::class, 'clear'])->name('facturacion.cart.clear');

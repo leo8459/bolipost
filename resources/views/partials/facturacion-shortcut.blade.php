@@ -158,10 +158,8 @@
     $isQrFlowShortcut = $activeInvoiceChannel === 'qr';
     $emitActionLabel = $isQrFlowShortcut
         ? ($draftEstado === 'pendiente_pago' && !empty($activeFacturacionCart?->qr_transaction_id)
-            ? 'Reabrir QR vigente'
-            : ($activeInvoiceMode === 'qr_factura'
-                ? ($draftEstadoPago === 'cancelado' ? 'Generar nuevo QR y facturar' : 'Generar QR y facturar')
-                : ($draftEstadoPago === 'cancelado' ? 'Generar nuevo QR' : 'Generar QR de cobro')))
+            ? 'Emitir'
+            : 'Emitir')
         : ($isRejectedDraft ? 'Reintentar emision' : 'Emitir venta');
     $emitConfirmTitle = $isQrFlowShortcut
         ? ($activeInvoiceMode === 'qr_factura' ? 'Preparar QR + factura' : 'Preparar cobro QR')
@@ -409,6 +407,18 @@
                 </div>
 
                 <div class="global-shortcut-billing-inline__grid" id="facturacionBillingFields">
+                    <div class="global-shortcut-field global-shortcut-field--full">
+                        <label for="facturacionBillingFrequentDemoSearch">Buscar cliente frecuente</label>
+                        <input
+                            type="text"
+                            id="facturacionBillingFrequentDemoSearch"
+                            data-demo-billing-search
+                            placeholder="Busca por NIT o CI. Ej. 4316"
+                            autocomplete="off"
+                            @disabled(!$isCajaAbierta)
+                        >
+                        <div id="facturacionBillingFrequentDemoResults" data-demo-billing-results style="margin-top:8px;"></div>
+                    </div>
                     <div class="global-shortcut-field">
                         <label for="facturacionBillingDocumentNumber">Numero de documento</label>
                         <input
@@ -1023,6 +1033,20 @@
             <p class="global-shortcut-confirm__message" id="facturacionActionConfirmMessage">
                 Esta accion actualizara tu borrador de Facturacion.
             </p>
+            <div class="facturacion-emit-preview is-hidden" id="facturacionEmitPreviewBox">
+                <div class="facturacion-emit-preview__header">
+                    <strong>Verifica con el cliente antes de continuar</strong>
+                    <span>Resumen previo de emision</span>
+                </div>
+                <div class="facturacion-emit-preview__grid" id="facturacionEmitPreviewGrid"></div>
+                <div class="facturacion-emit-preview__items">
+                    <div class="facturacion-emit-preview__items-head">
+                        <strong>Detalle de venta</strong>
+                        <span id="facturacionEmitPreviewItemsMeta">0 items</span>
+                    </div>
+                    <div class="facturacion-emit-preview__items-list" id="facturacionEmitPreviewItems"></div>
+                </div>
+            </div>
             <div class="global-shortcut-confirm__note" id="facturacionActionConfirmNoteBox">
                 <span class="global-shortcut-confirm__note-label">Importante</span>
                 <p id="facturacionActionConfirmNote">
@@ -1196,6 +1220,112 @@
             flex-shrink: 0;
         }
         .global-facturacion-fab__text {
+            white-space: nowrap;
+        }
+        .facturacion-emit-preview {
+            margin: 20px 22px 0;
+            padding: 18px;
+            border: 1px solid #d8e3f0;
+            border-radius: 18px;
+            background: linear-gradient(180deg, #fbfdff 0%, #f3f7fc 100%);
+        }
+        .facturacion-emit-preview.is-hidden {
+            display: none;
+        }
+        .facturacion-emit-preview__header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .facturacion-emit-preview__header strong {
+            color: #173962;
+            font-size: 1rem;
+        }
+        .facturacion-emit-preview__header span {
+            color: #6d809d;
+            font-size: .82rem;
+            text-align: right;
+        }
+        .facturacion-emit-preview__grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .facturacion-emit-preview__card {
+            padding: 14px 15px;
+            border-radius: 14px;
+            background: #fff;
+            border: 1px solid #e0e8f3;
+        }
+        .facturacion-emit-preview__label {
+            display: block;
+            margin-bottom: 4px;
+            color: #6d809d;
+            font-size: .74rem;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+        }
+        .facturacion-emit-preview__value {
+            color: #173962;
+            font-size: .98rem;
+            font-weight: 700;
+            line-height: 1.35;
+            word-break: break-word;
+        }
+        .facturacion-emit-preview__items {
+            border-top: 1px solid #dce6f2;
+            padding-top: 14px;
+        }
+        .facturacion-emit-preview__items-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .facturacion-emit-preview__items-head strong {
+            color: #173962;
+        }
+        .facturacion-emit-preview__items-head span {
+            color: #6d809d;
+            font-size: .82rem;
+        }
+        .facturacion-emit-preview__items-list {
+            display: grid;
+            gap: 10px;
+            max-height: 220px;
+            overflow-y: auto;
+        }
+        .facturacion-emit-preview__item {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            background: #fff;
+            border: 1px solid #e5edf7;
+        }
+        .facturacion-emit-preview__item-main {
+            min-width: 0;
+        }
+        .facturacion-emit-preview__item-title {
+            color: #173962;
+            font-weight: 700;
+            line-height: 1.35;
+        }
+        .facturacion-emit-preview__item-meta {
+            margin-top: 2px;
+            color: #6d809d;
+            font-size: .84rem;
+            line-height: 1.4;
+        }
+        .facturacion-emit-preview__item-amount {
+            color: #173962;
+            font-weight: 800;
             white-space: nowrap;
         }
         .global-facturacion-fab__badge {
@@ -3310,7 +3440,7 @@
         }
         .global-shortcut-confirm__panel {
             position: relative;
-            width: min(420px, calc(100vw - 26px));
+            width: min(460px, calc(100vw - 26px));
             max-height: calc(100vh - 28px);
             padding: 0;
             border-radius: 24px;
@@ -3330,7 +3460,7 @@
             transform: translateY(0) scale(1);
         }
         .global-shortcut-confirm__header {
-            padding: 20px 22px 14px;
+            padding: 20px 24px 16px;
             background:
                 radial-gradient(circle at top left, rgba(254, 204, 54, .18), transparent 42%),
                 linear-gradient(135deg, #f7fbff 0%, #eef5ff 100%);
@@ -3359,15 +3489,15 @@
         }
         .global-shortcut-confirm__title {
             margin: 0;
-            padding: 18px 22px 0;
+            padding: 20px 24px 0;
             color: #173962;
-            font-size: 1.24rem;
+            font-size: 1.3rem;
             font-weight: 800;
             text-align: center;
         }
         .global-shortcut-confirm__message {
-            margin: 10px 0 0;
-            padding: 0 22px;
+            margin: 12px 0 0;
+            padding: 0 24px;
             color: #5f718b;
             font-size: .95rem;
             line-height: 1.55;
@@ -3400,7 +3530,7 @@
             text-align: left;
         }
         .global-shortcut-confirm__quantity {
-            margin: 14px 22px 0;
+            margin: 16px 24px 0;
             display: grid;
             gap: 8px;
         }
@@ -3436,9 +3566,9 @@
         .global-shortcut-confirm__actions {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 10px;
-            margin-top: 18px;
-            padding: 0 22px 20px;
+            gap: 12px;
+            margin-top: 20px;
+            padding: 0 24px 24px;
         }
         .global-shortcut-confirm__btn {
             min-height: 46px;
@@ -3523,6 +3653,18 @@
             overflow: hidden;
         }
         @media (max-width: 768px) {
+            .facturacion-emit-preview__grid {
+                grid-template-columns: 1fr;
+            }
+            .facturacion-emit-preview__header,
+            .facturacion-emit-preview__items-head,
+            .facturacion-emit-preview__item {
+                flex-direction: column;
+            }
+            .facturacion-emit-preview__header span,
+            .facturacion-emit-preview__items-head span {
+                text-align: left;
+            }
             .global-facturacion-fab {
                 right: 14px;
                 bottom: 14px;
@@ -3625,6 +3767,10 @@
             .global-shortcut-confirm__message {
                 padding: 0 16px;
                 font-size: .92rem;
+            }
+            .facturacion-emit-preview {
+                margin: 16px 16px 0;
+                padding: 16px;
             }
             .global-shortcut-confirm__note {
                 margin: 14px 16px 0;
@@ -3749,6 +3895,10 @@
                 font-size: .88rem;
                 line-height: 1.45;
             }
+            .facturacion-emit-preview {
+                margin: 14px 14px 0;
+                padding: 14px;
+            }
             .global-shortcut-item-edit-form {
                 padding: 0 14px 14px;
             }
@@ -3840,11 +3990,170 @@
             const facturacionActionConfirmAccept = document.getElementById('facturacionActionConfirmAccept');
             const facturacionActionConfirmCancel = document.getElementById('facturacionActionConfirmCancel');
             const facturacionActionConfirmEyebrow = document.querySelector('.global-shortcut-confirm__eyebrow');
+            const facturacionEmitPreviewBox = document.getElementById('facturacionEmitPreviewBox');
+            const facturacionEmitPreviewGrid = document.getElementById('facturacionEmitPreviewGrid');
+            const facturacionEmitPreviewItems = document.getElementById('facturacionEmitPreviewItems');
+            const facturacionEmitPreviewItemsMeta = document.getElementById('facturacionEmitPreviewItemsMeta');
             const FACTURACION_CONFIRM_DEFAULTS = {
                 eyebrow: 'Confirmacion de carrito',
                 title: 'Confirmar accion',
                 message: 'Esta accion actualizara tu borrador de Facturacion.',
                 note: 'Solo se modificara el borrador actual del carrito.',
+            };
+            const FACTURACION_EMIT_ACTION_PATH = '/facturacion/cart/emitir';
+            const facturacionPreviewCurrencyFormatter = new Intl.NumberFormat('es-BO', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+            });
+
+            const escapeFacturacionPreviewHtml = (value) => String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+
+            const formatFacturacionPreviewCurrency = (value) => 'Bs ' + facturacionPreviewCurrencyFormatter.format(Number(value || 0));
+
+            const resolveFacturacionEmitModeLabel = (channel, autoEmitInvoice) => {
+                const normalizedChannel = String(channel || '').trim().toLowerCase();
+
+                if (normalizedChannel === 'qr') {
+                    return 'QR';
+                }
+
+                return 'Efectivo';
+            };
+
+            const buildFacturacionEmitPreviewState = (form) => {
+                const isEmitAction = String(form.getAttribute('action') || '').includes(FACTURACION_EMIT_ACTION_PATH);
+                if (!isEmitAction) {
+                    return null;
+                }
+
+                const billingDocumentNumberField = document.getElementById('facturacionBillingDocumentNumber');
+                const billingComplementField = document.getElementById('facturacionBillingDocumentComplement');
+                const billingNameField = document.getElementById('facturacionBillingName');
+                const billingEmailField = document.getElementById('facturacionBillingEmail');
+                const billingDocumentTypeField = document.getElementById('facturacionBillingDocumentType');
+                const invoiceChannelInput = form.querySelector('input[name="canal_emision"]');
+                const autoEmitInput = form.querySelector('input[name="auto_emit_invoice"]');
+                const itemNodes = Array.from(document.querySelectorAll('.global-shortcut-cart-item'));
+
+                const documentTypeLabel = billingDocumentTypeField instanceof HTMLSelectElement
+                    ? String(billingDocumentTypeField.options[billingDocumentTypeField.selectedIndex]?.text || 'Sin documentacion').trim()
+                    : 'Sin documentacion';
+                const documentNumber = billingDocumentNumberField instanceof HTMLInputElement
+                    ? String(billingDocumentNumberField.value || '').trim()
+                    : '';
+                const documentComplement = billingComplementField instanceof HTMLInputElement
+                    ? String(billingComplementField.value || '').trim()
+                    : '';
+                const razonSocial = billingNameField instanceof HTMLInputElement
+                    ? String(billingNameField.value || '').trim()
+                    : '';
+                const correoFacturacion = billingEmailField instanceof HTMLInputElement
+                    ? String(billingEmailField.value || '').trim()
+                    : '';
+                const modeLabel = resolveFacturacionEmitModeLabel(
+                    invoiceChannelInput instanceof HTMLInputElement ? invoiceChannelInput.value : '',
+                    autoEmitInput instanceof HTMLInputElement ? autoEmitInput.value : ''
+                );
+                const quantityCount = itemNodes.reduce((sum, node) => {
+                    const quantityBadge = node.querySelector('.global-shortcut-cart-item__quantity');
+                    const quantityText = quantityBadge ? String(quantityBadge.textContent || '').replace(/[^\d]/g, '') : '1';
+                    const quantity = Math.max(1, Number(quantityText || '1'));
+                    return sum + (Number.isFinite(quantity) ? quantity : 1);
+                }, 0);
+                const totalAmount = itemNodes.reduce((sum, node) => {
+                    const amountNode = node.querySelector('.global-shortcut-cart-item__amount');
+                    const amountText = amountNode ? String(amountNode.textContent || '').replace(/[^0-9.,-]/g, '').replace(',', '.') : '0';
+                    const amount = Number(amountText || '0');
+                    return sum + (Number.isFinite(amount) ? amount : 0);
+                }, 0);
+
+                return {
+                    mode: 'preview',
+                    title: 'Confirma tus datos',
+                    message: 'Verifica con el cliente la informacion antes de continuar con la emision.',
+                    emission_label: modeLabel,
+                    document_type_label: documentTypeLabel,
+                    document_number: documentNumber !== '' ? documentNumber : 'Sin documento',
+                    document_complement: documentComplement,
+                    razon_social: razonSocial !== '' ? razonSocial : 'Sin razon social',
+                    correo_facturacion: correoFacturacion !== '' ? correoFacturacion : 'Sin correo',
+                    items_count: quantityCount,
+                    total: totalAmount,
+                    items: itemNodes.map((node) => {
+                        const title = String(node.querySelector('.global-shortcut-cart-item__top strong')?.textContent || 'Item sin nombre').trim();
+                        const amount = String(node.querySelector('.global-shortcut-cart-item__amount')?.textContent || 'Bs 0.00').trim();
+                        const meta = Array.from(node.querySelectorAll('.global-shortcut-cart-item__meta span'))
+                            .map((metaNode) => String(metaNode.textContent || '').trim())
+                            .filter(Boolean)
+                            .join(' | ');
+                        const recipientNode = node.querySelector('.global-shortcut-cart-item__recipient');
+                        const recipient = recipientNode ? String(recipientNode.textContent || '').trim() : '';
+
+                        return {
+                            title,
+                            amount,
+                            meta,
+                            recipient,
+                        };
+                    }),
+                };
+            };
+
+            const populateFacturacionEmitPreview = (form) => {
+                if (!(facturacionEmitPreviewBox instanceof HTMLElement)
+                    || !(facturacionEmitPreviewGrid instanceof HTMLElement)
+                    || !(facturacionEmitPreviewItems instanceof HTMLElement)
+                    || !(facturacionEmitPreviewItemsMeta instanceof HTMLElement)) {
+                    return null;
+                }
+
+                const previewState = buildFacturacionEmitPreviewState(form);
+                if (!previewState) {
+                    facturacionEmitPreviewBox.classList.add('is-hidden');
+                    facturacionEmitPreviewGrid.innerHTML = '';
+                    facturacionEmitPreviewItems.innerHTML = '';
+                    facturacionEmitPreviewItemsMeta.textContent = '0 items';
+                    return null;
+                }
+
+                const previewCards = [
+                    ['Emision', previewState.emission_label],
+                    ['Documentacion', previewState.document_type_label],
+                    ['Documento', previewState.document_complement !== '' ? previewState.document_number + ' - ' + previewState.document_complement : previewState.document_number],
+                    ['Razon social', previewState.razon_social],
+                    ['Correo factura', previewState.correo_facturacion],
+                    ['Total', formatFacturacionPreviewCurrency(previewState.total)],
+                ];
+
+                facturacionEmitPreviewGrid.innerHTML = previewCards.map(([label, value]) => `
+                    <div class="facturacion-emit-preview__card">
+                        <span class="facturacion-emit-preview__label">${escapeFacturacionPreviewHtml(label)}</span>
+                        <div class="facturacion-emit-preview__value">${escapeFacturacionPreviewHtml(value)}</div>
+                    </div>
+                `).join('');
+
+                facturacionEmitPreviewItemsMeta.textContent = previewState.items_count + (previewState.items_count === 1 ? ' item' : ' items');
+                facturacionEmitPreviewItems.innerHTML = previewState.items.length > 0
+                    ? previewState.items.map((item) => {
+                        return `
+                            <div class="facturacion-emit-preview__item">
+                                <div class="facturacion-emit-preview__item-main">
+                                    <div class="facturacion-emit-preview__item-title">${escapeFacturacionPreviewHtml(item.title)}</div>
+                                    <div class="facturacion-emit-preview__item-meta">${escapeFacturacionPreviewHtml([item.meta, item.recipient].filter(Boolean).join(' | ') || 'Sin detalle adicional')}</div>
+                                </div>
+                                <div class="facturacion-emit-preview__item-amount">${escapeFacturacionPreviewHtml(item.amount)}</div>
+                            </div>
+                        `;
+                    }).join('')
+                    : '<div class="facturacion-emit-preview__item"><div class="facturacion-emit-preview__item-main"><div class="facturacion-emit-preview__item-title">No hay items en el carrito</div></div></div>';
+
+                facturacionEmitPreviewBox.classList.remove('is-hidden');
+                return previewState;
             };
             const facturacionItemEditModal = document.getElementById('facturacionItemEditModal');
             const facturacionItemEditForm = document.getElementById('facturacionItemEditForm');
@@ -4006,6 +4315,7 @@
             const facturacionItemUpdateRouteTemplate = @json(route('facturacion.cart.items.update', ['itemId' => '__ITEM__']));
             const facturacionItemCustomizeGroupedRouteTemplate = @json(route('facturacion.cart.items.customize-grouped', ['itemId' => '__ITEM__']));
             const facturacionConsultarRoute = @json(route('facturacion.cart.consultar'));
+            const facturacionFrequentClientsSearchRoute = @json(route('facturacion.frequent-clients.search'));
             const facturacionInitialFeedbackKey = facturacionFlashFeedback && typeof facturacionFlashFeedback === 'object'
                 ? JSON.stringify({
                     action: String(facturacionFlashFeedback.action || ''),
@@ -4037,6 +4347,7 @@
             let facturacionPendingEmitState = null;
             let facturacionCurrentResultKey = facturacionInitialFeedbackKey;
             let facturacionCurrentQrKey = facturacionInitialQrKey;
+            let facturacionPreviewRestoreState = null;
             const FACTURACION_PROCESSING_DEFAULTS = {
                 pill: 'Facturacion en curso',
                 title: 'Emitiendo factura',
@@ -4237,6 +4548,75 @@
                     payment_status: String(payload.payment_status || '').trim(),
                     amount: payload.amount || 0,
                     terminal_status: String(payload.payment_status || '').trim(),
+                    auto_reset_ms: 9000,
+                });
+            };
+
+            const publishFacturacionMonitorPreviewState = (payload = {}) => {
+                publishFacturacionMonitorState({
+                    mode: 'preview',
+                    title: String(payload.title || 'Confirma tus datos').trim(),
+                    message: String(payload.message || 'Verifica con el cliente la informacion antes de continuar con la emision.').trim(),
+                    emission_label: String(payload.emission_label || '').trim(),
+                    document_type_label: String(payload.document_type_label || '').trim(),
+                    document_number: String(payload.document_number || '').trim(),
+                    document_complement: String(payload.document_complement || '').trim(),
+                    razon_social: String(payload.razon_social || '').trim(),
+                    correo_facturacion: String(payload.correo_facturacion || '').trim(),
+                    items_count: Number(payload.items_count || 0),
+                    total: Number(payload.total || 0),
+                    items: Array.isArray(payload.items) ? payload.items : [],
+                });
+            };
+
+            const readCurrentFacturacionMonitorState = () => {
+                const config = resolveFacturacionMonitorConfig();
+                if (!config.enabled || String(config.url || '').trim() === '') {
+                    return null;
+                }
+
+                const monitorKey = extractFacturacionMonitorKeyFromUrl(config.url);
+                const storageKey = getFacturacionMonitorStorageKey(monitorKey);
+                if (storageKey === '') {
+                    return null;
+                }
+
+                try {
+                    const raw = window.localStorage.getItem(storageKey);
+                    if (!raw) {
+                        return null;
+                    }
+
+                    const parsed = JSON.parse(raw);
+                    return parsed && typeof parsed === 'object' ? parsed : null;
+                } catch (error) {
+                    return null;
+                }
+            };
+
+            const restoreFacturacionMonitorState = () => {
+                if (facturacionPreviewRestoreState && typeof facturacionPreviewRestoreState === 'object') {
+                    publishFacturacionMonitorState(facturacionPreviewRestoreState);
+                } else {
+                    publishFacturacionMonitorAdsState();
+                }
+
+                facturacionPreviewRestoreState = null;
+            };
+
+            const publishFacturacionMonitorEmitResultState = (feedback = {}, cart = null, success = true) => {
+                publishFacturacionMonitorState({
+                    mode: 'terminal',
+                    flow_kind: 'factura',
+                    title: String(feedback.title || (success ? 'Factura emitida' : 'Emision observada')).trim(),
+                    message: String(feedback.message || (success
+                        ? 'La factura fue procesada correctamente.'
+                        : 'La emision requiere revision o no pudo completarse.')).trim(),
+                    transaction_id: '',
+                    internal_code: String((cart && cart.codigo_orden) || '').trim(),
+                    payment_status: success ? 'confirmed' : 'failed',
+                    amount: Number((cart && cart.total) || 0),
+                    terminal_status: success ? 'confirmed' : 'failed',
                     auto_reset_ms: 9000,
                 });
             };
@@ -5616,6 +5996,11 @@
                     renderFacturacionShortcutFeedback(finalData.feedback);
                     renderFacturacionResultModal(finalData.feedback);
                 }
+                publishFacturacionMonitorEmitResultState(
+                    finalData.feedback || {},
+                    finalData.cart || null,
+                    !['RECHAZADA', 'ERROR'].includes(String((finalData.cart && finalData.cart.estado_emision) || '').trim().toUpperCase())
+                );
                 if (finalData.download_pdf) {
                     handleFacturacionDownloadPdf(finalData.download_pdf);
                 }
@@ -6761,13 +7146,14 @@
                 }
 
                 pendingConfirmForm = form;
+                const isEmitAction = String(form.getAttribute('action') || '').includes(FACTURACION_EMIT_ACTION_PATH);
                 facturacionActionConfirmTitle.textContent = form.dataset.confirmTitle || FACTURACION_CONFIRM_DEFAULTS.title;
                 facturacionActionConfirmMessage.textContent = form.dataset.confirmMessage || FACTURACION_CONFIRM_DEFAULTS.message;
                 if (facturacionActionConfirmNote && facturacionActionConfirmNoteBox) {
                     const hasCustomNote = form.hasAttribute('data-confirm-note');
                     const noteText = (form.dataset.confirmNote || '').trim();
 
-                    if (hasCustomNote && noteText !== '') {
+                    if (!isEmitAction && hasCustomNote && noteText !== '') {
                         facturacionActionConfirmNote.textContent = noteText;
                         facturacionActionConfirmNoteBox.hidden = false;
                     } else {
@@ -6801,6 +7187,13 @@
                     }
                 }
                 facturacionActionConfirmAccept.textContent = form.dataset.confirmCta || 'Confirmar';
+                const previewState = populateFacturacionEmitPreview(form);
+                if (previewState) {
+                    facturacionPreviewRestoreState = readCurrentFacturacionMonitorState();
+                    publishFacturacionMonitorPreviewState(previewState);
+                } else {
+                    publishFacturacionMonitorAdsState();
+                }
                 facturacionActionConfirmModal.classList.add('is-open');
                 facturacionActionConfirmModal.setAttribute('aria-hidden', 'false');
 
@@ -6831,6 +7224,19 @@
                     facturacionActionConfirmQuantityInput.value = '1';
                     facturacionActionConfirmQuantityInput.removeAttribute('max');
                 }
+                if (facturacionEmitPreviewBox instanceof HTMLElement) {
+                    facturacionEmitPreviewBox.classList.add('is-hidden');
+                }
+                if (facturacionEmitPreviewGrid instanceof HTMLElement) {
+                    facturacionEmitPreviewGrid.innerHTML = '';
+                }
+                if (facturacionEmitPreviewItems instanceof HTMLElement) {
+                    facturacionEmitPreviewItems.innerHTML = '';
+                }
+                if (facturacionEmitPreviewItemsMeta instanceof HTMLElement) {
+                    facturacionEmitPreviewItemsMeta.textContent = '0 items';
+                }
+                restoreFacturacionMonitorState();
             };
 
             openFacturacionShortcutBtn.addEventListener('click', openFacturacionShortcutModal);
@@ -7131,6 +7537,8 @@
                 let billingAutosaveTimeout = null;
                 let billingAutosavePromise = null;
                 const billingFields = facturacionBillingInlineForm.querySelectorAll('input:not([data-billing-email-toggle]), select');
+                const billingFrequentDemoSearchField = document.getElementById('facturacionBillingFrequentDemoSearch');
+                const billingFrequentDemoResults = document.getElementById('facturacionBillingFrequentDemoResults');
                 const billingDocumentTypeField = document.getElementById('facturacionBillingDocumentType');
                 const billingDocumentTypeHiddenField = document.getElementById('facturacionBillingDocumentTypeHidden');
                 const billingDocumentNumberField = document.getElementById('facturacionBillingDocumentNumber');
@@ -7138,6 +7546,9 @@
                 const billingNameField = document.getElementById('facturacionBillingName');
                 const billingEmailField = document.getElementById('facturacionBillingEmail');
                 const billingEmailToggle = document.getElementById('facturacionBillingEmailToggle');
+                let billingFrequentSearchTimeout = null;
+                let billingFrequentSearchRequestId = 0;
+                let billingFrequentSearchResults = [];
 
                 const setAutosaveState = (state, message) => {
                     if (!facturacionAutosaveState) {
@@ -7306,6 +7717,119 @@
                     }
                 };
 
+                const renderFrequentBillingResults = (matches, emptyMessage = '') => {
+                    if (!(billingFrequentDemoResults instanceof HTMLElement)) {
+                        return;
+                    }
+
+                    if (!Array.isArray(matches) || matches.length === 0) {
+                        billingFrequentDemoResults.innerHTML = emptyMessage !== ''
+                            ? `<div class="small text-muted" style="padding:8px 2px;">${emptyMessage}</div>`
+                            : '';
+                        return;
+                    }
+
+                    billingFrequentDemoResults.innerHTML = matches.map((client) => {
+                        const complementLabel = String(client.complemento_documento || '').trim() !== '' ? ` | Comp. ${client.complemento_documento}` : '';
+                        const docLabel = String(client.tipo_documento_label || client.tipo_documento || '');
+
+                        return `<button type="button" class="btn btn-sm btn-outline-primary" data-frequent-billing-pick="${client.id}" style="display:block; width:100%; text-align:left; margin-bottom:6px; white-space:normal;">
+                            <strong>${client.numero_documento}</strong> | ${docLabel}${complementLabel}<br>
+                            <span>${client.razon_social}</span>
+                        </button>`;
+                    }).join('');
+                };
+
+                const applyFrequentBillingClient = (selectedClient) => {
+                    if (!selectedClient) {
+                        return;
+                    }
+
+                    if (billingDocumentTypeField instanceof HTMLSelectElement) {
+                        billingDocumentTypeField.value = selectedClient.tipo_documento;
+                    }
+
+                    if (billingDocumentNumberField instanceof HTMLInputElement) {
+                        billingDocumentNumberField.value = selectedClient.numero_documento;
+                    }
+
+                    if (billingDocumentComplementField instanceof HTMLInputElement) {
+                        billingDocumentComplementField.value = selectedClient.complemento_documento || '';
+                    }
+
+                    if (billingNameField instanceof HTMLInputElement) {
+                        billingNameField.value = String(selectedClient.razon_social || '').toUpperCase();
+                    }
+
+                    if (billingEmailToggle instanceof HTMLInputElement) {
+                        billingEmailToggle.checked = String(selectedClient.correo_facturacion || '').trim() !== '';
+                    }
+
+                    if (billingEmailField instanceof HTMLInputElement) {
+                        billingEmailField.value = String(selectedClient.correo_facturacion || '').toLowerCase();
+                    }
+
+                    if (billingFrequentDemoSearchField instanceof HTMLInputElement) {
+                        billingFrequentDemoSearchField.value = selectedClient.numero_documento;
+                    }
+
+                    syncHiddenDocumentType();
+                    syncComplementVisibility();
+                    syncControlTributarioRule();
+                    syncBillingEmailMode(false);
+                    syncEmitFormsWithBillingState();
+                    window.clearTimeout(billingAutosaveTimeout);
+                    submitBillingInlineForm();
+                };
+
+                const searchFrequentBillingClients = (query) => {
+                    const normalizedQuery = String(query || '').trim();
+                    if (normalizedQuery === '') {
+                        billingFrequentSearchResults = [];
+                        renderFrequentBillingResults([], '');
+                        return;
+                    }
+
+                    if (normalizedQuery.length < 3) {
+                        billingFrequentSearchResults = [];
+                        renderFrequentBillingResults([], 'Escribe al menos 3 caracteres del documento para buscar.');
+                        return;
+                    }
+
+                    const requestId = ++billingFrequentSearchRequestId;
+                    const url = new URL(facturacionFrequentClientsSearchRoute, window.location.origin);
+                    url.searchParams.set('q', normalizedQuery);
+
+                    fetch(url.toString(), {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json',
+                        },
+                    })
+                        .then((response) => response.json().catch(() => ({})).then((data) => ({ response, data })))
+                        .then(({ response, data }) => {
+                            if (requestId !== billingFrequentSearchRequestId) {
+                                return;
+                            }
+
+                            if (!response.ok) {
+                                throw new Error('No se pudo buscar clientes frecuentes.');
+                            }
+
+                            const results = Array.isArray(data.results) ? data.results : [];
+                            billingFrequentSearchResults = results;
+                            renderFrequentBillingResults(results, String(data.message || ''));
+                        })
+                        .catch(() => {
+                            if (requestId !== billingFrequentSearchRequestId) {
+                                return;
+                            }
+
+                            billingFrequentSearchResults = [];
+                            renderFrequentBillingResults([], 'No se pudo consultar clientes frecuentes en este momento.');
+                        });
+                };
+
                 billingFields.forEach((field) => {
                     field.addEventListener('input', function () {
                         syncEmitFormsWithBillingState();
@@ -7397,6 +7921,40 @@
                 if (billingEmailToggle) {
                     billingEmailToggle.addEventListener('change', function () {
                         syncBillingEmailMode(true);
+                    });
+                }
+
+                if (billingFrequentDemoSearchField instanceof HTMLInputElement) {
+                    billingFrequentDemoSearchField.addEventListener('input', function () {
+                        const query = String(billingFrequentDemoSearchField.value || '').trim();
+                        window.clearTimeout(billingFrequentSearchTimeout);
+                        billingFrequentSearchTimeout = window.setTimeout(function () {
+                            searchFrequentBillingClients(query);
+                        }, 250);
+                    });
+                }
+
+                if (billingFrequentDemoResults instanceof HTMLElement) {
+                    billingFrequentDemoResults.addEventListener('click', function (event) {
+                        const target = event.target;
+                        if (!(target instanceof HTMLElement)) {
+                            return;
+                        }
+
+                        const button = target.closest('[data-frequent-billing-pick]');
+                        if (!(button instanceof HTMLElement)) {
+                            return;
+                        }
+
+                        const selectedId = Number(button.dataset.frequentBillingPick || '0');
+                        const selectedClient = billingFrequentSearchResults.find((client) => Number(client.id || '0') === selectedId);
+                        if (!selectedClient) {
+                            return;
+                        }
+
+                        applyFrequentBillingClient(selectedClient);
+                        billingFrequentSearchResults = [];
+                        renderFrequentBillingResults([], '');
                     });
                 }
 
@@ -7524,6 +8082,10 @@
                         try {
                             await submitFacturacionEmitForm(form);
                         } catch (error) {
+                            publishFacturacionMonitorEmitResultState({
+                                title: 'No se pudo emitir',
+                                message: 'La venta no pudo completar el flujo de facturacion.',
+                            }, null, false);
                             renderFacturacionShortcutFeedback({
                                 type: 'error',
                                 title: 'No se pudo completar la emision',

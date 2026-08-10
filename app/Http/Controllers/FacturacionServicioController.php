@@ -6,6 +6,7 @@ use App\Models\Cliente;
 use App\Models\ConceptoFacturacion;
 use App\Models\Empresa;
 use App\Services\FacturacionCartService;
+use App\Services\FacturacionClienteFrecuenteService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -92,7 +93,11 @@ class FacturacionServicioController extends Controller
         ]);
     }
 
-    public function store(Request $request, FacturacionCartService $service): RedirectResponse
+    public function store(
+        Request $request,
+        FacturacionCartService $service,
+        FacturacionClienteFrecuenteService $frequentClients
+    ): RedirectResponse
     {
         $user = $request->user();
         $this->authorizeFacturacionAccess($user);
@@ -224,6 +229,7 @@ class FacturacionServicioController extends Controller
             }
             $service->updateDraftBillingData($user, $billingPayload);
             $resultado = $service->emitirBorrador($user, $billingPayload);
+            $frequentClients->rememberFacturadaCart(data_get($resultado, 'carrito'));
 
             $respuesta = (array) ($resultado['respuesta'] ?? []);
             $facturaNumero = trim((string) (
