@@ -5,7 +5,6 @@ namespace App\Exports;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithEvents;
@@ -22,10 +21,6 @@ use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
 
 class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSize, WithEvents, WithHeadings, WithMapping, WithTitle
 {
-    private static array $temporaryImagePaths = [];
-
-    private static bool $temporaryImageCleanupRegistered = false;
-
     public function __construct(
         private readonly string $origin,
         private readonly Collection $rows,
@@ -276,7 +271,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
                         ->getNumberFormat()
                         ->setFormatCode('#,##0.00');
 
-                    $this->embedDeliveryImages($sheet, $dataStartRow);
+                    $this->addDeliveryImageLinks($sheet, $dataStartRow);
                 }
 
                 $sheet->getColumnDimension('U')->setAutoSize(false);
@@ -410,18 +405,6 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
             return null;
         }
 
-        if (
-            preg_match('/^data:image\//i', $imagePath) === 1
-            || preg_match('/^https?:\/\//i', $imagePath) === 1
-            || $this->looksLikeRawBase64($imagePath)
-        ) {
-            return null;
-        }
-
-        if (! Storage::disk('public')->exists($imagePath)) {
-            return null;
-        }
-
         $path = route('area-contratos.imagen-entrega.download', ['contrato' => $model->id], false);
         $baseUrl = (string) (config('app.public_download_url') ?: request()->getSchemeAndHttpHost() ?: config('app.url'));
         $baseUrl = rtrim($baseUrl, '/');
@@ -434,7 +417,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
         return trim((string) ($model->imagen ?? '')) !== '';
     }
 
-    private function embedDeliveryImages($sheet, int $dataStartRow): void
+    private function addDeliveryImageLinks($sheet, int $dataStartRow): void
     {
         foreach ($this->rows->values() as $index => $model) {
             if (! $model instanceof Model) {
@@ -447,38 +430,12 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
 
             $row = $dataStartRow + $index;
             $cell = 'U'.$row;
-            $imagePath = $this->resolveDeliveryImagePath($model);
-
-            if ($imagePath !== null) {
-                try {
-                    $drawing = new Drawing;
-                    $drawing->setName('Imagen de entrega '.((string) ($model->codigo ?? $model->id ?? '')));
-                    $drawing->setDescription('Evidencia fotográfica de la entrega');
-                    $drawing->setPath($imagePath);
-                    $drawing->setCoordinates($cell);
-                    $drawing->setResizeProportional(true);
-                    $drawing->setHeight(68);
-                    $drawing->setOffsetX(5);
-                    $drawing->setOffsetY(4);
-                    $drawing->setWorksheet($sheet);
-
-                    $sheet->setCellValue($cell, '');
-                    $sheet->getRowDimension($row)->setRowHeight(58);
-
-                    continue;
-                } catch (\Throwable) {
-                    // Si GD no reconoce el formato, se conserva el enlace como respaldo.
-                }
-            }
-
             $url = $this->resolveDeliveryImageUrl($model);
             if ($url === null) {
-                $sheet->setCellValue($cell, 'Formato de imagen no compatible');
-
                 continue;
             }
 
-            $sheet->setCellValue($cell, 'Descargar imagen');
+            $sheet->setCellValue($cell, 'DESCARGAR IMAGEN');
             $sheet->getCell($cell)->getHyperlink()->setUrl($url);
             $sheet->getStyle($cell)->applyFromArray([
                 'font' => [
@@ -496,87 +453,5 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
                 ],
             ]);
         }
-    }
-
-    private function resolveDeliveryImagePath(Model $model): ?string
-    {
-        $value = trim((string) ($model->imagen ?? ''));
-        if ($value === '') {
-            return null;
-        }
-
-        if (preg_match('/^data:image\/[a-z0-9.+-]+(?:;[^,]*)?;base64,(.*)$/is', $value, $matches) === 1) {
-            $encoded = preg_replace('/\s+/', '', $matches[1]) ?? '';
-            $binary = base64_decode($encoded, true);
-
-            return is_string($binary) && $binary !== ''
-                ? $this->storeTemporaryImage($binary)
-                : null;
-        }
-
-        if ($this->looksLikeRawBase64($value)) {
-            $encoded = preg_replace('/\s+/', '', $value) ?? '';
-            $binary = base64_decode($encoded, true);
-
-            return is_string($binary) && $binary !== ''
-                ? $this->storeTemporaryImage($binary)
-                : null;
-        }
-
-        if (preg_match('/^https?:\/\//i', $value) === 1 || ! Storage::disk('public')->exists($value)) {
-            return null;
-        }
-
-        try {
-            $path = Storage::disk('public')->path($value);
-            if (is_file($path)) {
-                return $path;
-            }
-        } catch (\Throwable) {
-            // Los discos remotos no siempre exponen una ruta local.
-        }
-
-        $binary = Storage::disk('public')->get($value);
-
-        return $binary !== '' ? $this->storeTemporaryImage($binary) : null;
-    }
-
-    private function storeTemporaryImage(string $binary): ?string
-    {
-        $path = tempnam(sys_get_temp_dir(), 'contrato-img-');
-        if ($path === false) {
-            return null;
-        }
-
-        if (file_put_contents($path, $binary) === false) {
-            @unlink($path);
-
-            return null;
-        }
-
-        self::$temporaryImagePaths[] = $path;
-        if (! self::$temporaryImageCleanupRegistered) {
-            self::$temporaryImageCleanupRegistered = true;
-            register_shutdown_function(static function (): void {
-                foreach (self::$temporaryImagePaths as $temporaryPath) {
-                    if (is_file($temporaryPath)) {
-                        @unlink($temporaryPath);
-                    }
-                }
-
-                self::$temporaryImagePaths = [];
-            });
-        }
-
-        return $path;
-    }
-
-    private function looksLikeRawBase64(string $value): bool
-    {
-        $encoded = preg_replace('/\s+/', '', $value) ?? '';
-
-        return strlen($encoded) >= 128
-            && preg_match('/^[A-Za-z0-9+\/=]+$/', $encoded) === 1
-            && base64_decode($encoded, true) !== false;
     }
 }

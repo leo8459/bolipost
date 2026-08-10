@@ -100,7 +100,7 @@ class AreaContratosReportesTest extends TestCase
         ));
     }
 
-    public function test_incrusta_una_imagen_base64_en_el_excel_para_impresion(): void
+    public function test_agrega_un_enlace_para_descargar_la_imagen_sin_incrustarla_en_el_excel(): void
     {
         $base64Png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
 
@@ -121,14 +121,33 @@ class AreaContratosReportesTest extends TestCase
             $deliveryDrawing = collect($sheet->getDrawingCollection())
                 ->first(fn ($drawing) => $drawing->getCoordinates() === 'U13');
 
-            $this->assertNotNull($deliveryDrawing);
-            $this->assertNull($sheet->getCell('U13')->getValue());
-            $this->assertSame(58.0, $sheet->getRowDimension(13)->getRowHeight());
+            $this->assertNull($deliveryDrawing);
+            $this->assertSame('DESCARGAR IMAGEN', $sheet->getCell('U13')->getValue());
+            $this->assertStringContainsString(
+                '/area-contratos/imagen-entrega/1/descargar',
+                $sheet->getCell('U13')->getHyperlink()->getUrl()
+            );
         } finally {
             if (is_string($path) && is_file($path)) {
                 unlink($path);
             }
         }
+    }
+
+    public function test_descarga_una_imagen_guardada_en_base64(): void
+    {
+        $base64Png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+
+        DB::table('paquetes_contrato')->where('id', 1)->update([
+            'imagen' => 'data:image/png;base64,'.$base64Png,
+        ]);
+
+        $response = $this->get(route('area-contratos.imagen-entrega.download', ['contrato' => 1]));
+
+        $response->assertOk();
+        $response->assertHeader('content-type', 'image/png');
+        $response->assertHeader('content-disposition', 'attachment; filename="imagen-entrega-CONTRATO-1.png"');
+        $this->assertSame(base64_decode($base64Png), $response->getContent());
     }
 
     public function test_agrupa_empresas_y_filtra_contratos_por_codigo_cliente(): void

@@ -185,6 +185,27 @@ class AreaContratosController extends Controller
         $imagePath = trim((string) ($contrato->imagen ?? ''));
 
         abort_if($imagePath === '', 404);
+
+        if (preg_match('/^https?:\/\//i', $imagePath) === 1) {
+            return redirect()->away($imagePath);
+        }
+
+        if (preg_match('/^data:(image\/[a-z0-9.+-]+)(?:;[^,]*)?;base64,(.*)$/is', $imagePath, $matches) === 1) {
+            $binary = base64_decode(preg_replace('/\s+/', '', $matches[2]) ?? '', true);
+            abort_if(! is_string($binary) || $binary === '', 404);
+
+            return $this->downloadImageBinary($contrato, $binary, strtolower($matches[1]));
+        }
+
+        $encoded = preg_replace('/\s+/', '', $imagePath) ?? '';
+        if (
+            strlen($encoded) >= 128
+            && preg_match('/^[A-Za-z0-9+\/=]+$/', $encoded) === 1
+            && ($binary = base64_decode($encoded, true)) !== false
+        ) {
+            return $this->downloadImageBinary($contrato, $binary);
+        }
+
         abort_if(! Storage::disk('public')->exists($imagePath), 404);
 
         $extension = pathinfo($imagePath, PATHINFO_EXTENSION);
@@ -195,6 +216,33 @@ class AreaContratosController extends Controller
         }
 
         return Storage::disk('public')->download($imagePath, $filename);
+    }
+
+    private function downloadImageBinary(Recojo $contrato, string $binary, ?string $declaredMime = null)
+    {
+        $detectedMime = function_exists('getimagesizefromstring')
+            ? (getimagesizefromstring($binary)['mime'] ?? null)
+            : null;
+        $mime = is_string($detectedMime) ? strtolower($detectedMime) : strtolower((string) $declaredMime);
+
+        abort_if(! str_starts_with($mime, 'image/'), 404);
+
+        $extension = match ($mime) {
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/gif' => 'gif',
+            'image/webp' => 'webp',
+            'image/bmp' => 'bmp',
+            default => 'img',
+        };
+        $code = preg_replace('/[^A-Za-z0-9_-]+/', '-', (string) ($contrato->codigo ?: $contrato->id)) ?: (string) $contrato->id;
+        $filename = 'imagen-entrega-'.trim($code, '-').'.'.$extension;
+
+        return response($binary, 200, [
+            'Content-Type' => $mime,
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Content-Length' => (string) strlen($binary),
+        ]);
     }
 
     private function buildEntregadosQuery(string $search, array $estadoIds)
