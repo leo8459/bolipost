@@ -2507,7 +2507,7 @@ class PaquetesEmsController extends Controller
             ->first();
 
         if (! $tarifario) {
-            throw new \RuntimeException('No existe tarifario tiktoker para el servicio, origen y destino seleccionados.');
+            throw new \RuntimeException('No existe tarifario Delivery Express para el servicio, origen y destino seleccionados.');
         }
 
         return [$tarifario, $this->calculatePrecioTiktoker($tarifario, $peso, $pagoDestinatario)];

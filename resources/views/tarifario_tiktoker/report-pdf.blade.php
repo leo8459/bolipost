@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Reporte Tarifario Tiktoker</title>
+    <title>Reporte Tarifario Delivery Express</title>
     <style>
         @page {
             margin: 20px 24px;
@@ -110,7 +110,7 @@
         $regionalLabel = fn ($name) => $regionalNameMap[strtoupper(trim((string) $name))] ?? strtoupper(trim((string) $name));
     @endphp
     <div class="header">
-        <div class="title">Reporte Tarifario Tiktoker</div>
+        <div class="title">Reporte Tarifario Delivery Express</div>
         <table class="meta">
             <tr>
                 <td><strong>Fecha de generacion:</strong> {{ $generatedAt->format('d/m/Y H:i') }}</td>

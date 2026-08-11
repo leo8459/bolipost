@@ -20,7 +20,7 @@ class PerformanceController extends Controller
         'CONTRATO' => 'CONTRATOS',
         'CERTI' => 'CERTIFICADOS',
         'ORDI' => 'ORDINARIOS',
-        'TIKTOKER' => 'TIKTOKER',
+        'DELIVERY EXPRESS' => 'DELIVERY EXPRESS',
         'DESPACHO' => 'DESPACHOS',
     ];
 
@@ -389,7 +389,7 @@ class PerformanceController extends Controller
                 )
                 ->selectRaw("
                     t.id as record_id,
-                    'TIKTOKER' as servicio,
+                    'DELIVERY EXPRESS' as servicio,
                     t.codigo,
                     t.evento_id,
                     e.nombre_evento as evento_nombre,

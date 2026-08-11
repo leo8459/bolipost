@@ -1,7 +1,7 @@
 @extends('adminlte::page')
-@section('title', 'Editar Tarifario Tiktoker')
+@section('title', 'Editar Tarifario Delivery Express')
 @section('template_title')
-    Tarifario Tiktoker
+    Tarifario Delivery Express
 @endsection
 
 @section('content')
@@ -20,7 +20,7 @@
 
                 <div class="card card-default">
                     <div class="card-header">
-                        <span class="card-title">Editar Tarifario Tiktoker</span>
+                        <span class="card-title">Editar Tarifario Delivery Express</span>
                     </div>
                     <div class="card-body">
                         <form method="POST" action="{{ route('tarifario-tiktoker.update', $tarifa->id) }}" role="form">

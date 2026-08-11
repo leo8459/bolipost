@@ -403,8 +403,8 @@ class EventosTabla extends Component
                 'table' => 'eventos_contrato',
             ],
             'tiktoker' => [
-                'title' => 'Eventos TIKTOKER',
-                'singular' => 'Registro TIKTOKER',
+                'title' => 'Eventos Delivery Express',
+                'singular' => 'Registro Delivery Express',
                 'table' => 'eventos_tiktoker',
             ],
             'despacho' => [

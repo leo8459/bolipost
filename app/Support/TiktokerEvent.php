@@ -59,19 +59,19 @@ final class TiktokerEvent
     {
         return match ($nombreEvento) {
             self::SOLICITUD_REGISTRADA => [
-                'Solicitud TikToker registrada.',
+                'Solicitud Delivery Express registrada.',
             ],
             self::RECIBIDA_ALMACEN => [
-                'Solicitud TikToker recibida en almacen.',
+                'Solicitud Delivery Express recibida en almacen.',
             ],
             self::ENVIADA_SACA_INTERNA => [
-                'Solicitud TikToker enviada en saca interna.',
+                'Solicitud Delivery Express enviada en saca interna.',
             ],
             self::RECIBIDA_TRANSITO => [
-                'Solicitud TikToker recibida en oficina origen de transito.',
+                'Solicitud Delivery Express recibida en oficina origen de transito.',
             ],
             self::RECIBIDA_VENTANILLA => [
-                'Solicitud TikToker recibida en ventanilla EMS.',
+                'Solicitud Delivery Express recibida en ventanilla EMS.',
             ],
             default => [],
         };

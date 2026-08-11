@@ -1,7 +1,7 @@
 @extends('adminlte::page')
-@section('title', 'Tarifario Tiktoker')
+@section('title', 'Tarifario Delivery Express')
 @section('template_title')
-    Tarifario Tiktoker
+    Tarifario Delivery Express
 @endsection
 
 @section('content')
@@ -15,7 +15,7 @@
                 <div class="card">
                     <div class="card-header">
                         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
-                            <span id="card_title">Administracion de Tarifario Tiktoker</span>
+                            <span id="card_title">Administracion de Tarifario Delivery Express</span>
                             <div class="d-flex" style="gap:8px;">
                                 <a href="{{ route('tarifario-tiktoker.pdf', request()->query()) }}" class="btn btn-outline-danger btn-sm" target="_blank">
                                     Reporte PDF
@@ -153,7 +153,7 @@
                                                         type="submit"
                                                         class="btn btn-danger btn-sm"
                                                         title="Eliminar"
-                                                        onclick="return confirm('Seguro que deseas eliminar este tarifario tiktoker?')"
+                                                        onclick="return confirm('Seguro que deseas eliminar este tarifario Delivery Express?')"
                                                     >
                                                         <i class="fa fa-fw fa-trash"></i>
                                                     </button>

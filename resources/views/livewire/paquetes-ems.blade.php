@@ -1078,7 +1078,7 @@
                                     @endif
                                     @if ($canEmsWeighTiktoker)
                                     <button class="btn btn-outline-light2" type="button" wire:click="openTiktokerPesoModal">
-                                        Asignar peso a TIKTOKEROS
+                                        Asignar peso a Delivery Express
                                     </button>
                                     @endif
                                     @if ($canEmsSendVentanilla)
@@ -3444,7 +3444,7 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Asignar peso a TIKTOKEROS</h5>
+                    <h5 class="modal-title">Asignar peso a Delivery Express</h5>
                     <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                         <span aria-hidden="true">&times;</span>
                     </button>

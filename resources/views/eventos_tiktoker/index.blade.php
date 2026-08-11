@@ -1,7 +1,7 @@
 @extends('adminlte::page')
-@section('title', 'Eventos TIKTOKER')
+@section('title', 'Eventos Delivery Express')
 @section('template_title')
-    Eventos TIKTOKER
+    Eventos Delivery Express
 @endsection
 
 @section('content')

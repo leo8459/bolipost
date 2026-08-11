@@ -1302,6 +1302,24 @@
     @endif
 
     </div>
+
+    <div
+        id="dashboardFilterLoadingModal"
+        class="dashboard-filter-loading-modal d-none"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dashboardFilterLoadingTitle"
+        aria-describedby="dashboardFilterLoadingMessage"
+    >
+        <div class="dashboard-filter-loading-backdrop"></div>
+        <div class="dashboard-filter-loading-dialog" role="document">
+            <div class="spinner-border text-primary mb-3" role="status" aria-hidden="true"></div>
+            <h4 id="dashboardFilterLoadingTitle" class="mb-2">Ejecutando filtrado</h4>
+            <p id="dashboardFilterLoadingMessage" class="mb-0 text-muted" aria-live="polite">
+                Por favor espere mientras se actualiza la información del dashboard.
+            </p>
+        </div>
+    </div>
     @include('footer')
 @stop
 
@@ -1323,6 +1341,35 @@
         #dashboardApp .card:hover {
             transform: translateY(-2px);
             box-shadow: 0 9px 22px rgba(13, 32, 67, .10);
+        }
+        .dashboard-filter-loading-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 2050;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+        .dashboard-filter-loading-modal.d-none {
+            display: none !important;
+        }
+        .dashboard-filter-loading-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(11, 24, 44, .58);
+        }
+        .dashboard-filter-loading-dialog {
+            position: relative;
+            width: min(100%, 430px);
+            padding: 2rem;
+            border-radius: 12px;
+            background: #fff;
+            box-shadow: 0 18px 55px rgba(0, 0, 0, .28);
+            text-align: center;
+        }
+        body.dashboard-filter-loading {
+            overflow: hidden;
         }
         .card-filtro {
             border-top: 3px solid #20539a;
@@ -1589,6 +1636,8 @@
         const chartFullscreenButtons = document.querySelectorAll('[data-chart-fullscreen]');
         const chartCards = document.querySelectorAll('.chart-card');
         const dashboardFiltersForm = document.getElementById('dashboardFiltersForm');
+        const dashboardFilterLoadingModal = document.getElementById('dashboardFilterLoadingModal');
+        const dashboardFilterLoadingMessage = document.getElementById('dashboardFilterLoadingMessage');
         const advancedFiltersPanel = document.getElementById('advancedFiltersPanel');
         const toggleAdvancedFiltersBtn = document.getElementById('toggleAdvancedFilters');
         const toggleAdvancedFiltersText = document.getElementById('toggleAdvancedFiltersText');
@@ -1736,16 +1785,58 @@
             setTimeout(resizeAllCharts, 120);
         };
 
-        const submitFiltersWithMessage = (message = 'Aplicando filtros...') => {
+        let isFilterSubmissionInProgress = false;
+
+        const showFilterLoadingModal = (message = 'Por favor espere mientras se actualiza la información del dashboard.') => {
+            if (dashboardFilterLoadingMessage) {
+                dashboardFilterLoadingMessage.textContent = message;
+            }
+
+            if (dashboardFilterLoadingModal) {
+                dashboardFilterLoadingModal.classList.remove('d-none');
+            }
+
+            document.body.classList.add('dashboard-filter-loading');
+            dashboardFiltersForm?.querySelectorAll('button[type="submit"]').forEach((button) => {
+                button.disabled = true;
+            });
+        };
+
+        const executeFilterSubmission = (message, submitter = null) => {
             if (!dashboardFiltersForm) {
                 return;
+            }
+
+            if (isFilterSubmissionInProgress) {
+                return;
+            }
+
+            isFilterSubmissionInProgress = true;
+
+            if (submitter?.name && submitter.value) {
+                const targetField = dashboardFiltersForm.querySelector(`input[type="hidden"][name="${submitter.name}"]`);
+                if (targetField) {
+                    targetField.value = submitter.value;
+                }
             }
 
             if (dashboardPresetStatus) {
                 dashboardPresetStatus.textContent = message;
             }
 
-            dashboardFiltersForm.submit();
+            showFilterLoadingModal(
+                message === 'Actualizando KPI automaticamente...'
+                    ? 'Ejecutando filtrado automático. Por favor espere.'
+                    : 'Por favor espere mientras se aplican los filtros seleccionados.'
+            );
+
+            window.setTimeout(() => {
+                HTMLFormElement.prototype.submit.call(dashboardFiltersForm);
+            }, 100);
+        };
+
+        const submitFiltersWithMessage = (message = 'Aplicando filtros...') => {
+            executeFilterSubmission(message);
         };
 
         const getRenderedCharts = () => [chartModulos, chartEstados, chartVersus, chartTendencia].filter(Boolean);
@@ -2427,6 +2518,22 @@
                 applyTopFiltersState();
             });
         }
+
+        if (dashboardFiltersForm) {
+            dashboardFiltersForm.addEventListener('submit', (event) => {
+                event.preventDefault();
+                executeFilterSubmission('Aplicando filtros...', event.submitter);
+            });
+        }
+
+        window.addEventListener('pageshow', () => {
+            isFilterSubmissionInProgress = false;
+            dashboardFilterLoadingModal?.classList.add('d-none');
+            document.body.classList.remove('dashboard-filter-loading');
+            dashboardFiltersForm?.querySelectorAll('button[type="submit"]').forEach((button) => {
+                button.disabled = false;
+            });
+        });
 
         let autoFilterTimer = null;
         autoFilterFields.forEach((field) => {

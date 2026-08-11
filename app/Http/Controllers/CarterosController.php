@@ -2098,6 +2098,9 @@ class CarterosController extends Controller
                 }
 
                 $query->whereIn('id', $emsFilterIds ?: [0]);
+                if ($estadoId !== null) {
+                    $query->where('estado_id', $estadoId);
+                }
             })
             ->get()
             ->map(function ($item) use ($useUpdatedAtAsFecha) {
@@ -2155,6 +2158,9 @@ class CarterosController extends Controller
                 }
 
                 $query->whereIn('id', $certiFilterIds ?: [0]);
+                if ($estadoId !== null) {
+                    $query->where('fk_estado', $estadoId);
+                }
             })
             ->get()
             ->map(function ($item) use ($useUpdatedAtAsFecha) {
@@ -2213,6 +2219,9 @@ class CarterosController extends Controller
                 }
 
                 $query->whereIn('id', $ordiFilterIds ?: [0]);
+                if ($estadoId !== null) {
+                    $query->where('fk_estado', $estadoId);
+                }
             })
             ->get()
             ->map(function ($item) use ($useUpdatedAtAsFecha) {
@@ -2272,6 +2281,9 @@ class CarterosController extends Controller
                 }
 
                 $query->whereIn('id', $contratoFilterIds ?: [0]);
+                if ($estadoId !== null) {
+                    $query->where('estados_id', $estadoId);
+                }
             })
             ->get()
             ->map(function ($item) use ($useUpdatedAtAsFecha) {
@@ -2333,6 +2345,9 @@ class CarterosController extends Controller
                 }
 
                 $query->whereIn('id', $solicitudFilterIds ?: [0]);
+                if ($estadoId !== null) {
+                    $query->where('estado_id', $estadoId);
+                }
             })
             ->get()
             ->map(function ($item) use ($useUpdatedAtAsFecha) {

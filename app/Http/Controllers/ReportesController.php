@@ -32,7 +32,7 @@ class ReportesController extends Controller
         'PAQUETES CONTRATOS',
         'PAQUETES CERTI',
         'PAQUETES ORDI',
-        'SOLICITUD TIKTOKEROS',
+        'DELIVERY EXPRESS',
     ];
 
     private const MODULES = [
@@ -1253,7 +1253,7 @@ class ReportesController extends Controller
             'contrato' => 'PAQUETES CONTRATOS',
             'certi' => 'PAQUETES CERTI',
             'ordi' => 'PAQUETES ORDI',
-            'tiktoker' => 'SOLICITUD TIKTOKEROS',
+            'tiktoker' => 'DELIVERY EXPRESS',
             default => 'PAQUETES EMS',
         };
     }
@@ -1271,7 +1271,7 @@ class ReportesController extends Controller
             'PAQUETES CONTRATOS' => 'PAQUETES CONTRATOS',
             'PAQUETES CERTI' => 'PAQUETES CERTI',
             'PAQUETES ORDI' => 'PAQUETES ORDI',
-            'SOLICITUD TIKTOKEROS' => 'SOLICITUD TIKTOKEROS',
+            'DELIVERY EXPRESS' => 'DELIVERY EXPRESS',
             default => $normalizedService !== '' ? $normalizedService : 'SIN SERVICIO',
         };
     }
@@ -1294,7 +1294,7 @@ class ReportesController extends Controller
             })
             ->select([
                 DB::raw("'tiktoker' as modulo_key"),
-                DB::raw("'SOLICITUD TIKTOKEROS' as modulo_label"),
+                DB::raw("'DELIVERY EXPRESS' as modulo_label"),
                 DB::raw("coalesce(nullif(trim(t.codigo_solicitud), ''), nullif(trim(t.barcode), ''), 'SIN CODIGO') as codigo"),
                 DB::raw('t.estado_id as estado_id'),
                 DB::raw("coalesce(e.nombre_estado, '-') as estado_nombre"),
@@ -1308,7 +1308,7 @@ class ReportesController extends Controller
                 DB::raw("'' as usuario_roles"),
                 DB::raw("'-' as usuario_regional"),
                 DB::raw("'' as usuario_regionales"),
-                DB::raw("'SOLICITUD TIKTOKEROS' as servicio_nombre"),
+                DB::raw("'DELIVERY EXPRESS' as servicio_nombre"),
                 DB::raw('0 as entregado_por_id'),
                 DB::raw("coalesce((select u.name from users u where u.id = et.user_id limit 1), 'Sin entrega registrada') as entregado_por"),
                 DB::raw("'' as entregado_por_roles"),

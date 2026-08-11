@@ -1846,12 +1846,12 @@ class PaquetesEms extends Component
         if (!$solicitud) {
             $this->tiktokerSolicitudId = null;
             $this->tiktokerPesoResumen = null;
-            session()->flash('error', 'No se encontro una solicitud tiktokera valida con ese codigo.');
+            session()->flash('error', 'No se encontro una solicitud Delivery Express valida con ese codigo.');
             return;
         }
 
         $this->hydrateSolicitudTiktokerPesoDetectedData($solicitud);
-        session()->flash('success', 'Solicitud tiktokera detectada. Ya puedes asignar el peso.');
+        session()->flash('success', 'Solicitud Delivery Express detectada. Ya puedes asignar el peso.');
     }
 
     public function guardarPesoSolicitudTiktoker()
@@ -1876,7 +1876,7 @@ class PaquetesEms extends Component
         if (!$solicitud) {
             $this->tiktokerSolicitudId = null;
             $this->tiktokerPesoResumen = null;
-            $this->addError('tiktokerCodigoPeso', 'No se encontro una solicitud tiktokera valida con ese codigo.');
+            $this->addError('tiktokerCodigoPeso', 'No se encontro una solicitud Delivery Express valida con ese codigo.');
             return;
         }
 
@@ -1934,7 +1934,7 @@ class PaquetesEms extends Component
         ]);
 
         $this->dispatch('closeTiktokerPesoModal');
-        session()->flash('success', 'Peso asignado a solicitud tiktokera, precio recalculado y estado cambiado a ALMACEN.');
+        session()->flash('success', 'Peso asignado a solicitud Delivery Express, precio recalculado y estado cambiado a ALMACEN.');
     }
 
     protected function findSolicitudTiktokerForPesoByCodigo(string $codigo): ?SolicitudCliente
@@ -7796,7 +7796,7 @@ class PaquetesEms extends Component
             ->first();
 
         if (!$tarifario) {
-            throw new \RuntimeException('No existe tarifario tiktoker para el servicio, origen y destino seleccionados.');
+            throw new \RuntimeException('No existe tarifario Delivery Express para el servicio, origen y destino seleccionados.');
         }
 
         return [$tarifario, $this->calculatePrecioTiktokerInterno($tarifario, $peso, $pagoDestinatario)];

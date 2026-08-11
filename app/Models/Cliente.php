@@ -32,7 +32,13 @@ class Cliente extends Authenticatable
     {
         $roleNames = method_exists($this, 'getRoleNames') ? $this->getRoleNames()->implode(', ') : '';
 
-        return $roleNames !== '' ? $roleNames : (string) ($this->rol ?: 'tiktokero');
+        if ($roleNames !== '') {
+            return $roleNames;
+        }
+
+        $fallbackRole = (string) ($this->rol ?: 'tiktokero');
+
+        return strtolower($fallbackRole) === 'tiktokero' ? 'Delivery Express' : $fallbackRole;
     }
 
     public function adminlte_profile_url(): string

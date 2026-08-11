@@ -1006,7 +1006,7 @@ return [
                     'icon' => 'fas fa-file-contract',
                 ],
                 [
-                    'text' => 'Eventos Tiktoker',
+                    'text' => 'Eventos Delivery Express',
                     'url' => 'eventos-tiktoker',
                     'icon' => 'fas fa-hashtag',
                 ],
@@ -1094,7 +1094,7 @@ return [
                             'icon' => 'fas fa-file-invoice-dollar',
                         ],
                         [
-                            'text' => 'Tarifario Tiktoker',
+                            'text' => 'Tarifario Delivery Express',
                             'url' => 'tarifario-tiktoker',
                             'icon' => 'fas fa-hashtag',
                         ],

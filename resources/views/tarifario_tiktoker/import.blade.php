@@ -1,7 +1,7 @@
 @extends('adminlte::page')
-@section('title', 'Importar Tarifario Tiktoker')
+@section('title', 'Importar Tarifario Delivery Express')
 @section('template_title')
-    Importar Tarifario Tiktoker
+    Importar Tarifario Delivery Express
 @endsection
 
 @section('content')
@@ -35,7 +35,7 @@
 
                 <div class="card card-default">
                     <div class="card-header">
-                        <span class="card-title">Importacion Masiva de Tarifario Tiktoker (Excel)</span>
+                        <span class="card-title">Importacion Masiva de Tarifario Delivery Express (Excel)</span>
                     </div>
                     <div class="card-body">
                         <div class="mb-3">
@@ -81,7 +81,7 @@
     </section>
     <div id="tiktoker-import-loader" class="tiktoker-import-loader" hidden>
         <div class="tiktoker-import-loader-card">
-            <div class="tiktoker-import-loader-title">Importando tarifario tiktoker</div>
+            <div class="tiktoker-import-loader-title">Importando tarifario Delivery Express</div>
             <div id="tiktoker-import-loader-subtitle" class="tiktoker-import-loader-subtitle">Subiendo archivo...</div>
             <div class="tiktoker-import-progress">
                 <div id="tiktoker-import-progress-bar" class="tiktoker-import-progress-bar"></div>

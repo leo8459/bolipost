@@ -122,7 +122,7 @@ class EventosSiopApiController extends Controller
             'eventos_ordi' => 'ORDI',
             'eventos_contrato' => 'CONTRATO',
             'eventos_despacho' => 'DESPACHO',
-            'eventos_tiktoker' => 'TIKTOKER',
+            'eventos_tiktoker' => 'DELIVERY EXPRESS',
         ];
     }
 

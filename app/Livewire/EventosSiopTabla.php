@@ -395,7 +395,7 @@ class EventosSiopTabla extends Component
                 ->selectRaw("
                     t.id as record_id,
                     'eventos_tiktoker' as source_table,
-                    'TIKTOKER' as servicio,
+                    'DELIVERY EXPRESS' as servicio,
                     t.codigo,
                     t.evento_id,
                     e.nombre_evento as evento_nombre,
@@ -603,7 +603,7 @@ class EventosSiopTabla extends Component
             'eventos_ordi' => 'ORDI',
             'eventos_contrato' => 'CONTRATO',
             'eventos_despacho' => 'DESPACHO',
-            'eventos_tiktoker' => 'TIKTOKER',
+            'eventos_tiktoker' => 'DELIVERY EXPRESS',
         ];
     }
 

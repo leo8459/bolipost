@@ -244,11 +244,11 @@
                                                 'codigo' => $paquete->codigo,
                                                 'class' => 'btn btn-sm btn-outline-info',
                                             ])
-                                            @if($paquete->type_key === 'contrato')
+                                            @if(in_array($paquete->type_key, ['contrato', 'ems'], true))
                                                 <a
                                                     href="{{ route('todos-paquetes.guia', ['type' => $paquete->type_key, 'id' => $paquete->record_id]) }}"
                                                     class="btn btn-sm btn-outline-success"
-                                                    title="Reimprimir guia de empresa"
+                                                    title="{{ $paquete->type_key === 'ems' ? 'Reimprimir boleta EMS' : 'Reimprimir guia de empresa' }}"
                                                     target="_blank"
                                                 >
                                                     <i class="fas fa-print"></i>
@@ -332,10 +332,10 @@
                                         <i class="fas fa-file-pdf"></i> Reporte
                                     </a>
                                 @endif
-                                @if($paquete->type_key === 'contrato')
+                                @if(in_array($paquete->type_key, ['contrato', 'ems'], true))
                                     <a href="{{ route('todos-paquetes.guia', ['type' => $paquete->type_key, 'id' => $paquete->record_id]) }}"
                                        class="btn btn-outline-success" target="_blank">
-                                        <i class="fas fa-print"></i> Guia
+                                        <i class="fas fa-print"></i> {{ $paquete->type_key === 'ems' ? 'Boleta EMS' : 'Guia' }}
                                     </a>
                                 @endif
                                 @aclcan('edit', null, 'todos-paquetes.index')

@@ -90,7 +90,7 @@ class TarifarioTiktokerController extends Controller
             'filters' => $this->buildFilterSummary($filters),
         ])->setPaper('A4', 'landscape');
 
-        return $pdf->stream('tarifario-tiktoker-' . now()->format('Ymd-His') . '.pdf');
+        return $pdf->stream('tarifario-delivery-express-' . now()->format('Ymd-His') . '.pdf');
     }
 
     public function downloadReportExcel(Request $request)
@@ -103,7 +103,7 @@ class TarifarioTiktokerController extends Controller
             ->get();
 
         $groupedTarifas = $this->groupTarifasByOrigen($tarifas);
-        $filename = 'tarifario_tiktoker_' . now()->format('Ymd_His') . '.xlsx';
+        $filename = 'tarifario_delivery_express_' . now()->format('Ymd_His') . '.xlsx';
         $filterSummary = $this->buildFilterSummary($filters);
 
         return response()->streamDownload(function () use ($groupedTarifas, $tarifas, $filterSummary) {
@@ -112,7 +112,7 @@ class TarifarioTiktokerController extends Controller
             $summarySheet->setTitle('Resumen');
 
             $summarySheet->mergeCells('A1:H1');
-            $summarySheet->setCellValue('A1', 'REPORTE TARIFARIO TIKTOKER');
+            $summarySheet->setCellValue('A1', 'REPORTE TARIFARIO DELIVERY EXPRESS');
             $summarySheet->mergeCells('A2:H2');
             $summarySheet->setCellValue('A2', 'Generado el ' . now()->format('d/m/Y H:i'));
 
@@ -160,7 +160,7 @@ class TarifarioTiktokerController extends Controller
                 $sheet->setTitle($this->sheetTitleForDepartment($department, $sheetIndex - 1));
 
                 $sheet->mergeCells('A1:H1');
-                $sheet->setCellValue('A1', 'TARIFARIO TIKTOKER - ' . $department);
+                $sheet->setCellValue('A1', 'TARIFARIO DELIVERY EXPRESS - ' . $department);
                 $sheet->mergeCells('A2:H2');
                 $sheet->setCellValue('A2', 'Registros: ' . $items->count());
                 $sheet->fromArray([
@@ -219,7 +219,7 @@ class TarifarioTiktokerController extends Controller
 
         return redirect()
             ->route('tarifario-tiktoker.index')
-            ->with('success', 'Tarifario tiktoker creado correctamente.');
+            ->with('success', 'Tarifario Delivery Express creado correctamente.');
     }
 
     public function edit(TarifarioTiktoker $tarifarioTiktoker)
@@ -239,7 +239,7 @@ class TarifarioTiktokerController extends Controller
 
         return redirect()
             ->route('tarifario-tiktoker.index')
-            ->with('success', 'Tarifario tiktoker actualizado correctamente.');
+            ->with('success', 'Tarifario Delivery Express actualizado correctamente.');
     }
 
     public function destroy(TarifarioTiktoker $tarifarioTiktoker)
@@ -248,7 +248,7 @@ class TarifarioTiktokerController extends Controller
 
         return redirect()
             ->route('tarifario-tiktoker.index')
-            ->with('success', 'Tarifario tiktoker eliminado correctamente.');
+            ->with('success', 'Tarifario Delivery Express eliminado correctamente.');
     }
 
     public function importForm()
@@ -298,7 +298,9 @@ class TarifarioTiktokerController extends Controller
             return back()->withErrors(['archivo' => 'No se pudo leer el archivo Excel.'])->withInput();
         }
 
-        $sheet = $spreadsheet->getSheetByName('TarifarioTiktoker') ?: $spreadsheet->getSheet(0);
+        $sheet = $spreadsheet->getSheetByName('DeliveryExpress')
+            ?: $spreadsheet->getSheetByName('TarifarioTiktoker')
+            ?: $spreadsheet->getSheet(0);
         $rows = $sheet->toArray(null, true, true, false);
 
         if (empty($rows)) {
@@ -409,7 +411,7 @@ class TarifarioTiktokerController extends Controller
         return response()->streamDownload(function () use ($origenes, $destinos, $servicioExtras) {
             $spreadsheet = new Spreadsheet();
             $sheet = $spreadsheet->getActiveSheet();
-            $sheet->setTitle('TarifarioTiktoker');
+            $sheet->setTitle('DeliveryExpress');
             $sheet->fromArray(self::IMPORT_COLUMNS, null, 'A1');
 
             $sheet->getStyle('A1:H1')->applyFromArray([
@@ -470,7 +472,7 @@ class TarifarioTiktokerController extends Controller
             $sheetInstrucciones = $spreadsheet->createSheet();
             $sheetInstrucciones->setTitle('Instrucciones');
             $sheetInstrucciones->setCellValue('A1', 'INSTRUCCIONES DE USO');
-            $sheetInstrucciones->setCellValue('A3', '1) No cambies los nombres de columnas en la hoja TarifarioTiktoker.');
+            $sheetInstrucciones->setCellValue('A3', '1) No cambies los nombres de columnas en la hoja DeliveryExpress.');
             $sheetInstrucciones->setCellValue('A4', '2) Usa los nombres de departamento de las hojas Origenes y Destinos.');
             $sheetInstrucciones->setCellValue('A5', '3) servicio_extra y peso3 pueden quedar vacios.');
             $sheetInstrucciones->setCellValue('A6', '4) origen y destino deben escribirse exactamente como en las listas.');
@@ -490,7 +492,7 @@ class TarifarioTiktokerController extends Controller
 
             $writer = new Xlsx($spreadsheet);
             $writer->save('php://output');
-        }, 'plantilla_tarifario_tiktoker.xlsx', [
+        }, 'plantilla_tarifario_delivery_express.xlsx', [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
     }

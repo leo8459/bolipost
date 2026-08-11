@@ -214,7 +214,7 @@
             <div class="siop-header d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
                 <div>
                     <h3 class="mb-0 font-weight-bold">Eventos SIOP</h3>
-                    <div class="siop-subtitle">Busca y registra eventos de EMS, CERTI, ORDI, CONTRATO, DESPACHO y TIKTOKER desde una sola vista.</div>
+                    <div class="siop-subtitle">Busca y registra eventos de EMS, CERTI, ORDI, CONTRATO, DESPACHO y Delivery Express desde una sola vista.</div>
                 </div>
 
                 @if ($canEventosCreate)

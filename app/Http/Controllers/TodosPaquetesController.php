@@ -26,15 +26,21 @@ use Maatwebsite\Excel\Facades\Excel;
 class TodosPaquetesController extends Controller
 {
     private const DEPARTAMENTOS = [
-        'BENI',
-        'CHUQUISACA',
+        'TRINIDAD',
+        'SUCRE',
         'COCHABAMBA',
         'LA PAZ',
         'ORURO',
-        'PANDO',
+        'COBIJA',
         'POTOSI',
         'SANTA CRUZ',
         'TARIJA',
+    ];
+
+    private const LOCATION_ALIASES = [
+        'BENI' => 'TRINIDAD',
+        'CHUQUISACA' => 'SUCRE',
+        'PANDO' => 'COBIJA',
     ];
 
     private const DISTRIBUTION_ASSIGNEE_ROLES = [
@@ -165,6 +171,12 @@ class TodosPaquetesController extends Controller
         $query = $this->filteredPackagesQuery($filters);
 
         $paquetes = $query->paginate(25)->withQueryString();
+        $paquetes->getCollection()->transform(function ($paquete) {
+            $paquete->origen = $this->canonicalLocationName((string) $paquete->origen);
+            $paquete->destino = $this->canonicalLocationName((string) $paquete->destino);
+
+            return $paquete;
+        });
         $this->attachSalidaReports($paquetes->getCollection());
         $estados = Estado::query()->orderBy('nombre_estado')->get(['id', 'nombre_estado']);
         $editing = $this->resolveEditing($request);
@@ -245,9 +257,16 @@ class TodosPaquetesController extends Controller
             return back()->with('success', 'El paquete ya tenia ese estado.');
         }
 
-        DB::transaction(function () use ($model, $stateColumn, $newEstado) {
+        DB::transaction(function () use ($model, $stateColumn, $newEstado, $type, $id) {
             $model->{$stateColumn} = $newEstado;
             $model->save();
+
+            $carteroColumn = $this->carteroColumnForType($type);
+            if ($carteroColumn !== null) {
+                Cartero::query()
+                    ->where($carteroColumn, $id)
+                    ->update(['id_estados' => $newEstado]);
+            }
         });
 
         return back()->with('success', 'Estado actualizado.');
@@ -256,7 +275,24 @@ class TodosPaquetesController extends Controller
     public function updateDatos(Request $request, string $type, int $id)
     {
         $config = $this->typeConfig($type);
+        $model = $this->findPackage($config, $id);
         $rules = [];
+
+        foreach ($config['numeric'] ?? [] as $numericField) {
+            if ($request->filled($numericField)) {
+                $request->merge([
+                    $numericField => str_replace(',', '.', trim((string) $request->input($numericField))),
+                ]);
+            }
+        }
+
+        foreach (['origen', 'ciudad', 'cuidad', 'destino'] as $locationField) {
+            if ($request->filled($locationField)) {
+                $request->merge([
+                    $locationField => $this->canonicalLocationName((string) $request->input($locationField)),
+                ]);
+            }
+        }
 
         foreach ($config['editable'] as $field => $label) {
             $rules[$field] = in_array($field, $config['numeric'] ?? [], true)
@@ -264,9 +300,15 @@ class TodosPaquetesController extends Controller
                 : ['nullable', 'string', 'max:1000'];
         }
 
-        $data = $request->validate($rules);
+        if (array_key_exists('codigo', $config['editable'])) {
+            $rules['codigo'][] = Rule::unique($config['table'], 'codigo')->ignore($model->getKey());
+        }
 
-        $model = $this->findPackage($config, $id);
+        if ($type === 'solicitud') {
+            $rules['codigo_solicitud'][] = Rule::unique($config['table'], 'codigo_solicitud')->ignore($model->getKey());
+        }
+
+        $data = $request->validate($rules);
 
         DB::transaction(function () use ($model, $data) {
             foreach ($data as $field => $value) {
@@ -288,7 +330,15 @@ class TodosPaquetesController extends Controller
         $generatedAt = now();
 
         if ($type === 'ems') {
-            return redirect()->route('paquetes-ems.boleta', ['paquete' => $model->id]);
+            $model->loadMissing(['tarifario.destino', 'tarifario.servicio', 'tarifario.origen', 'tarifario.peso', 'formulario']);
+
+            $pdf = Pdf::loadView('paquetes_ems.boleta', [
+                'paquete' => $model,
+            ])->setPaper([0, 0, 226.77, 595.28], 'portrait');
+
+            return response()->streamDownload(function () use ($pdf) {
+                echo $pdf->output();
+            }, 'boleta-ems-' . $model->codigo . '-' . $generatedAt->format('Ymd-His') . '.pdf');
         }
 
         if ($type === 'solicitud') {
@@ -531,6 +581,13 @@ class TodosPaquetesController extends Controller
     private function normalizeCity(string $city): string
     {
         return strtoupper(trim($city));
+    }
+
+    private function canonicalLocationName(string $location): string
+    {
+        $normalized = mb_strtoupper(trim($location));
+
+        return self::LOCATION_ALIASES[$normalized] ?? $normalized;
     }
 
     private function estadoIdByName(string $name): int
@@ -785,7 +842,14 @@ class TodosPaquetesController extends Controller
             'fields' => $config['editable'],
             'numeric' => $config['numeric'] ?? [],
             'values' => collect(array_keys($config['editable']))
-                ->mapWithKeys(fn ($field) => [$field => $model->{$field}])
+                ->mapWithKeys(function ($field) use ($model) {
+                    $value = $model->{$field};
+                    if (in_array($field, ['origen', 'ciudad', 'cuidad', 'destino'], true)) {
+                        $value = $this->canonicalLocationName((string) $value);
+                    }
+
+                    return [$field => $value];
+                })
                 ->all(),
         ];
     }
@@ -933,7 +997,7 @@ class TodosPaquetesController extends Controller
 
         foreach (['origen', 'ciudad', 'cuidad', 'destino'] as $departmentField) {
             if (isset($payload[$departmentField])) {
-                $payload[$departmentField] = mb_strtoupper((string) $payload[$departmentField]);
+                $payload[$departmentField] = $this->canonicalLocationName((string) $payload[$departmentField]);
             }
         }
 
@@ -953,8 +1017,15 @@ class TodosPaquetesController extends Controller
         }
 
         if ($type === 'solicitud') {
+            $destinationNames = collect(self::LOCATION_ALIASES)
+                ->filter(fn ($canonical) => $canonical === $payload['ciudad'])
+                ->keys()
+                ->push($payload['ciudad'])
+                ->unique()
+                ->values()
+                ->all();
             $destinoId = (int) (DB::table('destino')
-                ->whereRaw('TRIM(UPPER(nombre_destino)) = ?', [$payload['ciudad']])
+                ->whereIn(DB::raw('TRIM(UPPER(nombre_destino))'), $destinationNames)
                 ->value('id') ?? 0);
 
             abort_if($destinoId <= 0, 422, 'El departamento de destino no esta configurado.');
