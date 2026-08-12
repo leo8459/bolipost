@@ -1287,15 +1287,14 @@ class ReportesController extends Controller
             $range = 'months';
         }
 
+        $codigoSql = "coalesce(nullif(trim(t.codigo_solicitud), ''), nullif(trim(t.barcode), ''), 'SIN CODIGO')";
+
         $query = DB::table('solicitud_clientes as t')
             ->leftJoin('estados as e', 'e.id', '=', 't.estado_id')
-            ->leftJoin('eventos_tiktoker as et', function ($join) {
-                $join->on('et.codigo', '=', DB::raw("coalesce(nullif(trim(t.codigo_solicitud), ''), nullif(trim(t.barcode), ''), 'SIN CODIGO')"));
-            })
             ->select([
                 DB::raw("'tiktoker' as modulo_key"),
                 DB::raw("'DELIVERY EXPRESS' as modulo_label"),
-                DB::raw("coalesce(nullif(trim(t.codigo_solicitud), ''), nullif(trim(t.barcode), ''), 'SIN CODIGO') as codigo"),
+                DB::raw("$codigoSql as codigo"),
                 DB::raw('t.estado_id as estado_id'),
                 DB::raw("coalesce(e.nombre_estado, '-') as estado_nombre"),
                 DB::raw("coalesce(t.origen, '-') as origen"),
@@ -1310,9 +1309,9 @@ class ReportesController extends Controller
                 DB::raw("'' as usuario_regionales"),
                 DB::raw("'DELIVERY EXPRESS' as servicio_nombre"),
                 DB::raw('0 as entregado_por_id'),
-                DB::raw("coalesce((select u.name from users u where u.id = et.user_id limit 1), 'Sin entrega registrada') as entregado_por"),
+                DB::raw("coalesce((select u.name from eventos_tiktoker ev left join users u on u.id = ev.user_id where ev.codigo = $codigoSql and ev.evento_id = " . self::EVENTO_ENTREGADO_ID . " order by ev.created_at desc, ev.id desc limit 1), 'Sin entrega registrada') as entregado_por"),
                 DB::raw("'' as entregado_por_roles"),
-                DB::raw("(select max(created_at) from eventos_tiktoker ev where ev.codigo = coalesce(nullif(trim(t.codigo_solicitud), ''), nullif(trim(t.barcode), ''), 'SIN CODIGO') and ev.evento_id = " . self::EVENTO_ENTREGADO_ID . ") as delivered_at"),
+                DB::raw("(select max(created_at) from eventos_tiktoker ev where ev.codigo = $codigoSql and ev.evento_id = " . self::EVENTO_ENTREGADO_ID . ") as delivered_at"),
                 DB::raw('1 as usuario_activo'),
                 DB::raw('0 as usuario_empresa_gestora'),
                 DB::raw('coalesce(t.peso, 0) as peso'),
