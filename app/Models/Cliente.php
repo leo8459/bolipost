@@ -6,11 +6,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
+use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
 class Cliente extends Authenticatable
 {
-    use HasFactory, Notifiable, HasRoles;
+    use HasApiTokens, HasFactory, HasRoles, Notifiable;
 
     protected string $guard_name = 'cliente';
 
@@ -91,7 +92,7 @@ class Cliente extends Authenticatable
                 throw new \RuntimeException('Se alcanzo el limite maximo de codigos de cliente.');
             }
 
-            return 'COD' . str_pad((string) $siguienteNumero, 6, '0', STR_PAD_LEFT);
+            return 'COD'.str_pad((string) $siguienteNumero, 6, '0', STR_PAD_LEFT);
         });
     }
 

@@ -1,9 +1,8 @@
 <?php
 
-use App\Http\Controllers\BusquedaController;
-use App\Http\Controllers\PreregistroController;
-use App\Http\Controllers\Api\AuthTokenController;
 use App\Http\Controllers\Api\AlertReadApiController;
+use App\Http\Controllers\Api\AuthTokenController;
+use App\Http\Controllers\Api\ClienteAuthApiController;
 use App\Http\Controllers\Api\DireccionDestinoApiController;
 use App\Http\Controllers\Api\EventosSiopApiController;
 use App\Http\Controllers\Api\FuelLogApiController;
@@ -15,9 +14,20 @@ use App\Http\Controllers\Api\MobileSnapshotController;
 use App\Http\Controllers\Api\MobileUtilityController;
 use App\Http\Controllers\Api\QrDecoderApiController;
 use App\Http\Controllers\Api\VehicleLogApiController;
-use App\Http\Controllers\RecojoController;
 use App\Http\Controllers\AppConfigController;
+use App\Http\Controllers\BusquedaController;
+use App\Http\Controllers\PreregistroController;
+use App\Http\Controllers\RecojoController;
 use Illuminate\Support\Facades\Route;
+
+Route::prefix('clientes')->group(function () {
+    Route::post('/register', [ClienteAuthApiController::class, 'register'])
+        ->middleware('throttle:5,1')
+        ->name('api.clientes.register');
+    Route::post('/login', [ClienteAuthApiController::class, 'login'])
+        ->middleware('throttle:10,1')
+        ->name('api.clientes.login');
+});
 
 Route::post('/public/paquetes-contrato', [RecojoController::class, 'storePublic'])
     ->name('api.public.paquetes-contrato.store');

@@ -676,6 +676,9 @@ class PaquetesEmsController extends Controller
         $user = $request->user();
         $userCity = $this->normalizeEncargadoCity((string) optional($user)->ciudad);
         $restrictToUserCity = $this->shouldRestrictEncargadoToUserCity($user);
+        $isSuperAdmin = $user
+            && method_exists($user, 'hasRole')
+            && $user->hasRole((string) config('acl.super_admin_role', 'administrador'));
 
         $emsQuery = PaqueteEms::query()
             ->leftJoin('paquetes_ems_formulario as formulario', 'formulario.paquete_ems_id', '=', 'paquetes_ems.id')
@@ -891,6 +894,9 @@ class PaquetesEmsController extends Controller
             'canUpdateWeightEncargado' => $this->userCan($user, 'feature.paquetes-ems.encargado.updateweight'),
             'canChangeCarteroEncargado' => $this->userCan($user, 'feature.paquetes-ems.encargado.changecartero')
                 || $this->userCan($user, 'feature.carteros.asignados.change'),
+            'canRemoveCarteroEncargado' => $isSuperAdmin
+                || $this->userCan($user, 'feature.paquetes-ems.encargado.removecartero')
+                || $this->userCan($user, 'feature.carteros.asignados.unassign'),
             'canPrintEncargado' => $this->userCan($user, 'paquetes-ems.encargado')
                 || $this->userCan($user, 'feature.paquetes-ems.encargado.print')
                 || $this->userCan($user, 'feature.paquetes-ems.index.print')
@@ -1316,6 +1322,74 @@ class PaquetesEmsController extends Controller
 
         return $this->redirectToEncargadoWithFilters($request)
             ->with('success', 'Cartero cambiado correctamente.');
+    }
+
+    public function quitarCarteroEncargado(Request $request)
+    {
+        $user = $request->user();
+        $isSuperAdmin = $user
+            && method_exists($user, 'hasRole')
+            && $user->hasRole((string) config('acl.super_admin_role', 'administrador'));
+
+        if (! $isSuperAdmin) {
+            $this->authorizeAnyPermission($request, [
+                'feature.paquetes-ems.encargado.removecartero',
+                'feature.carteros.asignados.unassign',
+            ]);
+        }
+
+        $data = $request->validate([
+            'id' => ['required', 'integer', 'min:1'],
+            'servicio' => ['required', 'string', Rule::in(['EMS', 'CONTRATO', 'CERTI', 'ORDI', 'SOLICITUD'])],
+            'q' => ['nullable', 'string'],
+            'from' => ['nullable', 'string'],
+            'to' => ['nullable', 'string'],
+        ]);
+
+        $id = (int) $data['id'];
+        $servicio = mb_strtoupper(trim((string) $data['servicio']));
+        $record = $this->findEncargadoRecordForService($servicio, $id);
+
+        if (! $record) {
+            return $this->redirectToEncargadoWithFilters($request)
+                ->with('error', 'No se encontro el envio seleccionado.');
+        }
+
+        $actorUser = $user;
+        $actorUserId = (int) optional($actorUser)->id;
+        $assignmentColumn = $this->encargadoCarteroPackageColumn($servicio);
+
+        $removed = DB::transaction(function () use ($assignmentColumn, $id, $actorUser, $actorUserId, $servicio, $record) {
+            $assignment = Cartero::query()
+                ->where($assignmentColumn, $id)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $assignment || (int) ($assignment->id_user ?? 0) <= 0) {
+                return false;
+            }
+
+            $previousAssignee = User::query()->find((int) $assignment->id_user, ['id', 'name']);
+            $eventName = $this->encargadoRemoveCarteroEventName($actorUser, $previousAssignee);
+
+            // Conserva el seguimiento, estado, intentos y comprobantes del envio;
+            // solamente deja vacio al cartero asignado.
+            $assignment->id_user = null;
+            $assignment->updated_at = now();
+            $assignment->save();
+
+            $this->registerEncargadoEvent($servicio, $record, $actorUserId, $eventName);
+
+            return true;
+        });
+
+        return $this->redirectToEncargadoWithFilters($request)
+            ->with(
+                $removed ? 'success' : 'error',
+                $removed
+                    ? 'Cartero quitado correctamente. El envio quedo sin cartero asignado.'
+                    : 'El envio seleccionado ya no tiene un cartero asignado.'
+            );
     }
 
     public function devolucion()
@@ -2835,6 +2909,18 @@ class PaquetesEmsController extends Controller
             .'. Asigno al cartero: '
             .($newName !== '' ? $newName : 'SIN USUARIO')
             .'.';
+    }
+
+    private function encargadoRemoveCarteroEventName(?User $actor, ?User $previousAssignee): string
+    {
+        $actorName = trim((string) ($actor?->name ?? 'SIN USUARIO'));
+        $previousName = trim((string) ($previousAssignee?->name ?? 'SIN CARTERO'));
+
+        return 'El usuario '
+            .($actorName !== '' ? $actorName : 'SIN USUARIO')
+            .' quito el cartero asignado desde Encargado EMS. Cartero anterior: '
+            .($previousName !== '' ? $previousName : 'SIN CARTERO')
+            .'. El envio quedo sin cartero asignado.';
     }
 
     private function normalizeEncargadoCity(string $city): string

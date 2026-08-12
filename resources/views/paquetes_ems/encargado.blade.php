@@ -235,6 +235,30 @@
                                                 </button>
                                             @endif
 
+                                            @if ($canRemoveCarteroEncargado ?? false)
+                                                @if ((int) ($paquete->cartero_user_id ?? 0) > 0)
+                                                    <form method="POST" action="{{ route('paquetes-ems.encargado.quitar-cartero') }}" class="ems-action-form" data-confirm-form data-confirm-variant="warning" data-confirm-title="Quitar cartero" data-confirm-message="El envio quedara sin cartero asignado. Su estado y datos de seguimiento se conservaran.">
+                                                        @csrf
+                                                        <input type="hidden" name="id" value="{{ $paquete->id }}">
+                                                        <input type="hidden" name="servicio" value="{{ $paquete->servicio }}">
+                                                        <input type="hidden" name="current_servicio" value="{{ $servicio }}">
+                                                        <input type="hidden" name="q" value="{{ $search }}">
+                                                        <input type="hidden" name="from" value="{{ $fechaDesde }}">
+                                                        <input type="hidden" name="to" value="{{ $fechaHasta }}">
+                                                        <input type="hidden" name="page" value="{{ $paquetes->currentPage() }}">
+                                                        <button type="submit" class="btn btn-sm ems-btn-warning ems-action-btn">
+                                                            <span>Quitar cartero</span>
+                                                            <small>Dejar sin asignacion</small>
+                                                        </button>
+                                                    </form>
+                                                @else
+                                                    <button type="button" class="btn btn-sm ems-btn-warning ems-action-btn" disabled title="Este envio ya esta sin cartero asignado">
+                                                        <span>Quitar cartero</span>
+                                                        <small>Ya esta sin asignacion</small>
+                                                    </button>
+                                                @endif
+                                            @endif
+
                                             @if ($canCancelEncargado)
                                                 <form method="POST" action="{{ route('paquetes-ems.encargado.cancelar-envio') }}" class="ems-action-form" data-confirm-form data-confirm-variant="danger" data-confirm-title="Cancelar envio" data-confirm-message="Se marcara este envio como CANCELADO y se registrara el evento con tu usuario.">
                                                     @csrf

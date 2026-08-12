@@ -352,6 +352,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::post('/paquetes-ems/encargado/devolver-envio', [PaquetesEmsController::class, 'devolverEnvioEncargado'])->name('paquetes-ems.encargado.devolver-envio');
     Route::post('/paquetes-ems/encargado/actualizar-peso', [PaquetesEmsController::class, 'actualizarPesoEncargado'])->name('paquetes-ems.encargado.actualizar-peso');
     Route::post('/paquetes-ems/encargado/cambiar-cartero', [PaquetesEmsController::class, 'cambiarCarteroEncargado'])->name('paquetes-ems.encargado.cambiar-cartero');
+    Route::post('/paquetes-ems/encargado/quitar-cartero', [PaquetesEmsController::class, 'quitarCarteroEncargado'])->name('paquetes-ems.encargado.quitar-cartero');
     Route::get('/paquetes-ems/ventanilla', [PaquetesEmsController::class, 'ventanilla'])->name('paquetes-ems.ventanilla');
     Route::get('/paquetes-ems/devolucion', [PaquetesEmsController::class, 'devolucion'])->name('paquetes-ems.devolucion');
     Route::get('/paquetes-ems/en-transito', [PaquetesEmsController::class, 'enTransito'])->name('paquetes-ems.en-transito');
