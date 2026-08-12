@@ -23,6 +23,8 @@ class BusquedaController extends Controller
     private const TRACKING_CAPTCHA_SESSION_KEY = 'tracking_captcha';
     private const TRACKING_CAPTCHA_VERIFIED_UNTIL_SESSION_KEY = 'tracking_captcha_verified_until';
     private const TRACKING_CAPTCHA_VERIFIED_MINUTES = 5;
+    private const LANDING_ANNOUNCEMENT_CACHE_KEY = 'landing_announcement_from_apiweb';
+    private const LANDING_ANNOUNCEMENT_CACHE_MINUTES = 10;
 
     private const FUENTES_LOCALES = [
         ['tabla' => 'eventos_ems', 'servicio' => 'EMS'],
@@ -42,6 +44,8 @@ class BusquedaController extends Controller
         return view('welcome', [
             'captchaPregunta' => $captcha['question'],
             'captchaChallenge' => $captchaPublico['challenge'],
+            'landingAnnouncement' => $this->landingAnnouncement(),
+            'landingNewsTicker' => $this->landingNewsTicker(),
             'preregistroServicios' => $this->cachedPreregistroServicios(),
             'preregistroDestinos' => $this->cachedPreregistroDestinos(),
             'preregistroCiudades' => [
@@ -187,6 +191,8 @@ class BusquedaController extends Controller
             'eventos' => $eventos,
             'ultimoEvento' => $eventos->first(),
             'fuenteTracking' => $resultado['fuente'],
+            'landingAnnouncement' => $this->landingAnnouncement(),
+            'landingNewsTicker' => $this->landingNewsTicker(),
             'preregistroServicios' => $this->cachedPreregistroServicios(),
             'preregistroDestinos' => $this->cachedPreregistroDestinos(),
             'preregistroCiudades' => [
@@ -210,6 +216,151 @@ class BusquedaController extends Controller
         ]);
 
         return $this->normalizeTrackingCode((string) $validated['codigo']);
+    }
+
+    private function landingAnnouncement(): array
+    {
+        $payload = $this->fetchLandingPageFromApiweb();
+
+        if (! is_array($payload)) {
+            return $this->emptyLandingAnnouncement();
+        }
+
+        $announcementSection = collect(data_get($payload, 'sections', []))
+            ->firstWhere('key', 'announcement_modal');
+
+        if (! is_array($announcementSection)) {
+            return $this->emptyLandingAnnouncement();
+        }
+
+        $settings = data_get($announcementSection, 'settings', []);
+        $items = collect(data_get($announcementSection, 'items', []))
+            ->map(function ($item, int $index) {
+                $data = data_get($item, 'data', []);
+                $posterImage = trim((string) data_get($data, 'poster_image', ''));
+
+                if ($posterImage === '') {
+                    return null;
+                }
+
+                return [
+                    'key' => data_get($item, 'id') ?: data_get($data, 'title') ?: 'announcement-' . $index,
+                    'poster_image' => $posterImage,
+                    'poster_alt' => trim((string) data_get($data, 'poster_alt', '')),
+                    'poster_title' => trim((string) data_get($data, 'poster_title', data_get($data, 'title', ''))),
+                    'poster_caption' => trim((string) data_get($data, 'poster_caption', '')),
+                ];
+            })
+            ->filter()
+            ->values()
+            ->all();
+
+        return [
+            'enabled' => (bool) data_get($settings, 'enabled', false),
+            'show_once' => (bool) data_get($settings, 'show_once', true),
+            'storage_key' => trim((string) data_get($settings, 'storage_key', 'cb-home-announcement')),
+            'modal_title' => trim((string) data_get($settings, 'modal_title', 'Mensaje informativo')),
+            'close_label' => 'Cerrar aviso',
+            'slides' => $items,
+        ];
+    }
+
+    private function landingNewsTicker(): array
+    {
+        $payload = $this->fetchLandingPageFromApiweb();
+
+        if (! is_array($payload)) {
+            return [
+                'label' => '',
+                'items' => [],
+            ];
+        }
+
+        $headerSection = collect(data_get($payload, 'sections', []))
+            ->firstWhere('key', 'header');
+
+        if (! is_array($headerSection)) {
+            return [
+                'label' => '',
+                'items' => [],
+            ];
+        }
+
+        $settings = data_get($headerSection, 'settings', []);
+        $items = collect(data_get($settings, 'news_ticker_items', []))
+            ->map(function ($item, int $index) {
+                $title = trim((string) data_get($item, 'title', data_get($item, 'label', '')));
+                $url = trim((string) data_get($item, 'url', ''));
+
+                if ($title === '') {
+                    return null;
+                }
+
+                return [
+                    'key' => data_get($item, 'id') ?: 'ticker-' . $index,
+                    'title' => $title,
+                    'url' => $url,
+                ];
+            })
+            ->filter()
+            ->values()
+            ->all();
+
+        return [
+            'label' => trim((string) data_get($settings, 'news_ticker_label', 'Novedades')),
+            'items' => $items,
+        ];
+    }
+
+    private function fetchLandingPageFromApiweb(): ?array
+    {
+        $endpoint = rtrim((string) env('SITE_CMS_HOME_API_URL', 'http://localhost/apiweb/public/api/site/pages/home'), '/');
+
+        if ($endpoint === '') {
+            return Cache::get(self::LANDING_ANNOUNCEMENT_CACHE_KEY);
+        }
+
+        try {
+            $response = Http::withOptions([
+                'verify' => filter_var(env('SITE_CMS_HOME_API_VERIFY_SSL', false), FILTER_VALIDATE_BOOL),
+            ])
+                ->timeout(10)
+                ->acceptJson()
+                ->get($endpoint);
+
+            if ($response->successful()) {
+                $payload = $response->json();
+
+                if (is_array($payload)) {
+                    Cache::put(
+                        self::LANDING_ANNOUNCEMENT_CACHE_KEY,
+                        $payload,
+                        now()->addMinutes(self::LANDING_ANNOUNCEMENT_CACHE_MINUTES)
+                    );
+
+                    return $payload;
+                }
+            }
+        } catch (\Throwable $exception) {
+            Log::warning('No se pudo cargar la portada CMS desde apiweb.', [
+                'endpoint' => $endpoint,
+                'message' => $exception->getMessage(),
+            ]);
+        }
+
+        return Cache::get(self::LANDING_ANNOUNCEMENT_CACHE_KEY);
+    }
+
+    private function emptyLandingAnnouncement(): array
+    {
+        return [
+            'enabled' => false,
+            'show_once' => true,
+            'storage_key' => 'cb-home-announcement',
+            'modal_title' => 'Mensaje informativo',
+            'close_label' => 'Cerrar aviso',
+            'slides' => [],
+        ];
     }
 
     private function validarCaptchaTracking(Request $request): ?string

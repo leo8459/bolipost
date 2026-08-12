@@ -29,6 +29,7 @@ body {
 }
 
 .track-page { padding-top: 108px; }
+.topbar--with-ticker + .track-page { padding-top: 150px; }
 .tracking-shell {
   padding: 1.5rem 0 2.4rem;
   overflow-x: clip;

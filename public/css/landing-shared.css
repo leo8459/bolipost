@@ -20,9 +20,17 @@
     transition: background .24s cubic-bezier(.2, .75, .2, 1), border-color .24s cubic-bezier(.2, .75, .2, 1);
 }
 
+.topbar--with-ticker {
+    border-bottom: 0;
+}
+
 .topbar.scrolled {
     background: linear-gradient(90deg, #FECC36 0%, #FECC36 100%);
     border-color: rgba(4, 30, 66, 0.42);
+}
+
+.topbar--with-ticker + main .hero {
+    padding-top: 168px;
 }
 
 .nav {
@@ -87,6 +95,126 @@
     color: rgba(4, 30, 66, 0.95);
     font-size: .95rem;
     font-weight: 500;
+}
+
+.cb-news-ticker {
+    background: linear-gradient(90deg, #123b88 0%, #0d2b63 100%);
+    color: #fff;
+    border-bottom: 2px solid #FECC36;
+}
+
+.cb-news-ticker__inner {
+    min-height: 42px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+    padding: 0 18px;
+}
+
+.cb-news-ticker__inner--static {
+    grid-template-columns: auto auto;
+    justify-content: center;
+}
+
+.cb-news-ticker__badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+    padding: 0 14px;
+    border-radius: 999px;
+    background: #FECC36;
+    color: #123b88;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+    box-shadow: 0 10px 24px rgba(254, 204, 54, .28);
+}
+
+.cb-news-ticker__viewport {
+    min-width: 0;
+    overflow: hidden;
+    position: relative;
+}
+
+.cb-news-ticker__viewport--static {
+    overflow: visible;
+}
+
+.cb-news-ticker__track {
+    width: max-content;
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    animation: cbNewsTickerScroll 32s linear infinite;
+    will-change: transform;
+}
+
+.cb-news-ticker__viewport:hover .cb-news-ticker__track {
+    animation-play-state: paused;
+}
+
+.cb-news-ticker__viewport--static .cb-news-ticker__track {
+    width: auto;
+    animation: none;
+}
+
+.cb-news-ticker__item {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 18px;
+    padding: 0 28px 0 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.4;
+    text-align: left;
+    white-space: nowrap;
+    transition: opacity .18s cubic-bezier(.2, .75, .2, 1);
+}
+
+.cb-news-ticker__item:hover,
+.cb-news-ticker__item:focus-visible {
+    opacity: .86;
+    color: inherit;
+    text-decoration: none;
+}
+
+.cb-news-ticker__item::after {
+    content: "";
+    width: 1px;
+    height: 16px;
+    background: rgba(255, 255, 255, .32);
+}
+
+.cb-news-ticker__item:last-child::after {
+    display: none;
+}
+
+.cb-news-ticker__viewport--static .cb-news-ticker__item {
+    width: auto;
+    padding-right: 0;
+    justify-content: flex-start;
+    text-align: left;
+    white-space: normal;
+    line-height: 1.35;
+    max-width: min(1100px, calc(100vw - 220px));
+}
+
+.cb-news-ticker__item-text {
+    display: inline-block;
+    max-width: 100%;
+}
+
+@keyframes cbNewsTickerScroll {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
 }
 
 .menu-client-access-item {
@@ -427,6 +555,39 @@
         min-height: 82px;
     }
 
+    .cb-news-ticker__inner {
+        grid-template-columns: 1fr;
+        gap: 10px;
+        padding-top: 8px;
+        padding-bottom: 8px;
+        padding-left: 14px;
+        padding-right: 14px;
+    }
+
+    .cb-news-ticker__inner--static {
+        justify-content: stretch;
+    }
+
+    .cb-news-ticker__badge {
+        grid-column: 1 / -1;
+        justify-self: flex-start;
+    }
+
+    .cb-news-ticker__item {
+        font-size: 13px;
+    }
+
+    .cb-news-ticker__viewport--static .cb-news-ticker__track,
+    .cb-news-ticker__viewport--static .cb-news-ticker__item {
+        justify-content: flex-start;
+        text-align: left;
+    }
+
+    .cb-news-ticker__viewport--static .cb-news-ticker__item {
+        width: 100%;
+        max-width: none;
+    }
+
     .nav-actions {
         gap: .4rem;
     }
@@ -454,7 +615,7 @@
         position: absolute;
         left: 4%;
         right: 4%;
-        top: 96px;
+        top: 138px;
         display: grid;
         gap: .45rem;
         background: linear-gradient(180deg, rgba(255, 239, 177, .98), rgba(255, 216, 84, .98));

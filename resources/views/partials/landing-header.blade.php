@@ -1,4 +1,47 @@
-<header class="topbar" id="topbar">
+@php
+    $tickerLabel = trim((string) data_get($landingNewsTicker ?? [], 'label', ''));
+    $tickerItems = collect(data_get($landingNewsTicker ?? [], 'items', []))
+        ->filter(fn ($item) => trim((string) data_get($item, 'title', '')) !== '')
+        ->values();
+    $tickerAnimated = $tickerItems->count() > 1;
+    $tickerRenderItems = $tickerAnimated ? $tickerItems->concat($tickerItems) : $tickerItems;
+@endphp
+
+<header class="topbar{{ $tickerItems->isNotEmpty() ? ' topbar--with-ticker' : '' }}" id="topbar">
+    @if ($tickerItems->isNotEmpty())
+        <div class="cb-news-ticker">
+            <div class="cb-news-ticker__inner{{ ! $tickerAnimated ? ' cb-news-ticker__inner--static' : '' }}">
+                @if ($tickerLabel !== '')
+                    <span class="cb-news-ticker__badge">{{ $tickerLabel }}</span>
+                @endif
+                <div class="cb-news-ticker__viewport{{ ! $tickerAnimated ? ' cb-news-ticker__viewport--static' : '' }}" aria-live="polite">
+                    <div class="cb-news-ticker__track">
+                        @foreach ($tickerRenderItems as $item)
+                            @php
+                                $title = trim((string) data_get($item, 'title', ''));
+                                $url = trim((string) data_get($item, 'url', ''));
+                                $isInternal = $url !== '' && str_starts_with($url, '/');
+                            @endphp
+                            @if ($url !== '')
+                                <a
+                                    class="cb-news-ticker__item"
+                                    href="{{ $url }}"
+                                    @if (! $isInternal) target="_blank" rel="noopener noreferrer" @endif
+                                >
+                                    <span class="cb-news-ticker__item-text">{{ $title }}</span>
+                                </a>
+                            @else
+                                <span class="cb-news-ticker__item">
+                                    <span class="cb-news-ticker__item-text">{{ $title }}</span>
+                                </span>
+                            @endif
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
     <div class="container nav">
         <a class="brand" href="https://www.correos.gob.bo/" aria-label="Ir al sitio oficial de Correos de Bolivia">
             <img src="{{ asset('images/AGBClogo1.png') }}" alt="Correos de Bolivia">

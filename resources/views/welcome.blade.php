@@ -255,6 +255,66 @@
 
     </main>
 
+    @php
+        $announcementEnabled = (bool) data_get($landingAnnouncement ?? [], 'enabled', false);
+        $announcementSlides = collect(data_get($landingAnnouncement ?? [], 'slides', []))
+            ->filter(fn ($slide) => filled(data_get($slide, 'poster_image')))
+            ->values();
+    @endphp
+
+    @if ($announcementEnabled && $announcementSlides->isNotEmpty())
+        <div class="cb-modal" id="landingAnnouncementModal" aria-hidden="true" role="dialog" aria-modal="true"
+            aria-label="{{ data_get($landingAnnouncement, 'modal_title', 'Mensaje informativo') }}"
+            data-storage-key="{{ data_get($landingAnnouncement, 'storage_key', 'bolipost-home-announcement') }}"
+            data-show-once="{{ data_get($landingAnnouncement, 'show_once', true) ? '1' : '0' }}">
+            <div class="cb-modal__backdrop" data-announcement-close></div>
+
+            <div class="cb-modal__dialog">
+                <div class="cb-modal__poster-shell{{ $announcementSlides->count() > 1 ? ' has-multiple' : '' }}">
+                    <button type="button" class="cb-modal__close" aria-label="{{ data_get($landingAnnouncement, 'close_label', 'Cerrar aviso') }}"
+                        data-announcement-close{{ $announcementSlides->count() > 1 ? ' hidden disabled' : '' }}>x</button>
+
+                    @if ($announcementSlides->count() > 1)
+                        <div class="cb-modal__stack" id="landingAnnouncementStack"></div>
+                    @endif
+
+                    <div class="cb-modal__poster-wrap">
+                        <div class="cb-modal__poster-frame cb-modal__poster-frame--deck" id="landingAnnouncementFrame">
+                            @foreach ($announcementSlides as $index => $slide)
+                                <article class="cb-modal__slide{{ $index === 0 ? ' is-active' : '' }}"
+                                    data-announcement-slide="{{ $index }}"
+                                    data-slide-key="{{ data_get($slide, 'id', data_get($slide, 'title', data_get($slide, 'poster_image', 'slide-' . $index))) }}"
+                                    data-slide-image="{{ data_get($slide, 'poster_image') }}"
+                                    data-slide-alt="{{ data_get($slide, 'poster_alt', '') }}"
+                                    data-slide-title="{{ data_get($slide, 'poster_title', data_get($slide, 'title', '')) }}"
+                                    data-slide-caption="{{ data_get($slide, 'poster_caption', '') }}">
+                                    <div class="cb-modal__poster-flag"></div>
+                                    <img class="cb-modal__poster" src="{{ data_get($slide, 'poster_image') }}"
+                                        alt="{{ data_get($slide, 'poster_alt', data_get($slide, 'poster_title', '')) }}">
+                                </article>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    @if ($announcementSlides->count() > 1)
+                        <div class="cb-modal__deck-nav">
+                            <button type="button" class="cb-modal__deck-btn" id="landingAnnouncementPrev"
+                                aria-label="Anterior">&#8249;</button>
+                            <div class="cb-modal__deck-dots">
+                                @foreach ($announcementSlides as $index => $slide)
+                                    <button type="button" class="cb-modal__deck-dot{{ $index === 0 ? ' is-active' : '' }}"
+                                        aria-label="Ir al popup {{ $index + 1 }}" data-announcement-dot="{{ $index }}"></button>
+                                @endforeach
+                            </div>
+                            <button type="button" class="cb-modal__deck-btn" id="landingAnnouncementNext"
+                                aria-label="Siguiente">&#8250;</button>
+                        </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+    @endif
+
     <div class="search-loading-modal" id="searchLoadingModal" aria-hidden="true" role="dialog" aria-modal="true"
         aria-labelledby="searchLoadingTitle">
         <div class="search-loading-card" role="status" aria-live="polite">
@@ -543,6 +603,12 @@
         const topbar = document.getElementById('topbar');
         const menuToggle = document.getElementById('menuToggle');
         const menu = document.getElementById('menu');
+        const landingAnnouncementModal = document.getElementById('landingAnnouncementModal');
+        const landingAnnouncementSlides = Array.from(document.querySelectorAll('[data-announcement-slide]'));
+        const landingAnnouncementDots = Array.from(document.querySelectorAll('[data-announcement-dot]'));
+        const landingAnnouncementStack = document.getElementById('landingAnnouncementStack');
+        const landingAnnouncementPrev = document.getElementById('landingAnnouncementPrev');
+        const landingAnnouncementNext = document.getElementById('landingAnnouncementNext');
         const preregistroModal = document.getElementById('preregistroModal');
         const preregistroClose = document.getElementById('preregistroClose');
         const preregistroTriggers = document.querySelectorAll('[data-open-preregistro], .btn-home-shipping');
@@ -551,37 +617,200 @@
         const copyPreregistroCode = document.getElementById('copyPreregistroCode');
         const preregistroSuccessCode = document.getElementById('preregistroSuccessCode');
         const preregistroTicketUrl = @json(session('preregistro_ticket_url'));
+        const landingAnnouncementFrame = document.getElementById('landingAnnouncementFrame');
+        const landingAnnouncementStorageKeyBase = landingAnnouncementModal?.dataset.storageKey || 'bolipost-home-announcement';
+        const landingAnnouncementShowOnce = landingAnnouncementModal?.dataset.showOnce === '1';
+        let landingAnnouncementIndex = 0;
+        let landingAnnouncementSeen = new Set();
+        let landingAnnouncementTransitionName = 'cb-modal-card-next';
 
+        const normalizedAnnouncementSlides = landingAnnouncementSlides
+            .map((slide, index) => ({
+                key: slide.dataset.slideKey || `slide-${index}`,
+                posterImage: slide.dataset.slideImage || slide.querySelector('.cb-modal__poster')?.getAttribute('src') || '',
+                posterAlt: slide.dataset.slideAlt || slide.querySelector('.cb-modal__poster')?.getAttribute('alt') || '',
+                posterTitle: slide.dataset.slideTitle || '',
+                posterCaption: slide.dataset.slideCaption || '',
+            }))
+            .filter((slide) => slide.posterImage);
+
+        const announcementVisibilitySignature = normalizedAnnouncementSlides
+            .map((slide) => [slide.posterImage, slide.posterTitle, slide.posterCaption].join('|'))
+            .join('::')
+            .trim() || 'default';
+
+        const landingAnnouncementStorageKey = `${landingAnnouncementStorageKeyBase}:${announcementVisibilitySignature}`;
+
+        const syncBodyModalState = () => {
+            const hasOpenModal = [
+                landingAnnouncementModal,
+                preregistroModal,
+                preregistroSuccessModal,
+                document.getElementById('searchLoadingModal'),
+                document.getElementById('searchErrorModal'),
+            ].some((modal) => modal?.classList.contains('is-open'));
+
+            document.body.classList.toggle('has-loading-modal', hasOpenModal);
+        };
+
+        const canCloseAnnouncement = () => landingAnnouncementSlides.length <= 1 || landingAnnouncementSeen.size >= landingAnnouncementSlides.length;
+
+        const markAnnouncementSeen = (index) => {
+            if (!landingAnnouncementSlides[index]) return;
+            landingAnnouncementSeen.add(index);
+            const closeButton = landingAnnouncementModal?.querySelector('.cb-modal__close');
+            if (closeButton) {
+                const canClose = canCloseAnnouncement();
+                closeButton.disabled = !canClose;
+                closeButton.hidden = !canClose;
+            }
+        };
+
+        const buildAnnouncementStack = () => {
+            if (!landingAnnouncementStack || landingAnnouncementSlides.length <= 1) return;
+
+            const revealOffsets = [{
+                    right: '-34px',
+                    bottom: '16px'
+                },
+                {
+                    right: '-62px',
+                    bottom: '40px'
+                }
+            ];
+
+            landingAnnouncementStack.innerHTML = '';
+
+            for (let offset = 1; offset <= Math.min(2, landingAnnouncementSlides.length - 1); offset += 1) {
+                const index = (landingAnnouncementIndex + offset) % landingAnnouncementSlides.length;
+                const sourceImage = landingAnnouncementSlides[index]?.querySelector('.cb-modal__poster');
+                if (!sourceImage) continue;
+
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = `cb-modal__stack-card cb-modal__stack-card--level-${offset}`;
+                button.setAttribute('aria-label', `Mostrar popup ${index + 1}`);
+                button.dataset.announcementJump = String(index);
+
+                const style = revealOffsets[offset - 1] || revealOffsets[revealOffsets.length - 1];
+                button.style.right = style.right;
+                button.style.bottom = style.bottom;
+
+                const image = document.createElement('img');
+                image.className = 'cb-modal__stack-poster';
+                image.src = sourceImage.getAttribute('src') || '';
+                image.alt = sourceImage.getAttribute('alt') || '';
+
+                button.appendChild(image);
+                landingAnnouncementStack.appendChild(button);
+            }
+        };
+
+        const applyAnnouncementTransition = () => {
+            if (!landingAnnouncementFrame) return;
+            landingAnnouncementFrame.classList.remove(
+                'cb-modal-card-next-enter-active',
+                'cb-modal-card-prev-enter-active'
+            );
+            void landingAnnouncementFrame.offsetWidth;
+            landingAnnouncementFrame.classList.add(
+                landingAnnouncementTransitionName === 'cb-modal-card-prev'
+                    ? 'cb-modal-card-prev-enter-active'
+                    : 'cb-modal-card-next-enter-active'
+            );
+        };
+
+        const showAnnouncementSlide = (index) => {
+            if (!landingAnnouncementSlides.length) return;
+            landingAnnouncementIndex = (index + landingAnnouncementSlides.length) % landingAnnouncementSlides.length;
+
+            landingAnnouncementSlides.forEach((slide, slideIndex) => {
+                slide.classList.toggle('is-active', slideIndex === landingAnnouncementIndex);
+            });
+            landingAnnouncementDots.forEach((dot, dotIndex) => {
+                dot.classList.toggle('is-active', dotIndex === landingAnnouncementIndex);
+            });
+
+            applyAnnouncementTransition();
+            markAnnouncementSeen(landingAnnouncementIndex);
+            buildAnnouncementStack();
+        };
+
+        const openLandingAnnouncementModal = () => {
+            if (!landingAnnouncementModal || !landingAnnouncementSlides.length) return;
+            landingAnnouncementIndex = 0;
+            landingAnnouncementSeen = new Set();
+            landingAnnouncementModal.classList.add('is-open');
+            landingAnnouncementModal.setAttribute('aria-hidden', 'false');
+            showAnnouncementSlide(landingAnnouncementIndex);
+            syncBodyModalState();
+        };
+
+        const closeLandingAnnouncementModal = () => {
+            if (!landingAnnouncementModal || !canCloseAnnouncement()) return;
+            landingAnnouncementModal.classList.remove('is-open');
+            landingAnnouncementModal.setAttribute('aria-hidden', 'true');
+
+            if (landingAnnouncementShowOnce) {
+                window.localStorage.setItem(landingAnnouncementStorageKey, 'hidden');
+            }
+
+            syncBodyModalState();
+        };
 
         const openPreregistroModal = () => {
             if (!preregistroModal) return;
             preregistroModal.classList.add('is-open');
             preregistroModal.setAttribute('aria-hidden', 'false');
-            document.body.classList.add('has-loading-modal');
+            syncBodyModalState();
         };
 
         const closePreregistroModal = () => {
             if (!preregistroModal) return;
             preregistroModal.classList.remove('is-open');
             preregistroModal.setAttribute('aria-hidden', 'true');
-            document.body.classList.remove('has-loading-modal');
+            syncBodyModalState();
         };
 
         const openPreregistroSuccessModal = () => {
             if (!preregistroSuccessModal) return;
             preregistroSuccessModal.classList.add('is-open');
             preregistroSuccessModal.setAttribute('aria-hidden', 'false');
-            document.body.classList.add('has-loading-modal');
+            syncBodyModalState();
         };
 
         const closePreregistroSuccessModal = () => {
             if (!preregistroSuccessModal) return;
             preregistroSuccessModal.classList.remove('is-open');
             preregistroSuccessModal.setAttribute('aria-hidden', 'true');
-            if (!preregistroModal?.classList.contains('is-open')) {
-                document.body.classList.remove('has-loading-modal');
-            }
+            syncBodyModalState();
         };
+
+        landingAnnouncementModal?.querySelectorAll('[data-announcement-close]').forEach((element) => {
+            element.addEventListener('click', closeLandingAnnouncementModal);
+        });
+        landingAnnouncementPrev?.addEventListener('click', () => {
+            landingAnnouncementTransitionName = 'cb-modal-card-prev';
+            showAnnouncementSlide(landingAnnouncementIndex - 1);
+        });
+        landingAnnouncementNext?.addEventListener('click', () => {
+            landingAnnouncementTransitionName = 'cb-modal-card-next';
+            showAnnouncementSlide(landingAnnouncementIndex + 1);
+        });
+        landingAnnouncementDots.forEach((dot) => {
+            dot.addEventListener('click', () => {
+                const index = Number(dot.dataset.announcementDot || 0);
+                landingAnnouncementTransitionName = index > landingAnnouncementIndex ? 'cb-modal-card-next' : 'cb-modal-card-prev';
+                showAnnouncementSlide(index);
+            });
+        });
+        landingAnnouncementStack?.addEventListener('click', (event) => {
+            const trigger = event.target.closest('[data-announcement-jump]');
+            if (!trigger) return;
+            const index = Number(trigger.dataset.announcementJump || 0);
+            landingAnnouncementTransitionName = index > landingAnnouncementIndex ? 'cb-modal-card-next' : 'cb-modal-card-prev';
+            showAnnouncementSlide(index);
+        });
 
         preregistroTriggers.forEach((trigger) => {
             trigger.addEventListener('click', (event) => {
@@ -620,10 +849,15 @@
 
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape') {
+                closeLandingAnnouncementModal();
                 closePreregistroModal();
                 closePreregistroSuccessModal();
             }
         });
+
+        if (landingAnnouncementModal && normalizedAnnouncementSlides.length && (!landingAnnouncementShowOnce || window.localStorage.getItem(landingAnnouncementStorageKey) !== 'hidden')) {
+            openLandingAnnouncementModal();
+        }
 
         @if ($errors->any() || session('success'))
             openPreregistroModal();
