@@ -2,6 +2,71 @@
 
 @section('title', 'Mis Solicitudes')
 
+@section('css')
+    <style>
+        .order-success-modal .modal-content {
+            overflow: hidden;
+            border: 0;
+            border-radius: 22px;
+            box-shadow: 0 24px 70px rgba(16, 49, 95, .28);
+        }
+
+        .order-success-modal .modal-body {
+            padding: 34px 30px 30px;
+            text-align: center;
+        }
+
+        .order-success-modal__icon {
+            display: flex;
+            width: 78px;
+            height: 78px;
+            margin: 0 auto 20px;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            color: #103f81;
+            background: #ffcc29;
+            font-size: 36px;
+            box-shadow: 0 10px 24px rgba(255, 190, 0, .35);
+        }
+
+        .order-success-modal__title {
+            margin: 0;
+            color: #103f81;
+            font-size: 28px;
+            font-weight: 800;
+        }
+
+        .order-success-modal__message {
+            margin: 12px 0 0;
+            color: #26384f;
+            font-size: 18px;
+            line-height: 1.5;
+        }
+
+        .order-success-modal__notice {
+            margin-top: 20px;
+            padding: 14px 16px;
+            border-radius: 12px;
+            color: #103f81;
+            background: #fff7d6;
+            font-size: 14px;
+            line-height: 1.55;
+        }
+
+        .order-success-modal__button {
+            min-width: 150px;
+            margin-top: 22px;
+            padding: 10px 24px;
+            border: 0;
+            border-radius: 999px;
+            color: #fff;
+            background: #103f81;
+            font-weight: 700;
+        }
+    </style>
+@endsection
+
 @section('content_header')
     <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between">
         <div>
@@ -23,6 +88,12 @@
     @if (session('success'))
         <div class="alert alert-success">
             {{ session('success') }}
+        </div>
+    @endif
+
+    @if (session('warning'))
+        <div class="alert alert-warning" role="alert">
+            {{ session('warning') }}
         </div>
     @endif
 
@@ -84,4 +155,37 @@
             @endif
         </div>
     </div>
+
+    @if (session('pickup_notice'))
+        <div class="modal fade order-success-modal" id="orderSuccessModal" tabindex="-1" role="dialog" aria-labelledby="orderSuccessModalTitle" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered" role="document">
+                <div class="modal-content">
+                    <div class="modal-body">
+                        <div class="order-success-modal__icon" aria-hidden="true">
+                            <i class="fas fa-check"></i>
+                        </div>
+                        <h2 class="order-success-modal__title" id="orderSuccessModalTitle">¡Muchas gracias por su pedido!</h2>
+                        <p class="order-success-modal__message">Enseguida nos comunicaremos con usted.</p>
+                        <div class="order-success-modal__notice">
+                            <strong>Alerta:</strong><br>
+                            {{ session('pickup_notice') }}
+                        </div>
+                        <button type="button" class="order-success-modal__button" data-dismiss="modal">Entendido</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+@endsection
+
+@section('js')
+    @if (session('pickup_notice'))
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                if (window.jQuery) {
+                    window.jQuery('#orderSuccessModal').modal('show');
+                }
+            });
+        </script>
+    @endif
 @endsection

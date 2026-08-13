@@ -255,7 +255,7 @@
 
         <section class="summary">
             <div class="summary-item">
-                <div class="summary-label">Fecha</div>
+                <div class="summary-label">Fecha de generacion</div>
                 <div class="summary-value">{{ $fecha }}</div>
             </div>
             <div class="summary-item">
@@ -268,25 +268,20 @@
             </div>
         </section>
 
-        <section class="grid">
-            <div class="col">
-                <div class="box">
-                    <div class="box-title">Remitente</div>
-                    <div class="row"><div class="label">Nombre</div><div class="value">{{ $nombreRemitente ?: '-' }}</div></div>
-                    <div class="row"><div class="label">Empresa</div><div class="value">{{ $nombreEnvia ?: '-' }}</div></div>
-                    <div class="row"><div class="label">Carnet</div><div class="value">{{ $carnet ?: '-' }}</div></div>
-                    <div class="row"><div class="label">Telefono</div><div class="value">{{ $telefonoRemitente ?: '-' }}</div></div>
-                </div>
-            </div>
-            <div class="col">
-                <div class="box">
-                    <div class="box-title">Destinatario</div>
-                    <div class="row"><div class="label">Nombre</div><div class="value">{{ $nombreDestinatario ?: '-' }}</div></div>
-                    <div class="row"><div class="label">Telefono</div><div class="value">{{ $telefonoDestinatario ?: '-' }}</div></div>
-                    <div class="row"><div class="label">Direccion</div><div class="value">{{ $direccion ?: '-' }}</div></div>
-                    <div class="row"><div class="label">Referencia</div><div class="value">{{ $referencia ?: '-' }}</div></div>
-                </div>
-            </div>
+        <section class="box">
+            <div class="box-title">Remitente</div>
+            <div class="row"><div class="label">Nombre</div><div class="value">{{ $nombreRemitente ?: '-' }}</div></div>
+            <div class="row"><div class="label">Empresa</div><div class="value">{{ $nombreEnvia ?: '-' }}</div></div>
+            <div class="row"><div class="label">Carnet</div><div class="value">{{ $carnet ?: '-' }}</div></div>
+            <div class="row"><div class="label">Telefono</div><div class="value">{{ $telefonoRemitente ?: '-' }}</div></div>
+        </section>
+
+        <section class="box">
+            <div class="box-title">Destinatario</div>
+            <div class="row"><div class="label">Nombre</div><div class="value">{{ $nombreDestinatario ?: '-' }}</div></div>
+            <div class="row"><div class="label">Telefono</div><div class="value">{{ $telefonoDestinatario ?: '-' }}</div></div>
+            <div class="row"><div class="label">Direccion</div><div class="value">{{ $direccion ?: '-' }}</div></div>
+            <div class="row"><div class="label">Referencia</div><div class="value">{{ $referencia ?: '-' }}</div></div>
         </section>
 
         <section class="full-box">

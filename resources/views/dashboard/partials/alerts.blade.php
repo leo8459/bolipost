@@ -414,24 +414,33 @@
 @if((bool) data_get($carteroPendingSummary ?? [], 'enabled', false))
 @php
     $carteroPendingRows = collect(data_get($carteroPendingSummary, 'rows', collect()));
-    $carteroPendingDepartments = $carteroPendingRows
-        ->groupBy(fn ($row) => trim((string) ($row->ciudad ?? '')) !== '' ? trim((string) $row->ciudad) : 'SIN DEPARTAMENTO')
-        ->map(function ($rows, $department) {
-            return (object) [
-                'department' => $department,
-                'total_carteros' => $rows->count(),
-                'total_pendientes' => (int) $rows->sum(fn ($row) => (int) ($row->pendientes ?? 0)),
-                'rows' => $rows->sortByDesc(fn ($row) => (int) ($row->pendientes ?? 0))->values(),
-            ];
-        })
-        ->sortByDesc(fn ($item) => (int) ($item->total_pendientes ?? 0))
-        ->values();
+    $carteroPendingDepartments = data_get($carteroPendingSummary, 'scope') === 'nacional'
+        ? collect(data_get($carteroPendingSummary, 'departments', collect()))
+        : $carteroPendingRows
+            ->groupBy(fn ($row) => trim((string) ($row->ciudad ?? '')) !== '' ? trim((string) $row->ciudad) : 'SIN DEPARTAMENTO')
+            ->map(function ($rows, $department) {
+                return (object) [
+                    'department' => $department,
+                    'total_carteros' => $rows->count(),
+                    'total_pendientes' => (int) $rows->sum(fn ($row) => (int) ($row->pendientes ?? 0)),
+                    'rows' => $rows->sortByDesc(fn ($row) => (int) ($row->pendientes ?? 0))->values(),
+                ];
+            })
+            ->sortByDesc(fn ($item) => (int) ($item->total_pendientes ?? 0))
+            ->values();
+    $carteroPendingActiveDepartmentCount = $carteroPendingDepartments
+        ->filter(fn ($department) => (int) ($department->total_pendientes ?? 0) > 0)
+        ->count();
 @endphp
 <div class="alert alert-secondary mb-3">
     <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between">
         <div>
             <strong>Departamentos con envios pendientes ({{ data_get($carteroPendingSummary, 'scope') === 'nacional' ? 'Nivel nacional' : ($userCity !== '' ? $userCity : 'Tu regional') }}):</strong>
-            {{ $carteroPendingDepartments->count() }} departamento(s) con paquetes en CARTERO.
+            @if(data_get($carteroPendingSummary, 'scope') === 'nacional')
+                {{ $carteroPendingDepartments->count() }} departamentos supervisados; {{ $carteroPendingActiveDepartmentCount }} con paquetes en CARTERO.
+            @else
+                {{ $carteroPendingDepartments->count() }} departamento(s) con paquetes en CARTERO.
+            @endif
         </div>
     </div>
     <div class="mt-2 d-flex flex-wrap">

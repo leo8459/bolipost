@@ -30,6 +30,7 @@
 
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
+        @include('partials.system-responsive-assets')
     </head>
     <body class="font-sans antialiased text-[#041e42] bg-[radial-gradient(circle_at_top,rgba(254,203,52,0.30),transparent_48%),linear-gradient(180deg,#f8fbff_0%,#eef3fb_100%)]">
         <div class="min-h-screen flex flex-col justify-center items-center px-4 py-8">

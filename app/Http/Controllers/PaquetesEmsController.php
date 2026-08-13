@@ -2311,6 +2311,8 @@ class PaquetesEmsController extends Controller
             'items.*.destino' => ['required', 'string', Rule::in(self::CIUDADES_BOLIVIA)],
             'items.*.provincia' => 'nullable|string|max:255',
             'items.*.cantidad' => 'nullable|string|max:255',
+            'items.*.direccion_r' => 'nullable|string|max:255',
+            'items.*.direccion_d' => 'nullable|string|max:255',
             'items.*.peso' => 'required|numeric|min:0.001',
             'items.*.empresa_id' => 'nullable|integer|exists:empresa,id',
         ], [], [
@@ -2319,6 +2321,8 @@ class PaquetesEmsController extends Controller
             'items.*.destino' => 'destino',
             'items.*.provincia' => 'provincia',
             'items.*.cantidad' => 'cantidad',
+            'items.*.direccion_r' => 'direccion origen',
+            'items.*.direccion_d' => 'direccion destinatario',
             'items.*.peso' => 'peso',
             'items.*.empresa_id' => 'empresa',
         ]);
@@ -2355,12 +2359,16 @@ class PaquetesEmsController extends Controller
                 $codigo = strtoupper(trim((string) ($item['codigo'] ?? '')));
                 $codigo = preg_replace('/\s+/', '', $codigo) ?: '';
                 $provincia = strtoupper(trim((string) ($item['provincia'] ?? '')));
+                $direccionOrigen = strtoupper(trim((string) ($item['direccion_r'] ?? '')));
+                $direccionDestinatario = strtoupper(trim((string) ($item['direccion_d'] ?? '')));
 
                 return [
                     'codigo' => $codigo,
                     'destino' => strtoupper(trim((string) ($item['destino'] ?? ''))),
                     'provincia' => $provincia === '' ? null : $provincia,
                     'cantidad' => trim((string) ($item['cantidad'] ?? '')),
+                    'direccion_r' => $direccionOrigen,
+                    'direccion_d' => $direccionDestinatario,
                     'peso' => (float) ($item['peso'] ?? 0),
                     'empresa_id' => ! empty($item['empresa_id']) ? (int) $item['empresa_id'] : null,
                 ];
@@ -2459,10 +2467,10 @@ class PaquetesEmsController extends Controller
                     'telefono_r' => '-',
                     'contenido' => 'CONTRATO',
                     'cantidad' => $item['cantidad'] !== '' ? $item['cantidad'] : null,
-                    'direccion_r' => 'SIN DIRECCION',
+                    'direccion_r' => $item['direccion_r'] !== '' ? $item['direccion_r'] : 'SIN DIRECCION',
                     'nombre_d' => 'SIN DESTINATARIO',
                     'telefono_d' => null,
-                    'direccion_d' => 'SIN DIRECCION',
+                    'direccion_d' => $item['direccion_d'] !== '' ? $item['direccion_d'] : 'SIN DIRECCION',
                     'mapa' => null,
                     'provincia' => $item['provincia'],
                     'peso' => $item['peso'],
@@ -2494,6 +2502,8 @@ class PaquetesEmsController extends Controller
                     'peso' => (string) $contrato->peso,
                     'origen' => (string) $contrato->origen,
                     'destino' => (string) $contrato->destino,
+                    'direccion_r' => (string) $contrato->direccion_r,
+                    'direccion_d' => (string) $contrato->direccion_d,
                     'empresa_id' => $empresaId ? (int) $empresaId : null,
                     'reporte_url' => route('paquetes-contrato.reporte', [
                         'contrato' => $contrato->id,

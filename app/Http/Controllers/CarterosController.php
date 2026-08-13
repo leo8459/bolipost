@@ -48,6 +48,17 @@ class CarterosController extends Controller
         'cartero_ems',
         'carteros_ems',
     ];
+    private const DEPARTMENT_CAPITALS = [
+        'COCHABAMBA',
+        'LA PAZ',
+        'ORURO',
+        'POTOSI',
+        'SANTA CRUZ',
+        'SUCRE',
+        'TARIJA',
+        'TRINIDAD',
+        'COBIJA',
+    ];
 
     public function distribucion()
     {
@@ -84,7 +95,7 @@ class CarterosController extends Controller
             })
             ->values();
 
-        $ciudadesAsignadas = $this->assignedPackageDestinationCities($estadoCarteroId);
+        $ciudadesAsignadas = $this->assignedPackageDestinationCities();
 
         return view('carteros.asignados', [
             'carterosAsignados' => $carterosAsignados,
@@ -3756,42 +3767,9 @@ class CarterosController extends Controller
         return $city;
     }
 
-    private function assignedPackageDestinationCities(int $estadoCarteroId)
+    private function assignedPackageDestinationCities()
     {
-        $base = Cartero::query()->where('id_estados', $estadoCarteroId);
-
-        $emsIds = (clone $base)
-            ->whereNotNull('id_paquetes_ems')
-            ->pluck('id_paquetes_ems')
-            ->all();
-        $certiIds = (clone $base)
-            ->whereNotNull('id_paquetes_certi')
-            ->pluck('id_paquetes_certi')
-            ->all();
-        $ordiIds = (clone $base)
-            ->whereNotNull('id_paquetes_ordi')
-            ->pluck('id_paquetes_ordi')
-            ->all();
-        $contratoIds = (clone $base)
-            ->whereNotNull('id_paquetes_contrato')
-            ->pluck('id_paquetes_contrato')
-            ->all();
-        $solicitudIds = (clone $base)
-            ->whereNotNull('id_solicitud_cliente')
-            ->pluck('id_solicitud_cliente')
-            ->all();
-
-        return collect()
-            ->merge(PaqueteEms::query()->whereIn('id', $emsIds ?: [0])->pluck('ciudad'))
-            ->merge(PaqueteCerti::query()->whereIn('id', $certiIds ?: [0])->pluck('cuidad'))
-            ->merge(PaqueteOrdi::query()->whereIn('id', $ordiIds ?: [0])->pluck('ciudad'))
-            ->merge(RecojoContrato::query()->whereIn('id', $contratoIds ?: [0])->pluck('destino'))
-            ->merge(SolicitudCliente::query()->whereIn('id', $solicitudIds ?: [0])->pluck('ciudad'))
-            ->map(fn ($city) => $this->normalizeUserCity((string) $city))
-            ->filter()
-            ->unique()
-            ->sort()
-            ->values()
+        return collect(self::DEPARTMENT_CAPITALS)
             ->map(fn ($city) => [
                 'value' => $city,
                 'label' => Str::title(mb_strtolower((string) $city)),

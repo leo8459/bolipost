@@ -262,6 +262,9 @@ class PaquetesEms extends Component
         if ($this->isEnTransitoEms) {
             $this->perPagePaquetes = 100;
         }
+        if ($this->isTransitoEms) {
+            $this->perPagePaquetes = 100;
+        }
         $this->setOrigenFromUser();
         if ($this->isAdmision || $this->isAlmacenEms || $this->isCreateEms) {
             $this->servicios = Servicio::orderBy('nombre_servicio')->get();
@@ -499,7 +502,13 @@ class PaquetesEms extends Component
 
         // En RECIBIR REGIONAL, permitir autoseleccion por codigo en EMS, CONTRATOS y SOLICITUDES.
         if ($this->isTransitoEms) {
+            // La busqueda exacta no necesita aplicar tambien el filtro general del listado.
+            // Al encontrar el registro se restaura un filtro acotado para evitar que el
+            // siguiente render de Livewire vuelva a consultar toda la tabla regional.
+            $this->searchQuery = '';
+
             $paqueteEms = $this->basePaquetesQuery(false)
+                ->withoutEagerLoads()
                 ->whereRaw('trim(upper(paquetes_ems.codigo)) = trim(upper(?))', [$codigo])
                 ->first(['paquetes_ems.id', 'paquetes_ems.codigo']);
 
@@ -514,10 +523,10 @@ class PaquetesEms extends Component
                     ->values()
                     ->all();
 
-                session()->flash('success', 'Paquete EMS seleccionado automaticamente por codigo.');
-                $this->search = '';
-                $this->searchQuery = '';
-                $this->resetPage();
+                $this->completeRecibirRegionalExactSearch(
+                    $codigo,
+                    'Paquete EMS seleccionado automaticamente por codigo.'
+                );
                 return;
             }
 
@@ -545,14 +554,15 @@ class PaquetesEms extends Component
                     ->values()
                     ->all();
 
-                session()->flash('success', 'Contrato seleccionado automaticamente por codigo.');
-                $this->search = '';
-                $this->searchQuery = '';
-                $this->resetPage();
+                $this->completeRecibirRegionalExactSearch(
+                    $codigo,
+                    'Contrato seleccionado automaticamente por codigo.'
+                );
                 return;
             }
 
             $solicitud = $this->baseSolicitudesQuery()
+                ->withoutEagerLoads()
                 ->where(function ($query) use ($codigo) {
                     $query->whereRaw('trim(upper(solicitud_clientes.codigo_solicitud)) = trim(upper(?))', [$codigo])
                         ->orWhereRaw('trim(upper(COALESCE(solicitud_clientes.barcode, \'\'))) = trim(upper(?))', [$codigo])
@@ -571,10 +581,10 @@ class PaquetesEms extends Component
                     ->values()
                     ->all();
 
-                session()->flash('success', 'Solicitud seleccionada automaticamente por codigo.');
-                $this->search = '';
-                $this->searchQuery = '';
-                $this->resetPage();
+                $this->completeRecibirRegionalExactSearch(
+                    $codigo,
+                    'Solicitud seleccionada automaticamente por codigo.'
+                );
                 return;
             }
 
@@ -780,6 +790,14 @@ class PaquetesEms extends Component
 
         // Mantener la busqueda como filtro normal evita el mensaje rojo
         // cuando el usuario solo queria buscar en tabla y no seleccionar exacto.
+    }
+
+    protected function completeRecibirRegionalExactSearch(string $codigo, string $message): void
+    {
+        session()->flash('success', $message);
+        $this->search = '';
+        $this->searchQuery = trim($codigo);
+        $this->resetPage();
     }
 
     protected function almacenIntQueryBase()
@@ -5609,12 +5627,8 @@ class PaquetesEms extends Component
         }
 
         if ($this->isAlmacenEms || $this->isEnTransitoEms || $this->isTransitoEms || $this->isVentanillaEms || $this->isDevolucionEms) {
-            if ($this->isTransitoEms) {
-                $almacenRows = $this->almacenUnificadoQuery()->get();
-            } else {
-                $almacenRows = $this->almacenUnificadoQuery()
-                    ->simplePaginate($this->normalizePerPage($this->perPagePaquetes));
-            }
+            $almacenRows = $this->almacenUnificadoQuery()
+                ->simplePaginate($this->normalizePerPage($this->perPagePaquetes));
             $paquetes = $almacenRows;
 
             if ($this->canUseSelectedPreview) {

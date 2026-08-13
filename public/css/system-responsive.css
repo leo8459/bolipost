@@ -1,0 +1,438 @@
+/*
+ * Mobile-only responsive layer shared by every AdminLTE screen.
+ * Keep every rule inside this breakpoint so the desktop UI remains untouched.
+ */
+@media (max-width: 767.98px) {
+html {
+    max-width: 100%;
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
+}
+
+body,
+.wrapper,
+.content-wrapper,
+.content,
+.content > .container,
+.content > .container-fluid {
+    max-width: 100%;
+}
+
+body,
+.wrapper,
+.content-wrapper {
+    width: 100%;
+    overflow-x: hidden;
+}
+
+.content-wrapper,
+.content,
+.card,
+.card-body,
+.row > [class*="col-"] {
+    min-width: 0;
+}
+
+img,
+video,
+canvas {
+    max-width: 100%;
+    height: auto;
+}
+
+.responsive-table-shell {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    margin-bottom: 1rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-radius: inherit;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+}
+
+.responsive-table-shell > table {
+    margin-bottom: 0 !important;
+}
+
+.responsive-table-shell:focus-visible {
+    outline: 3px solid rgba(32, 83, 154, 0.35);
+    outline-offset: 2px;
+}
+
+.table-responsive {
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+}
+
+.card,
+.small-box,
+.info-box,
+.callout,
+.alert {
+    max-width: 100%;
+}
+
+.card-header,
+.card-footer,
+.modal-header,
+.modal-footer,
+.btn-toolbar,
+.dataTables_wrapper .row {
+    gap: 0.5rem;
+}
+
+.card-header,
+.card-footer,
+.modal-footer,
+.btn-toolbar,
+.form-inline {
+    flex-wrap: wrap;
+}
+
+.form-control,
+.custom-select,
+.select2-container,
+.select2-container--default,
+.input-group,
+.input-group > .form-control,
+.input-group > .custom-select {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.select2-container {
+    width: 100% !important;
+}
+
+.modal-dialog {
+    max-width: calc(100vw - 1rem);
+}
+
+.dropdown-menu {
+    max-width: calc(100vw - 1rem);
+    overflow-wrap: anywhere;
+}
+
+.pagination {
+    flex-wrap: wrap;
+}
+
+.dataTables_wrapper,
+.dataTables_wrapper .dataTables_scroll,
+.dataTables_wrapper .dataTables_scrollHead,
+.dataTables_wrapper .dataTables_scrollBody {
+    max-width: 100%;
+}
+
+@media (max-width: 991.98px) {
+    .content-header h1 {
+        font-size: clamp(1.35rem, 5vw, 1.8rem);
+        line-height: 1.2;
+        overflow-wrap: anywhere;
+    }
+
+    .content-header .row {
+        row-gap: 0.5rem;
+    }
+
+    .content-header .breadcrumb {
+        float: none !important;
+        padding-left: 0;
+    }
+
+    .navbar-nav .nav-link {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .content-wrapper .row,
+    .content-wrapper .d-flex:not(.input-group),
+    .content-wrapper [class*="toolbar"],
+    .content-wrapper [class*="actions"] {
+        max-width: 100%;
+        min-width: 0;
+        flex-wrap: wrap !important;
+    }
+
+    .content-wrapper [style*="min-width"]:not(table) {
+        min-width: 0 !important;
+    }
+
+    .content-header {
+        padding: 12px 0.25rem 6px;
+    }
+
+    .content {
+        padding: 0 0.25rem;
+    }
+
+    .container-fluid,
+    .container {
+        padding-right: 0.5rem;
+        padding-left: 0.5rem;
+    }
+
+    .card-body {
+        padding: 0.85rem;
+    }
+
+    .card-header,
+    .card-footer {
+        padding-right: 0.85rem;
+        padding-left: 0.85rem;
+    }
+
+    .card-header > .card-tools {
+        float: none;
+        width: 100%;
+        margin: 0.5rem 0 0;
+    }
+
+    .form-inline,
+    .form-inline .form-group,
+    .form-inline label,
+    .form-inline .form-control,
+    .form-inline .custom-select,
+    .dataTables_wrapper .dataTables_length,
+    .dataTables_wrapper .dataTables_filter,
+    .dataTables_wrapper .dataTables_info,
+    .dataTables_wrapper .dataTables_paginate {
+        width: 100%;
+        margin-right: 0 !important;
+        margin-left: 0 !important;
+        text-align: left !important;
+    }
+
+    .form-inline .form-group {
+        align-items: stretch;
+    }
+
+    .dataTables_wrapper .dataTables_filter input,
+    .dataTables_wrapper .dataTables_length select {
+        width: 100% !important;
+        margin: 0.35rem 0 0 !important;
+    }
+
+    .modal-dialog {
+        width: auto;
+        margin: 0.5rem;
+    }
+
+    .modal-content {
+        max-height: calc(100dvh - 1rem);
+    }
+
+    .modal-body {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .modal-footer > .btn {
+        flex: 1 1 10rem;
+    }
+
+    .btn:not(.btn-xs),
+    button:not(.close):not(.navbar-toggler) {
+        min-height: 42px;
+    }
+
+    .input-group .btn,
+    .input-group button {
+        min-height: auto;
+    }
+
+    input.form-control,
+    select.form-control,
+    textarea.form-control,
+    .custom-select {
+        font-size: 16px;
+    }
+
+    .pagination {
+        justify-content: center;
+        gap: 0.2rem;
+    }
+
+    .pagination .page-link {
+        min-width: 40px;
+        min-height: 40px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .swal2-popup {
+        width: min(32em, calc(100vw - 1rem)) !important;
+        padding: 1rem !important;
+    }
+
+    /* Tables become labelled row cards on phones, avoiding horizontal page scroll. */
+    .responsive-card-shell,
+    .table-responsive.responsive-card-shell,
+    .dataTables_scrollBody.responsive-card-shell {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow: visible !important;
+        border: 0 !important;
+    }
+
+    table.responsive-card-table {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        border: 0 !important;
+        background: transparent !important;
+    }
+
+    table.responsive-card-table > thead {
+        position: absolute !important;
+        width: 1px !important;
+        height: 1px !important;
+        padding: 0 !important;
+        margin: -1px !important;
+        overflow: hidden !important;
+        clip: rect(0, 0, 0, 0) !important;
+        white-space: nowrap !important;
+        border: 0 !important;
+    }
+
+    table.responsive-card-table > tbody {
+        display: grid !important;
+        width: 100% !important;
+        gap: 0.75rem;
+        padding: 0.15rem;
+    }
+
+    table.responsive-card-table > tbody > tr {
+        display: block !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow: hidden;
+        border: 1px solid #dbe3ef !important;
+        border-radius: 12px;
+        background: #fff !important;
+        box-shadow: 0 3px 10px rgba(15, 39, 74, 0.06);
+    }
+
+    table.responsive-card-table > tbody > tr > td,
+    table.responsive-card-table > tbody > tr > th {
+        display: grid !important;
+        grid-template-columns: minmax(6.75rem, 38%) minmax(0, 1fr);
+        align-items: center;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        min-height: 42px;
+        padding: 0.6rem 0.7rem !important;
+        border: 0 !important;
+        border-bottom: 1px solid #edf1f7 !important;
+        background: transparent !important;
+        text-align: right !important;
+        white-space: normal !important;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    table.responsive-card-table > tbody > tr > td:last-child,
+    table.responsive-card-table > tbody > tr > th:last-child {
+        border-bottom: 0 !important;
+    }
+
+    table.responsive-card-table > tbody > tr > td::before,
+    table.responsive-card-table > tbody > tr > th::before {
+        content: attr(data-label);
+        min-width: 0;
+        padding-right: 0.65rem;
+        color: #20539a;
+        font-size: 0.72rem;
+        font-weight: 800;
+        line-height: 1.25;
+        text-align: left;
+        text-transform: uppercase;
+        overflow-wrap: anywhere;
+    }
+
+    table.responsive-card-table > tbody > tr > .responsive-full-cell {
+        display: block !important;
+        padding: 1rem !important;
+        text-align: center !important;
+    }
+
+    table.responsive-card-table > tbody > tr > .responsive-full-cell::before {
+        content: none;
+    }
+
+    table.responsive-card-table td .btn,
+    table.responsive-card-table td .btn-group,
+    table.responsive-card-table td select,
+    table.responsive-card-table td input:not([type="checkbox"]):not([type="radio"]) {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    table.responsive-card-table td .btn-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+    }
+
+    table.responsive-card-table td .btn-group > .btn {
+        flex: 1 1 8rem;
+        border-radius: 0.25rem !important;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .main-header .navbar-nav .nav-link {
+        padding-right: 0.55rem;
+        padding-left: 0.55rem;
+    }
+
+    .content-header h1 {
+        font-size: 1.35rem;
+    }
+
+    .card-title {
+        max-width: 100%;
+        font-size: 1.05rem;
+        overflow-wrap: anywhere;
+    }
+
+    .btn-group.responsive-stack,
+    .d-flex.responsive-stack {
+        width: 100%;
+        flex-direction: column;
+    }
+
+    .responsive-stack > .btn {
+        width: 100%;
+        border-radius: 0.25rem !important;
+    }
+
+    .card-header [class*="actions"] > *,
+    .card-body [class*="search-cluster"] > * {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin-right: 0 !important;
+        margin-left: 0 !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+    }
+}
+}

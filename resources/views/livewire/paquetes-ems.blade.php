@@ -3656,8 +3656,15 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
                     @if ($canEmsAssign)
-                    <button type="button" class="btn btn-primary" wire:click="recibirSeleccionadosRegional">
-                        Confirmar recibido
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        wire:click="recibirSeleccionadosRegional"
+                        wire:loading.attr="disabled"
+                        wire:target="recibirSeleccionadosRegional"
+                    >
+                        <span wire:loading.remove wire:target="recibirSeleccionadosRegional">Confirmar recibido</span>
+                        <span wire:loading wire:target="recibirSeleccionadosRegional">Procesando...</span>
                     </button>
                     @endif
                 </div>

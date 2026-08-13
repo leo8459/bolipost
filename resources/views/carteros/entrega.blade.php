@@ -10,7 +10,6 @@
             || (auth()->user()?->can('feature.carteros.cartero.deliver') ?? false);
         $canEntregaAttempt = (auth()->user()?->can('feature.carteros.entrega.attempt') ?? false)
             || (auth()->user()?->can('feature.carteros.cartero.deliver') ?? false);
-        $forceCameraCapture = in_array($tipo_paquete, ['CONTRATO', 'EMS', 'SOLICITUD'], true);
     @endphp
     <div class="carteros-wrap entrega-wrap">
         <div class="card card-carteros">
@@ -89,15 +88,23 @@
                                     </div>
 
                                     <div class="form-group mb-3">
-                                        <label for="foto_entrega">Foto (obligatoria)</label>
-                                        <input type="file" name="foto" id="foto_entrega" class="form-control-file foto-input"
-                                            accept="image/*" @if ($forceCameraCapture) capture="environment" @endif data-preview-img="preview_entrega" required>
+                                        <label>Foto (obligatoria)</label>
+                                        <div class="foto-source-options" id="foto_entrega_opciones">
+                                            <button type="button" class="btn btn-outline-primary foto-source-button"
+                                                data-foto-target="foto_entrega_camara">
+                                                <i class="fas fa-camera mr-1" aria-hidden="true"></i> Tomar fotografia
+                                            </button>
+                                            <button type="button" class="btn btn-outline-secondary foto-source-button"
+                                                data-foto-target="foto_entrega_galeria">
+                                                <i class="fas fa-images mr-1" aria-hidden="true"></i> Galeria / Archivos
+                                            </button>
+                                        </div>
+                                        <input type="file" name="foto" id="foto_entrega_camara" class="foto-input d-none"
+                                            accept="image/*" capture="environment" data-preview-img="preview_entrega">
+                                        <input type="file" name="foto" id="foto_entrega_galeria" class="foto-input d-none"
+                                            accept="image/*" data-preview-img="preview_entrega">
                                         <small class="text-muted d-block mt-1">
-                                            @if ($forceCameraCapture)
-                                                En celular se abre directamente la camara trasera. En PC se abre selector de archivos.
-                                            @else
-                                                En celular puedes elegir camara o galeria/archivos. En PC se abre selector de archivos.
-                                            @endif
+                                            Elige si deseas usar la camara o buscar una imagen guardada en el celular.
                                         </small>
                                         <small class="text-muted d-block mt-1 foto-upload-hint">
                                             Si la foto es muy pesada, se reduce automaticamente antes de enviar.
@@ -133,15 +140,23 @@
                                     <input type="hidden" name="id" value="{{ $id }}">
                                     <input type="hidden" name="descripcion" id="descripcion_intento" value="">
                                     <div class="form-group mb-3">
-                                        <label for="foto_intento">Foto (obligatoria)</label>
-                                        <input type="file" name="foto" id="foto_intento" class="form-control-file foto-input"
-                                            accept="image/*" @if ($forceCameraCapture) capture="environment" @endif data-preview-img="preview_intento" required>
+                                        <label>Foto (obligatoria)</label>
+                                        <div class="foto-source-options" id="foto_intento_opciones">
+                                            <button type="button" class="btn btn-outline-primary foto-source-button"
+                                                data-foto-target="foto_intento_camara">
+                                                <i class="fas fa-camera mr-1" aria-hidden="true"></i> Tomar fotografia
+                                            </button>
+                                            <button type="button" class="btn btn-outline-secondary foto-source-button"
+                                                data-foto-target="foto_intento_galeria">
+                                                <i class="fas fa-images mr-1" aria-hidden="true"></i> Galeria / Archivos
+                                            </button>
+                                        </div>
+                                        <input type="file" name="foto" id="foto_intento_camara" class="foto-input d-none"
+                                            accept="image/*" capture="environment" data-preview-img="preview_intento">
+                                        <input type="file" name="foto" id="foto_intento_galeria" class="foto-input d-none"
+                                            accept="image/*" data-preview-img="preview_intento">
                                         <small class="text-muted d-block mt-1">
-                                            @if ($forceCameraCapture)
-                                                En celular se abre directamente la camara trasera. En PC se abre selector de archivos.
-                                            @else
-                                                En celular puedes elegir camara o galeria/archivos. En PC se abre selector de archivos.
-                                            @endif
+                                            Elige si deseas usar la camara o buscar una imagen guardada en el celular.
                                         </small>
                                         <small class="text-muted d-block mt-1 foto-upload-hint">
                                             Si la foto es muy pesada, se reduce automaticamente antes de enviar.
@@ -243,6 +258,16 @@
             display: inline-block;
         }
 
+        .foto-source-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .foto-source-button {
+            min-height: 44px;
+        }
+
         .foto-preview-img {
             max-width: 220px;
             max-height: 160px;
@@ -288,6 +313,16 @@
             descripcion.addEventListener('input', syncDescripcion);
             syncDescripcion();
 
+            document.querySelectorAll('.foto-source-button').forEach((button) => {
+                button.addEventListener('click', function() {
+                    const input = document.getElementById(this.dataset.fotoTarget);
+                    if (input) {
+                        input.disabled = false;
+                        input.click();
+                    }
+                });
+            });
+
             document.querySelectorAll('.foto-input').forEach((input) => {
                 input.addEventListener('change', function() {
                     const previewId = this.dataset.previewImg;
@@ -300,12 +335,27 @@
                     if (!img || !wrap) return;
 
                     if (!file) {
+                        const anotherFileSelected = form && Array.from(form.querySelectorAll('.foto-input'))
+                            .some((candidate) => candidate !== this && candidate.files && candidate.files[0]);
+
+                        if (anotherFileSelected) {
+                            return;
+                        }
+
                         img.removeAttribute('src');
                         wrap.classList.add('d-none');
                         if (sizeLabel) {
                             sizeLabel.textContent = '';
                         }
                         return;
+                    }
+
+                    if (form) {
+                        form.querySelectorAll('.foto-input').forEach((candidate) => {
+                            if (candidate !== this) {
+                                candidate.value = '';
+                            }
+                        });
                     }
 
                     if (sizeLabel) {
@@ -425,12 +475,23 @@
                         return;
                     }
 
-                    const fileInput = form.querySelector('.foto-input');
+                    const fileInputs = Array.from(form.querySelectorAll('.foto-input'));
+                    const fileInput = fileInputs.find((input) => input.files && input.files[0]) || null;
                     const sizeLabel = form.querySelector('.foto-size-label');
                     const submitButton = form.querySelector('button[type="submit"]');
                     const file = fileInput && fileInput.files ? fileInput.files[0] : null;
 
-                    if (!file || file.size <= MAX_UPLOAD_BYTES) {
+                    if (!file) {
+                        event.preventDefault();
+                        setStatus(form, 'Selecciona Tomar fotografia o Galeria / Archivos antes de continuar.');
+                        return;
+                    }
+
+                    fileInputs.forEach((input) => {
+                        input.disabled = input !== fileInput;
+                    });
+
+                    if (file.size <= MAX_UPLOAD_BYTES) {
                         return;
                     }
 

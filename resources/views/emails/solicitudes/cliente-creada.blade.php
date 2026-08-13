@@ -120,6 +120,14 @@
                 </div>
             </div>
 
+            <div style="margin-top:18px;padding:18px 20px;border-radius:14px;background:#eaf3ff;border:2px solid #20539a;color:#173f75;text-align:center;">
+                <p style="margin:0;font-size:14px;line-height:1.7;font-weight:700;">
+                    Se comunicar&aacute; un operario dentro de las pr&oacute;ximas 24 horas para confirmar el recojo.
+                    Si nadie se comunica, por favor cont&aacute;ctese al
+                    <a href="tel:+59171522163" style="color:#173f75;font-size:17px;font-weight:800;text-decoration:none;white-space:nowrap;">71522163</a>.
+                </p>
+            </div>
+
             <div style="margin-top:18px;padding:16px 18px;border-radius:14px;background:#fff8db;border:1px solid #f4d56b;color:#4a3b00;">
                 <p style="margin:0;font-size:13px;line-height:1.65;">
                     <strong>Declaracion del cliente:</strong>

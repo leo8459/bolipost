@@ -22,6 +22,8 @@ class ClienteSolicitudController extends Controller
 {
     private const DIRECCION_DESTINATARIO_VENTANILLA = 'CORREOS DE BOLIVIA';
 
+    private const PICKUP_CONFIRMATION_MESSAGE = 'Se comunicará un operario dentro de las próximas 24 horas para confirmar el recojo. Si nadie se comunica, por favor contáctese al 71522163.';
+
     private const CIUDADES_BOLIVIA = [
         'LA PAZ',
         'SANTA CRUZ',
@@ -167,12 +169,14 @@ class ClienteSolicitudController extends Controller
             return redirect()
                 ->route('clientes.solicitudes.history')
                 ->with('success', $message)
+                ->with('pickup_notice', self::PICKUP_CONFIRMATION_MESSAGE)
                 ->with('warning', 'La solicitud se registro, pero no se pudo enviar el correo automatico. Revisa la configuracion SMTP.');
         }
 
         return redirect()
             ->route('clientes.solicitudes.history')
-            ->with('success', $message);
+            ->with('success', $message)
+            ->with('pickup_notice', self::PICKUP_CONFIRMATION_MESSAGE);
     }
 
     private function generateSolicitudCode(int $id, ?string $origin): string

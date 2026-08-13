@@ -33,16 +33,17 @@
         .center { text-align: center; }
         .brand {
             border: 1px solid #000;
-            padding: 2mm;
+            padding: 1mm;
         }
         .brand img {
             max-width: 100%;
-            height: auto;
+            max-height: 17mm;
+            width: auto;
         }
         .brand-title {
             font-size: 12px;
             font-weight: 700;
-            margin-top: 2mm;
+            margin-top: .5mm;
         }
         .copy-label {
             font-size: 9px;
@@ -58,7 +59,7 @@
         }
         .divider {
             border-top: 1px dashed #000;
-            margin: 2.5mm 0;
+            margin: 1.5mm 0;
         }
         .barcode {
             text-align: center;
@@ -66,11 +67,11 @@
         .barcode img {
             width: 66mm;
             max-width: 100%;
-            height: 18mm;
+            height: 12mm;
             object-fit: fill;
         }
         .code {
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 700;
             letter-spacing: .06em;
             margin-top: 1mm;
@@ -92,7 +93,7 @@
             padding-left: 1.5mm;
         }
         .section {
-            margin-bottom: 2mm;
+            margin-bottom: 1mm;
             word-break: break-word;
         }
         .label {
@@ -105,14 +106,28 @@
         }
         .value {
             font-size: 10px;
-            min-height: 4mm;
+            min-height: 3mm;
         }
         .value-sm {
             font-size: 9px;
         }
         .box {
             border: 1px solid #000;
-            padding: 2mm;
+            padding: 1.5mm;
+        }
+        .person-title {
+            margin: 0 0 1mm;
+            padding-bottom: .5mm;
+            border-bottom: 1px solid #000;
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+        }
+        .person-group + .person-group {
+            margin-top: 1mm;
+            padding-top: 1mm;
+            border-top: 1px dashed #000;
         }
         .qr-row {
             display: table;
@@ -140,16 +155,16 @@
         }
         .signature-line {
             display: block;
-            margin-top: 8mm;
+            margin-top: 5mm;
             border-top: 1px solid #000;
             height: 0;
         }
         .responsibility-note {
-            margin-top: 2.5mm;
-            padding: 1.5mm;
+            margin-top: 1.5mm;
+            padding: 1mm;
             border: 1px solid #000;
-            font-size: 8px;
-            line-height: 1.25;
+            font-size: 7.5px;
+            line-height: 1.15;
             font-weight: 700;
             text-align: justify;
         }
@@ -245,29 +260,35 @@
         </div>
 
         <div class="box">
-            <div class="section">
-                <span class="label">Nombre remitente</span>
-                <div class="value">{{ $nombreRemitente !== '' ? $nombreRemitente : '-' }}</div>
+            <div class="person-group">
+                <div class="person-title">Remitente</div>
+                <div class="section">
+                    <span class="label">Nombre</span>
+                    <div class="value">{{ $nombreRemitente !== '' ? $nombreRemitente : '-' }}</div>
+                </div>
+                <div class="section">
+                    <span class="label">Telefono</span>
+                    <div class="value">{{ $telefonoRemitente !== '' ? $telefonoRemitente : '-' }}</div>
+                </div>
             </div>
-            <div class="section">
-                <span class="label">Telefono remitente</span>
-                <div class="value">{{ $telefonoRemitente !== '' ? $telefonoRemitente : '-' }}</div>
-            </div>
-            <div class="section">
-                <span class="label">Nombre destinatario</span>
-                <div class="value">{{ $nombreDestinatario !== '' ? $nombreDestinatario : '-' }}</div>
-            </div>
-            <div class="section">
-                <span class="label">Direccion destinatario</span>
-                <div class="value value-sm">{{ $direccion !== '' ? $direccion : '-' }}</div>
-            </div>
-            <div class="section">
-                <span class="label">Referencia</span>
-                <div class="value value-sm">{{ $referencia !== '' ? $referencia : '-' }}</div>
-            </div>
-            <div class="section">
-                <span class="label">Telefono destinatario</span>
-                <div class="value">{{ $telefonoDestinatario !== '' ? $telefonoDestinatario : '-' }}</div>
+            <div class="person-group">
+                <div class="person-title">Destinatario</div>
+                <div class="section">
+                    <span class="label">Nombre</span>
+                    <div class="value">{{ $nombreDestinatario !== '' ? $nombreDestinatario : '-' }}</div>
+                </div>
+                <div class="section">
+                    <span class="label">Direccion</span>
+                    <div class="value value-sm">{{ $direccion !== '' ? $direccion : '-' }}</div>
+                </div>
+                <div class="section">
+                    <span class="label">Referencia</span>
+                    <div class="value value-sm">{{ $referencia !== '' ? $referencia : '-' }}</div>
+                </div>
+                <div class="section">
+                    <span class="label">Telefono</span>
+                    <div class="value">{{ $telefonoDestinatario !== '' ? $telefonoDestinatario : '-' }}</div>
+                </div>
             </div>
             <div class="section">
                 <span class="label">Descripcion</span>
@@ -280,7 +301,7 @@
         <div class="grid-2">
             <div>
                 <div class="section">
-                    <span class="label">Fecha y hora</span>
+                    <span class="label">Fecha de generacion</span>
                     <div class="value value-sm">{{ \Carbon\Carbon::parse($fecha)->format('Y-m-d H:i:s') }}</div>
                 </div>
                 <div class="section">

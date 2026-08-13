@@ -324,6 +324,18 @@
                                 </select>
                             </div>
                         </div>
+                        <div class="col-lg-3 col-md-6">
+                            <div class="form-group">
+                                <label>Direccion origen (opcional)</label>
+                                <input type="text" name="direccion_r" id="registroRapidoDireccionOrigen" class="form-control" value="{{ old('direccion_r') }}" maxlength="255" placeholder="Calle, avenida, numero o referencia">
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6">
+                            <div class="form-group">
+                                <label>Direccion destinatario (opcional)</label>
+                                <input type="text" name="direccion_d" id="registroRapidoDireccionDestinatario" class="form-control" value="{{ old('direccion_d') }}" maxlength="255" placeholder="Calle, avenida, numero o referencia">
+                            </div>
+                        </div>
                         <div class="col-lg-2 col-md-4">
                             <div class="form-group">
                                 <label>Provincia (opcional)</label>
@@ -385,7 +397,9 @@
                                     <th>Cantidad</th>
                                     <th>Peso</th>
                                     <th>Origen</th>
+                                    <th>Direccion origen</th>
                                     <th>Destino</th>
+                                    <th>Direccion destinatario</th>
                                     <th>Provincia</th>
                                     <th>Empresa</th>
                                     <th class="text-center quick-table-action-cell">Accion</th>
@@ -399,7 +413,9 @@
                                         <td>{{ !empty($item['cantidad']) ? $item['cantidad'] : '-' }}</td>
                                         <td>{{ $item['peso'] ?? '-' }}</td>
                                         <td>{{ $item['origen'] ?? '-' }}</td>
+                                        <td>{{ $item['direccion_r'] ?? '-' }}</td>
                                         <td>{{ $item['destino'] ?? '-' }}</td>
+                                        <td>{{ $item['direccion_d'] ?? '-' }}</td>
                                         <td>{{ $item['provincia'] ?? '-' }}</td>
                                         <td>{{ $item['empresa'] ?? '-' }}</td>
                                         <td class="quick-table-action-cell">
@@ -417,7 +433,7 @@
                                     </tr>
                                 @empty
                                     <tr id="registroRapidoListadoEmpty">
-                                        <td colspan="9" class="text-center text-muted py-3">Aun no hay registros en la prelista.</td>
+                                        <td colspan="11" class="text-center text-muted py-3">Aun no hay registros en la prelista.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
@@ -438,6 +454,8 @@
         const cantidadInput = document.getElementById('registroRapidoCantidad');
         const origenInput = document.getElementById('registroRapidoOrigen');
         const destinoInput = document.getElementById('registroRapidoDestino');
+        const direccionOrigenInput = document.getElementById('registroRapidoDireccionOrigen');
+        const direccionDestinatarioInput = document.getElementById('registroRapidoDireccionDestinatario');
         const provinciaInput = document.getElementById('registroRapidoProvincia');
         const empresaInput = document.getElementById('registroRapidoEmpresa');
         const provinciasPorDestino = @json($provinciasPorDestino ?? []);
@@ -511,7 +529,7 @@
             listBody.innerHTML = '';
 
             if (!prelista.length) {
-                listBody.innerHTML = '<tr id="registroRapidoListadoEmpty"><td colspan="9" class="text-center text-muted py-3">Aun no hay registros en la prelista.</td></tr>';
+                listBody.innerHTML = '<tr id="registroRapidoListadoEmpty"><td colspan="11" class="text-center text-muted py-3">Aun no hay registros en la prelista.</td></tr>';
                 if (listCount) listCount.textContent = '0';
                 return;
             }
@@ -534,7 +552,9 @@
                     <td>${escapeHtml(item.cantidad || '-')}</td>
                     <td>${escapeHtml(item.peso)}</td>
                     <td>${escapeHtml(item.origen)}</td>
+                    <td>${escapeHtml(item.direccion_r || '-')}</td>
                     <td>${escapeHtml(item.destino)}</td>
+                    <td>${escapeHtml(item.direccion_d || '-')}</td>
                     <td>${escapeHtml(item.provincia || '-')}</td>
                     <td>${escapeHtml(item.empresa || '-')}</td>
                     <td class="quick-table-action-cell">${actionButtons.join('')}</td>
@@ -555,6 +575,8 @@
             const cantidad = String(cantidadInput?.value || '').trim();
             const destino = String(destinoInput.value || '').trim().toUpperCase();
             const origen = String(origenInput.value || '').trim().toUpperCase();
+            const direccionOrigen = String(direccionOrigenInput?.value || '').trim().toUpperCase();
+            const direccionDestinatario = String(direccionDestinatarioInput?.value || '').trim().toUpperCase();
             const provincia = String(provinciaInput?.value || '').trim().toUpperCase();
             const empresaIdValue = String(empresaInput?.value || '').trim();
             const empresaId = empresaIdValue !== '' ? Number(empresaIdValue) : null;
@@ -592,7 +614,9 @@
                 cantidad: cantidad,
                 peso: Number(peso).toFixed(3),
                 origen: origen,
+                direccion_r: direccionOrigen,
                 destino: destino,
+                direccion_d: direccionDestinatario,
                 provincia: provincia,
                 empresa_id: Number.isFinite(empresaId) ? empresaId : null,
                 empresa: empresaIdValue !== '' ? empresaNombre : '',
@@ -618,6 +642,12 @@
                     cantidadInput.value = item.cantidad || '';
             }
             destinoInput.value = item.destino;
+            if (direccionOrigenInput) {
+                direccionOrigenInput.value = item.direccion_r || '';
+            }
+            if (direccionDestinatarioInput) {
+                direccionDestinatarioInput.value = item.direccion_d || '';
+            }
             renderProvinciaOptions(item.destino, item.provincia || '');
 
             if (provinciaInput) {
@@ -685,6 +715,8 @@
                             cantidad: item.cantidad || null,
                             peso: item.peso,
                             destino: item.destino,
+                            direccion_r: item.direccion_r || null,
+                            direccion_d: item.direccion_d || null,
                             provincia: item.provincia || null,
                             empresa_id: item.empresa_id || null,
                         })),
@@ -724,6 +756,12 @@
                 }
                 if (cantidadInput) {
                     cantidadInput.value = '';
+                }
+                if (direccionOrigenInput) {
+                    direccionOrigenInput.value = '';
+                }
+                if (direccionDestinatarioInput) {
+                    direccionDestinatarioInput.value = '';
                 }
                 if (provinciaInput) {
                     provinciaInput.value = '';

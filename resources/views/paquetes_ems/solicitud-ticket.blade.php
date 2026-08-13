@@ -96,6 +96,13 @@
             text-transform: uppercase;
         }
 
+        .generation-date {
+            margin-top: 5px;
+            font-size: 8.5px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
         .route-grid,
         .data-grid {
             display: grid;
@@ -166,6 +173,19 @@
             text-align: justify;
         }
 
+        .pickup-notice {
+            margin-top: 6px;
+            padding: 7px;
+            border: 2px solid #000;
+            background: #fff;
+            color: #000;
+            font-size: 9px;
+            line-height: 1.35;
+            font-weight: 800;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
         .signature {
             margin: 24px 8px 0;
             padding-top: 18px;
@@ -229,7 +249,7 @@
         $codigo = (string) $solicitud->codigo_solicitud;
         $barcodePng = null;
         $destinoNombre = $solicitud->destino?->nombre_destino ?: $solicitud->ciudad;
-        $fechaTicket = optional($solicitud->updated_at ?? $solicitud->created_at)->format('d/m/Y H:i');
+        $fechaTicket = optional($solicitud->created_at)->format('d/m/Y H:i');
 
         if ($codigo !== '' && class_exists('\DNS1D')) {
             try {
@@ -256,6 +276,7 @@
                 @elseif($codigo !== '' && class_exists('\DNS1D'))
                     <div class="barcode">{!! DNS1D::getBarcodeHTML($codigo, 'C128', 1.1, 35) !!}</div>
                 @endif
+                <div class="generation-date">Fecha de generacion: {{ $fechaTicket ?: '-' }}</div>
             </div>
 
             <section class="section">
@@ -269,9 +290,37 @@
                         <span class="label">Destino</span>
                         <span class="value">{{ $destinoNombre ?: '-' }}</span>
                     </div>
+                </div>
+            </section>
+
+            <section class="section">
+                <h2 class="section-title">Remitente</h2>
+                <div class="data-grid">
+                    <div class="field full">
+                        <span class="label">Nombre</span>
+                        <span class="value">{{ $solicitud->nombre_remitente ?: '-' }}</span>
+                    </div>
+                    <div class="field full">
+                        <span class="label">Telefono</span>
+                        <span class="value">{{ $solicitud->telefono_remitente ?: '-' }}</span>
+                    </div>
                     <div class="field full">
                         <span class="label">Direccion de recojo</span>
                         <span class="value">{{ $solicitud->direccion_recojo ?: '-' }}</span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section">
+                <h2 class="section-title">Destinatario</h2>
+                <div class="data-grid">
+                    <div class="field full">
+                        <span class="label">Nombre</span>
+                        <span class="value">{{ $solicitud->nombre_destinatario ?: '-' }}</span>
+                    </div>
+                    <div class="field full">
+                        <span class="label">Telefono</span>
+                        <span class="value">{{ $solicitud->telefono_destinatario ?: '-' }}</span>
                     </div>
                     <div class="field full">
                         <span class="label">Direccion de entrega</span>
@@ -283,18 +332,6 @@
             <section class="section">
                 <h2 class="section-title">Datos del envio</h2>
                 <div class="data-grid">
-                    <div class="field full">
-                        <span class="label">Remitente</span>
-                        <span class="value">{{ $solicitud->nombre_remitente ?: '-' }}</span>
-                    </div>
-                    <div class="field full">
-                        <span class="label">Destinatario</span>
-                        <span class="value">{{ $solicitud->nombre_destinatario ?: '-' }}</span>
-                    </div>
-                    <div class="field">
-                        <span class="label">Telefono</span>
-                        <span class="value">{{ $solicitud->telefono_destinatario ?: '-' }}</span>
-                    </div>
                     <div class="field">
                         <span class="label">Pago destino</span>
                         <span class="value">{{ $solicitud->pago_destinatario ? 'SI' : 'NO' }}</span>
@@ -315,6 +352,10 @@
                 <span class="price">Bs {{ $solicitud->precio !== null ? number_format((float) $solicitud->precio, 2, '.', '') : '0.00' }}</span>
             </div>
 
+            <div class="pickup-notice">
+                Se comunicar&aacute; un operario dentro de las pr&oacute;ximas 24 horas para confirmar el recojo. Si nadie se comunica, por favor cont&aacute;ctese al 71522163.
+            </div>
+
             <div class="declaration">
                 El cliente declara que los datos proporcionados son ciertos; y que el contenido cumple con las normas de seguridad postal, bajo su &uacute;nica y exclusiva responsabilidad.
             </div>
@@ -322,7 +363,6 @@
             <div class="signature">Firma de recepcion</div>
 
             <div class="footer">
-                Fecha: {{ $fechaTicket ?: '-' }}<br>
                 Impresion para Epson TM-T20II
             </div>
         </section>

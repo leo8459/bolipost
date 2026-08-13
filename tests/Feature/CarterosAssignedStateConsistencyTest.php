@@ -74,6 +74,26 @@ class CarterosAssignedStateConsistencyTest extends TestCase
         $this->assertSame(27, (int) DB::table('cartero')->where('id', 29139)->value('id_estados'));
     }
 
+    public function test_assigned_city_filter_always_contains_the_nine_department_capitals(): void
+    {
+        $method = new ReflectionMethod(CarterosController::class, 'assignedPackageDestinationCities');
+        $method->setAccessible(true);
+
+        $cities = $method->invoke(new CarterosController())->pluck('value')->all();
+
+        $this->assertSame([
+            'COCHABAMBA',
+            'LA PAZ',
+            'ORURO',
+            'POTOSI',
+            'SANTA CRUZ',
+            'SUCRE',
+            'TARIJA',
+            'TRINIDAD',
+            'COBIJA',
+        ], $cities);
+    }
+
     private function combinedDataResponse(int $estadoId)
     {
         $method = new ReflectionMethod(CarterosController::class, 'combinedDataResponse');

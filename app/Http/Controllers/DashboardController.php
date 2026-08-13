@@ -246,7 +246,7 @@ class DashboardController extends Controller
             fn () => $this->buildRegionalPendingAlert($userCity, $hasGlobalDepartmentAccess)
         );
 
-        $carteroAlertKey = 'dashboard-alert-part:v1:cartero:' . (int) $authUser->id;
+        $carteroAlertKey = 'dashboard-alert-part:v2:cartero:' . (int) $authUser->id;
         $carteroAlerts = Cache::remember(
             $carteroAlertKey,
             now()->addSeconds(self::DASHBOARD_HEAVY_ALERT_CACHE_SECONDS),
@@ -889,6 +889,7 @@ class DashboardController extends Controller
                 'enabled' => false,
                 'scope' => '',
                 'rows' => collect(),
+                'departments' => collect(),
             ];
         }
 
@@ -898,6 +899,7 @@ class DashboardController extends Controller
                 'enabled' => false,
                 'scope' => '',
                 'rows' => collect(),
+                'departments' => collect(),
             ];
         }
 
@@ -917,6 +919,7 @@ class DashboardController extends Controller
                     'enabled' => false,
                     'scope' => '',
                     'rows' => collect(),
+                    'departments' => collect(),
                 ];
             }
 
@@ -935,7 +938,35 @@ class DashboardController extends Controller
             'enabled' => $rows->isNotEmpty(),
             'scope' => $hasGlobalDepartmentAccess ? 'nacional' : 'regional',
             'rows' => $rows,
+            'departments' => $hasGlobalDepartmentAccess
+                ? $this->completeDepartmentPendingSummary($rows)
+                : collect(),
         ];
+    }
+
+    private function completeDepartmentPendingSummary($rows)
+    {
+        $grouped = collect($rows)
+            ->groupBy(fn ($row) => $this->normalizePendingAlertDepartment((string) ($row->ciudad ?? '')))
+            ->map(function ($departmentRows, $department) {
+                return (object) [
+                    'department' => (string) $department,
+                    'total_carteros' => $departmentRows->count(),
+                    'total_pendientes' => (int) $departmentRows->sum(fn ($row) => (int) ($row->pendientes ?? 0)),
+                    'rows' => $departmentRows->sortByDesc(fn ($row) => (int) ($row->pendientes ?? 0))->values(),
+                ];
+            });
+
+        return collect(self::DESTINOS_BASE)
+            ->map(function ($department) use ($grouped) {
+                return $grouped->get($department, (object) [
+                    'department' => $department,
+                    'total_carteros' => 0,
+                    'total_pendientes' => 0,
+                    'rows' => collect(),
+                ]);
+            })
+            ->values();
     }
 
     private function hasExceededBusinessHours($startAt, int $hours): bool
