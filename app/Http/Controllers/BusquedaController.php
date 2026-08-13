@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Destino;
-use App\Models\Servicio;
 use App\Models\TrackingSubscription;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -46,7 +45,6 @@ class BusquedaController extends Controller
             'captchaChallenge' => $captchaPublico['challenge'],
             'landingAnnouncement' => $this->landingAnnouncement(),
             'landingNewsTicker' => $this->landingNewsTicker(),
-            'preregistroServicios' => $this->cachedPreregistroServicios(),
             'preregistroDestinos' => $this->cachedPreregistroDestinos(),
             'preregistroCiudades' => [
                 'LA PAZ',
@@ -193,7 +191,6 @@ class BusquedaController extends Controller
             'fuenteTracking' => $resultado['fuente'],
             'landingAnnouncement' => $this->landingAnnouncement(),
             'landingNewsTicker' => $this->landingNewsTicker(),
-            'preregistroServicios' => $this->cachedPreregistroServicios(),
             'preregistroDestinos' => $this->cachedPreregistroDestinos(),
             'preregistroCiudades' => [
                 'LA PAZ',
@@ -423,17 +420,10 @@ class BusquedaController extends Controller
         return 'Completa la verificacion de seguridad.';
     }
 
-    private function cachedPreregistroServicios()
-    {
-        return Cache::remember('lookup:preregistro:servicios', now()->addMinutes(30), function () {
-            return Servicio::query()->orderBy('nombre_servicio')->get();
-        });
-    }
-
     private function cachedPreregistroDestinos()
     {
-        return Cache::remember('lookup:preregistro:destinos', now()->addMinutes(30), function () {
-            return Destino::query()->orderBy('nombre_destino')->get();
+        return Cache::remember('lookup:preregistro:destinos:v2', now()->addMinutes(30), function () {
+            return Destino::query()->get()->sortBy('nombre_preregistro')->values();
         });
     }
 

@@ -66,10 +66,10 @@
                                     <td><span class="badge badge-{{ strtoupper($preregistro->estado) === 'VALIDADO' ? 'success' : 'warning' }}">{{ $preregistro->estado }}</span></td>
                                     <td>{{ $preregistro->origen }}</td>
                                     <td>{{ optional($preregistro->servicio)->nombre_servicio ?: '-' }}</td>
-                                    <td>{{ optional($preregistro->destino)->nombre_destino ?: $preregistro->ciudad }}</td>
+                                    <td>{{ optional($preregistro->destino)->nombre_preregistro ?: $preregistro->ciudad }}</td>
                                     <td>{{ $preregistro->nombre_remitente }}</td>
                                     <td>{{ $preregistro->nombre_destinatario }}</td>
-                                    <td>{{ number_format((float) $preregistro->peso, 3) }}</td>
+                                    <td>{{ $preregistro->peso !== null ? number_format((float) $preregistro->peso, 3) : 'Por verificar' }}</td>
                                     <td>{{ $preregistro->precio !== null ? number_format((float) $preregistro->precio, 2) : '-' }}</td>
                                     <td>{{ optional($preregistro->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>{{ $preregistro->codigo_generado ?: '-' }}</td>

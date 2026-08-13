@@ -123,9 +123,8 @@
             <div class="section-title">Datos del envio</div>
             <div class="row"><span class="label">Fecha:</span> {{ optional($preregistro->created_at)->format('d/m/Y H:i') }}</div>
             <div class="row"><span class="label">Origen:</span> {{ $preregistro->origen }}</div>
-            <div class="row"><span class="label">Destino:</span> {{ optional($preregistro->destino)->nombre_destino ?: $preregistro->ciudad }}</div>
+            <div class="row"><span class="label">Destino:</span> {{ optional($preregistro->destino)->nombre_preregistro ?: $preregistro->ciudad }}</div>
             <div class="row"><span class="label">Servicio:</span> {{ optional($preregistro->servicio)->nombre_servicio }}</div>
-            <div class="row"><span class="label">Peso:</span> {{ $preregistro->peso }}</div>
             <div class="row"><span class="label">Contenido:</span> {{ $preregistro->contenido }}</div>
         </div>
 
@@ -134,6 +133,9 @@
             <div class="row"><span class="label">Remitente:</span> {{ $preregistro->nombre_remitente }}</div>
             <div class="row"><span class="label">Destinatario:</span> {{ $preregistro->nombre_destinatario }}</div>
             <div class="row"><span class="label">Direccion:</span> {{ $preregistro->direccion }}</div>
+            @if($preregistro->referencia)
+                <div class="row"><span class="label">Referencia:</span> {{ $preregistro->referencia }}</div>
+            @endif
         </div>
 
         <div class="footer">

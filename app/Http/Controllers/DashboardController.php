@@ -8,6 +8,7 @@ use App\Exports\DashboardRankingDepartamentosExport;
 use App\Models\Cartero;
 use App\Models\Estado;
 use App\Models\Recojo;
+use App\Models\SolicitudCliente;
 use App\Support\BitacoraCn33Service;
 use App\Support\BoliviaBusinessCalendar;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -15,6 +16,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -35,6 +37,9 @@ class DashboardController extends Controller
     private const CERTI_ORDI_YELLOW_DAYS = 15;
     private const RANKING_CUMPLIMIENTO_WEIGHT = 0.70;
     private const RANKING_PARTICIPACION_WEIGHT = 0.30;
+    private const DASHBOARD_CACHE_SECONDS = 300;
+    private const DASHBOARD_ALERT_CACHE_SECONDS = 20;
+    private const DASHBOARD_HEAVY_ALERT_CACHE_SECONDS = 300;
     private const DESTINOS_LARGA_DISTANCIA = [
         'SANTA CRUZ',
         'TRINIDAD',
@@ -120,7 +125,15 @@ class DashboardController extends Controller
 
     public function index(Request $request)
     {
-        $data = $this->buildDashboardData($request);
+        $data = Cache::remember(
+            $this->dashboardCacheKey($request),
+            now()->addSeconds(self::DASHBOARD_CACHE_SECONDS),
+            fn () => $this->buildDashboardData($request, false)
+        );
+
+        // Las metricas pesadas usan cache, pero las alertas tienen una ventana
+        // mucho menor para no ocultar solicitudes operativas nuevas.
+        $data = array_replace($data, $this->cachedDashboardAlerts(Auth::user()));
 
         return view('dashboard', $data);
     }
@@ -131,9 +144,147 @@ class DashboardController extends Controller
 
         $data = $this->userHasRole($authUser, 'empresa')
             ? []
-            : $this->buildDashboardData($request);
+            : $this->cachedDashboardAlerts($authUser);
 
         return view('home.welcome', $data);
+    }
+
+    private function dashboardCacheKey(Request $request): string
+    {
+        $filters = [
+            'modules' => $this->resolveModulosSeleccionados($request),
+            'range' => strtolower(trim((string) $request->query('range', 'all'))),
+            'from' => trim((string) $request->query('from', '')),
+            'to' => trim((string) $request->query('to', '')),
+            'group' => $this->resolveAgrupacion($request),
+            'departamento' => $this->resolveDepartamentoFiltro($request),
+            // Evita reutilizar rangos relativos al cambiar de dia.
+            'date' => now()->toDateString(),
+        ];
+
+        return 'dashboard:v3:' . sha1(json_encode($filters, JSON_UNESCAPED_UNICODE));
+    }
+
+    private function cachedDashboardAlerts($authUser): array
+    {
+        if (!$authUser) {
+            return [];
+        }
+
+        $scope = [
+            'id' => (int) $authUser->id,
+            'ciudad' => strtoupper(trim((string) ($authUser->ciudad ?? ''))),
+            'regionales' => method_exists($authUser, 'regionalesLista')
+                ? $authUser->regionalesLista()
+                : [],
+            'roles' => method_exists($authUser, 'getRoleNames')
+                ? $authUser->getRoleNames()->sort()->values()->all()
+                : [],
+        ];
+
+        $key = 'dashboard-alerts:v2:' . sha1(json_encode($scope, JSON_UNESCAPED_UNICODE));
+
+        return Cache::remember(
+            $key,
+            now()->addSeconds(self::DASHBOARD_ALERT_CACHE_SECONDS),
+            fn () => $this->buildDashboardAlerts($authUser)
+        );
+    }
+
+    private function buildDashboardAlerts($authUser): array
+    {
+        $hasGlobalDepartmentAccess = (bool) ($authUser?->hasGlobalDepartmentAccess() ?? false);
+        $userCity = strtoupper(trim((string) optional($authUser)->ciudad));
+        $roleNames = ($authUser && method_exists($authUser, 'getRoleNames'))
+            ? $authUser->getRoleNames()->toArray()
+            : [];
+        $userRoles = collect($roleNames)
+            ->map(fn ($role) => mb_strtolower(trim((string) $role)))
+            ->all();
+        $canPlayPickupAlertSound = count(array_intersect(
+            ['encargado_ems', 'cartero_ems'],
+            $userRoles
+        )) > 0;
+        $estadoSolicitudId = $this->resolveEstadoIdByName('SOLICITUD');
+
+        $contratosPorRecoger = 0;
+        $contratosPorRecogerPorDepartamento = collect();
+        if ($estadoSolicitudId && ($hasGlobalDepartmentAccess || $userCity !== '')) {
+            $pickupQuery = Recojo::query()
+                ->where('estados_id', $estadoSolicitudId)
+                ->when(!$hasGlobalDepartmentAccess, function ($query) use ($userCity) {
+                    $query->whereRaw('trim(upper(origen)) = ?', [$userCity]);
+                });
+
+            $contratosPorRecoger = (int) (clone $pickupQuery)->count();
+
+            if ($hasGlobalDepartmentAccess) {
+                $departmentExpression = "coalesce(nullif(trim(upper(origen)), ''), 'SIN DEPARTAMENTO')";
+                $contratosPorRecogerPorDepartamento = (clone $pickupQuery)
+                    ->selectRaw("{$departmentExpression} as departamento, count(*) as total")
+                    ->groupByRaw($departmentExpression)
+                    ->orderByDesc('total')
+                    ->orderBy('departamento')
+                    ->get()
+                    ->map(function ($row) {
+                        $row->departamento = (string) ($row->departamento ?? 'SIN DEPARTAMENTO');
+                        $row->total = (int) ($row->total ?? 0);
+
+                        return $row;
+                    })
+                    ->values();
+            }
+        }
+
+        $regionalAlertKey = 'dashboard-alert-part:v1:regional:' . sha1(json_encode([
+            $hasGlobalDepartmentAccess,
+            $userCity,
+        ]));
+        $regionalPendingAlert = Cache::remember(
+            $regionalAlertKey,
+            now()->addSeconds(self::DASHBOARD_HEAVY_ALERT_CACHE_SECONDS),
+            fn () => $this->buildRegionalPendingAlert($userCity, $hasGlobalDepartmentAccess)
+        );
+
+        $carteroAlertKey = 'dashboard-alert-part:v1:cartero:' . (int) $authUser->id;
+        $carteroAlerts = Cache::remember(
+            $carteroAlertKey,
+            now()->addSeconds(self::DASHBOARD_HEAVY_ALERT_CACHE_SECONDS),
+            fn () => [
+                'alert' => $this->buildCarteroPendingAlert($authUser, $userRoles),
+                'summary' => $this->buildCarteroPendingSummary(
+                    $authUser,
+                    $userRoles,
+                    $hasGlobalDepartmentAccess,
+                    $userCity
+                ),
+            ]
+        );
+
+        $pendingCn33Regional = $this->resolvePendingCn33RegionalScope($authUser);
+        $pendingCn33Alert = Cache::remember(
+            'dashboard-alert-part:v1:cn33:' . sha1((string) $pendingCn33Regional),
+            now()->addSeconds(self::DASHBOARD_HEAVY_ALERT_CACHE_SECONDS),
+            fn () => $this->cn33Service->getPendingRegistrationAlert(regional: $pendingCn33Regional)
+        );
+
+        return [
+            'userCity' => $userCity,
+            'contratosPorRecoger' => $contratosPorRecoger,
+            'contratosPorRecogerPorDepartamento' => $contratosPorRecogerPorDepartamento,
+            'pickupAlertIsNational' => $hasGlobalDepartmentAccess,
+            'canPlayPickupAlertSound' => $canPlayPickupAlertSound,
+            'deliveryExpressPickupAlert' => $this->buildDeliveryExpressPickupAlert(
+                $estadoSolicitudId,
+                $authUser,
+                $hasGlobalDepartmentAccess,
+                $userCity
+            ),
+            'regionalPendingAlert' => $regionalPendingAlert,
+            'carteroPendingAlert' => $carteroAlerts['alert'],
+            'carteroPendingSummary' => $carteroAlerts['summary'],
+            'pendingCn33Alert' => $pendingCn33Alert,
+        ];
     }
 
     public function entregas(Request $request)
@@ -324,27 +475,16 @@ class DashboardController extends Controller
         }, $filename);
     }
 
-    private function buildDashboardData(Request $request): array
+    private function buildDashboardData(Request $request, bool $includeAlerts = true): array
     {
         $modulosSeleccionados = $this->resolveModulosSeleccionados($request);
         [$desde, $hasta, $rangoLabel, $rangoKey] = $this->resolveRangoFechas($request);
         $agrupacion = $this->resolveAgrupacion($request);
         $departamento = $this->resolveDepartamentoFiltro($request);
         $authUser = Auth::user();
-        $hasGlobalDepartmentAccess = (bool) ($authUser?->hasGlobalDepartmentAccess() ?? false);
-        $userCity = strtoupper(trim((string) optional($authUser)->ciudad));
-        $allowedSoundRoles = ['encargado_ems', 'cartero_ems'];
-        $roleNames = ($authUser && method_exists($authUser, 'getRoleNames'))
-            ? $authUser->getRoleNames()->toArray()
-            : [];
-        $userRoles = collect($roleNames)
-            ->map(fn ($role) => mb_strtolower(trim((string) $role)))
-            ->all();
-        $canPlayPickupAlertSound = count(array_intersect($allowedSoundRoles, $userRoles)) > 0;
 
         $estadoEntregadoId = $this->resolveEstadoIdByName('ENTREGADO');
         $estadoCanceladoId = $this->resolveEstadoIdByName('CANCELADO');
-        $estadoTransitoId = $this->resolveEstadoIdByName('TRANSITO');
         $estadoRezagoId = $this->resolveEstadoIdByName('REZAGO');
         $estadoSolicitudId = $this->resolveEstadoIdByName('SOLICITUD');
 
@@ -449,41 +589,7 @@ class DashboardController extends Controller
             $rankingDepartamentos
         );
 
-        $contratosPorRecoger = 0;
-        $contratosPorRecogerPorDepartamento = collect();
-        if ($estadoSolicitudId && ($hasGlobalDepartmentAccess || $userCity !== '')) {
-            $pickupQuery = Recojo::query()
-                ->where('estados_id', $estadoSolicitudId)
-                ->when(!$hasGlobalDepartmentAccess, function ($query) use ($userCity) {
-                    $query->whereRaw('trim(upper(origen)) = ?', [$userCity]);
-                });
-
-            $contratosPorRecoger = (int) (clone $pickupQuery)->count();
-
-            if ($hasGlobalDepartmentAccess) {
-                $departmentExpression = "coalesce(nullif(trim(upper(origen)), ''), 'SIN DEPARTAMENTO')";
-                $contratosPorRecogerPorDepartamento = (clone $pickupQuery)
-                    ->selectRaw("{$departmentExpression} as departamento, count(*) as total")
-                    ->groupByRaw($departmentExpression)
-                    ->orderByDesc('total')
-                    ->orderBy('departamento')
-                    ->get()
-                    ->map(function ($row) {
-                        $row->departamento = (string) ($row->departamento ?? 'SIN DEPARTAMENTO');
-                        $row->total = (int) ($row->total ?? 0);
-
-                        return $row;
-                    })
-                    ->values();
-            }
-        }
-
-        $regionalPendingAlert = $this->buildRegionalPendingAlert($userCity, $hasGlobalDepartmentAccess);
-        $carteroPendingAlert = $this->buildCarteroPendingAlert($authUser, $userRoles);
-        $carteroPendingSummary = $this->buildCarteroPendingSummary($authUser, $userRoles, $hasGlobalDepartmentAccess, $userCity);
-        $pendingCn33Alert = $this->cn33Service->getPendingRegistrationAlert(
-            regional: $this->resolvePendingCn33RegionalScope($authUser)
-        );
+        $alertData = $includeAlerts ? $this->buildDashboardAlerts($authUser) : [];
 
         return [
             'modulosDisponibles' => self::MODULOS,
@@ -523,16 +629,7 @@ class DashboardController extends Controller
             'rankingDepartamentos' => $rankingDepartamentos,
             'rankingRegistradores' => $rankingRegistradores,
             'insightsEjecutivos' => $insightsEjecutivos,
-            'userCity' => $userCity,
-            'contratosPorRecoger' => $contratosPorRecoger,
-            'contratosPorRecogerPorDepartamento' => $contratosPorRecogerPorDepartamento,
-            'pickupAlertIsNational' => $hasGlobalDepartmentAccess,
-            'canPlayPickupAlertSound' => $canPlayPickupAlertSound,
-            'regionalPendingAlert' => $regionalPendingAlert,
-            'carteroPendingAlert' => $carteroPendingAlert,
-            'carteroPendingSummary' => $carteroPendingSummary,
-            'pendingCn33Alert' => $pendingCn33Alert,
-        ];
+        ] + $alertData;
     }
 
     private function resolvePendingCn33RegionalScope($user): ?string
@@ -637,6 +734,106 @@ class DashboardController extends Controller
             'hours' => 72,
             'scope' => $hasGlobalDepartmentAccess ? 'nacional' : 'regional',
             'departments' => $departments,
+        ];
+    }
+
+    /**
+     * Solicitudes Delivery Express que todavia deben recogerse en el origen.
+     * Los usuarios regionales solo ven los departamentos que tienen asignados;
+     * los perfiles con alcance global reciben el resumen nacional.
+     */
+    private function buildDeliveryExpressPickupAlert(
+        ?int $estadoSolicitudId,
+        $authUser,
+        bool $hasGlobalDepartmentAccess,
+        string $userCity
+    ): array {
+        $emptyAlert = [
+            'count' => 0,
+            'is_national' => $hasGlobalDepartmentAccess,
+            'scope_label' => $userCity !== '' ? $userCity : 'TU DEPARTAMENTO',
+            'departments' => collect(),
+            'requests' => collect(),
+        ];
+
+        if (!$estadoSolicitudId || !$authUser) {
+            return $emptyAlert;
+        }
+
+        $assignedDepartments = method_exists($authUser, 'regionalesLista')
+            ? collect($authUser->regionalesLista())
+            : collect([$userCity]);
+
+        $assignedDepartments = $assignedDepartments
+            ->map(fn ($department) => strtoupper(trim((string) $department)))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if (!$hasGlobalDepartmentAccess && $assignedDepartments->isEmpty()) {
+            return $emptyAlert;
+        }
+
+        $pickupQuery = SolicitudCliente::query()
+            ->where('estado_id', $estadoSolicitudId)
+            ->when(!$hasGlobalDepartmentAccess, function ($query) use ($assignedDepartments) {
+                $query->where(function ($departmentQuery) use ($assignedDepartments) {
+                    foreach ($assignedDepartments as $department) {
+                        $departmentQuery->orWhereRaw('trim(upper(origen)) = ?', [$department]);
+                    }
+                });
+            });
+
+        $count = (int) (clone $pickupQuery)->count();
+        if ($count === 0) {
+            return array_merge($emptyAlert, [
+                'scope_label' => $hasGlobalDepartmentAccess
+                    ? 'NIVEL NACIONAL'
+                    : $assignedDepartments->implode(', '),
+            ]);
+        }
+
+        $departmentExpression = "coalesce(nullif(trim(upper(origen)), ''), 'SIN DEPARTAMENTO')";
+        $departments = (clone $pickupQuery)
+            ->selectRaw("{$departmentExpression} as departamento, count(*) as total")
+            ->groupByRaw($departmentExpression)
+            ->orderByDesc('total')
+            ->orderBy('departamento')
+            ->get()
+            ->map(function ($row) {
+                $row->departamento = (string) ($row->departamento ?? 'SIN DEPARTAMENTO');
+                $row->total = (int) ($row->total ?? 0);
+
+                return $row;
+            })
+            ->values();
+
+        $requests = (clone $pickupQuery)
+            ->with(['servicioExtra:id,nombre,descripcion'])
+            ->latest('id')
+            ->limit(50)
+            ->get([
+                'id',
+                'codigo_solicitud',
+                'barcode',
+                'origen',
+                'direccion_recojo',
+                'nombre_remitente',
+                'telefono_remitente',
+                'contenido',
+                'cantidad',
+                'servicio_extra_id',
+                'created_at',
+            ]);
+
+        return [
+            'count' => $count,
+            'is_national' => $hasGlobalDepartmentAccess,
+            'scope_label' => $hasGlobalDepartmentAccess
+                ? 'NIVEL NACIONAL'
+                : $assignedDepartments->implode(', '),
+            'departments' => $departments,
+            'requests' => $requests,
         ];
     }
 
@@ -2256,4 +2453,3 @@ class DashboardController extends Controller
         ];
     }
 }
-

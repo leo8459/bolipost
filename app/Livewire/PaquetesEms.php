@@ -6481,12 +6481,10 @@ class PaquetesEms extends Component
 
     protected function loadDestinos(): void
     {
-        $this->destinos = Destino::orderBy('nombre_destino')
+        $this->destinos = Destino::query()
             ->get()
-            ->map(function ($destino) {
-                $destino->nombre_destino = $this->normalizeDestinoNombre((string) $destino->nombre_destino);
-                return $destino;
-            });
+            ->sortBy('nombre_ems')
+            ->values();
     }
 
     protected function normalizeDestinoNombre(string $nombre): string
@@ -8038,9 +8036,11 @@ class PaquetesEms extends Component
 
         if ($name === 'servicio_id') {
             $this->tarifario_id = '';
-            $this->destino_id = '';
-            $this->peso = '';
             $this->precio = '';
+            if ($this->normalizePreregistroCode((string) $this->preregistro_codigo) === '') {
+                $this->destino_id = '';
+                $this->peso = '';
+            }
             $this->refreshEmsState();
             if ($this->auto_codigo) {
                 $this->codigo = $this->generateCodigo();
@@ -8691,11 +8691,15 @@ class PaquetesEms extends Component
         }
 
         $this->origen = (string) $preregistro->origen;
-        $this->tipo_correspondencia = (string) ($preregistro->tipo_correspondencia ?? '');
-        $this->servicio_especial = (string) ($preregistro->servicio_especial ?? '');
+        $this->tipo_correspondencia = '';
+        $this->servicio_especial = '';
+        // La observacion pertenece a la admision EMS y nunca debe recuperarse
+        // desde un preregistro, incluso si el registro es antiguo.
+        $this->observacion = '';
         $this->contenido = (string) $preregistro->contenido;
         $this->cantidad = (string) $preregistro->cantidad;
-        $this->peso = (string) $preregistro->peso;
+        // El peso se obtiene en Correos usando la balanza de admision.
+        $this->peso = '';
         $this->nombre_remitente = (string) $preregistro->nombre_remitente;
         $this->nombre_envia = (string) ($preregistro->nombre_envia ?? '');
         $this->mostrar_empresa = trim((string) $this->nombre_envia) !== '';
@@ -8704,8 +8708,11 @@ class PaquetesEms extends Component
         $this->nombre_destinatario = (string) $preregistro->nombre_destinatario;
         $this->telefono_destinatario = preg_replace('/\D+/', '', (string) ($preregistro->telefono_destinatario ?? '')) ?? '';
         $this->direccion = (string) $preregistro->direccion;
+        $this->referencia = (string) ($preregistro->referencia ?? '');
         $this->ciudad = $this->normalizeDestinoNombre((string) $preregistro->ciudad);
-        $this->servicio_id = (string) $preregistro->servicio_id;
+        if ($preregistro->servicio_id) {
+            $this->servicio_id = (string) $preregistro->servicio_id;
+        }
         $this->destino_id = (string) $preregistro->destino_id;
         $this->auto_codigo = true;
 

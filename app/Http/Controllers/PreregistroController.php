@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Barryvdh\DomPDF\Facade\Pdf;
+use App\Mail\PreregistroEmsCreadoMail;
 use App\Models\Destino;
 use App\Models\Estado;
 use App\Models\PaqueteEms;
@@ -15,6 +16,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -52,8 +55,7 @@ class PreregistroController extends Controller
     public function publicCreate(): View
     {
         return view('preregistros.public-create', [
-            'servicios' => Servicio::query()->orderBy('nombre_servicio')->get(),
-            'destinos' => Destino::query()->orderBy('nombre_destino')->get(),
+            'destinos' => Destino::query()->get()->sortBy('nombre_preregistro')->values(),
             'ciudades' => self::CIUDADES_BOLIVIA,
         ]);
     }
@@ -69,13 +71,25 @@ class PreregistroController extends Controller
                 ->withErrors(['general' => $exception->getMessage()]);
         }
 
-        return redirect()
+        $correoEnviado = $this->sendPreregistroEmail($preregistro);
+        $successMessage = 'Preregistro enviado correctamente. Tu codigo generado es ' . $preregistro->codigo_generado . '.';
+        if ($correoEnviado) {
+            $successMessage .= ' El codigo fue enviado a ' . $preregistro->correo_electronico . '.';
+        }
+
+        $redirect = redirect()
             ->back()
-            ->with('success', 'Preregistro enviado correctamente. Tu codigo generado es ' . $preregistro->codigo_generado . '.')
+            ->with('success', $successMessage)
             ->with('preregistro_id', $preregistro->id)
             ->with('preregistro_codigo', $preregistro->codigo_generado)
             ->with('preregistro_codigo_numerico', $this->extractPreregistroNumber($preregistro->codigo_generado))
             ->with('preregistro_ticket_url', route('preregistros.public.ticket', $preregistro, false));
+
+        if (! $correoEnviado) {
+            $redirect->with('warning', 'El preregistro se guardo, pero el correo no pudo enviarse. Conserva el codigo mostrado en pantalla.');
+        }
+
+        return $redirect;
     }
 
     public function publicStoreApi(Request $request): JsonResponse
@@ -92,6 +106,8 @@ class PreregistroController extends Controller
             ], 422);
         }
 
+        $correoEnviado = $this->sendPreregistroEmail($preregistro);
+
         return response()->json([
             'success' => true,
             'message' => 'PREREGISTRO_GUARDADO',
@@ -102,6 +118,8 @@ class PreregistroController extends Controller
                 'ticket_url' => route('preregistros.public.ticket', $preregistro, false),
                 'estado' => $preregistro->estado,
                 'precio' => $preregistro->precio,
+                'correo_electronico' => $preregistro->correo_electronico,
+                'correo_enviado' => $correoEnviado,
             ],
         ], 201);
     }
@@ -199,6 +217,7 @@ class PreregistroController extends Controller
                     'nombre_destinatario' => $preregistro->nombre_destinatario,
                     'telefono_destinatario' => $preregistro->telefono_destinatario,
                     'direccion' => $preregistro->direccion,
+                    'referencia' => $preregistro->referencia,
                     'ciudad' => $preregistro->ciudad,
                     'tarifario_id' => $tarifarioId,
                     'estado_id' => $estadoAdmisionId,
@@ -222,6 +241,7 @@ class PreregistroController extends Controller
                     'nombre_destinatario' => $preregistro->nombre_destinatario,
                     'telefono_destinatario' => $preregistro->telefono_destinatario,
                     'direccion' => $preregistro->direccion,
+                    'referencia' => $preregistro->referencia,
                     'ciudad' => $preregistro->ciudad,
                     'servicio_id' => $preregistro->servicio_id,
                     'destino_id' => $preregistro->destino_id,
@@ -269,32 +289,32 @@ class PreregistroController extends Controller
 
     private function createPreregistroFromRequest(Request $request): Preregistro
     {
-        $validator = Validator::make($request->all(), $this->rules(), [], $this->attributes());
+        $validator = Validator::make($request->all(), $this->rules($request), $this->messages(), $this->attributes());
         $data = $validator->validate();
 
-        $servicio = Servicio::query()->findOrFail((int) $data['servicio_id']);
         $destino = Destino::query()->findOrFail((int) $data['destino_id']);
-
-        [$tarifarioId, $precio] = $this->resolveTarifa($servicio, $data);
 
         $preregistro = Preregistro::query()->create([
             'estado' => self::ESTADO_PENDIENTE,
             'origen' => $this->upper($data['origen']),
-            'tipo_correspondencia' => $this->nullableUpper($data['tipo_correspondencia'] ?? null),
-            'servicio_especial' => $this->nullableUpper($data['servicio_especial'] ?? null),
+            'tipo_correspondencia' => null,
+            'servicio_especial' => null,
             'contenido' => trim((string) $data['contenido']),
+            'observacion' => null,
             'cantidad' => (int) $data['cantidad'],
-            'peso' => round((float) $data['peso'], 3),
-            'precio' => $precio,
+            'peso' => null,
+            'precio' => null,
             'nombre_remitente' => $this->upper($data['nombre_remitente']),
             'nombre_envia' => $this->nullableUpper($data['nombre_envia'] ?? null),
             'carnet' => trim((string) $data['carnet']),
             'telefono_remitente' => $this->nullableTrim($data['telefono_remitente'] ?? null),
+            'correo_electronico' => strtolower(trim((string) $data['correo_electronico'])),
             'nombre_destinatario' => $this->upper($data['nombre_destinatario']),
             'telefono_destinatario' => $this->nullableTrim($data['telefono_destinatario'] ?? null),
             'direccion' => trim((string) $data['direccion']),
-            'ciudad' => $this->upper((string) $destino->nombre_destino),
-            'servicio_id' => (int) $servicio->id,
+            'referencia' => $this->nullableTrim($data['referencia'] ?? null),
+            'ciudad' => $destino->nombre_preregistro,
+            'servicio_id' => null,
             'destino_id' => (int) $destino->id,
         ]);
 
@@ -308,24 +328,26 @@ class PreregistroController extends Controller
         return $preregistro->fresh();
     }
 
-    private function rules(): array
+    private function rules(Request $request): array
     {
         return [
             'origen' => ['required', 'string', Rule::in(self::CIUDADES_BOLIVIA)],
-            'servicio_id' => ['required', 'integer', Rule::exists('servicio', 'id')],
+            'servicio_id' => ['nullable', 'integer', Rule::exists('servicio', 'id')],
             'destino_id' => ['required', 'integer', Rule::exists('destino', 'id')],
             'tipo_correspondencia' => ['nullable', 'string', 'max:255'],
             'servicio_especial' => ['nullable', 'string', 'max:255'],
             'contenido' => ['required', 'string'],
             'cantidad' => ['required', 'integer', 'min:1'],
-            'peso' => ['required', 'numeric', 'min:0.001'],
+            'peso' => ['nullable', 'numeric', 'min:0.001'],
             'nombre_remitente' => ['required', 'string', 'max:255'],
             'nombre_envia' => ['nullable', 'string', 'max:255'],
             'carnet' => ['required', 'string', 'max:255'],
-            'telefono_remitente' => ['nullable', 'string', 'max:50'],
+            'telefono_remitente' => ['required', 'string', 'max:50', 'regex:/^[0-9]+$/'],
+            'correo_electronico' => ['required', 'string', 'email:rfc', 'max:255'],
             'nombre_destinatario' => ['required', 'string', 'max:255'],
-            'telefono_destinatario' => ['nullable', 'string', 'max:50'],
+            'telefono_destinatario' => ['nullable', 'string', 'max:50', 'regex:/^[0-9]*$/'],
             'direccion' => ['required', 'string', 'max:255'],
+            'referencia' => ['nullable', 'string', 'max:255'],
         ];
     }
 
@@ -333,7 +355,6 @@ class PreregistroController extends Controller
     {
         return [
             'origen' => 'origen',
-            'servicio_id' => 'servicio',
             'destino_id' => 'destino',
             'tipo_correspondencia' => 'tipo de correspondencia',
             'servicio_especial' => 'servicio especial',
@@ -344,10 +365,39 @@ class PreregistroController extends Controller
             'nombre_envia' => 'nombre envia',
             'carnet' => 'carnet',
             'telefono_remitente' => 'telefono remitente',
+            'correo_electronico' => 'correo electronico',
             'nombre_destinatario' => 'nombre destinatario',
             'telefono_destinatario' => 'telefono destinatario',
             'direccion' => 'direccion',
+            'referencia' => 'referencia',
         ];
+    }
+
+    private function messages(): array
+    {
+        return [
+            'correo_electronico.required' => 'El correo electronico es obligatorio.',
+            'correo_electronico.email' => 'Ingresa un correo electronico valido.',
+        ];
+    }
+
+    private function sendPreregistroEmail(Preregistro $preregistro): bool
+    {
+        try {
+            $preregistro->loadMissing('destino:id,nombre_destino');
+            Mail::to($preregistro->correo_electronico)->send(new PreregistroEmsCreadoMail($preregistro));
+
+            return true;
+        } catch (\Throwable $exception) {
+            Log::error('No se pudo enviar el correo del preenvio EMS.', [
+                'preregistro_id' => $preregistro->id,
+                'codigo_preregistro' => $preregistro->codigo_preregistro,
+                'correo_electronico' => $preregistro->correo_electronico,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return false;
+        }
     }
 
     private function resolveTarifa(Servicio $servicio, array $data): array

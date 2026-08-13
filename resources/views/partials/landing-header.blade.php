@@ -77,9 +77,9 @@
                     <span class="btn-client-login-cta__label">Iniciar sesi&oacute;n</span>
                 </a>
             @endif
-            <!-- <a class="btn btn-home-shipping" href="{{ route('preregistros.public.create') }}">
-                Hacer envio desde casa
-            </a> -->
+            <a class="btn btn-home-shipping" href="{{ route('preregistros.public.create') }}" data-open-preregistro>
+                Generar preenv&iacute;o EMS
+            </a>
             <button class="menu-toggle" id="menuToggle" type="button" aria-label="Abrir menu" aria-expanded="false">
                 <span class="menu-toggle-bars" aria-hidden="true">
                     <i></i>

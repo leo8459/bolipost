@@ -797,7 +797,7 @@
         const menu = document.getElementById('menu');
         const preregistroModal = document.getElementById('preregistroModal');
         const preregistroClose = document.getElementById('preregistroClose');
-        const preregistroTriggers = document.querySelectorAll('[data-open-preregistro], .btn-home-shipping');
+        const preregistroTriggers = document.querySelectorAll('[data-open-preregistro]');
         const preregistroSuccessModal = document.getElementById('preregistroSuccessModal');
         const closePreregistroSuccess = document.getElementById('closePreregistroSuccess');
         const copyPreregistroCode = document.getElementById('copyPreregistroCode');

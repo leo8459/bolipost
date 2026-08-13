@@ -1204,7 +1204,6 @@
                                 $tipoCorrespondenciaActual = strtoupper(trim((string) $tipo_correspondencia));
                                 $observacionOficialRequerida = $tipoCorrespondenciaActual !== '' && str_contains($tipoCorrespondenciaActual, 'OFICIAL');
                             @endphp
-
                             <div class="form-row">
                                 <div class="form-group col-md-6">
                                     <label>Servicio<span class="required-star">*</span></label>
@@ -1221,7 +1220,7 @@
                                     <select wire:model.live="destino_id" class="form-control" required>
                                         <option value="">Seleccione...</option>
                                         @foreach($destinos as $destino)
-                                            <option value="{{ $destino->id }}">{{ $destino->nombre_destino }}</option>
+                                            <option value="{{ $destino->id }}">{{ $destino->nombre_ems }}</option>
                                         @endforeach
                                     </select>
                                     @error('destino_id') <small class="text-danger">{{ $message }}</small> @enderror
@@ -2254,7 +2253,7 @@
                                     <select wire:model.live="destino_id" class="form-control">
                                         <option value="">Seleccione...</option>
                                         @foreach($destinos as $destino)
-                                            <option value="{{ $destino->id }}">{{ $destino->nombre_destino }}</option>
+                                            <option value="{{ $destino->id }}">{{ $destino->nombre_ems }}</option>
                                         @endforeach
                                     </select>
                                     @error('destino_id') <small class="text-danger">{{ $message }}</small> @enderror

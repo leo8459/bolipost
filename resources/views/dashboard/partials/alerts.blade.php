@@ -1,3 +1,147 @@
+@if(((int) data_get($deliveryExpressPickupAlert ?? [], 'count', 0)) > 0)
+@php
+    $deliveryPickupCount = (int) data_get($deliveryExpressPickupAlert, 'count', 0);
+    $deliveryPickupDepartments = collect(data_get($deliveryExpressPickupAlert, 'departments', []));
+    $deliveryPickupRequests = collect(data_get($deliveryExpressPickupAlert, 'requests', []));
+    $deliveryPickupScope = (string) data_get($deliveryExpressPickupAlert, 'scope_label', 'TU DEPARTAMENTO');
+    $deliveryPickupIsNational = (bool) data_get($deliveryExpressPickupAlert, 'is_national', false);
+    $deliveryPickupSearch = !$deliveryPickupIsNational && $deliveryPickupDepartments->count() === 1
+        ? (string) $deliveryPickupDepartments->first()->departamento
+        : null;
+@endphp
+
+<div class="alert alert-danger border-0 shadow-sm d-flex flex-column flex-lg-row align-items-lg-center justify-content-between mb-3 delivery-express-alert" role="alert">
+    <div class="d-flex align-items-start">
+        <span class="delivery-express-alert__icon mr-3" aria-hidden="true">
+            <i class="fas fa-exclamation-triangle"></i>
+        </span>
+        <div>
+            <div class="font-weight-bold text-uppercase">Alerta Delivery Express</div>
+            <div>
+                Hay <strong>{{ number_format($deliveryPickupCount) }}</strong>
+                {{ $deliveryPickupCount === 1 ? 'solicitud pendiente' : 'solicitudes pendientes' }}
+                para recoger {{ $deliveryPickupIsNational ? 'a nivel nacional' : 'en ' . $deliveryPickupScope }}.
+            </div>
+            @if($deliveryPickupDepartments->isNotEmpty())
+                <div class="mt-2 d-flex flex-wrap">
+                    @foreach($deliveryPickupDepartments as $department)
+                        <span class="badge badge-light border mr-2 mb-1 px-2 py-1">
+                            {{ $department->departamento }}: {{ number_format((int) $department->total) }}
+                        </span>
+                    @endforeach
+                </div>
+            @endif
+        </div>
+    </div>
+    <div class="d-flex flex-column flex-sm-row mt-3 mt-lg-0 ml-lg-3">
+        <button type="button" class="btn btn-light btn-sm font-weight-bold mr-sm-2 mb-2 mb-sm-0" data-toggle="modal" data-target="#deliveryExpressPickupModal">
+            Ver solicitudes
+        </button>
+        <a href="{{ route('paquetes-ems.solicitudes.index', $deliveryPickupSearch ? ['q' => $deliveryPickupSearch] : [], false) }}" class="btn btn-outline-light btn-sm font-weight-bold">
+            Ir a Delivery Express
+        </a>
+    </div>
+</div>
+
+<div class="modal fade" id="deliveryExpressPickupModal" tabindex="-1" role="dialog" aria-labelledby="deliveryExpressPickupModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
+        <div class="modal-content border-0">
+            <div class="modal-header bg-danger text-white">
+                <div>
+                    <h5 class="modal-title font-weight-bold" id="deliveryExpressPickupModalTitle">
+                        <i class="fas fa-exclamation-triangle mr-2"></i>Solicitudes Delivery Express por recoger
+                    </h5>
+                    <small>{{ $deliveryPickupIsNational ? 'Resumen nacional por departamento' : 'Departamento asignado: ' . $deliveryPickupScope }}</small>
+                </div>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Cerrar">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning border mb-3">
+                    <strong>Atencion:</strong> existen {{ number_format($deliveryPickupCount) }}
+                    {{ $deliveryPickupCount === 1 ? 'solicitud que debe ser recogida' : 'solicitudes que deben ser recogidas' }}.
+                    Coordina el recojo y actualiza su estado desde el modulo de Delivery Express.
+                </div>
+
+                @if($deliveryPickupCount > $deliveryPickupRequests->count())
+                    <p class="small text-muted">Se muestran las {{ number_format($deliveryPickupRequests->count()) }} solicitudes mas recientes.</p>
+                @endif
+
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped table-hover mb-0">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Codigo</th>
+                                <th>Departamento</th>
+                                <th>Remitente</th>
+                                <th>Telefono</th>
+                                <th>Direccion de recojo</th>
+                                <th>Servicio / contenido</th>
+                                <th>Fecha</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($deliveryPickupRequests as $request)
+                                <tr>
+                                    <td class="font-weight-bold">{{ $request->codigo_solicitud ?: ($request->barcode ?: 'SIN CODIGO') }}</td>
+                                    <td>{{ strtoupper(trim((string) $request->origen)) ?: 'SIN DEPARTAMENTO' }}</td>
+                                    <td>{{ $request->nombre_remitente ?: '-' }}</td>
+                                    <td>{{ $request->telefono_remitente ?: '-' }}</td>
+                                    <td>{{ $request->direccion_recojo ?: '-' }}</td>
+                                    <td>
+                                        {{ $request->servicioExtra?->descripcion ?: ($request->servicioExtra?->nombre ?: ($request->contenido ?: '-')) }}
+                                    </td>
+                                    <td class="text-nowrap">{{ optional($request->created_at)->format('d/m/Y H:i') ?: '-' }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a href="{{ route('paquetes-ems.solicitudes.index', $deliveryPickupSearch ? ['q' => $deliveryPickupSearch] : [], false) }}" class="btn btn-danger">
+                    Gestionar solicitudes
+                </a>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .delivery-express-alert {
+        background: linear-gradient(135deg, #b42318 0%, #d92d20 100%);
+        color: #fff;
+        border-radius: 14px;
+    }
+    .delivery-express-alert__icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 42px;
+        height: 42px;
+        flex: 0 0 42px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, .18);
+        font-size: 1.15rem;
+    }
+</style>
+
+<script>
+    window.addEventListener('pageshow', function () {
+        var modalElement = document.getElementById('deliveryExpressPickupModal');
+        if (!modalElement || !window.jQuery || !window.jQuery.fn || !window.jQuery.fn.modal) {
+            return;
+        }
+
+        window.setTimeout(function () {
+            window.jQuery(modalElement).modal('show');
+        }, 350);
+    });
+</script>
+@endif
+
 @if(($contratosPorRecoger ?? 0) > 0)
 <div class="alert alert-danger d-flex flex-column flex-md-row align-items-md-center justify-content-between mb-3">
     <div>

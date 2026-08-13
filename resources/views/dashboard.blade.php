@@ -13,7 +13,7 @@
                 <strong>Rango:</strong> {{ $rangoLabel }}
             </div>
             <a href="{{ route('preregistros.public.create') }}" target="_blank" rel="noopener" class="btn btn-sm btn-primary">
-                Hacer envio desde casa
+                Generar preenv&iacute;o EMS
             </a>
         </div>
     </div>

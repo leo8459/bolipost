@@ -7,7 +7,7 @@
         <div class="preregistro-head">
             <div>
                 <p class="preregistro-kicker">Preregistro publico</p>
-                <h3 id="preregistroTitle">Hacer envio desde casa</h3>
+                <h3 id="preregistroTitle">Generar preenv&iacute;o EMS</h3>
                 <p>Completa tus datos, guarda tu codigo y presentalo en admision para recuperar tu envio de forma rapida.</p>
             </div>
         </div>
@@ -43,6 +43,12 @@
             </div>
         @endif
 
+        @if (session('warning'))
+            <div class="preregistro-alert preregistro-alert-error">
+                {{ session('warning') }}
+            </div>
+        @endif
+
         @if ($errors->any())
             <div class="preregistro-alert preregistro-alert-error">
                 {{ $errors->first('general') ?: 'Revisa los campos del preregistro y vuelve a intentar.' }}
@@ -55,12 +61,12 @@
             <div class="preregistro-section-card">
                 <div class="preregistro-section-head">
                     <span class="preregistro-section-pill">Datos del envio</span>
-                    <p>Selecciona origen, servicio, destino y caracteristicas del paquete.</p>
+                    <p>Selecciona origen, destino y caracteristicas del paquete.</p>
                 </div>
                 <div class="preregistro-grid">
                     <div class="preregistro-field">
-                        <label>Origen</label>
-                        <select name="origen">
+                        <label>Origen *</label>
+                        <select name="origen" required>
                             <option value="">Seleccione...</option>
                             @foreach($preregistroCiudades as $ciudad)
                                 <option value="{{ $ciudad }}" @selected(old('origen') === $ciudad)>{{ $ciudad }}</option>
@@ -69,63 +75,27 @@
                         @error('origen') <small>{{ $message }}</small> @enderror
                     </div>
                     <div class="preregistro-field">
-                        <label>Tipo de correspondencia</label>
-                        <input type="text" name="tipo_correspondencia" value="{{ old('tipo_correspondencia') }}" placeholder="Ej: DOCUMENTO, OFICIAL">
-                        @error('tipo_correspondencia') <small>{{ $message }}</small> @enderror
-                    </div>
-                    <div class="preregistro-field">
-                        <label>Servicio</label>
-                        <select name="servicio_id" class="preregistro-select-compact" title="Selecciona el servicio">
-                            <option value="">Seleccione...</option>
-                            @foreach($preregistroServicios as $servicio)
-                                @php
-                                    $serviceLabel = (string) \Illuminate\Support\Str::of($servicio->nombre_servicio)
-                                        ->replace('_', ' ')
-                                        ->squish()
-                                        ->limit(28, '...');
-                                @endphp
-                                <option
-                                    value="{{ $servicio->id }}"
-                                    title="{{ $servicio->nombre_servicio }}"
-                                    @selected((int) old('servicio_id') === (int) $servicio->id)
-                                >{{ $serviceLabel }}</option>
-                            @endforeach
-                        </select>
-                        @error('servicio_id') <small>{{ $message }}</small> @enderror
-                    </div>
-                    <div class="preregistro-field">
-                        <label>Destino</label>
-                        <select name="destino_id">
+                        <label>Destino *</label>
+                        <select name="destino_id" required>
                             <option value="">Seleccione...</option>
                             @foreach($preregistroDestinos as $destino)
-                                <option value="{{ $destino->id }}" @selected((int) old('destino_id') === (int) $destino->id)>{{ $destino->nombre_destino }}</option>
+                                <option value="{{ $destino->id }}" @selected((int) old('destino_id') === (int) $destino->id)>{{ $destino->nombre_preregistro }}</option>
                             @endforeach
                         </select>
                         @error('destino_id') <small>{{ $message }}</small> @enderror
                     </div>
                     <div class="preregistro-field">
-                        <label>Servicio especial</label>
-                        <select name="servicio_especial">
-                            <option value="">Seleccione...</option>
-                            <option value="POR COBRAR" @selected(old('servicio_especial') === 'POR COBRAR')>POR COBRAR</option>
-                            <option value="IDA Y VUELTA" @selected(old('servicio_especial') === 'IDA Y VUELTA')>IDA Y VUELTA</option>
-                        </select>
-                        @error('servicio_especial') <small>{{ $message }}</small> @enderror
-                    </div>
-                    <div class="preregistro-field">
-                        <label>Cantidad</label>
-                        <input type="number" min="1" name="cantidad" value="{{ old('cantidad', 1) }}">
+                        <label>Cantidad *</label>
+                        <input type="number" min="1" name="cantidad" value="{{ old('cantidad', 1) }}" required>
                         @error('cantidad') <small>{{ $message }}</small> @enderror
                     </div>
                     <div class="preregistro-field preregistro-field-full">
-                        <label>Contenido</label>
-                        <textarea name="contenido" rows="3">{{ old('contenido') }}</textarea>
+                        <label>Contenido *</label>
+                        <textarea name="contenido" rows="3" required>{{ old('contenido') }}</textarea>
                         @error('contenido') <small>{{ $message }}</small> @enderror
                     </div>
-                    <div class="preregistro-field">
-                        <label>Peso</label>
-                        <input type="number" step="0.001" min="0.001" name="peso" value="{{ old('peso') }}">
-                        @error('peso') <small>{{ $message }}</small> @enderror
+                    <div class="preregistro-field preregistro-field-full">
+                        <strong>El peso se verificar&aacute; una vez que el paquete est&eacute; en Correos.</strong>
                     </div>
                 </div>
             </div>
@@ -137,8 +107,8 @@
                 </div>
                 <div class="preregistro-grid">
                     <div class="preregistro-field">
-                        <label>Nombre remitente</label>
-                        <input type="text" name="nombre_remitente" value="{{ old('nombre_remitente') }}">
+                        <label>Nombre remitente *</label>
+                        <input type="text" name="nombre_remitente" value="{{ old('nombre_remitente') }}" required>
                         @error('nombre_remitente') <small>{{ $message }}</small> @enderror
                     </div>
                     <div class="preregistro-field">
@@ -147,36 +117,46 @@
                         @error('nombre_envia') <small>{{ $message }}</small> @enderror
                     </div>
                     <div class="preregistro-field">
-                        <label>Carnet</label>
-                        <input type="text" name="carnet" value="{{ old('carnet') }}">
+                        <label>Carnet *</label>
+                        <input type="text" name="carnet" value="{{ old('carnet') }}" required>
                         @error('carnet') <small>{{ $message }}</small> @enderror
                     </div>
                     <div class="preregistro-field">
-                        <label>Telefono remitente</label>
-                        <input type="text" name="telefono_remitente" value="{{ old('telefono_remitente') }}">
+                        <label>Tel&eacute;fono remitente *</label>
+                        <input type="text" name="telefono_remitente" value="{{ old('telefono_remitente') }}" inputmode="numeric" pattern="[0-9]*" required>
                         @error('telefono_remitente') <small>{{ $message }}</small> @enderror
                     </div>
                     <div class="preregistro-field">
-                        <label>Nombre destinatario</label>
-                        <input type="text" name="nombre_destinatario" value="{{ old('nombre_destinatario') }}">
+                        <label>Correo electr&oacute;nico *</label>
+                        <input type="email" name="correo_electronico" value="{{ old('correo_electronico') }}" autocomplete="email" placeholder="ejemplo@correo.com" required>
+                        @error('correo_electronico') <small>{{ $message }}</small> @enderror
+                    </div>
+                    <div class="preregistro-field">
+                        <label>Nombre destinatario *</label>
+                        <input type="text" name="nombre_destinatario" value="{{ old('nombre_destinatario') }}" required>
                         @error('nombre_destinatario') <small>{{ $message }}</small> @enderror
                     </div>
                     <div class="preregistro-field">
                         <label>Telefono destinatario</label>
-                        <input type="text" name="telefono_destinatario" value="{{ old('telefono_destinatario') }}">
+                        <input type="text" name="telefono_destinatario" value="{{ old('telefono_destinatario') }}" inputmode="numeric" pattern="[0-9]*">
                         @error('telefono_destinatario') <small>{{ $message }}</small> @enderror
                     </div>
                     <div class="preregistro-field preregistro-field-full">
-                        <label>Direccion</label>
-                        <input type="text" name="direccion" value="{{ old('direccion') }}">
+                        <label>Direcci&oacute;n destinatario *</label>
+                        <input type="text" name="direccion" value="{{ old('direccion') }}" required>
                         @error('direccion') <small>{{ $message }}</small> @enderror
+                    </div>
+                    <div class="preregistro-field preregistro-field-full">
+                        <label>Referencia</label>
+                        <input type="text" name="referencia" value="{{ old('referencia') }}">
+                        @error('referencia') <small>{{ $message }}</small> @enderror
                     </div>
                 </div>
             </div>
 
             <div class="preregistro-actions">
                 <p>Guarda tu codigo. En admision lo usaran para recuperar tu preregistro.</p>
-                <button type="submit" class="btn btn-home-shipping">Enviar preregistro</button>
+                <button type="submit" class="btn btn-home-shipping">Generar c&oacute;digo de preregistro</button>
             </div>
         </form>
     </div>
