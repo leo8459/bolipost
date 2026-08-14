@@ -43,7 +43,7 @@
     @endif
 
     <div class="container nav">
-        <a class="brand" href="https://www.correos.gob.bo/" aria-label="Ir al sitio oficial de Correos de Bolivia">
+        <a class="brand" href="#inicio" aria-label="Ir al inicio">
             <img src="{{ asset('images/AGBClogo1.png') }}" alt="Correos de Bolivia">
             <span>TrackingBO</span>
         </a>
@@ -53,6 +53,11 @@
             <li><a href="https://www.correos.gob.bo/quienes-somos" target="_blank" rel="noopener noreferrer">&iquest;Qui&eacute;nes somos?</a></li>
             <li><a href="https://www.correos.gob.bo/noticias" target="_blank" rel="noopener noreferrer">Noticias</a></li>
             <li><a href="https://institucional.correos.gob.bo:8007/" target="_blank" rel="noopener noreferrer">Institucional</a></li>
+            <li class="menu-shipping-access-item">
+                <a href="{{ route('preregistros.public.create') }}" class="menu-shipping-access" data-open-preregistro>
+                    <span class="menu-shipping-access-label">Generar preenv&iacute;o EMS</span>
+                </a>
+            </li>
             <li class="menu-client-access-item">
                 <a href="https://trackingbo.correos.gob.bo:8100/clientes/login" class="menu-client-access" target="_blank" rel="noopener noreferrer">
                     <span class="menu-client-access-label">Ingreso clientes</span>
@@ -78,7 +83,8 @@
                 </a>
             @endif
             <a class="btn btn-home-shipping" href="{{ route('preregistros.public.create') }}" data-open-preregistro>
-                Generar preenv&iacute;o EMS
+                <span class="btn-home-shipping__eyebrow">Preenv&iacute;o</span>
+                <span class="btn-home-shipping__label">Generar EMS</span>
             </a>
             <button class="menu-toggle" id="menuToggle" type="button" aria-label="Abrir menu" aria-expanded="false">
                 <span class="menu-toggle-bars" aria-hidden="true">

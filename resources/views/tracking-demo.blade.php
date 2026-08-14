@@ -679,6 +679,21 @@
                         </div>
                     </div>
 
+                    <div class="tracking-search-panel">
+                        <div class="tracking-search-copy">
+                            <small>Nueva busqueda</small>
+                            <strong>Volver a buscar otro envio</strong>
+                            <p>Si quieres consultar otro codigo, vuelve al buscador principal desde aqui.</p>
+                        </div>
+                        <div class="tracking-search-box">
+                            <label for="trackingSearchCurrentCode">Codigo consultado</label>
+                            <div class="tracking-search-box-row">
+                                <input id="trackingSearchCurrentCode" type="text" value="{{ $codigo }}" readonly>
+                                <a class="tracking-search-btn" href="{{ url('/#inicio') }}">Volver a buscar</a>
+                            </div>
+                        </div>
+                    </div>
+
                 </article>
 
                 <article class="card progress-card reveal-block" style="--reveal-delay: 110ms;">
