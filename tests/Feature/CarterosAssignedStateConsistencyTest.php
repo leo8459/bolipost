@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\CarterosController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\TodosPaquetesController;
+use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -57,6 +59,35 @@ class CarterosAssignedStateConsistencyTest extends TestCase
 
         $this->assertSame(0, $response->getData(true)['meta']['total']);
         $this->assertSame([], $response->getData(true)['data']);
+    }
+
+    public function test_dashboard_excludes_stale_and_orphaned_cartero_assignments(): void
+    {
+        DB::table('paquetes_contrato')->insert([
+            $this->contractRow(36814, 'CONTRATO-ACTIVO', 13),
+            $this->contractRow(36815, 'CONTRATO-DESFASADO', 27),
+        ]);
+        DB::table('cartero')->insert([
+            $this->assignmentRow(29138, 36814, 13),
+            $this->assignmentRow(29139, 36815, 13),
+            $this->assignmentRow(29140, null, 13),
+        ]);
+        $user = new User();
+        $user->forceFill(['id' => 38, 'name' => 'Cartero de prueba', 'ciudad' => 'LA PAZ']);
+
+        $method = new ReflectionMethod(DashboardController::class, 'buildCarteroPendingSummary');
+        $summary = $method->invoke(
+            app(DashboardController::class),
+            $user,
+            ['administrador'],
+            true,
+            'LA PAZ',
+        );
+
+        $laPaz = $summary['departments']->firstWhere('department', 'LA PAZ');
+
+        $this->assertTrue($summary['enabled']);
+        $this->assertSame(1, $laPaz->total_pendientes);
     }
 
     public function test_changing_package_state_from_all_packages_synchronizes_cartero_assignment(): void
@@ -126,7 +157,7 @@ class CarterosAssignedStateConsistencyTest extends TestCase
         ];
     }
 
-    private function assignmentRow(int $id, int $packageId, int $estadoId): array
+    private function assignmentRow(int $id, ?int $packageId, int $estadoId): array
     {
         return [
             'id' => $id,

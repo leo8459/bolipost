@@ -2,10 +2,12 @@
 
 namespace App\Providers;
 
+use App\Database\Query\Grammars\CaseInsensitivePostgresGrammar;
 use App\Livewire\Hooks\EnsureLivewireActionPermission;
 use App\Support\AclPermissionRegistry;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Livewire\Livewire;
@@ -27,6 +29,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $connection = DB::connection();
+        if ($connection->getDriverName() === 'pgsql') {
+            $connection->setQueryGrammar(new CaseInsensitivePostgresGrammar($connection));
+        }
+
         // Force Bootstrap paginator markup globally (AdminLTE uses Bootstrap).
         Paginator::useBootstrapFive();
 

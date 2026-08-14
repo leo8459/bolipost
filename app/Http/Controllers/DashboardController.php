@@ -246,7 +246,7 @@ class DashboardController extends Controller
             fn () => $this->buildRegionalPendingAlert($userCity, $hasGlobalDepartmentAccess)
         );
 
-        $carteroAlertKey = 'dashboard-alert-part:v2:cartero:' . (int) $authUser->id;
+        $carteroAlertKey = 'dashboard-alert-part:v3:cartero:' . (int) $authUser->id;
         $carteroAlerts = Cache::remember(
             $carteroAlertKey,
             now()->addSeconds(self::DASHBOARD_HEAVY_ALERT_CACHE_SECONDS),
@@ -868,10 +868,13 @@ class DashboardController extends Controller
             ];
         }
 
-        $count = (int) Cartero::query()
+        $query = Cartero::query()
             ->where('id_user', $authUser->id)
-            ->where('id_estados', $estadoCarteroId)
-            ->count();
+            ->where('id_estados', $estadoCarteroId);
+
+        $this->constrainActiveCarteroAssignments($query, $estadoCarteroId);
+
+        $count = (int) $query->count();
 
         return [
             'count' => $count,
@@ -913,6 +916,8 @@ class DashboardController extends Controller
             ->orderByDesc('pendientes')
             ->orderBy('users.name');
 
+        $this->constrainActiveCarteroAssignments($query, $estadoCarteroId);
+
         if (!$hasGlobalDepartmentAccess) {
             if ($userCity === '') {
                 return [
@@ -942,6 +947,37 @@ class DashboardController extends Controller
                 ? $this->completeDepartmentPendingSummary($rows)
                 : collect(),
         ];
+    }
+
+    /**
+     * Excluye asignaciones huerfanas o cuyo paquete ya dejo el estado CARTERO.
+     * La tabla cartero puede conservar historial, pero no debe inflar pendientes.
+     */
+    private function constrainActiveCarteroAssignments($query, int $estadoCarteroId): void
+    {
+        $packageTypes = [
+            ['assignment' => 'id_paquetes_ems', 'table' => 'paquetes_ems', 'state' => 'estado_id'],
+            ['assignment' => 'id_paquetes_certi', 'table' => 'paquetes_certi', 'state' => 'fk_estado'],
+            ['assignment' => 'id_paquetes_ordi', 'table' => 'paquetes_ordi', 'state' => 'fk_estado'],
+            ['assignment' => 'id_paquetes_contrato', 'table' => 'paquetes_contrato', 'state' => 'estados_id'],
+            ['assignment' => 'id_solicitud_cliente', 'table' => 'solicitud_clientes', 'state' => 'estado_id'],
+        ];
+
+        $query->where(function ($assignments) use ($packageTypes, $estadoCarteroId) {
+            foreach ($packageTypes as $type) {
+                $assignments->orWhere(function ($assignment) use ($type, $estadoCarteroId) {
+                    $assignment
+                        ->whereNotNull('cartero.'.$type['assignment'])
+                        ->whereExists(function ($package) use ($type, $estadoCarteroId) {
+                            $package
+                                ->selectRaw('1')
+                                ->from($type['table'])
+                                ->whereColumn($type['table'].'.id', 'cartero.'.$type['assignment'])
+                                ->where($type['table'].'.'.$type['state'], $estadoCarteroId);
+                        });
+                });
+            }
+        });
     }
 
     private function completeDepartmentPendingSummary($rows)
