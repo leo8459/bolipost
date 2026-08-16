@@ -56,7 +56,7 @@ DB_PASSWORD=
 
 Developers of this software
 
-* Marco Antonio Espinoza Rojas
+* Leonardo Glen Doria Medina Ochoa
 
 ## System installation
 
