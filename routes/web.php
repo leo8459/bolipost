@@ -32,6 +32,7 @@ use App\Http\Controllers\OrigenController;
 use App\Http\Controllers\PaquetesCertiController;
 use App\Http\Controllers\PaquetesEmsBoletaController;
 use App\Http\Controllers\PaquetesEmsController;
+use App\Http\Controllers\PaquetesIpsController;
 use App\Http\Controllers\PaquetesOrdiController;
 use App\Http\Controllers\PerformanceController;
 use App\Http\Controllers\PermissionController;
@@ -422,6 +423,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::post('/importar/paquets', [ImportController::class, 'importPaquets'])->name('importar.paquets.store');
     Route::get('/importar/paquets/plantilla-excel', [ImportController::class, 'downloadPaquetsTemplateExcel'])->name('importar.paquets.template-excel');
     Route::get('/todos-paquetes', [TodosPaquetesController::class, 'index'])->name('todos-paquetes.index');
+    Route::get('/paquetes-ips', [PaquetesIpsController::class, 'index'])->name('paquetes-ips.index');
     Route::get('/todos-paquetes/export/excel', [TodosPaquetesController::class, 'exportExcel'])->name('todos-paquetes.export.excel');
     Route::post('/todos-paquetes', [TodosPaquetesController::class, 'store'])->name('todos-paquetes.store');
     Route::get('/todos-paquetes/{type}/{id}/guia', [TodosPaquetesController::class, 'reimprimirGuia'])->name('todos-paquetes.guia');

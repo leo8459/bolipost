@@ -10,6 +10,10 @@ use Illuminate\Support\Collection;
 
 class EmpresaContractUserSyncService
 {
+    private const EXPIRATION_ALERT_ROLES = [
+        'contratos',
+    ];
+
     public function syncExpiredUsers(): void
     {
         $today = Carbon::today()->toDateString();
@@ -128,7 +132,7 @@ class EmpresaContractUserSyncService
         $today = Carbon::today();
         $limitDate = $today->copy()->addDays(90);
 
-        if ($this->isAdminUser($user)) {
+        if ($this->canSeeAllExpirationAlerts($user)) {
             return Empresa::query()
                 ->whereNotNull('fin_contrato')
                 ->whereDate('fin_contrato', '>=', $today->toDateString())
@@ -181,6 +185,12 @@ class EmpresaContractUserSyncService
         }
 
         return $user->hasRole('administrador') || $user->hasRole('admin');
+    }
+
+    private function canSeeAllExpirationAlerts(User $user): bool
+    {
+        return $this->isAdminUser($user)
+            || $user->hasAnyRole(self::EXPIRATION_ALERT_ROLES);
     }
 
     private function isEmpresaUser(User $user): bool

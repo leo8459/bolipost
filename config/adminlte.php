@@ -368,6 +368,11 @@ return [
                     'url' => 'todos-paquetes',
                     'icon' => 'fas fa-layer-group',
                 ],
+                [
+                    'text' => 'Paquetes IPS',
+                    'url' => 'paquetes-ips',
+                    'icon' => 'fas fa-globe-americas',
+                ],
             ],
         ],
         [

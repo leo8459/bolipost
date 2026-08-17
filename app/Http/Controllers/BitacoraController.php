@@ -6,6 +6,7 @@ use App\Exports\BitacoraDepartamentoExport;
 use App\Models\Bitacora;
 use App\Models\PaqueteCerti;
 use App\Models\PaqueteEms;
+use App\Models\PaqueteInt;
 use App\Models\PaqueteOrdi;
 use App\Models\Recojo;
 use App\Models\User;
@@ -720,8 +721,12 @@ class BitacoraController extends Controller
                 })
                 ->exists();
 
-            if (!$emsExists && !$contratoExists && !$ordiExists && !$certiExists) {
-                $validator->errors()->add('cod_especial', 'No existen paquetes EMS, contratos, ordinarios o certificados con ese codigo.');
+            $intExists = PaqueteInt::query()
+                ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codEspecial])
+                ->exists();
+
+            if (!$emsExists && !$contratoExists && !$ordiExists && !$certiExists && !$intExists) {
+                $validator->errors()->add('cod_especial', 'No existen paquetes EMS, contratos, ordinarios, certificados o INT con ese codigo.');
             }
         });
 
@@ -876,6 +881,10 @@ class BitacoraController extends Controller
             })
             ->sum('peso');
 
+        $pesoInt = (float) PaqueteInt::query()
+            ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codigo])
+            ->sum('peso');
+
         $precioEms = (float) PaqueteEms::query()
             ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codigo])
             ->sum('precio');
@@ -884,9 +893,13 @@ class BitacoraController extends Controller
             ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codigo])
             ->sum('precio');
 
+        $precioInt = (float) PaqueteInt::query()
+            ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codigo])
+            ->sum('precio');
+
         return [
-            'peso' => round($pesoEms + $pesoContrato + $pesoOrdi + $pesoCerti, 3),
-            'precio_total' => round($precioEms + $precioContrato, 2),
+            'peso' => round($pesoEms + $pesoContrato + $pesoOrdi + $pesoCerti + $pesoInt, 3),
+            'precio_total' => round($precioEms + $precioContrato + $precioInt, 2),
         ];
     }
 
