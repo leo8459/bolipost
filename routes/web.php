@@ -24,6 +24,7 @@ use App\Http\Controllers\ExternalApiTokenController;
 use App\Http\Controllers\FacturacionCartController;
 use App\Http\Controllers\FacturacionQrMonitorController;
 use App\Http\Controllers\FacturacionServicioController;
+use App\Http\Controllers\FinancialReportController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\IndicadorController;
 use App\Http\Controllers\MalencaminadoController;
@@ -201,6 +202,12 @@ Route::get('/dir-comercial/rendimiento-servicios/export/excel', [ReportesControl
 Route::get('/dir-comercial/rendimiento-servicios/export/pdf', [ReportesController::class, 'exportCommercialPerformancePdf'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.comercial.rendimiento-servicios.pdf');
+Route::get('/dir-financiera/ventas-servicios', [FinancialReportController::class, 'services'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.financiera.ventas-servicios');
+Route::get('/dir-financiera/ventas-servicios/detalle', [FinancialReportController::class, 'serviceDetail'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.financiera.ventas-servicios.detalle');
 Route::get('/entregas', [DashboardController::class, 'entregas'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('entregas.index');

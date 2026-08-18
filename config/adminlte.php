@@ -421,6 +421,18 @@ return [
             'can' => 'dashboard.dir-financiera',
             'submenu' => [
                 [
+                    'text' => 'Ventas por Servicio',
+                    'can' => 'dashboard.financiera.ventas-servicios',
+                    'url' => '/dir-financiera/ventas-servicios',
+                    'icon' => 'fas fa-file-invoice-dollar',
+                ],
+                [
+                    'text' => 'Detalle por Servicio',
+                    'can' => 'dashboard.financiera.ventas-servicios.detalle',
+                    'url' => '/dir-financiera/ventas-servicios/detalle',
+                    'icon' => 'fas fa-table',
+                ],
+                [
                     'text' => 'Panel Financiero',
                     'can' => 'dashboard.financiera.panel',
                     'url' => '/dir-financiera/panel',

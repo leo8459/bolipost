@@ -73,6 +73,14 @@ return [
         'ssl_verify' => env('FACTURACION_BRIDGE_SSL_VERIFY', true),
     ],
 
+    'facturacion_reports' => [
+        'base_url' => env('FACTURACION_REPORTS_BASE_URL', 'https://safe.correos.gob.bo/api/factura-venta'),
+        'token' => env('FACTURACION_BRIDGE_TOKEN'),
+        'timeout' => env('FACTURACION_BRIDGE_TIMEOUT', 30),
+        'connect_timeout' => env('FACTURACION_BRIDGE_CONNECT_TIMEOUT', 5),
+        'ssl_verify' => env('FACTURACION_REPORTS_SSL_VERIFY', true),
+    ],
+
     'whatsapp_alerts' => [
         'enabled' => (bool) env('WHATSAPP_ALERTS_ENABLED', false),
         'webhook_url' => env('WHATSAPP_ALERTS_WEBHOOK_URL'),

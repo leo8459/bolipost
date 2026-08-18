@@ -196,6 +196,8 @@ return [
         'dashboard.dir-operaciones',
         'dashboard.dir-comercial',
         'dashboard.dir-financiera',
+        'dashboard.financiera.ventas-servicios',
+        'dashboard.financiera.ventas-servicios.detalle',
         'dashboard.financiera.panel',
         'dashboard.financiera.presupuesto',
         'dashboard.financiera.ingresos-egresos',
