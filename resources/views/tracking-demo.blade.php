@@ -683,15 +683,28 @@
                         <div class="tracking-search-copy">
                             <small>Nueva busqueda</small>
                             <strong>Volver a buscar otro envio</strong>
-                            <p>Si quieres consultar otro codigo, vuelve al buscador principal desde aqui.</p>
+                            <p>Si quieres consultar otro codigo, escribelo aqui mismo y busca sin volver a la pagina principal.</p>
                         </div>
-                        <div class="tracking-search-box">
-                            <label for="trackingSearchCurrentCode">Codigo consultado</label>
+                        <form class="tracking-search-box" method="GET" action="{{ route('tracking.demo') }}">
+                            <label for="trackingSearchCurrentCode">Buscar otro codigo</label>
                             <div class="tracking-search-box-row">
-                                <input id="trackingSearchCurrentCode" type="text" value="{{ $codigo }}" readonly>
-                                <a class="tracking-search-btn" href="{{ url('/#inicio') }}">Volver a buscar</a>
+                                <input
+                                    id="trackingSearchCurrentCode"
+                                    type="text"
+                                    name="codigo"
+                                    value="{{ $codigo }}"
+                                    inputmode="text"
+                                    autocomplete="off"
+                                    autocapitalize="characters"
+                                    spellcheck="false"
+                                    maxlength="50"
+                                    pattern="[A-Za-z0-9]+"
+                                    aria-label="Buscar otro codigo de seguimiento"
+                                    required
+                                >
+                                <button class="tracking-search-btn" type="submit">Buscar ahora</button>
                             </div>
-                        </div>
+                        </form>
                     </div>
 
                 </article>

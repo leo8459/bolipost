@@ -26,9 +26,87 @@
     $activeFacturacionCart = $facturacionContext['draft'] ?? null;
     $ultimaFacturacionEmitida = $facturacionContext['last'] ?? null;
     $facturacionItems = collect($activeFacturacionCart?->items ?? []);
-    $facturacionResolveQuantity = function ($item) {
+    $facturacionExtractCodeFamily = function (string $code): string {
+        $code = trim($code);
+        if ($code === '') {
+            return '';
+        }
+
+        return preg_replace('/\.\d+$/', '', $code) ?: $code;
+    };
+    $facturacionBuildAlternateCode = function (string $baseCode, int $position) use ($facturacionExtractCodeFamily): string {
+        $baseCode = $facturacionExtractCodeFamily($baseCode);
+        if ($baseCode === '') {
+            return '';
+        }
+
+        return $baseCode . '.' . max(1, $position - 1);
+    };
+    $facturacionItems = $facturacionItems
+        ->values()
+        ->groupBy(function ($item) use ($facturacionExtractCodeFamily) {
+            $codigo = trim((string) data_get($item, 'codigo', ''));
+            if ($codigo === '') {
+                return '__empty__';
+            }
+
+            $conceptoId = (int) data_get(
+                $item,
+                'resumen_origen.concepto_facturacion_id',
+                data_get($item, 'origen_id', data_get($item, 'id', 0))
+            );
+
+            return implode('|', [
+                ltrim((string) data_get($item, 'origen_tipo', ''), '\\'),
+                $conceptoId,
+                mb_strtolower($facturacionExtractCodeFamily($codigo)),
+            ]);
+        })
+        ->flatMap(function ($group, $groupKey) use ($facturacionExtractCodeFamily, $facturacionBuildAlternateCode) {
+            $ordered = collect($group)
+                ->sortBy(fn ($item) => (int) data_get($item, 'id', 0))
+                ->values();
+
+            if ($groupKey === '__empty__' || $ordered->count() <= 1) {
+                return $ordered;
+            }
+
+            $baseCode = $facturacionExtractCodeFamily((string) data_get($ordered->first(), 'codigo', ''));
+            if ($baseCode === '') {
+                return $ordered;
+            }
+
+            return $ordered->map(function ($item, $index) use ($baseCode, $facturacionBuildAlternateCode) {
+                $item = is_object($item) ? clone $item : $item;
+                $item->codigo = $index === 0
+                    ? $baseCode
+                    : $facturacionBuildAlternateCode($baseCode, $index + 1);
+
+                return $item;
+            });
+        })
+        ->values();
+    $facturacionResolveUnitBase = function ($item) {
+        $montoBase = round((float) data_get($item, 'monto_base', data_get($item, 'precio', 0)), 2);
+        if ($montoBase > 0) {
+            return $montoBase;
+        }
+
         $cantidadExplicita = max(1, (int) data_get($item, 'cantidad', 1));
-        $montoBase = round((float) data_get($item, 'monto_base', data_get($item, 'precio', data_get($item, 'total_linea', 0))), 2);
+        $montoExtras = round((float) data_get($item, 'monto_extras', 0), 2);
+        $totalLinea = round((float) data_get($item, 'total_linea', 0), 2);
+
+        if ($totalLinea <= 0) {
+            return $montoBase;
+        }
+
+        $montoDerivado = round(($totalLinea / $cantidadExplicita) - $montoExtras, 2);
+
+        return $montoDerivado > 0 ? $montoDerivado : $montoBase;
+    };
+    $facturacionResolveQuantity = function ($item) use ($facturacionResolveUnitBase) {
+        $cantidadExplicita = max(1, (int) data_get($item, 'cantidad', 1));
+        $montoBase = $facturacionResolveUnitBase($item);
         $montoExtras = round((float) data_get($item, 'monto_extras', 0), 2);
         $totalLinea = round((float) data_get($item, 'total_linea', 0), 2);
         $montoUnitario = round($montoBase + $montoExtras, 2);
@@ -324,7 +402,7 @@
                                     data-item-direccion="{{ (string) data_get($issueItem->resumen_origen, 'direccion', '') }}"
                                     data-item-ciudad="{{ (string) data_get($issueItem->resumen_origen, 'ciudad', '') }}"
                                     data-item-peso="{{ (string) data_get($issueItem->resumen_origen, 'peso', '') }}"
-                                    data-item-precio="{{ number_format((float) (data_get($issueItem, 'monto_base') ?? data_get($issueItem, 'precio') ?? data_get($issueItem, 'total_linea', 0)), 2, '.', '') }}"
+                                    data-item-precio="{{ number_format((float) $facturacionResolveUnitBase($issueItem), 2, '.', '') }}"
                                     data-item-cantidad="{{ $facturacionResolveQuantity($issueItem) }}"
                                     data-item-actividad-economica="{{ (string) data_get($issueItem->resumen_origen, 'actividad_economica', '') }}"
                                     data-item-codigo-sin="{{ (string) data_get($issueItem->resumen_origen, 'codigo_sin', '') }}"
@@ -592,7 +670,7 @@
                                         data-item-direccion="{{ (string) data_get($item->resumen_origen, 'direccion', '') }}"
                                         data-item-ciudad="{{ (string) data_get($item->resumen_origen, 'ciudad', '') }}"
                                         data-item-peso="{{ (string) data_get($item->resumen_origen, 'peso', '') }}"
-                                        data-item-precio="{{ number_format((float) (data_get($item, 'monto_base') ?? data_get($item, 'precio') ?? data_get($item, 'total_linea', 0)), 2, '.', '') }}"
+                                        data-item-precio="{{ number_format((float) $facturacionResolveUnitBase($item), 2, '.', '') }}"
                                         data-item-cantidad="{{ $itemCantidad }}"
                                         data-item-actividad-economica="{{ (string) data_get($item->resumen_origen, 'actividad_economica', '') }}"
                                         data-item-codigo-sin="{{ (string) data_get($item->resumen_origen, 'codigo_sin', '') }}"
@@ -5323,13 +5401,17 @@
 
             const buildFacturacionEditButtonHtml = (item) => {
                 const resumen = item && typeof item.resumen_origen === 'object' && item.resumen_origen ? item.resumen_origen : {};
-                const priceValue = Number(
-                    (item && item.monto_base)
-                    ?? (item && item.precio)
-                    ?? (item && item.total_linea)
-                    ?? 0
-                ).toFixed(2);
                 const quantityValue = Math.max(1, Number((item && item.cantidad) || 1));
+                const baseAmountRaw = Number((item && item.monto_base) ?? (item && item.precio) ?? 0);
+                const extrasAmountRaw = Number((item && item.monto_extras) ?? 0);
+                const totalAmountRaw = Number((item && item.total_linea) ?? 0);
+                const derivedBaseAmount = quantityValue > 0
+                    ? ((totalAmountRaw / quantityValue) - extrasAmountRaw)
+                    : 0;
+                const resolvedBaseAmount = baseAmountRaw > 0
+                    ? baseAmountRaw
+                    : (derivedBaseAmount > 0 ? derivedBaseAmount : totalAmountRaw);
+                const priceValue = Number(resolvedBaseAmount || 0).toFixed(2);
 
                 return `
                     <button
@@ -6611,6 +6693,39 @@
                 }
             };
 
+            const validateEmitBillingData = (contextElement = facturacionBillingInlineForm) => {
+                const scopedBillingForm = resolveScopedBillingForm(contextElement);
+                if (!(scopedBillingForm instanceof HTMLFormElement)) {
+                    return { ok: true };
+                }
+
+                const documentField = scopedBillingForm.querySelector('input[name="numero_documento"]');
+                const razonSocialField = scopedBillingForm.querySelector('input[name="razon_social"]');
+                const missingFields = [];
+
+                if (!(documentField instanceof HTMLInputElement) || String(documentField.value || '').trim() === '') {
+                    missingFields.push('Numero de documento');
+                }
+
+                if (!(razonSocialField instanceof HTMLInputElement) || String(razonSocialField.value || '').trim() === '') {
+                    missingFields.push('Razon social');
+                }
+
+                if (missingFields.length === 0) {
+                    return { ok: true };
+                }
+
+                return {
+                    ok: false,
+                    feedback: {
+                        type: 'warning',
+                        title: 'Completa los datos del cliente',
+                        message: 'No se puede emitir la venta con datos fiscales incompletos.',
+                        detail: 'Completa: ' + missingFields.join(', ') + '.',
+                    },
+                };
+            };
+
             if (facturacionProcessingState instanceof HTMLElement) {
                 facturacionProcessingState.addEventListener('click', function () {
                     if (facturacionProcessingState.dataset.previewMode !== 'true') {
@@ -6842,43 +6957,12 @@
                     }
 
                     applyLockedDescriptionField(descriptionHiddenInput, descriptionInput, descriptionLockedNode, baseDescription);
-
-                    const syncSuggestedCode = () => {
-                        const basePriceValue = Number.parseFloat(priceInput.dataset.basePrice || '0');
-                        const currentPriceValue = Number.parseFloat(priceInput.value || '0');
-                        const baseDescriptionValue = descriptionInput instanceof HTMLTextAreaElement
-                            ? String(descriptionInput.dataset.baseDescription || '').trim()
-                            : '';
-                        const currentDescriptionValue = descriptionInput instanceof HTMLTextAreaElement
-                            ? buildLockedFacturacionDescription(
-                                descriptionInput.dataset.lockedPart || '',
-                                descriptionInput.value
-                            ).trim()
-                            : '';
-                        const hasDescriptionChanges = currentDescriptionValue !== baseDescriptionValue;
-                        const hasPriceChanges = Number.isFinite(basePriceValue)
-                            && Number.isFinite(currentPriceValue)
-                            && Math.abs(basePriceValue - currentPriceValue) > 0.0001;
-                        const shouldSuggestSplitCode = hasPriceChanges || hasDescriptionChanges;
-
-                        if (shouldSuggestSplitCode && codeInput.value.trim() === String(codeInput.dataset.baseCode || '').trim()) {
-                            codeInput.value = String(codeInput.dataset.suggestedCode || codeInput.value || '').trim();
-                        }
-
-                        if (!shouldSuggestSplitCode && codeInput.value.trim() === String(codeInput.dataset.suggestedCode || '').trim()) {
-                            codeInput.value = String(codeInput.dataset.baseCode || '').trim();
-                        }
-                    };
-
-                    priceInput.addEventListener('input', syncSuggestedCode);
                     if (descriptionInput instanceof HTMLTextAreaElement) {
                         descriptionInput.addEventListener('input', () => {
                             syncLockedDescriptionField(descriptionHiddenInput, descriptionInput);
-                            syncSuggestedCode();
                         });
                     }
                     syncLockedDescriptionField(descriptionHiddenInput, descriptionInput);
-                    syncSuggestedCode();
                 });
             };
 
@@ -8065,6 +8149,18 @@
                     setFacturacionSubmittingState(form, true);
                     syncEmitFormsWithBillingState(form);
 
+                    const isEmitAction = String(form.getAttribute('action') || '').includes('/facturacion/cart/emitir');
+                    if (isEmitAction) {
+                        const emitValidation = validateEmitBillingData(form);
+                        if (!emitValidation.ok) {
+                            setFacturacionSubmittingState(null, false);
+                            if (emitValidation.feedback) {
+                                renderFacturacionShortcutFeedback(emitValidation.feedback);
+                            }
+                            return;
+                        }
+                    }
+
                     if (form.dataset.requiresBillingSync === 'true') {
                         const scopedBillingForm = resolveScopedBillingForm(form);
                         const syncOk = await submitBillingInlineForm(scopedBillingForm instanceof HTMLFormElement ? scopedBillingForm : facturacionBillingInlineForm);
@@ -8074,7 +8170,6 @@
                         }
                     }
 
-                    const isEmitAction = String(form.getAttribute('action') || '').includes('/facturacion/cart/emitir');
                     const isCartMutationAction = String(form.getAttribute('action') || '').includes('/facturacion/cart/clear')
                         || String(form.getAttribute('action') || '').includes('/facturacion/cart/items/');
 
