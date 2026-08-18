@@ -542,14 +542,25 @@ class FacturacionCartController extends Controller
         $user = $request->user();
         $this->authorizeFacturacionAccess($user);
 
+        $requiredBillingText = static function (string $label): \Closure {
+            return static function (string $attribute, mixed $value, \Closure $fail) use ($label): void {
+                if (trim((string) $value) === '') {
+                    $fail('El campo ' . $label . ' es obligatorio.');
+                }
+            };
+        };
+
         $billingSnapshot = $request->validate([
             'modalidad_facturacion' => ['nullable', 'in:con_datos,sin_cliente'],
             'canal_emision' => ['nullable', 'in:factura_electronica,qr'],
             'tipo_documento' => ['nullable', 'string', 'max:20', Rule::in(array_keys(\App\Models\Cliente::tiposDocumentoIdentidad()))],
-            'numero_documento' => ['nullable', 'string', 'max:80'],
+            'numero_documento' => ['required', 'string', 'max:80', $requiredBillingText('numero de documento')],
             'complemento_documento' => ['nullable', 'string', 'max:30'],
-            'razon_social' => ['nullable', 'string', 'max:255'],
+            'razon_social' => ['required', 'string', 'max:255', $requiredBillingText('razon social')],
             'correo_facturacion' => ['nullable', 'email', 'max:50'],
+        ], [
+            'numero_documento.required' => 'El campo numero de documento es obligatorio.',
+            'razon_social.required' => 'El campo razon social es obligatorio.',
         ]);
         $autoEmitInvoice = $request->has('auto_emit_invoice')
             ? $request->boolean('auto_emit_invoice')
@@ -1342,7 +1353,8 @@ class FacturacionCartController extends Controller
             ? $rawItems
             : collect($rawItems);
 
-        $items = $itemsCollection
+        $items = $this->normalizeCartItemCodesForDisplay(
+            $itemsCollection
             ->map(function ($item) {
                 $montoBase = (float) data_get($item, 'monto_base', data_get($item, 'precio', data_get($item, 'total_linea', 0)));
                 $montoExtras = (float) data_get($item, 'monto_extras', 0);
@@ -1364,7 +1376,7 @@ class FacturacionCartController extends Controller
                 ];
             })
             ->values()
-            ->all();
+        )->all();
 
         return [
             'id' => data_get($cart, 'id'),
@@ -1391,6 +1403,73 @@ class FacturacionCartController extends Controller
         $derivedQuantity = (int) round($totalLinea / $unitAmount);
 
         return max($explicitQuantity, $derivedQuantity, 1);
+    }
+
+    private function normalizeCartItemCodesForDisplay(\Illuminate\Support\Collection $items): \Illuminate\Support\Collection
+    {
+        return $items
+            ->values()
+            ->groupBy(function ($item) {
+                $codigo = trim((string) data_get($item, 'codigo', ''));
+                if ($codigo === '') {
+                    return '__empty__';
+                }
+
+                $conceptoId = (int) data_get(
+                    $item,
+                    'resumen_origen.concepto_facturacion_id',
+                    data_get($item, 'origen_id', data_get($item, 'id', 0))
+                );
+
+                return implode('|', [
+                    ltrim((string) data_get($item, 'origen_tipo', ''), '\\'),
+                    $conceptoId,
+                    mb_strtolower($this->extractCartItemCodeFamily($codigo)),
+                ]);
+            })
+            ->flatMap(function ($group, $groupKey) {
+                $ordered = collect($group)
+                    ->sortBy(fn ($item) => (int) data_get($item, 'id', 0))
+                    ->values();
+
+                if ($groupKey === '__empty__' || $ordered->count() <= 1) {
+                    return $ordered;
+                }
+
+                $baseCode = $this->extractCartItemCodeFamily((string) data_get($ordered->first(), 'codigo', ''));
+                if ($baseCode === '') {
+                    return $ordered;
+                }
+
+                return $ordered->map(function ($item, $index) use ($baseCode) {
+                    $item['codigo'] = $index === 0
+                        ? $baseCode
+                        : $this->buildDisplayedAlternateCartItemCode($baseCode, $index + 1);
+
+                    return $item;
+                });
+            })
+            ->values();
+    }
+
+    private function extractCartItemCodeFamily(string $code): string
+    {
+        $code = trim($code);
+        if ($code === '') {
+            return '';
+        }
+
+        return preg_replace('/\.\d+$/', '', $code) ?: $code;
+    }
+
+    private function buildDisplayedAlternateCartItemCode(string $baseCode, int $position): string
+    {
+        $baseCode = $this->extractCartItemCodeFamily($baseCode);
+        if ($baseCode === '') {
+            return '';
+        }
+
+        return $baseCode . '.' . max(1, $position - 1);
     }
 
     public function addConcepto(Request $request, FacturacionCartService $service): RedirectResponse|JsonResponse

@@ -219,4 +219,38 @@ class TrackingDemoProgressTest extends TestCase
         $response->assertDontSee('>Nacional<', false);
         $response->assertDontSee('>Internacional<', false);
     }
+
+    public function test_result_page_allows_searching_another_code_without_returning_to_home(): void
+    {
+        config()->set('services.tracking_sqlserver.base_url', 'https://tracking.test/api/public/tracking/eventos');
+        config()->set('services.tracking_sqlserver.token', 'test-token');
+
+        Http::fake([
+            'https://tracking.test/*' => Http::response([
+                'codigo' => 'LX309020748ES',
+                'servicio' => 'CERTI',
+                'eventos_locales' => [],
+                'eventos_externos' => [
+                    [
+                        'created_at' => '2026-08-11 12:20:00',
+                        'nombre_evento' => 'Paquete entregado exitosamente. - LA PAZ',
+                        'office' => 'País Origen: Spain',
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $response = $this
+            ->withSession([
+                'tracking_captcha_verified_until' => now()->addMinutes(5)->timestamp,
+            ])
+            ->get('/trackingbo?codigo=LX309020748ES');
+
+        $response->assertOk();
+        $response->assertSee('Buscar otro codigo', false);
+        $response->assertSee('name="codigo"', false);
+        $response->assertSee('value="LX309020748ES"', false);
+        $response->assertSee('type="submit">Buscar ahora</button>', false);
+        $response->assertDontSee('href="' . url('/#inicio') . '"', false);
+    }
 }
