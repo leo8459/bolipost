@@ -162,6 +162,9 @@
                                     <td class="tp-shipment-cell">
                                         <span class="tp-badge">{{ $paquete->tipo }}</span>
                                         <strong>{{ $paquete->codigo ?: 'SIN CODIGO' }}</strong>
+                                        @if($paquete->codigo_madre)
+                                            <small>Madre: {{ $paquete->codigo_madre }}</small>
+                                        @endif
                                         <small>CN-33: {{ $paquete->cod_especial ?: '-' }}</small>
                                     </td>
                                     <td>
@@ -283,6 +286,9 @@
                                 <div>
                                     <span class="tp-badge">{{ $paquete->tipo }}</span>
                                     <h4>{{ $paquete->codigo ?: 'SIN CODIGO' }}</h4>
+                                    @if($paquete->codigo_madre)
+                                        <small>Madre: {{ $paquete->codigo_madre }}</small>
+                                    @endif
                                     <small>CN-33: {{ $paquete->cod_especial ?: '-' }}</small>
                                 </div>
                                 <span class="tp-card-date">

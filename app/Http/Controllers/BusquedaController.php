@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Destino;
 use App\Models\TrackingSubscription;
+use App\Support\CodigoContinuacionEvent;
+use App\Support\CarteroEvent;
+use App\Support\EncargadoEvent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -872,6 +875,18 @@ class BusquedaController extends Controller
                 $item = (object) $evento;
                 $createdAt = (string) ($item->created_at ?? '');
                 $nombreEventoBase = trim((string) ($item->nombre_evento ?? ''));
+                $nombreEventoBase = CodigoContinuacionEvent::nombreMostrado(
+                    $nombreEventoBase,
+                    $item->codigo_relacionado ?? null
+                );
+                $nombreEventoBase = EncargadoEvent::nombreMostrado(
+                    $nombreEventoBase,
+                    $item->detalle_evento ?? null
+                );
+                $nombreEventoBase = CarteroEvent::nombreMostrado(
+                    $nombreEventoBase,
+                    $item->detalle_evento ?? null
+                );
                 $nombreEventoBase = preg_replace('/Asignado a CARTERO por .*? a .*?(?=\s*-\s*|$)/iu', 'Asignado a cartero', $nombreEventoBase) ?? $nombreEventoBase;
                 $nombreEventoBase = preg_replace('/\s*por\s+[^-]+?\s+a\s+[^-]+?(?=\s*-\s*|$)/iu', '', $nombreEventoBase) ?? $nombreEventoBase;
                 $timestamp = strtotime($createdAt);
@@ -999,6 +1014,12 @@ class BusquedaController extends Controller
             'ee.created_at',
             'ee.updated_at',
             'e.nombre_evento',
+            Schema::hasColumn($fuente['tabla'], 'codigo_relacionado')
+                ? 'ee.codigo_relacionado'
+                : DB::raw('NULL as codigo_relacionado'),
+            Schema::hasColumn($fuente['tabla'], 'detalle_evento')
+                ? 'ee.detalle_evento'
+                : DB::raw('NULL as detalle_evento'),
             DB::raw("'" . $fuente['servicio'] . "' as servicio"),
             DB::raw("'" . $fuente['tabla'] . "' as tabla_origen"),
             DB::raw('NULL as office'),

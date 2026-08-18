@@ -725,7 +725,7 @@ class TodosPaquetesController extends Controller
             DB::raw($table . '.id as record_id'),
         ];
 
-        foreach (['codigo', 'cod_especial', 'origen', 'destino', 'destinatario', 'remitente', 'telefono'] as $alias) {
+        foreach (['codigo', 'cod_especial', 'origen', 'destino'] as $alias) {
             $column = $columns[$alias] ?? null;
             if ($alias === 'codigo' && $rawCodigo) {
                 $selects[] = DB::raw($column . ' as codigo');
@@ -741,6 +741,15 @@ class TodosPaquetesController extends Controller
         $selects[] = $empresaColumn
             ? DB::raw('COALESCE(' . $table . '.' . $empresaColumn . "::text, '') as empresa")
             : DB::raw("'' as empresa");
+
+        foreach (['destinatario', 'remitente', 'telefono'] as $alias) {
+            $column = $columns[$alias] ?? null;
+            $selects[] = $column
+                ? DB::raw('COALESCE(' . $table . '.' . $column . "::text, '') as " . $alias)
+                : DB::raw("'' as " . $alias);
+        }
+
+        $selects[] = DB::raw("'' as codigo_madre");
 
         $selects[] = DB::raw('COALESCE(' . $table . '.' . ($columns['peso'] ?? 'id') . "::text, '') as peso");
         $selects[] = DB::raw('COALESCE(' . $table . '.' . ($columns['precio'] ?? 'id') . "::text, '') as precio");
@@ -781,6 +790,7 @@ class TodosPaquetesController extends Controller
                 DB::raw("COALESCE(" . $table . ".nombre_d::text, '') as destinatario"),
                 DB::raw("COALESCE(" . $table . ".nombre_r::text, '') as remitente"),
                 DB::raw("COALESCE(" . $table . ".telefono_d::text, '') as telefono"),
+                DB::raw("COALESCE(" . $table . ".codigo_madre::text, '') as codigo_madre"),
                 DB::raw("COALESCE(" . $table . ".peso::text, '') as peso"),
                 DB::raw("COALESCE(" . $table . ".precio::text, '') as precio"),
                 DB::raw("COALESCE(" . $table . ".justificacion::text, '') as justificacion"),
@@ -791,6 +801,7 @@ class TodosPaquetesController extends Controller
                 DB::raw(
                     "LOWER(CONCAT_WS(' ', " .
                     "COALESCE(" . $table . ".codigo::text, ''), " .
+                    "COALESCE(" . $table . ".codigo_madre::text, ''), " .
                     "COALESCE(" . $table . ".cod_especial::text, ''), " .
                     "COALESCE(" . $table . ".origen::text, ''), " .
                     "COALESCE(" . $table . ".destino::text, ''), " .

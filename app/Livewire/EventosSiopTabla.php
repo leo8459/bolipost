@@ -2,6 +2,9 @@
 
 namespace App\Livewire;
 
+use App\Support\CodigoContinuacionEvent;
+use App\Support\CarteroEvent;
+use App\Support\EncargadoEvent;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -197,6 +200,18 @@ class EventosSiopTabla extends Component
                 $registro->imagen_devolucion = $imagenes['devolucion'];
                 $registro->imagen = $imagenes['principal'];
                 $registro->reprint_url = $this->resolveReprintUrlForRecord($registro);
+                $registro->evento_nombre = CodigoContinuacionEvent::nombreMostrado(
+                    (string) ($registro->evento_nombre ?? ''),
+                    $registro->codigo_relacionado ?? null
+                );
+                $registro->evento_nombre = EncargadoEvent::nombreMostrado(
+                    $registro->evento_nombre,
+                    $registro->detalle_evento ?? null
+                );
+                $registro->evento_nombre = CarteroEvent::nombreMostrado(
+                    $registro->evento_nombre,
+                    $registro->detalle_evento ?? null
+                );
 
                 return $registro;
             })
@@ -261,6 +276,8 @@ class EventosSiopTabla extends Component
                 $builder->where(function (Builder $sub) use ($search) {
                     $sub->where('codigo', 'ILIKE', '%' . $search . '%')
                         ->orWhere('evento_nombre', 'ILIKE', '%' . $search . '%')
+                        ->orWhere('codigo_relacionado', 'ILIKE', '%' . $search . '%')
+                        ->orWhere('detalle_evento', 'ILIKE', '%' . $search . '%')
                         ->orWhere('usuario_nombre', 'ILIKE', '%' . $search . '%')
                         ->orWhere('cliente_nombre', 'ILIKE', '%' . $search . '%')
                         ->orWhere('actor_nombre', 'ILIKE', '%' . $search . '%')
@@ -293,6 +310,8 @@ class EventosSiopTabla extends Component
                     t.codigo,
                     t.evento_id,
                     e.nombre_evento as evento_nombre,
+                    t.codigo_relacionado,
+                    t.detalle_evento,
                     t.user_id,
                     u.name as usuario_nombre,
                     NULL::bigint as cliente_id,
@@ -314,6 +333,8 @@ class EventosSiopTabla extends Component
                     t.codigo,
                     t.evento_id,
                     e.nombre_evento as evento_nombre,
+                    t.codigo_relacionado,
+                    t.detalle_evento,
                     t.user_id,
                     u.name as usuario_nombre,
                     NULL::bigint as cliente_id,
@@ -335,6 +356,8 @@ class EventosSiopTabla extends Component
                     t.codigo,
                     t.evento_id,
                     e.nombre_evento as evento_nombre,
+                    t.codigo_relacionado,
+                    t.detalle_evento,
                     t.user_id,
                     u.name as usuario_nombre,
                     NULL::bigint as cliente_id,
@@ -356,6 +379,8 @@ class EventosSiopTabla extends Component
                     t.codigo,
                     t.evento_id,
                     e.nombre_evento as evento_nombre,
+                    t.codigo_relacionado,
+                    t.detalle_evento,
                     t.user_id,
                     u.name as usuario_nombre,
                     NULL::bigint as cliente_id,
@@ -377,6 +402,8 @@ class EventosSiopTabla extends Component
                     t.codigo,
                     t.evento_id,
                     e.nombre_evento as evento_nombre,
+                    NULL::text as codigo_relacionado,
+                    NULL::text as detalle_evento,
                     t.user_id,
                     u.name as usuario_nombre,
                     NULL::bigint as cliente_id,
@@ -399,6 +426,8 @@ class EventosSiopTabla extends Component
                     t.codigo,
                     t.evento_id,
                     e.nombre_evento as evento_nombre,
+                    NULL::text as codigo_relacionado,
+                    t.detalle_evento,
                     t.user_id,
                     u.name as usuario_nombre,
                     t.cliente_id,
@@ -417,6 +446,8 @@ class EventosSiopTabla extends Component
                 '' as codigo,
                 NULL::bigint as evento_id,
                 '' as evento_nombre,
+                NULL::text as codigo_relacionado,
+                NULL::text as detalle_evento,
                 NULL::bigint as user_id,
                 '' as usuario_nombre,
                 NULL::bigint as cliente_id,

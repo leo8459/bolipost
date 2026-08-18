@@ -27,7 +27,8 @@ class PaquetesEmsEncargadoRemoveCarteroTest extends TestCase
         $this->assertStringContainsString('public function quitarCarteroEncargado(Request $request)', $controller);
         $this->assertStringContainsString('$assignment->id_user = null;', $controller);
         $this->assertStringNotContainsString('$assignment->delete();', $controller);
-        $this->assertStringContainsString('registerEncargadoEvent($servicio, $record, $actorUserId, $eventName)', $controller);
+        $this->assertStringContainsString('EncargadoEvent::CARTERO_QUITADO', $controller);
+        $this->assertStringContainsString('$eventName', $controller);
     }
 
     public function test_cartero_user_column_is_made_nullable(): void

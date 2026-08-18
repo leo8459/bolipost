@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Support\CodigoContinuacionEvent;
+use App\Support\CarteroEvent;
+use App\Support\EncargadoEvent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -75,6 +78,12 @@ class EventosSiopApiController extends Controller
                 't.codigo',
                 't.evento_id',
                 'e.nombre_evento as evento',
+                DB::raw(Schema::hasColumn($sourceTable, 'codigo_relacionado')
+                    ? 't.codigo_relacionado'
+                    : 'NULL::text as codigo_relacionado'),
+                DB::raw(Schema::hasColumn($sourceTable, 'detalle_evento')
+                    ? 't.detalle_evento'
+                    : 'NULL::text as detalle_evento'),
                 't.user_id',
                 'u.name as usuario',
                 't.created_at',
@@ -105,6 +114,18 @@ class EventosSiopApiController extends Controller
             ->limit($limit)
             ->get()
             ->map(function (object $row) {
+                $row->evento = CodigoContinuacionEvent::nombreMostrado(
+                    (string) ($row->evento ?? ''),
+                    $row->codigo_relacionado ?? null
+                );
+                $row->evento = EncargadoEvent::nombreMostrado(
+                    $row->evento,
+                    $row->detalle_evento ?? null
+                );
+                $row->evento = CarteroEvent::nombreMostrado(
+                    $row->evento,
+                    $row->detalle_evento ?? null
+                );
                 $imagenes = $this->resolveImagesForRecord($row->tabla, (string) $row->codigo);
                 $row->foto_entrega = $imagenes['entrega'];
                 $row->foto_devolucion = $imagenes['devolucion'];

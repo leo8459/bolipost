@@ -18,6 +18,8 @@ use App\Models\TarifarioTiktoker;
 use App\Models\User;
 use App\Services\ContratoCodigoService;
 use App\Services\FacturacionCartService;
+use App\Support\CodigoContinuacionEvent;
+use App\Support\EncargadoEvent;
 use App\Support\SolicitudCode;
 use App\Support\StoredImage;
 use App\Support\TiktokerEvent;
@@ -951,8 +953,9 @@ class PaquetesEmsController extends Controller
                     (int) $estadoCanceladoId,
                     $servicio,
                     $actorUserId,
-                    'Envio cancelado por '.$actorName.'.',
-                    $justificacion
+                    EncargadoEvent::CANCELADO,
+                    $justificacion,
+                    'Envio cancelado por '.$actorName.'.'
                 ),
                 'CONTRATO' => $this->moveEncargadoRecordAndRegisterEvent(
                     RecojoContrato::query()->whereKey($id)->first(),
@@ -960,8 +963,9 @@ class PaquetesEmsController extends Controller
                     (int) $estadoCanceladoId,
                     $servicio,
                     $actorUserId,
-                    'Envio cancelado por '.$actorName.'.',
-                    $justificacion
+                    EncargadoEvent::CANCELADO,
+                    $justificacion,
+                    'Envio cancelado por '.$actorName.'.'
                 ),
                 'CERTI' => $this->moveEncargadoRecordAndRegisterEvent(
                     PaqueteCerti::query()->whereKey($id)->first(),
@@ -969,8 +973,9 @@ class PaquetesEmsController extends Controller
                     (int) $estadoCanceladoId,
                     $servicio,
                     $actorUserId,
-                    'Envio cancelado por '.$actorName.'.',
-                    $justificacion
+                    EncargadoEvent::CANCELADO,
+                    $justificacion,
+                    'Envio cancelado por '.$actorName.'.'
                 ),
                 'ORDI' => $this->moveEncargadoRecordAndRegisterEvent(
                     PaqueteOrdi::query()->whereKey($id)->first(),
@@ -978,8 +983,9 @@ class PaquetesEmsController extends Controller
                     (int) $estadoCanceladoId,
                     $servicio,
                     $actorUserId,
-                    'Envio cancelado por '.$actorName.'.',
-                    $justificacion
+                    EncargadoEvent::CANCELADO,
+                    $justificacion,
+                    'Envio cancelado por '.$actorName.'.'
                 ),
                 'SOLICITUD' => $this->moveEncargadoRecordAndRegisterEvent(
                     SolicitudCliente::query()->whereKey($id)->first(),
@@ -987,8 +993,9 @@ class PaquetesEmsController extends Controller
                     (int) $estadoCanceladoId,
                     $servicio,
                     $actorUserId,
-                    'Envio cancelado por '.$actorName.'.',
-                    $justificacion
+                    EncargadoEvent::CANCELADO,
+                    $justificacion,
+                    'Envio cancelado por '.$actorName.'.'
                 ),
                 default => 0,
             };
@@ -1074,6 +1081,8 @@ class PaquetesEmsController extends Controller
                         (int) $estadoAlmacenId,
                         $servicio,
                         $actorUserId,
+                        EncargadoEvent::DEVUELTO_ORIGEN,
+                        null,
                         'Devuelto a almacen origen por '.$actorName.'.'
                     )
                     : $this->moveEncargadoRecordAndRegisterEvent(
@@ -1082,6 +1091,8 @@ class PaquetesEmsController extends Controller
                         (int) $estadoRecibidoId,
                         $servicio,
                         $actorUserId,
+                        EncargadoEvent::DEVUELTO_DESTINO,
+                        null,
                         'Devuelto a almacen destino por '.$actorName.'.'
                     );
 
@@ -1096,6 +1107,8 @@ class PaquetesEmsController extends Controller
                         (int) $estadoAlmacenId,
                         $servicio,
                         $actorUserId,
+                        EncargadoEvent::DEVUELTO_ORIGEN,
+                        null,
                         'Devuelto a almacen origen por '.$actorName.'.'
                     )
                     : $this->moveEncargadoRecordAndRegisterEvent(
@@ -1104,6 +1117,8 @@ class PaquetesEmsController extends Controller
                         (int) $estadoRecibidoId,
                         $servicio,
                         $actorUserId,
+                        EncargadoEvent::DEVUELTO_DESTINO,
+                        null,
                         'Devuelto a almacen destino por '.$actorName.'.'
                     );
 
@@ -1118,6 +1133,8 @@ class PaquetesEmsController extends Controller
                         (int) $estadoAlmacenId,
                         $servicio,
                         $actorUserId,
+                        EncargadoEvent::DEVUELTO_ORIGEN,
+                        null,
                         'Devuelto a almacen origen por '.$actorName.'.'
                     )
                     : $this->moveEncargadoRecordAndRegisterEvent(
@@ -1126,6 +1143,8 @@ class PaquetesEmsController extends Controller
                         (int) $estadoRecibidoId,
                         $servicio,
                         $actorUserId,
+                        EncargadoEvent::DEVUELTO_DESTINO,
+                        null,
                         'Devuelto a almacen destino por '.$actorName.'.'
                     );
 
@@ -1139,6 +1158,8 @@ class PaquetesEmsController extends Controller
                     (int) $estadoVentanillaId,
                     $servicio,
                     $actorUserId,
+                    EncargadoEvent::DEVUELTO_VENTANILLA,
+                    null,
                     'Envio devuelto a ventanilla por '.$actorName.'.'
                 );
 
@@ -1152,6 +1173,8 @@ class PaquetesEmsController extends Controller
                     (int) $estadoVentanillaId,
                     $servicio,
                     $actorUserId,
+                    EncargadoEvent::DEVUELTO_VENTANILLA,
+                    null,
                     'Envio devuelto a ventanilla por '.$actorName.'.'
                 );
             }
@@ -1196,39 +1219,45 @@ class PaquetesEmsController extends Controller
         $servicio = mb_strtoupper(trim((string) $data['servicio']));
         $peso = (float) $data['peso'];
         $actorUserId = (int) optional($request->user())->id;
+        $actorName = $this->resolveActorDisplayName($request);
         $updated = 0;
 
-        DB::transaction(function () use ($servicio, $id, $peso, $actorUserId, &$updated) {
+        DB::transaction(function () use ($servicio, $id, $peso, $actorUserId, $actorName, &$updated) {
             $updated = match ($servicio) {
                 'EMS' => $this->updateEncargadoPesoAndRegisterEvent(
                     PaqueteEms::query()->whereKey($id)->first(),
                     $peso,
                     $servicio,
-                    $actorUserId
+                    $actorUserId,
+                    $actorName
                 ),
                 'CONTRATO' => $this->updateEncargadoPesoAndRegisterEvent(
                     RecojoContrato::query()->whereKey($id)->first(),
                     $peso,
                     $servicio,
-                    $actorUserId
+                    $actorUserId,
+                    $actorName
                 ),
                 'CERTI' => $this->updateEncargadoPesoAndRegisterEvent(
                     PaqueteCerti::query()->whereKey($id)->first(),
                     $peso,
                     $servicio,
-                    $actorUserId
+                    $actorUserId,
+                    $actorName
                 ),
                 'ORDI' => $this->updateEncargadoPesoAndRegisterEvent(
                     PaqueteOrdi::query()->whereKey($id)->first(),
                     $peso,
                     $servicio,
-                    $actorUserId
+                    $actorUserId,
+                    $actorName
                 ),
                 'SOLICITUD' => $this->updateEncargadoPesoAndRegisterEvent(
                     SolicitudCliente::query()->whereKey($id)->first(),
                     $peso,
                     $servicio,
-                    $actorUserId
+                    $actorUserId,
+                    $actorName
                 ),
                 default => 0,
             };
@@ -1317,7 +1346,13 @@ class PaquetesEmsController extends Controller
             $assignment->updated_at = now();
             $assignment->save();
 
-            $this->registerEncargadoEvent($servicio, $record, $actorUserId, $eventName);
+            $this->registerEncargadoEvent(
+                $servicio,
+                $record,
+                $actorUserId,
+                EncargadoEvent::CARTERO_CAMBIADO,
+                $eventName
+            );
         });
 
         return $this->redirectToEncargadoWithFilters($request)
@@ -1378,7 +1413,13 @@ class PaquetesEmsController extends Controller
             $assignment->updated_at = now();
             $assignment->save();
 
-            $this->registerEncargadoEvent($servicio, $record, $actorUserId, $eventName);
+            $this->registerEncargadoEvent(
+                $servicio,
+                $record,
+                $actorUserId,
+                EncargadoEvent::CARTERO_QUITADO,
+                $eventName
+            );
 
             return true;
         });
@@ -2648,7 +2689,8 @@ class PaquetesEmsController extends Controller
         string $servicio,
         int $userId,
         int|string $eventReference,
-        ?string $justificacion = null
+        ?string $justificacion = null,
+        ?string $detalleEvento = null
     ): int {
         if (! $record) {
             return 0;
@@ -2665,12 +2707,18 @@ class PaquetesEmsController extends Controller
             return 0;
         }
 
-        $this->registerEncargadoEvent($servicio, $record, $userId, $eventReference);
+        $this->registerEncargadoEvent($servicio, $record, $userId, $eventReference, $detalleEvento);
 
         return 1;
     }
 
-    private function registerEncargadoEvent(string $servicio, $record, int $userId, int|string $eventReference): void
+    private function registerEncargadoEvent(
+        string $servicio,
+        $record,
+        int $userId,
+        int|string $eventReference,
+        ?string $detalleEvento = null
+    ): void
     {
         if ($userId <= 0 || ! $record) {
             return;
@@ -2700,6 +2748,10 @@ class PaquetesEmsController extends Controller
 
         if ($table === 'eventos_tiktoker') {
             $payload['cliente_id'] = null;
+        }
+
+        if (Schema::hasColumn($table, 'detalle_evento')) {
+            $payload['detalle_evento'] = $this->nullableTrim($detalleEvento);
         }
 
         DB::table($table)->insert($payload);
@@ -2769,12 +2821,19 @@ class PaquetesEmsController extends Controller
         };
     }
 
-    private function updateEncargadoPesoAndRegisterEvent($record, float $peso, string $servicio, int $userId): int
+    private function updateEncargadoPesoAndRegisterEvent(
+        $record,
+        float $peso,
+        string $servicio,
+        int $userId,
+        string $actorName
+    ): int
     {
         if (! $record) {
             return 0;
         }
 
+        $pesoAnterior = (float) ($record->peso ?? 0);
         $record->peso = $peso;
         $record->updated_at = now();
         $saved = $record->save();
@@ -2787,9 +2846,14 @@ class PaquetesEmsController extends Controller
             $servicio,
             $record,
             $userId,
-            $servicio === 'SOLICITUD'
-                ? 'Peso de solicitud actualizado desde encargado.'
-                : 'Peso de envio actualizado desde encargado.'
+            EncargadoEvent::PESO_ACTUALIZADO,
+            sprintf(
+                'Peso de %s actualizado por %s: %.3f kg a %.3f kg.',
+                $servicio === 'SOLICITUD' ? 'solicitud' : 'envio',
+                $actorName,
+                $pesoAnterior,
+                $peso
+            )
         );
 
         return 1;
@@ -2994,21 +3058,32 @@ class PaquetesEmsController extends Controller
             return;
         }
 
-        $eventoMadreId = (int) DB::table('eventos')->insertGetId([
-            'nombre_evento' => 'Se genero el codigo hijo '.$codigoHijo.' como continuacion de este codigo madre.',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        if (DB::getDriverName() === 'pgsql') {
+            DB::select("SELECT pg_advisory_xact_lock(hashtext('codigo_continuacion_eventos'))");
+        }
 
-        $eventoHijoId = (int) DB::table('eventos')->insertGetId([
-            'nombre_evento' => 'Este codigo es la continuacion del codigo madre '.$codigoMadre.'.',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $eventoMadreId = (int) DB::table('eventos')->where('nombre_evento', CodigoContinuacionEvent::MADRE)->value('id');
+        if ($eventoMadreId <= 0) {
+            $eventoMadreId = (int) DB::table('eventos')->insertGetId([
+                'nombre_evento' => CodigoContinuacionEvent::MADRE,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        $eventoHijoId = (int) DB::table('eventos')->where('nombre_evento', CodigoContinuacionEvent::HIJO)->value('id');
+        if ($eventoHijoId <= 0) {
+            $eventoHijoId = (int) DB::table('eventos')->insertGetId([
+                'nombre_evento' => CodigoContinuacionEvent::HIJO,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
 
         DB::table('eventos_contrato')->insert([
             'codigo' => $codigoHijo,
             'evento_id' => $eventoHijoId,
+            'codigo_relacionado' => $codigoMadre,
             'user_id' => $userId,
             'created_at' => now(),
             'updated_at' => now(),
@@ -3018,6 +3093,7 @@ class PaquetesEmsController extends Controller
         DB::table($tablaMadre)->insert([
             'codigo' => $codigoMadre,
             'evento_id' => $eventoMadreId,
+            'codigo_relacionado' => $codigoHijo,
             'user_id' => $userId,
             'created_at' => now(),
             'updated_at' => now(),

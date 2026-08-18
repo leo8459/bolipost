@@ -13,6 +13,7 @@ use App\Models\PaqueteOrdi;
 use App\Models\Recojo as RecojoContrato;
 use App\Models\SolicitudCliente;
 use App\Models\User;
+use App\Support\CarteroEvent;
 use App\Support\StoredImage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,6 +23,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -329,13 +331,12 @@ class CarterosController extends Controller
             $previousAssignee = User::query()->find((int) $currentAssigneeIds->first(), ['id', 'name', 'ciudad']);
         }
 
-        $eventoId = $this->resolveDynamicEventId(
-            $this->changeCarteroEventName($actorUser, $previousAssignee, $newAssignee)
-        );
+        $eventDetail = $this->changeCarteroEventName($actorUser, $previousAssignee, $newAssignee);
+        $eventoId = $this->resolveDynamicEventId(CarteroEvent::CAMBIADO);
 
         $updated = 0;
 
-        DB::transaction(function () use ($assignments, $newAssignee, $actorUserId, $eventoId, &$updated) {
+        DB::transaction(function () use ($assignments, $newAssignee, $actorUserId, $eventoId, $eventDetail, &$updated) {
             foreach ($assignments as $entry) {
                 /** @var Cartero $assignment */
                 $assignment = $entry['assignment'];
@@ -352,7 +353,9 @@ class CarterosController extends Controller
                     (string) $entry['item']['tipo_paquete'],
                     (int) $entry['item']['id'],
                     $eventoId,
-                    $actorUserId
+                    $actorUserId,
+                    null,
+                    $eventDetail
                 );
             }
         });
@@ -499,7 +502,8 @@ class CarterosController extends Controller
                 ]);
             }
         }
-        $eventoId = $this->resolveDynamicEventId($this->assignmentEventName($actorUser, $assigneeUser));
+        $eventDetail = $this->assignmentEventName($actorUser, $assigneeUser);
+        $eventoId = $this->resolveDynamicEventId(CarteroEvent::ASIGNADO);
         $estadoAsignadoId = $this->resolveEstadoCarteroId();
         $emsIds = collect($validated['items'])
             ->where('tipo_paquete', 'EMS')
@@ -575,6 +579,7 @@ class CarterosController extends Controller
             $assigneeUserId,
             $actorUserId,
             $eventoId,
+            $eventDetail,
             $previousEmsStates,
             $previousCertiStates,
             $previousOrdiStates,
@@ -606,7 +611,7 @@ class CarterosController extends Controller
                     $asignacion->id_user = $assigneeUserId;
                     $asignacion->save();
                 }
-                $this->insertEventosPorTipoDesdeIds('EMS', $emsIds, $eventoId, $assigneeUserId);
+                $this->insertEventosPorTipoDesdeIds('EMS', $emsIds, $eventoId, $assigneeUserId, $eventDetail);
             }
             if (!empty($certiIds)) {
                 $updatedCerti = PaqueteCerti::query()
@@ -625,7 +630,7 @@ class CarterosController extends Controller
                     $asignacion->id_user = $assigneeUserId;
                     $asignacion->save();
                 }
-                $this->insertEventosPorTipoDesdeIds('CERTI', $certiIds, $eventoId, $assigneeUserId);
+                $this->insertEventosPorTipoDesdeIds('CERTI', $certiIds, $eventoId, $assigneeUserId, $eventDetail);
             }
             if (!empty($ordiIds)) {
                 $updatedOrdi = PaqueteOrdi::query()
@@ -644,7 +649,7 @@ class CarterosController extends Controller
                     $asignacion->id_user = $assigneeUserId;
                     $asignacion->save();
                 }
-                $this->insertEventosPorTipoDesdeIds('ORDI', $ordiIds, $eventoId, $assigneeUserId);
+                $this->insertEventosPorTipoDesdeIds('ORDI', $ordiIds, $eventoId, $assigneeUserId, $eventDetail);
             }
             if (!empty($contratoIds)) {
                 $updatedContrato = RecojoContrato::query()
@@ -663,7 +668,7 @@ class CarterosController extends Controller
                     $asignacion->id_user = $assigneeUserId;
                     $asignacion->save();
                 }
-                $this->insertEventosPorTipoDesdeIds('CONTRATO', $contratoIds, $eventoId, $assigneeUserId);
+                $this->insertEventosPorTipoDesdeIds('CONTRATO', $contratoIds, $eventoId, $assigneeUserId, $eventDetail);
             }
             if (!empty($solicitudIds)) {
                 $updatedSolicitud = SolicitudCliente::query()
@@ -682,7 +687,7 @@ class CarterosController extends Controller
                     $asignacion->id_user = $assigneeUserId;
                     $asignacion->save();
                 }
-                $this->insertEventosPorTipoDesdeIds('SOLICITUD', $solicitudIds, $eventoId, $assigneeUserId);
+                $this->insertEventosPorTipoDesdeIds('SOLICITUD', $solicitudIds, $eventoId, $assigneeUserId, $eventDetail);
             }
         });
         return response()->json([
@@ -1046,9 +1051,10 @@ class CarterosController extends Controller
         $actorUserId = (int) $request->user()->id;
         $actorName = trim((string) ($request->user()->name ?? 'SIN USUARIO'));
         $observacion = trim((string) $validated['observacion']);
-        $eventoId = $this->resolveDynamicEventId(
-            'Intento de entrega registrado por ' . ($actorName !== '' ? $actorName : 'SIN USUARIO') . '. Devuelto a ventanilla: ' . $observacion . '.'
-        );
+        $eventDetail = 'Intento de entrega registrado por '
+            .($actorName !== '' ? $actorName : 'SIN USUARIO')
+            .'. Devuelto a ventanilla: '.$observacion.'.';
+        $eventoId = $this->resolveDynamicEventId(CarteroEvent::INTENTO_VENTANILLA);
 
         $certiIds = collect($validated['items'])
             ->where('tipo_paquete', 'CERTI')
@@ -1095,7 +1101,7 @@ class CarterosController extends Controller
         $updatedCerti = 0;
         $updatedOrdi = 0;
 
-        DB::transaction(function () use (&$updatedCerti, &$updatedOrdi, $certiIds, $ordiIds, $estadoDevolucionId, $actorUserId, $eventoId, $observacion) {
+        DB::transaction(function () use (&$updatedCerti, &$updatedOrdi, $certiIds, $ordiIds, $estadoDevolucionId, $actorUserId, $eventoId, $eventDetail, $observacion) {
             if (!empty($certiIds)) {
                 $updatedCerti = PaqueteCerti::query()
                     ->whereIn('id', $certiIds)
@@ -1113,7 +1119,7 @@ class CarterosController extends Controller
                         'descripcion' => $observacion,
                     ]);
 
-                $this->insertEventosPorTipoDesdeIds('CERTI', $certiIds, $eventoId, $actorUserId);
+                $this->insertEventosPorTipoDesdeIds('CERTI', $certiIds, $eventoId, $actorUserId, $eventDetail);
             }
 
             if (!empty($ordiIds)) {
@@ -1133,7 +1139,7 @@ class CarterosController extends Controller
                         'descripcion' => $observacion,
                     ]);
 
-                $this->insertEventosPorTipoDesdeIds('ORDI', $ordiIds, $eventoId, $actorUserId);
+                $this->insertEventosPorTipoDesdeIds('ORDI', $ordiIds, $eventoId, $actorUserId, $eventDetail);
             }
         });
 
@@ -1160,7 +1166,8 @@ class CarterosController extends Controller
 
         $actorUser = $request->user();
         $actorUserId = (int) $actorUser->id;
-        $eventoId = $this->resolveDynamicEventId($this->removeCarteroEventName($actorUser));
+        $eventDetail = $this->removeCarteroEventName($actorUser);
+        $eventoId = $this->resolveDynamicEventId(CarteroEvent::QUITADO);
 
         $emsIds = collect($validated['items'])->where('tipo_paquete', 'EMS')->pluck('id')->map(fn ($id) => (int) $id)->unique()->values()->all();
         $certiIds = collect($validated['items'])->where('tipo_paquete', 'CERTI')->pluck('id')->map(fn ($id) => (int) $id)->unique()->values()->all();
@@ -1186,7 +1193,8 @@ class CarterosController extends Controller
             $contratoIds,
             $solicitudIds,
             $actorUserId,
-            $eventoId
+            $eventoId,
+            $eventDetail
         ) {
             if (!empty($emsIds)) {
                 foreach ($emsIds as $id) {
@@ -1210,7 +1218,7 @@ class CarterosController extends Controller
                     $updatedEms++;
                 }
 
-                $this->insertEventosPorTipoDesdeIds('EMS', $emsIds, $eventoId, $actorUserId);
+                $this->insertEventosPorTipoDesdeIds('EMS', $emsIds, $eventoId, $actorUserId, $eventDetail);
             }
 
             if (!empty($certiIds)) {
@@ -1235,7 +1243,7 @@ class CarterosController extends Controller
                     $updatedCerti++;
                 }
 
-                $this->insertEventosPorTipoDesdeIds('CERTI', $certiIds, $eventoId, $actorUserId);
+                $this->insertEventosPorTipoDesdeIds('CERTI', $certiIds, $eventoId, $actorUserId, $eventDetail);
             }
 
             if (!empty($ordiIds)) {
@@ -1260,7 +1268,7 @@ class CarterosController extends Controller
                     $updatedOrdi++;
                 }
 
-                $this->insertEventosPorTipoDesdeIds('ORDI', $ordiIds, $eventoId, $actorUserId);
+                $this->insertEventosPorTipoDesdeIds('ORDI', $ordiIds, $eventoId, $actorUserId, $eventDetail);
             }
 
             if (!empty($contratoIds)) {
@@ -1285,7 +1293,7 @@ class CarterosController extends Controller
                     $updatedContrato++;
                 }
 
-                $this->insertEventosPorTipoDesdeIds('CONTRATO', $contratoIds, $eventoId, $actorUserId);
+                $this->insertEventosPorTipoDesdeIds('CONTRATO', $contratoIds, $eventoId, $actorUserId, $eventDetail);
             }
 
             if (!empty($solicitudIds)) {
@@ -1310,7 +1318,7 @@ class CarterosController extends Controller
                     $updatedSolicitud++;
                 }
 
-                $this->insertEventosPorTipoDesdeIds('SOLICITUD', $solicitudIds, $eventoId, $actorUserId);
+                $this->insertEventosPorTipoDesdeIds('SOLICITUD', $solicitudIds, $eventoId, $actorUserId, $eventDetail);
             }
         });
 
@@ -3027,7 +3035,13 @@ class CarterosController extends Controller
         }
     }
 
-    private function insertEventosPorTipoDesdeIds(string $tipoPaquete, array $ids, int $eventoId, int $userId): void
+    private function insertEventosPorTipoDesdeIds(
+        string $tipoPaquete,
+        array $ids,
+        int $eventoId,
+        int $userId,
+        ?string $detalleEvento = null
+    ): void
     {
         $ids = collect($ids)
             ->map(fn ($id) => (int) $id)
@@ -3041,7 +3055,7 @@ class CarterosController extends Controller
         }
 
         $codigos = $this->getCodigosPorTipo($tipoPaquete, $ids);
-        $this->insertEventosPorTipoYCodigos($tipoPaquete, $codigos, $eventoId, $userId);
+        $this->insertEventosPorTipoYCodigos($tipoPaquete, $codigos, $eventoId, $userId, null, $detalleEvento);
     }
 
     private function insertEventoPorPaquete(
@@ -3049,7 +3063,8 @@ class CarterosController extends Controller
         int $id,
         int $eventoId,
         int $userId,
-        ?Carbon $occurredAt = null
+        ?Carbon $occurredAt = null,
+        ?string $detalleEvento = null
     ): void
     {
         if ($id <= 0) {
@@ -3057,7 +3072,7 @@ class CarterosController extends Controller
         }
 
         $codigos = $this->getCodigosPorTipo($tipoPaquete, [$id]);
-        $this->insertEventosPorTipoYCodigos($tipoPaquete, $codigos, $eventoId, $userId, $occurredAt);
+        $this->insertEventosPorTipoYCodigos($tipoPaquete, $codigos, $eventoId, $userId, $occurredAt, $detalleEvento);
     }
 
     private function insertEventosPorTipoYCodigos(
@@ -3065,7 +3080,8 @@ class CarterosController extends Controller
         iterable $codigos,
         int $eventoId,
         int $userId,
-        ?Carbon $occurredAt = null
+        ?Carbon $occurredAt = null,
+        ?string $detalleEvento = null
     ): void
     {
         $codigos = collect($codigos)
@@ -3080,14 +3096,22 @@ class CarterosController extends Controller
         $tablaEventos = $this->resolveTablaEventosPorTipo($tipoPaquete);
         $eventTimestamp = $occurredAt ?? now();
 
-        $rows = $codigos->map(function ($codigo) use ($eventoId, $userId, $eventTimestamp) {
-            return [
+        $rows = $codigos->map(function ($codigo) use ($eventoId, $userId, $eventTimestamp, $detalleEvento, $tablaEventos) {
+            $row = [
                 'codigo' => $codigo,
                 'evento_id' => $eventoId,
                 'user_id' => $userId,
                 'created_at' => $eventTimestamp,
                 'updated_at' => $eventTimestamp,
             ];
+
+            if (Schema::hasColumn($tablaEventos, 'detalle_evento')) {
+                $row['detalle_evento'] = trim((string) $detalleEvento) !== ''
+                    ? trim((string) $detalleEvento)
+                    : null;
+            }
+
+            return $row;
         })->all();
 
         DB::table($tablaEventos)->insert($rows);
@@ -3926,31 +3950,38 @@ class CarterosController extends Controller
             'CONTRATO' => 'eventos_contrato',
             'SOLICITUD' => 'eventos_tiktoker',
         ] as $tipo => $table) {
+            $supportsEventDetail = Schema::hasColumn($table, 'detalle_evento');
+            $eventTextSql = $supportsEventDetail
+                ? "LOWER(COALESCE(NULLIF(TRIM(ep.detalle_evento), ''), e.nombre_evento))"
+                : 'LOWER(e.nombre_evento)';
+            $eventDisplaySql = $supportsEventDetail
+                ? "COALESCE(NULLIF(TRIM(ep.detalle_evento), ''), e.nombre_evento)"
+                : 'e.nombre_evento';
             $events = DB::table($table.' as ep')
                 ->join('eventos as e', 'e.id', '=', 'ep.evento_id')
                 ->whereBetween('ep.created_at', [$desde, $hasta])
-                ->where(function ($query) use ($cartero, $changeSuffix, $encargadoSuffix) {
-                    $query->where(function ($assignment) use ($cartero) {
+                ->where(function ($query) use ($cartero, $changeSuffix, $encargadoSuffix, $eventTextSql) {
+                    $query->where(function ($assignment) use ($cartero, $eventTextSql) {
                         $assignment->where('ep.user_id', (int) $cartero->id)
-                            ->where(function ($eventName) {
+                            ->where(function ($eventName) use ($eventTextSql) {
                                 $eventName
-                                    ->whereRaw("LOWER(e.nombre_evento) LIKE ?", ['%camino para entrega fisica%'])
-                                    ->orWhereRaw("LOWER(e.nombre_evento) LIKE ?", ['%asignado a cartero%'])
-                                    ->orWhereRaw("LOWER(e.nombre_evento) LIKE ?", ['%transferido al agente de entrega%']);
+                                    ->whereRaw($eventTextSql." LIKE ?", ['%camino para entrega fisica%'])
+                                    ->orWhereRaw($eventTextSql." LIKE ?", ['%asignado a cartero%'])
+                                    ->orWhereRaw($eventTextSql." LIKE ?", ['%transferido al agente de entrega%']);
                             });
                     })
-                    ->orWhere(function ($change) use ($changeSuffix) {
-                        $change->whereRaw("LOWER(e.nombre_evento) LIKE ?", ['cambio de cartero realizado por%'])
-                            ->whereRaw("LOWER(e.nombre_evento) LIKE ?", [$changeSuffix]);
+                    ->orWhere(function ($change) use ($changeSuffix, $eventTextSql) {
+                        $change->whereRaw($eventTextSql." LIKE ?", ['cambio de cartero realizado por%'])
+                            ->whereRaw($eventTextSql." LIKE ?", [$changeSuffix]);
                     })
-                    ->orWhereRaw("LOWER(e.nombre_evento) LIKE ?", [$encargadoSuffix]);
+                    ->orWhereRaw($eventTextSql." LIKE ?", [$encargadoSuffix]);
                 })
                 ->orderBy('ep.created_at')
                 ->orderBy('ep.id')
                 ->get([
                     'ep.codigo',
                     'ep.created_at as fecha_evento',
-                    'e.nombre_evento as evento',
+                    DB::raw($eventDisplaySql.' as evento'),
                 ])
                 ->map(fn ($event) => [
                     'tipo_paquete' => $tipo,

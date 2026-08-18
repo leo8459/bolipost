@@ -45,6 +45,18 @@ class Evento extends Component
     {
         $this->validate($this->rules());
 
+        $this->nombre_evento = trim((string) $this->nombre_evento);
+        $duplicateExists = EventoModel::query()
+            ->whereRaw('TRIM(UPPER(nombre_evento)) = ?', [mb_strtoupper($this->nombre_evento)])
+            ->when($this->editingId, fn ($query) => $query->where('id', '<>', (int) $this->editingId))
+            ->exists();
+
+        if ($duplicateExists) {
+            $this->addError('nombre_evento', 'Ya existe un evento con este nombre.');
+
+            return;
+        }
+
         if ($this->editingId) {
             $evento = EventoModel::findOrFail($this->editingId);
             $evento->update($this->payload());
@@ -84,7 +96,7 @@ class Evento extends Component
     protected function payload()
     {
         return [
-            'nombre_evento' => $this->nombre_evento,
+            'nombre_evento' => trim((string) $this->nombre_evento),
         ];
     }
 

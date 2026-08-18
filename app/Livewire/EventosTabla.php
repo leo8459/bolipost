@@ -2,6 +2,9 @@
 
 namespace App\Livewire;
 
+use App\Support\CodigoContinuacionEvent;
+use App\Support\CarteroEvent;
+use App\Support\EncargadoEvent;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -167,6 +170,8 @@ class EventosTabla extends Component
         $descripcionEvento = trim((string) $this->descripcionEventoQuery);
         $table = $this->tableName();
         $supportsClienteId = $this->supportsClienteId();
+        $supportsCodigoRelacionado = Schema::hasColumn($table, 'codigo_relacionado');
+        $supportsDetalleEvento = Schema::hasColumn($table, 'detalle_evento');
         $contratoBuscado = null;
         $usuarioNombreSelect = $this->tipo === 'ems'
             ? "COALESCE(
@@ -207,14 +212,24 @@ class EventosTabla extends Component
                 't.user_id',
                 't.created_at',
                 'e.nombre_evento as evento_nombre',
+                DB::raw($supportsCodigoRelacionado ? 't.codigo_relacionado' : 'NULL as codigo_relacionado'),
+                DB::raw($supportsDetalleEvento ? 't.detalle_evento' : 'NULL as detalle_evento'),
                 DB::raw($usuarioNombreSelect),
                 DB::raw($imagenSelect),
             ])
-            ->when($q !== '', function ($query) use ($q, $supportsClienteId, $table) {
-                $query->where(function ($sub) use ($q, $supportsClienteId, $table) {
+            ->when($q !== '', function ($query) use ($q, $supportsClienteId, $supportsCodigoRelacionado, $supportsDetalleEvento, $table) {
+                $query->where(function ($sub) use ($q, $supportsClienteId, $supportsCodigoRelacionado, $supportsDetalleEvento, $table) {
                     $sub->where('t.codigo', 'ILIKE', '%' . $q . '%')
                         ->orWhere('e.nombre_evento', 'ILIKE', '%' . $q . '%')
                         ->orWhere('u.name', 'ILIKE', '%' . $q . '%');
+
+                    if ($supportsCodigoRelacionado) {
+                        $sub->orWhere('t.codigo_relacionado', 'ILIKE', '%' . $q . '%');
+                    }
+
+                    if ($supportsDetalleEvento) {
+                        $sub->orWhere('t.detalle_evento', 'ILIKE', '%' . $q . '%');
+                    }
 
                     if (
                         $table === 'eventos_contrato'
@@ -297,6 +312,18 @@ class EventosTabla extends Component
                 $registro->imagen_entrega = $imagenes['entrega'];
                 $registro->imagen_devolucion = $imagenes['devolucion'];
                 $registro->imagen = $imagenes['principal'];
+                $registro->evento_nombre = CodigoContinuacionEvent::nombreMostrado(
+                    (string) ($registro->evento_nombre ?? ''),
+                    $registro->codigo_relacionado ?? null
+                );
+                $registro->evento_nombre = EncargadoEvent::nombreMostrado(
+                    $registro->evento_nombre,
+                    $registro->detalle_evento ?? null
+                );
+                $registro->evento_nombre = CarteroEvent::nombreMostrado(
+                    $registro->evento_nombre,
+                    $registro->detalle_evento ?? null
+                );
 
                 if ($this->tipo === 'contrato') {
                     $contexto = $this->buildContratoEventContext($registro);
