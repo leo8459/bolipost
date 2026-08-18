@@ -43,6 +43,7 @@ class AreaContratosReportesTest extends TestCase
             $table->string('codigo')->nullable();
             $table->string('origen')->nullable();
             $table->text('imagen')->nullable();
+            $table->dateTime('fecha_recojo')->nullable();
             $table->timestamps();
         });
 
@@ -60,6 +61,7 @@ class AreaContratosReportesTest extends TestCase
                 'estados_id' => $id === 30 ? 2 : 1,
                 'codigo' => 'CONTRATO-'.$id,
                 'origen' => $origen,
+                'fecha_recojo' => $now,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
@@ -100,12 +102,37 @@ class AreaContratosReportesTest extends TestCase
         ));
     }
 
+    public function test_reporte_usa_fecha_recojo_y_excluye_contratos_sin_esa_fecha(): void
+    {
+        DB::table('paquetes_contrato')->where('id', 1)->update([
+            'fecha_recojo' => '2026-08-10 08:00:00',
+            'created_at' => '2026-08-15 08:00:00',
+        ]);
+        DB::table('paquetes_contrato')->where('id', 2)->update([
+            'fecha_recojo' => null,
+            'created_at' => '2026-08-10 08:00:00',
+        ]);
+
+        $view = app(AreaContratosController::class)->reportes(
+            Request::create('/area-contratos/reportes', 'GET', [
+                'from' => '2026-08-10',
+                'to' => '2026-08-10',
+            ])
+        );
+        $data = $view->getData();
+
+        $this->assertSame(1, $data['totalReportes']);
+        $this->assertSame([1], $data['contratos']->pluck('id')->all());
+        $this->assertNotNull($data['contratos']->first()->fecha_recojo);
+    }
+
     public function test_agrega_un_enlace_para_descargar_la_imagen_sin_incrustarla_en_el_excel(): void
     {
         $base64Png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
 
         DB::table('paquetes_contrato')->where('id', 1)->update([
             'imagen' => 'data:image/png;base64,'.$base64Png,
+            'fecha_recojo' => '2026-08-10 08:00:00',
         ]);
 
         $rows = Recojo::query()->where('id', 1)->get();
@@ -122,6 +149,7 @@ class AreaContratosReportesTest extends TestCase
                 ->first(fn ($drawing) => $drawing->getCoordinates() === 'U13');
 
             $this->assertNull($deliveryDrawing);
+            $this->assertSame('10-08-26', $sheet->getCell('B13')->getValue());
             $this->assertSame('DESCARGAR IMAGEN', $sheet->getCell('U13')->getValue());
             $this->assertStringContainsString(
                 '/area-contratos/imagen-entrega/1/descargar',

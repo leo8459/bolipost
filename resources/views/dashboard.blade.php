@@ -91,15 +91,15 @@
                     <div class="row">
                         <div class="col-lg-3 mb-3">
                             <label for="from" class="font-weight-bold">Desde</label>
-                            <input type="date" id="from" name="from" class="form-control" value="{{ $rangoDesde }}" data-auto-filter="true">
+                            <input type="date" id="from" name="from" class="form-control" value="{{ $rangoDesde }}">
                         </div>
                         <div class="col-lg-3 mb-3">
                             <label for="to" class="font-weight-bold">Hasta</label>
-                            <input type="date" id="to" name="to" class="form-control" value="{{ $rangoHasta }}" data-auto-filter="true">
+                            <input type="date" id="to" name="to" class="form-control" value="{{ $rangoHasta }}">
                         </div>
                         <div class="col-lg-3 mb-3">
                             <label for="group" class="font-weight-bold">Agrupar por</label>
-                            <select id="group" name="group" class="form-control" data-auto-filter="true">
+                            <select id="group" name="group" class="form-control">
                                 <option value="day" {{ $agrupacion === 'day' ? 'selected' : '' }}>Dia</option>
                                 <option value="week" {{ $agrupacion === 'week' ? 'selected' : '' }}>Semana</option>
                                 <option value="month" {{ $agrupacion === 'month' ? 'selected' : '' }}>Mes</option>
@@ -107,7 +107,7 @@
                         </div>
                         <div class="col-lg-3 mb-3">
                             <label for="departamento" class="font-weight-bold">Departamento destino</label>
-                            <select id="departamento" name="departamento" class="form-control" data-auto-filter="true">
+                            <select id="departamento" name="departamento" class="form-control">
                                 <option value="">Todos</option>
                                 @foreach(($departamentosDisponibles ?? []) as $departamentoDisponible)
                                     <option value="{{ $departamentoDisponible }}" {{ ($departamento ?? '') === $departamentoDisponible ? 'selected' : '' }}>
@@ -1642,7 +1642,6 @@
         const toggleAdvancedFiltersBtn = document.getElementById('toggleAdvancedFilters');
         const toggleAdvancedFiltersText = document.getElementById('toggleAdvancedFiltersText');
         const advancedFiltersChevron = document.getElementById('advancedFiltersChevron');
-        const autoFilterFields = document.querySelectorAll('[data-auto-filter="true"]');
         const filtersCompactBar = document.getElementById('filtersCompactBar');
         const expandTopFiltersBtn = document.getElementById('expandTopFilters');
 
@@ -2532,19 +2531,6 @@
             document.body.classList.remove('dashboard-filter-loading');
             dashboardFiltersForm?.querySelectorAll('button[type="submit"]').forEach((button) => {
                 button.disabled = false;
-            });
-        });
-
-        let autoFilterTimer = null;
-        autoFilterFields.forEach((field) => {
-            field.addEventListener('change', () => {
-                if (autoFilterTimer) {
-                    clearTimeout(autoFilterTimer);
-                }
-
-                autoFilterTimer = setTimeout(() => {
-                    submitFiltersWithMessage('Actualizando KPI automaticamente...');
-                }, 280);
             });
         });
 

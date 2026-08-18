@@ -35,7 +35,7 @@ class EmpresaContractExpirationAlertTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_contracts_role_receives_all_upcoming_company_expiration_alerts(): void
+    public function test_authorized_operational_roles_receive_all_upcoming_company_expiration_alerts(): void
     {
         DB::table('empresa')->insert([
             $this->empresaRow('UPRE', '2026-08-31'),
@@ -44,18 +44,30 @@ class EmpresaContractExpirationAlertTest extends TestCase
             $this->empresaRow('LEJANA', '2026-12-31'),
         ]);
 
-        $user = Mockery::mock(User::class)->makePartial();
-        $user->shouldReceive('isSuperAdmin')->andReturnFalse();
-        $user->shouldReceive('hasRole')->andReturnUsing(
-            fn (string $role): bool => $role === 'contratos'
-        );
-        $user->shouldReceive('hasAnyRole')->with(['contratos'])->andReturnTrue();
+        $authorizedRoles = [
+            'encargado',
+            'contratos',
+            'administrador_operaciones',
+        ];
 
-        $alerts = app(EmpresaContractUserSyncService::class)
-            ->buildExpirationAlertsForUser($user);
+        foreach ($authorizedRoles as $authorizedRole) {
+            $user = Mockery::mock(User::class)->makePartial();
+            $user->shouldReceive('isSuperAdmin')->andReturnFalse();
+            $user->shouldReceive('hasRole')->andReturnFalse();
+            $user->shouldReceive('hasAnyRole')->with($authorizedRoles)->andReturnUsing(
+                fn (array $roles): bool => in_array($authorizedRole, $roles, true)
+            );
 
-        $this->assertSame(['UPRE', 'SAFI'], $alerts->pluck('empresa')->all());
-        $this->assertStringContainsString('La empresa UPRE', $alerts->first()['message']);
+            $alerts = app(EmpresaContractUserSyncService::class)
+                ->buildExpirationAlertsForUser($user);
+
+            $this->assertSame(
+                ['UPRE', 'SAFI'],
+                $alerts->pluck('empresa')->all(),
+                "El rol {$authorizedRole} no recibio las alertas esperadas."
+            );
+            $this->assertStringContainsString('La empresa UPRE', $alerts->first()['message']);
+        }
     }
 
     private function empresaRow(string $nombre, string $finContrato): array

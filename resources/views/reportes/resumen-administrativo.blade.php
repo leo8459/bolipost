@@ -107,7 +107,7 @@
                 <div class="d-flex flex-wrap align-items-center justify-content-end">
                     <div>
                         <button type="submit" class="btn btn-primary mb-2">
-                            <i class="fas fa-search mr-1"></i> Ver resumen
+                            <i class="fas fa-filter mr-1"></i> Aplicar filtros
                         </button>
                         <a href="{{ route('reportes.resumen-administrativo') }}" class="btn btn-outline-secondary mb-2">
                             <i class="fas fa-undo mr-1"></i> Reiniciar

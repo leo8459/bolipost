@@ -123,7 +123,7 @@
             <div class="card-footer bg-white d-flex flex-wrap justify-content-between align-items-center">
                 <div class="mb-2 mb-md-0">
                     <button type="submit" class="btn btn-primary mr-2">
-                        <i class="fas fa-search mr-1"></i> Buscar
+                        <i class="fas fa-filter mr-1"></i> Aplicar filtros
                     </button>
                     <a href="{{ route('dashboard.global-ingreso') }}" class="btn btn-outline-secondary">
                         <i class="fas fa-undo mr-1"></i> Limpiar

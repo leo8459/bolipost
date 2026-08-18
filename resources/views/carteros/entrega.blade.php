@@ -88,6 +88,38 @@
                                     </div>
 
                                     <div class="form-group mb-3">
+                                        <label for="fecha_entrega">
+                                            Fecha y hora de entrega <span class="text-danger">*</span>
+                                        </label>
+                                        <div class="input-group">
+                                            <div class="input-group-prepend">
+                                                <span class="input-group-text">
+                                                    <i class="fas fa-calendar-alt" aria-hidden="true"></i>
+                                                </span>
+                                            </div>
+                                            <input
+                                                type="datetime-local"
+                                                name="fecha_entrega"
+                                                id="fecha_entrega"
+                                                class="form-control @error('fecha_entrega') is-invalid @enderror"
+                                                value="{{ old('fecha_entrega') }}"
+                                                @if($fechaEntregaMin) min="{{ $fechaEntregaMin->format('Y-m-d\\TH:i') }}" @endif
+                                                step="60"
+                                                required
+                                            >
+                                        </div>
+                                        <small class="form-text text-muted">
+                                            Esta fecha y hora se registraran en la entrega y en su evento de seguimiento.
+                                        </small>
+                                        @if($ultimoEventoAt)
+                                            <small class="form-text text-info">
+                                                Ultimo evento registrado: {{ $ultimoEventoAt->format('d/m/Y H:i') }}.
+                                                La entrega debe ser posterior o igual a ese momento.
+                                            </small>
+                                        @endif
+                                    </div>
+
+                                    <div class="form-group mb-3">
                                         <label>Foto (obligatoria)</label>
                                         <div class="foto-source-options" id="foto_entrega_opciones">
                                             <button type="button" class="btn btn-outline-primary foto-source-button"
@@ -208,6 +240,28 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="fechaEntregaRequiredModal" tabindex="-1" role="dialog"
+        aria-labelledby="fechaEntregaRequiredModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title" id="fechaEntregaRequiredModalLabel">
+                        <i class="fas fa-calendar-times mr-2" aria-hidden="true"></i>Revisar fecha de entrega
+                    </h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body" id="fechaEntregaModalMessage">
+                    Coloque fecha de entrega, por favor.
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-dismiss="modal">Aceptar</button>
+                </div>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @section('css')
@@ -284,6 +338,7 @@
             const descripcion = document.getElementById('descripcion_unica');
             const entregaInput = document.getElementById('descripcion_entrega');
             const intentoInput = document.getElementById('descripcion_intento');
+            const fechaEntregaInput = document.getElementById('fecha_entrega');
             const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
             const TARGET_MAX_BYTES = 1200 * 1024;
             const MAX_DIMENSION = 1600;
@@ -312,6 +367,38 @@
 
             descripcion.addEventListener('input', syncDescripcion);
             syncDescripcion();
+
+            const showFechaEntregaModal = (message = 'Coloque fecha de entrega, por favor.') => {
+                const messageElement = document.getElementById('fechaEntregaModalMessage');
+                if (messageElement) {
+                    messageElement.textContent = message;
+                }
+
+                if (window.jQuery && typeof window.jQuery.fn.modal === 'function') {
+                    window.jQuery('#fechaEntregaRequiredModal').modal('show');
+                }
+            };
+
+            if (fechaEntregaInput) {
+                fechaEntregaInput.addEventListener('invalid', function(event) {
+                    if (!this.value) {
+                        event.preventDefault();
+                        showFechaEntregaModal();
+                        return;
+                    }
+
+                    if (this.validity.rangeUnderflow) {
+                        event.preventDefault();
+                        showFechaEntregaModal(
+                            'La fecha de entrega no puede ser anterior al ultimo evento registrado.'
+                        );
+                    }
+                });
+            }
+
+            @error('fecha_entrega')
+                showFechaEntregaModal(@json($message));
+            @enderror
 
             document.querySelectorAll('.foto-source-button').forEach((button) => {
                 button.addEventListener('click', function() {
@@ -472,6 +559,21 @@
             document.querySelectorAll('.entrega-upload-form').forEach((form) => {
                 form.addEventListener('submit', async function(event) {
                     if (form.dataset.compressed === '1') {
+                        return;
+                    }
+
+                    const deliveryDate = form.querySelector('[name="fecha_entrega"]');
+                    if (deliveryDate && !deliveryDate.value) {
+                        event.preventDefault();
+                        showFechaEntregaModal();
+                        return;
+                    }
+
+                    if (deliveryDate && deliveryDate.min && deliveryDate.value < deliveryDate.min) {
+                        event.preventDefault();
+                        showFechaEntregaModal(
+                            'La fecha de entrega no puede ser anterior al ultimo evento registrado.'
+                        );
                         return;
                     }
 

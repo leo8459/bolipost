@@ -57,7 +57,7 @@
             </div>
             <div class="card-footer bg-white d-flex flex-wrap justify-content-between align-items-center">
                 <div>
-                    <button type="submit" class="btn btn-primary mr-2"><i class="fas fa-search mr-1"></i> Buscar</button>
+                    <button type="submit" class="btn btn-primary mr-2"><i class="fas fa-filter mr-1"></i> Aplicar filtros</button>
                     <a href="{{ route('dashboard.comercial.rendimiento-servicios') }}" class="btn btn-outline-secondary"><i class="fas fa-undo mr-1"></i> Limpiar</a>
                 </div>
                 <div class="mt-2 mt-md-0">

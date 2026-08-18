@@ -6,7 +6,7 @@
     <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center">
         <div>
             <h1 class="mb-0">{{ $scopeLabel }}</h1>
-            <small class="text-muted">Filtra, revisa y exporta. El reporte se actualiza automaticamente.</small>
+            <small class="text-muted">Configura los criterios y pulsa Aplicar filtros para actualizar el reporte.</small>
         </div>
         <div class="mt-2 mt-lg-0 text-lg-right">
             <span class="badge badge-pill badge-primary mr-2">Registrados: {{ number_format($summary['registrados'] ?? 0) }}</span>
@@ -52,10 +52,10 @@
                 </div>
                 <div class="alert alert-light border d-flex flex-column flex-md-row justify-content-between align-items-md-center py-2 mb-3">
                     <div>
-                        <strong>Filtro automatico activado:</strong>
-                        al cambiar fechas, estados, busqueda o modulos, el reporte se actualiza solo.
+                        <strong>Aplicacion manual:</strong>
+                        puedes cambiar varios criterios y aplicarlos juntos cuando estes listo.
                     </div>
-                    <span class="badge badge-success mt-2 mt-md-0" id="autoFilterStatus">Listo para usar</span>
+                    <span class="badge badge-success mt-2 mt-md-0" id="autoFilterStatus">Filtros aplicados</span>
                 </div>
                 <div class="quick-actions mb-3">
                     <button type="button" class="btn btn-sm btn-outline-primary mr-2 mb-2" id="presetAllHistory">Ver todo historial</button>
@@ -258,7 +258,7 @@
 
                 <div class="d-flex flex-wrap align-items-center">
                     <button type="submit" class="btn btn-primary mr-2 mb-2">
-                        <i class="fas fa-search mr-1"></i> Actualizar
+                        <i class="fas fa-filter mr-1"></i> Aplicar filtros
                     </button>
                     <a href="{{ $resetRoute }}" class="btn btn-outline-secondary mr-2 mb-2">
                         <i class="fas fa-undo mr-1"></i> Reiniciar
@@ -575,8 +575,6 @@
                     'input[name="q"], input[name="from"], input[name="to"], select[name="limit"], select[name="per_page"], select[name="departamento_origen"], select[name="departamento_destino"], input[name="modules[]"], input[name="statuses[]"], input[name="servicios[]"], input[name="months[]"]'
                 )
                 : [];
-            let autoSubmitTimer = null;
-            let autoSubmitting = false;
 
             const toYmd = (date) => {
                 const year = date.getFullYear();
@@ -604,27 +602,9 @@
                 rangeInput.value = 'custom';
             };
 
-            const submitAutoFilters = () => {
-                if (!form || autoSubmitting) {
-                    return;
-                }
-                autoSubmitting = true;
-                setAutoStatus('Actualizando datos...', 'badge-warning');
-                form.submit();
-            };
-
-            const scheduleAutoSubmit = (delay = 380) => {
-                if (!form) {
-                    return;
-                }
-                if (autoSubmitTimer) {
-                    clearTimeout(autoSubmitTimer);
-                }
-                setAutoStatus('Cambio detectado', 'badge-info');
-                autoSubmitTimer = setTimeout(() => {
-                    syncRangeFromDates();
-                    submitAutoFilters();
-                }, delay);
+            const markFiltersPending = () => {
+                syncRangeFromDates();
+                setAutoStatus('Cambios pendientes', 'badge-warning');
             };
 
             const buildExportUrl = (baseUrl) => {
@@ -671,8 +651,7 @@
                     if (rangeInput) {
                         rangeInput.value = 'custom';
                     }
-                    setAutoStatus('Actualizando...', 'badge-warning');
-                    form.submit();
+                    markFiltersPending();
                 });
             });
 
@@ -688,8 +667,7 @@
                     if (rangeInput) {
                         rangeInput.value = 'custom';
                     }
-                    setAutoStatus('Actualizando...', 'badge-warning');
-                    form.submit();
+                    markFiltersPending();
                 });
             }
 
@@ -707,24 +685,11 @@
                     if (rangeInput) {
                         rangeInput.value = 'all';
                     }
-                    setAutoStatus('Actualizando...', 'badge-warning');
-                    form.submit();
+                    markFiltersPending();
                 });
             }
 
-            if (switcher) {
-                switcher.addEventListener('change', () => {
-                    const url = new URL(window.location.href);
-                    const parts = url.pathname.split('/').filter(Boolean);
-                    const idx = parts.indexOf('reportes');
-                    if (idx >= 0) {
-                        parts[idx + 1] = switcher.value;
-                        url.pathname = '/' + parts.join('/');
-                        setAutoStatus('Cambiando vista...', 'badge-warning');
-                        window.location.href = url.toString();
-                    }
-                });
-            }
+            switcher?.addEventListener('change', markFiltersPending);
 
             if (toggleBtn && filtersBody && toggleText) {
                 toggleBtn.addEventListener('click', () => {
@@ -741,7 +706,7 @@
                         checkbox.checked = true;
                         return;
                     }
-                    scheduleAutoSubmit(180);
+                    markFiltersPending();
                 });
             });
 
@@ -750,7 +715,7 @@
                     statusChecks.forEach((item) => {
                         item.checked = true;
                     });
-                    scheduleAutoSubmit(120);
+                    markFiltersPending();
                 });
             }
 
@@ -776,34 +741,27 @@
                         rangeInput.value = 'all';
                     }
                     setStatuses(['entregado', 'pendiente', 'rezago']);
-                    setAutoStatus('Aplicando vista rapida...', 'badge-primary');
-                    form.submit();
+                    markFiltersPending();
                 });
             }
 
             if (presetPendingOnlyBtn) {
                 presetPendingOnlyBtn.addEventListener('click', () => {
                     setStatuses(['pendiente']);
-                    setAutoStatus('Aplicando vista rapida...', 'badge-primary');
-                    scheduleAutoSubmit(120);
+                    markFiltersPending();
                 });
             }
 
             if (presetDeliveredOnlyBtn) {
                 presetDeliveredOnlyBtn.addEventListener('click', () => {
                     setStatuses(['entregado']);
-                    setAutoStatus('Aplicando vista rapida...', 'badge-primary');
-                    scheduleAutoSubmit(120);
+                    markFiltersPending();
                 });
             }
 
             exportButtons.forEach((button) => {
                 button.addEventListener('click', (event) => {
                     event.preventDefault();
-                    if (autoSubmitTimer) {
-                        clearTimeout(autoSubmitTimer);
-                        autoSubmitTimer = null;
-                    }
                     const baseUrl = button.dataset.baseUrl || button.getAttribute('href') || '';
                     if (baseUrl === '') {
                         return;
@@ -815,18 +773,22 @@
             });
 
             autoFields.forEach((field) => {
-                if (field.type === 'checkbox' || field.tagName === 'SELECT') {
-                    field.addEventListener('change', () => scheduleAutoSubmit(240));
-                    return;
-                }
+                field.addEventListener('input', markFiltersPending);
+                field.addEventListener('change', markFiltersPending);
+            });
 
-                if (field.type === 'date') {
-                    field.addEventListener('change', () => scheduleAutoSubmit(240));
-                    return;
+            form?.addEventListener('submit', () => {
+                syncRangeFromDates();
+                if (switcher && !switcher.disabled) {
+                    const url = new URL(window.location.href);
+                    const parts = url.pathname.split('/').filter(Boolean);
+                    const idx = parts.indexOf('reportes');
+                    if (idx >= 0) {
+                        parts[idx + 1] = switcher.value;
+                        form.action = '/' + parts.join('/');
+                    }
                 }
-
-                field.addEventListener('input', () => scheduleAutoSubmit(650));
-                field.addEventListener('change', () => scheduleAutoSubmit(240));
+                setAutoStatus('Aplicando filtros...', 'badge-primary');
             });
 
             refreshExportLinks();

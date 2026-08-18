@@ -186,6 +186,19 @@
             text-transform: uppercase;
         }
 
+        .province-notice {
+            margin-top: 6px;
+            padding: 7px;
+            border: 2px solid #000;
+            background: #fff;
+            color: #000;
+            font-size: 9px;
+            line-height: 1.35;
+            font-weight: 900;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
         .signature {
             margin: 24px 8px 0;
             padding-top: 18px;
@@ -354,6 +367,10 @@
 
             <div class="pickup-notice">
                 Se comunicar&aacute; un operario dentro de las pr&oacute;ximas 24 horas para confirmar el recojo. Si nadie se comunica, por favor cont&aacute;ctese al 71522163.
+            </div>
+
+            <div class="province-notice">
+                Importante: Si registr&oacute; una provincia para el env&iacute;o, la solicitud no ser&aacute; recogida ni validada.
             </div>
 
             <div class="declaration">

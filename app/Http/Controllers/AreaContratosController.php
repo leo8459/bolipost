@@ -100,7 +100,7 @@ class AreaContratosController extends Controller
         $query = $this->buildContratosReportQuery($search, $empresaIds, $from, $to);
 
         $contratos = (clone $query)
-            ->orderBy('created_at')
+            ->orderBy('fecha_recojo')
             ->orderBy('id')
             ->paginate(25)
             ->withQueryString();
@@ -152,7 +152,7 @@ class AreaContratosController extends Controller
 
         $rows = $this->buildContratosReportQuery($search, $empresaIds, $from, $to)
             ->orderBy('origen')
-            ->orderBy('created_at')
+            ->orderBy('fecha_recojo')
             ->orderBy('id')
             ->get();
 
@@ -290,6 +290,7 @@ class AreaContratosController extends Controller
                 'empresa:id,nombre,sigla,codigo_cliente',
                 'user:id,name',
             ])
+            ->whereNotNull('fecha_recojo')
             ->whereNotNull('estados_id')
             ->where('estados_id', '!=', 0)
             ->whereDoesntHave('estadoRegistro', function ($query) {
@@ -321,10 +322,10 @@ class AreaContratosController extends Controller
                 });
             })
             ->when($from !== '', function ($query) use ($from) {
-                $query->whereDate('created_at', '>=', $from);
+                $query->whereDate('fecha_recojo', '>=', $from);
             })
             ->when($to !== '', function ($query) use ($to) {
-                $query->whereDate('created_at', '<=', $to);
+                $query->whereDate('fecha_recojo', '<=', $to);
             });
     }
 

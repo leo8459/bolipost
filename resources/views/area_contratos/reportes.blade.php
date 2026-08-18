@@ -28,12 +28,12 @@
                     </div>
 
                     <div class="col-md-2 mb-2">
-                        <label class="small font-weight-bold mb-1">Fecha envio desde</label>
+                        <label class="small font-weight-bold mb-1">Fecha de recojo desde</label>
                         <input type="date" name="from" value="{{ $from }}" class="form-control">
                     </div>
 
                     <div class="col-md-2 mb-2">
-                        <label class="small font-weight-bold mb-1">Fecha envio hasta</label>
+                        <label class="small font-weight-bold mb-1">Fecha de recojo hasta</label>
                         <input type="date" name="to" value="{{ $to }}" class="form-control">
                     </div>
 
@@ -58,7 +58,7 @@
 
                 <div class="d-flex flex-wrap align-items-center justify-content-between report-toolbar">
                     <div class="text-muted mb-2 mb-md-0">
-                        El Excel se genera con todos los contratos que tengan estado distinto de 0, excepto CANCELADO, separados por hoja segun el departamento de origen.
+                        El Excel incluye solo contratos con fecha de recojo del cartero, con estado distinto de 0 y excepto CANCELADO, separados por hoja segun el departamento de origen.
                     </div>
                     <a
                         href="{{ route('area-contratos.reportes.excel', request()->query()) }}"
@@ -129,7 +129,7 @@
                                         <th>Codigo cliente</th>
                                         <th>Cantidad</th>
                                         <th>Estado</th>
-                                        <th>Fecha envio</th>
+                                        <th>Fecha de recojo</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -150,7 +150,7 @@
                                             <td>{{ optional($contrato->empresa)->codigo_cliente ?: '-' }}</td>
                                             <td>{{ $contrato->cantidad ?: '-' }}</td>
                                             <td>{{ optional($contrato->estadoRegistro)->nombre_estado ?: '-' }}</td>
-                                            <td>{{ optional($contrato->created_at)->format('d/m/Y H:i') }}</td>
+                                            <td>{{ optional($contrato->fecha_recojo)->format('d/m/Y H:i') }}</td>
                                         </tr>
                                     @empty
                                         <tr>

@@ -1298,7 +1298,9 @@
                                         <label class="form-check-label font-weight-bold" for="anadirRecargo30Create">
                                             Añadir 30%
                                         </label>
-                                        <small class="form-text text-muted">Suma 30% al precio calculado antes de guardar.</small>
+                                        <small class="form-text text-muted">
+                                            Aplica un recargo del 30% si el paquete supera los 2 metros de alto o de ancho.
+                                        </small>
                                     </div>
                                 </div>
                             </div>

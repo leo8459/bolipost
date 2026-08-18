@@ -91,7 +91,7 @@
                     </div>
                     <div class="col-md-12 mb-3 d-flex justify-content-end">
                         <button type="submit" class="btn btn-primary flex-fill mr-2">
-                            <i class="fas fa-search mr-1"></i> Buscar
+                            <i class="fas fa-filter mr-1"></i> Aplicar filtros
                         </button>
                         <a href="{{ route('dashboard.envios-oficiales') }}" class="btn btn-outline-secondary" title="Limpiar">
                             <i class="fas fa-undo"></i>

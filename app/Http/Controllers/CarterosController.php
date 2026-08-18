@@ -230,12 +230,19 @@ class CarterosController extends Controller
         );
 
         $paquete = $this->getPackageForType($data['tipo_paquete'], (int) $data['id']);
+        $ultimoEventoAt = $this->latestPackageEventTimestamp($data['tipo_paquete'], (int) $data['id']);
+        $fechaEntregaMin = $ultimoEventoAt?->copy()->startOfMinute();
+        if ($ultimoEventoAt !== null && $ultimoEventoAt->greaterThan($fechaEntregaMin)) {
+            $fechaEntregaMin->addMinute();
+        }
 
         return view('carteros.entrega', [
             'tipo_paquete' => $data['tipo_paquete'],
             'id' => (int) $data['id'],
             'paquete' => $paquete,
             'asignacion' => $asignacion,
+            'ultimoEventoAt' => $ultimoEventoAt,
+            'fechaEntregaMin' => $fechaEntregaMin,
         ]);
     }
 
@@ -1562,9 +1569,20 @@ class CarterosController extends Controller
             'tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI,SOLICITUD'],
             'id' => ['required', 'integer'],
             'recibido_por' => ['required', 'string', 'max:255'],
+            'fecha_entrega' => ['required', 'date_format:Y-m-d\\TH:i'],
             'descripcion' => ['nullable', 'string'],
             'foto' => ['required', 'file', 'max:10240', 'mimes:jpg,jpeg,png,webp,heic,heif'],
+        ], [
+            'fecha_entrega.required' => 'Coloque fecha de entrega, por favor.',
+            'fecha_entrega.date_format' => 'La fecha y hora de entrega no tienen un formato valido.',
         ]);
+
+        $fechaEntrega = Carbon::createFromFormat('Y-m-d\\TH:i', $validated['fecha_entrega']);
+        $this->validateDeliveryDateAgainstLastEvent(
+            $validated['tipo_paquete'],
+            (int) $validated['id'],
+            $fechaEntrega
+        );
 
         $estadoCarteroId = $this->resolveEstadoCarteroId();
         $estadoProvinciaId = $this->resolveEstadoProvinciaId();
@@ -1594,23 +1612,25 @@ class CarterosController extends Controller
         $externalImage = $this->buildExternalImagePayload($request->file('foto'));
         $carteroNombre = trim((string) ($request->user()->name ?? ''));
 
-        DB::transaction(function () use ($validated, $asignacion, $estadoEntregadoId, $userId, $eventoEntregaId, $imagenPath) {
-            $this->updatePackageState($validated['tipo_paquete'], (int) $validated['id'], $estadoEntregadoId);
+        DB::transaction(function () use ($validated, $asignacion, $estadoEntregadoId, $userId, $eventoEntregaId, $imagenPath, $fechaEntrega) {
+            $this->updatePackageState($validated['tipo_paquete'], (int) $validated['id'], $estadoEntregadoId, $fechaEntrega);
             $asignacion->id_estados = $estadoEntregadoId;
             $asignacion->recibido_por = $validated['recibido_por'];
             $asignacion->descripcion = $validated['descripcion'] ?? null;
             $asignacion->imagen = $imagenPath;
+            $asignacion->updated_at = $fechaEntrega;
             $asignacion->save();
-            $this->updatePackageImage($validated['tipo_paquete'], (int) $validated['id'], $imagenPath);
+            $this->updatePackageImage($validated['tipo_paquete'], (int) $validated['id'], $imagenPath, $fechaEntrega);
             if ($validated['tipo_paquete'] === 'SOLICITUD') {
                 $this->updateSolicitudDeliveryData(
                     (int) $validated['id'],
                     $validated['recibido_por'],
                     $validated['descripcion'] ?? null,
-                    $imagenPath
+                    $imagenPath,
+                    $fechaEntrega
                 );
             }
-            $this->insertEventoPorPaquete($validated['tipo_paquete'], (int) $validated['id'], $eventoEntregaId, $userId);
+            $this->insertEventoPorPaquete($validated['tipo_paquete'], (int) $validated['id'], $eventoEntregaId, $userId, $fechaEntrega);
         });
 
         $syncWarning = $this->syncExternalSolicitudEntrega(
@@ -1644,9 +1664,20 @@ class CarterosController extends Controller
             'tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI,SOLICITUD'],
             'id' => ['required', 'integer'],
             'recibido_por' => ['required', 'string', 'max:255'],
+            'fecha_entrega' => ['required', 'date_format:Y-m-d\\TH:i'],
             'descripcion' => ['nullable', 'string'],
             'foto' => ['required', 'file', 'max:10240', 'mimes:jpg,jpeg,png,webp,heic,heif'],
+        ], [
+            'fecha_entrega.required' => 'Coloque fecha de entrega, por favor.',
+            'fecha_entrega.date_format' => 'La fecha y hora de entrega no tienen un formato valido.',
         ]);
+
+        $fechaEntrega = Carbon::createFromFormat('Y-m-d\\TH:i', $validated['fecha_entrega']);
+        $this->validateDeliveryDateAgainstLastEvent(
+            $validated['tipo_paquete'],
+            (int) $validated['id'],
+            $fechaEntrega
+        );
 
         $tiposPermitidos = ['CONTRATO', 'EMS', 'SOLICITUD'];
         if (!in_array((string) ($validated['tipo_paquete'] ?? ''), $tiposPermitidos, true)) {
@@ -1679,23 +1710,25 @@ class CarterosController extends Controller
         );
         $imagenPath = $this->storeDeliveryPhoto($request, $asignacion->imagen ?? $asignacion->foto);
 
-        DB::transaction(function () use ($validated, $asignacion, $estadoRecibidoId, $userId, $eventoEntregaId, $imagenPath) {
-            $this->updatePackageState($validated['tipo_paquete'], (int) $validated['id'], $estadoRecibidoId);
+        DB::transaction(function () use ($validated, $asignacion, $estadoRecibidoId, $userId, $eventoEntregaId, $imagenPath, $fechaEntrega) {
+            $this->updatePackageState($validated['tipo_paquete'], (int) $validated['id'], $estadoRecibidoId, $fechaEntrega);
             $asignacion->id_estados = $estadoRecibidoId;
             $asignacion->recibido_por = $validated['recibido_por'];
             $asignacion->descripcion = $validated['descripcion'] ?? null;
             $asignacion->imagen = $imagenPath;
+            $asignacion->updated_at = $fechaEntrega;
             $asignacion->save();
-            $this->updatePackageImage($validated['tipo_paquete'], (int) $validated['id'], $imagenPath);
+            $this->updatePackageImage($validated['tipo_paquete'], (int) $validated['id'], $imagenPath, $fechaEntrega);
             if ($validated['tipo_paquete'] === 'SOLICITUD') {
                 $this->updateSolicitudDeliveryData(
                     (int) $validated['id'],
                     $validated['recibido_por'],
                     $validated['descripcion'] ?? null,
-                    $imagenPath
+                    $imagenPath,
+                    $fechaEntrega
                 );
             }
-            $this->insertEventoPorPaquete($validated['tipo_paquete'], (int) $validated['id'], $eventoEntregaId, $userId);
+            $this->insertEventoPorPaquete($validated['tipo_paquete'], (int) $validated['id'], $eventoEntregaId, $userId, $fechaEntrega);
         });
 
         return redirect()
@@ -2922,38 +2955,54 @@ class CarterosController extends Controller
         return 'La entrega se guardo aqui, pero no se pudo sincronizar con el otro sistema.';
     }
 
-    private function updatePackageImage(string $tipoPaquete, int $id, ?string $imagePath): void
+    private function updatePackageImage(
+        string $tipoPaquete,
+        int $id,
+        ?string $imagePath,
+        ?Carbon $occurredAt = null
+    ): void
     {
         if (empty($imagePath)) {
             return;
         }
 
+        $updates = ['imagen' => $imagePath];
+        if ($occurredAt !== null) {
+            $updates['updated_at'] = $occurredAt;
+        }
+
         if ($tipoPaquete === 'EMS') {
-            PaqueteEms::query()->where('id', $id)->update(['imagen' => $imagePath]);
+            PaqueteEms::query()->where('id', $id)->update($updates);
             return;
         }
 
         if ($tipoPaquete === 'CERTI') {
-            PaqueteCerti::query()->where('id', $id)->update(['imagen' => $imagePath]);
+            PaqueteCerti::query()->where('id', $id)->update($updates);
             return;
         }
 
         if ($tipoPaquete === 'ORDI') {
-            PaqueteOrdi::query()->where('id', $id)->update(['imagen' => $imagePath]);
+            PaqueteOrdi::query()->where('id', $id)->update($updates);
             return;
         }
 
         if ($tipoPaquete === 'CONTRATO') {
-            RecojoContrato::query()->where('id', $id)->update(['imagen' => $imagePath]);
+            RecojoContrato::query()->where('id', $id)->update($updates);
             return;
         }
 
         if ($tipoPaquete === 'SOLICITUD' && \Illuminate\Support\Facades\Schema::hasColumn('solicitud_clientes', 'imagen')) {
-            SolicitudCliente::query()->where('id', $id)->update(['imagen' => $imagePath]);
+            SolicitudCliente::query()->where('id', $id)->update($updates);
         }
     }
 
-    private function updateSolicitudDeliveryData(int $id, ?string $recepcionadoPor, ?string $observacion, ?string $imagePath): void
+    private function updateSolicitudDeliveryData(
+        int $id,
+        ?string $recepcionadoPor,
+        ?string $observacion,
+        ?string $imagePath,
+        ?Carbon $occurredAt = null
+    ): void
     {
         $updates = [];
 
@@ -2967,6 +3016,10 @@ class CarterosController extends Controller
 
         if (!empty($imagePath) && \Illuminate\Support\Facades\Schema::hasColumn('solicitud_clientes', 'imagen')) {
             $updates['imagen'] = $imagePath;
+        }
+
+        if ($occurredAt !== null && \Illuminate\Support\Facades\Schema::hasColumn('solicitud_clientes', 'updated_at')) {
+            $updates['updated_at'] = $occurredAt;
         }
 
         if (!empty($updates)) {
@@ -2991,17 +3044,29 @@ class CarterosController extends Controller
         $this->insertEventosPorTipoYCodigos($tipoPaquete, $codigos, $eventoId, $userId);
     }
 
-    private function insertEventoPorPaquete(string $tipoPaquete, int $id, int $eventoId, int $userId): void
+    private function insertEventoPorPaquete(
+        string $tipoPaquete,
+        int $id,
+        int $eventoId,
+        int $userId,
+        ?Carbon $occurredAt = null
+    ): void
     {
         if ($id <= 0) {
             return;
         }
 
         $codigos = $this->getCodigosPorTipo($tipoPaquete, [$id]);
-        $this->insertEventosPorTipoYCodigos($tipoPaquete, $codigos, $eventoId, $userId);
+        $this->insertEventosPorTipoYCodigos($tipoPaquete, $codigos, $eventoId, $userId, $occurredAt);
     }
 
-    private function insertEventosPorTipoYCodigos(string $tipoPaquete, iterable $codigos, int $eventoId, int $userId): void
+    private function insertEventosPorTipoYCodigos(
+        string $tipoPaquete,
+        iterable $codigos,
+        int $eventoId,
+        int $userId,
+        ?Carbon $occurredAt = null
+    ): void
     {
         $codigos = collect($codigos)
             ->map(fn ($codigo) => trim((string) $codigo))
@@ -3013,19 +3078,54 @@ class CarterosController extends Controller
         }
 
         $tablaEventos = $this->resolveTablaEventosPorTipo($tipoPaquete);
-        $now = now();
+        $eventTimestamp = $occurredAt ?? now();
 
-        $rows = $codigos->map(function ($codigo) use ($eventoId, $userId, $now) {
+        $rows = $codigos->map(function ($codigo) use ($eventoId, $userId, $eventTimestamp) {
             return [
                 'codigo' => $codigo,
                 'evento_id' => $eventoId,
                 'user_id' => $userId,
-                'created_at' => $now,
-                'updated_at' => $now,
+                'created_at' => $eventTimestamp,
+                'updated_at' => $eventTimestamp,
             ];
         })->all();
 
         DB::table($tablaEventos)->insert($rows);
+    }
+
+    private function validateDeliveryDateAgainstLastEvent(
+        string $tipoPaquete,
+        int $id,
+        Carbon $deliveryDate
+    ): void {
+        $latestEventAt = $this->latestPackageEventTimestamp($tipoPaquete, $id);
+
+        if ($latestEventAt === null || ! $deliveryDate->lt($latestEventAt)) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'fecha_entrega' => 'La fecha de entrega no puede ser anterior al ultimo evento registrado ('
+                . $latestEventAt->format('d/m/Y H:i') . ').',
+        ]);
+    }
+
+    private function latestPackageEventTimestamp(string $tipoPaquete, int $id): ?Carbon
+    {
+        if ($id <= 0) {
+            return null;
+        }
+
+        $codigo = trim((string) $this->getCodigosPorTipo($tipoPaquete, [$id])->first());
+        if ($codigo === '') {
+            return null;
+        }
+
+        $latestTimestamp = DB::table($this->resolveTablaEventosPorTipo($tipoPaquete))
+            ->whereRaw('TRIM(UPPER(codigo)) = TRIM(UPPER(?))', [$codigo])
+            ->max('created_at');
+
+        return $latestTimestamp ? Carbon::parse($latestTimestamp) : null;
     }
 
     private function resolvePreviousStateForAssignment(string $tipoPaquete, int $id, Cartero $asignacion): int
@@ -4080,29 +4180,36 @@ class CarterosController extends Controller
         ];
     }
 
-    private function updatePackageState(string $tipoPaquete, int $id, int $estadoId): void
+    private function updatePackageState(
+        string $tipoPaquete,
+        int $id,
+        int $estadoId,
+        ?Carbon $occurredAt = null
+    ): void
     {
+        $timestampUpdates = $occurredAt !== null ? ['updated_at' => $occurredAt] : [];
+
         if ($tipoPaquete === 'EMS') {
-            PaqueteEms::query()->where('id', $id)->update(['estado_id' => $estadoId]);
+            PaqueteEms::query()->where('id', $id)->update(['estado_id' => $estadoId] + $timestampUpdates);
             return;
         }
 
         if ($tipoPaquete === 'CONTRATO') {
-            RecojoContrato::query()->where('id', $id)->update(['estados_id' => $estadoId]);
+            RecojoContrato::query()->where('id', $id)->update(['estados_id' => $estadoId] + $timestampUpdates);
             return;
         }
 
         if ($tipoPaquete === 'ORDI') {
-            PaqueteOrdi::query()->where('id', $id)->update(['fk_estado' => $estadoId]);
+            PaqueteOrdi::query()->where('id', $id)->update(['fk_estado' => $estadoId] + $timestampUpdates);
             return;
         }
 
         if ($tipoPaquete === 'SOLICITUD') {
-            SolicitudCliente::query()->where('id', $id)->update(['estado_id' => $estadoId]);
+            SolicitudCliente::query()->where('id', $id)->update(['estado_id' => $estadoId] + $timestampUpdates);
             return;
         }
 
-        PaqueteCerti::query()->where('id', $id)->update(['fk_estado' => $estadoId]);
+        PaqueteCerti::query()->where('id', $id)->update(['fk_estado' => $estadoId] + $timestampUpdates);
     }
 
     private function resolveEstadoByName(string $estadoNombre): int

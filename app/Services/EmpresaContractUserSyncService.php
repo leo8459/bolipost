@@ -11,7 +11,9 @@ use Illuminate\Support\Collection;
 class EmpresaContractUserSyncService
 {
     private const EXPIRATION_ALERT_ROLES = [
+        'encargado',
         'contratos',
+        'administrador_operaciones',
     ];
 
     public function syncExpiredUsers(): void

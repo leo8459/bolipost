@@ -42,7 +42,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
         return [
             [
                 'Nº',
-                'FECHA DE ENVIO',
+                'FECHA DE RECOJO',
                 'NUM. DE ENVIO',
                 'ORIGEN',
                 '',
@@ -102,7 +102,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
 
         return [
             (int) ($row['sequence'] ?? 0),
-            $this->formatDate($model->created_at),
+            $this->formatDate($model->fecha_recojo),
             (string) ($model->codigo ?? ''),
             (string) ($model->origen ?? ''),
             $provinciaOrigen,

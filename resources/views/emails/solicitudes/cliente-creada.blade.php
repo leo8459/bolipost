@@ -128,6 +128,12 @@
                 </p>
             </div>
 
+            <div style="margin-top:18px;padding:18px 20px;border-radius:14px;background:#fff3cd;border:2px solid #e0a800;color:#5f4600;text-align:center;">
+                <p style="margin:0;font-size:14px;line-height:1.7;font-weight:800;">
+                    <strong>Importante:</strong> Si registr&oacute; una provincia para el env&iacute;o, la solicitud no ser&aacute; recogida ni validada.
+                </p>
+            </div>
+
             <div style="margin-top:18px;padding:16px 18px;border-radius:14px;background:#fff8db;border:1px solid #f4d56b;color:#4a3b00;">
                 <p style="margin:0;font-size:13px;line-height:1.65;">
                     <strong>Declaracion del cliente:</strong>
