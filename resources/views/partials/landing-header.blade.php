@@ -84,7 +84,7 @@
             @endif
             <a class="btn btn-home-shipping" href="{{ route('preregistros.public.create') }}" data-open-preregistro>
                 <span class="btn-home-shipping__eyebrow">Preenv&iacute;o</span>
-                <span class="btn-home-shipping__label">Generar guía para envío (EMS)</span>
+                <span class="btn-home-shipping__label">Generar envío</span>
             </a>
             <button class="menu-toggle" id="menuToggle" type="button" aria-label="Abrir menu" aria-expanded="false">
                 <span class="menu-toggle-bars" aria-hidden="true">
