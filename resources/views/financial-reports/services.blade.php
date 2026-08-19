@@ -104,6 +104,9 @@
             <div class="text-right">
                 <span class="badge badge-primary">{{ number_format($serviceGroups->count()) }} grupos</span>
                 <span class="badge badge-light border">{{ number_format($services->count()) }} subservicios</span>
+                <a href="{{ route('dashboard.financiera.ventas-servicios.pdf', ['servicios' => $selectedServices, 'meses' => $selectedMonths, 'anio' => $anio, 'limite' => $limite]) }}" class="btn btn-danger btn-sm ml-2" target="_blank">
+                    <i class="fas fa-file-pdf mr-1"></i> Reporte ejecutivo PDF
+                </a>
             </div>
         </div>
         <div class="card-body p-0">

@@ -207,6 +207,9 @@ Route::get('/dir-comercial/rendimiento-servicios/export/pdf', [ReportesControlle
 Route::get('/dir-financiera/ventas-servicios', [FinancialReportController::class, 'services'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.financiera.ventas-servicios');
+Route::get('/dir-financiera/ventas-servicios/reporte-ejecutivo.pdf', [FinancialReportController::class, 'executiveReport'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.financiera.ventas-servicios.pdf');
 Route::get('/dir-financiera/ventas-servicios/detalle', [FinancialReportController::class, 'serviceDetail'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.financiera.ventas-servicios.detalle');

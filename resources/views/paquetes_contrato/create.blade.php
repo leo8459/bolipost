@@ -529,7 +529,7 @@
                         <div class="row" id="provinciaRow">
                             <div class="col-md-4">
                                 <div class="form-group mb-0">
-                                    <label>Provincia (opcional)</label>
+                                    <label for="provinciaInput">Provincia<span class="required-star">*</span></label>
                                     <input type="text" name="provincia" id="provinciaInput" class="form-control" value="{{ old('provincia') }}">
                                 </div>
                             </div>

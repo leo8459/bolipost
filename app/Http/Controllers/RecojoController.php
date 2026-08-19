@@ -814,7 +814,22 @@ class RecojoController extends Controller
             'destino' => $this->normalizeDepartamentoContrato((string) $request->input('destino', '')),
         ]);
 
-        $data = $request->validate($this->storeRules());
+        $rules = $this->storeRules();
+        $rules['tipo_envio'] = 'required|string|in:periurbano,departamental,provincial';
+        $rules['provincia'] = [
+            'nullable',
+            'string',
+            'max:255',
+            Rule::requiredIf(
+                strtolower(trim((string) $request->input('tipo_envio'))) === 'provincial'
+            ),
+        ];
+
+        $data = $request->validate($rules, [
+            'tipo_envio.required' => 'Debe seleccionar el tipo de envio.',
+            'tipo_envio.in' => 'El tipo de envio seleccionado no es valido.',
+            'provincia.required' => 'La provincia es obligatoria cuando el tipo de envio es PROVINCIAL.',
+        ]);
 
         try {
             $contrato = $this->createContratoDesdePayload($data, $user);

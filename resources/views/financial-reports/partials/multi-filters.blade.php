@@ -82,7 +82,7 @@
                             @endif
                         </div>
                         <button type="submit" class="btn btn-primary btn-lg btn-block report-submit">
-                            <i class="fas fa-chart-bar mr-2"></i> Generar reporte
+                            <i class="fas fa-filter mr-2"></i> Filtrar
                         </button>
                         <div class="selection-warning text-danger small mt-2 d-none" data-selection-warning>
                             <i class="fas fa-info-circle mr-1"></i> Seleccione al menos un servicio y un mes.

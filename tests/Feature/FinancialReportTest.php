@@ -60,7 +60,7 @@ class FinancialReportTest extends TestCase
         $response->assertOk()
             ->assertSee('Ventas por servicio')
             ->assertSee('Buscar un servicio por nombre')
-            ->assertSee('Generar reporte')
+            ->assertSee('Filtrar')
             ->assertSee('Servicio Internacional')
             ->assertViewHas('services', fn ($services) => $services->count() === 1);
 
@@ -125,6 +125,7 @@ class FinancialReportTest extends TestCase
             'Servicio EMS Nacional',
             'Servicio Delivery Express',
             'Servicio Venta de Estampillas',
+            'Servicio Venta de Tarjeta Postal',
             'Servicio Contratos por concepto de pago de servicios de courier correspondiente',
             'Servicio Internacional',
             'Servicio Certificadas',
@@ -161,9 +162,41 @@ class FinancialReportTest extends TestCase
                 $international = $groups->firstWhere('servicio', 'Servicio Internacional');
 
                 return $groups->count() === 4
-                    && $ems['_children']->count() === 3
-                    && $international['_children']->count() === 3;
+                    && $ems['_children']->count() === 2
+                    && $international['_children']->count() === 5
+                    && $international['_children']->pluck('servicio')->contains('Servicio Venta de Estampillas')
+                    && $international['_children']->pluck('servicio')->contains('Servicio Venta de Tarjeta Postal');
             });
+    }
+
+    public function test_executive_report_downloads_a_professional_pdf_with_selected_filters(): void
+    {
+        Http::fake([
+            'safe.example.test/*' => Http::response(json_encode([
+                'servicios' => [[
+                    'servicio' => 'Servicio Internacional',
+                    'cantidadVentas' => 4,
+                    'cantidadDetalles' => 5,
+                    'totalCantidad' => 6,
+                    'totalMonto' => 120.5,
+                    'ultimaFecha' => '2026-08-18',
+                    'descripcionMuestra' => 'Envio internacional',
+                ]],
+            ]), 200),
+        ]);
+
+        $response = $this->withoutMiddleware()->get(route('dashboard.financiera.ventas-servicios.pdf', [
+            'servicios' => ['Servicio Internacional'],
+            'meses' => [8],
+            'anio' => 2026,
+            'limite' => 200,
+        ]));
+
+        $response->assertOk()
+            ->assertHeader('content-type', 'application/pdf')
+            ->assertDownload();
+
+        $this->assertStringStartsWith('%PDF-', $response->getContent());
     }
 
     public function test_service_detail_is_rendered_and_paginated(): void

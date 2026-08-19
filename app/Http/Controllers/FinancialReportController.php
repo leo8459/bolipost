@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\FacturacionReportService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -19,8 +20,6 @@ class FinancialReportController extends Controller
             'Servicio Ciudades Intermedias Trinidad Cobija',
             'Servicio Trinidad Cobija',
             'Servicio Delivery Express',
-            'Servicio Venta de Estampillas',
-            'Servicio Venta de Tarjeta Postal',
         ],
         'Servicio Contratos' => [
             'Servicio Contratos por concepto de pago de servicios de courier correspondiente',
@@ -33,6 +32,8 @@ class FinancialReportController extends Controller
             'Servicio Certificadas',
             'Servicio Ordinarias',
             'Servicio Aerolinea',
+            'Servicio Venta de Estampillas',
+            'Servicio Venta de Tarjeta Postal',
         ],
         'Servicio Casilla' => [
             'Servicio Casilla',
@@ -42,6 +43,40 @@ class FinancialReportController extends Controller
     public function __construct(private readonly FacturacionReportService $reports) {}
 
     public function services(Request $request)
+    {
+        return view('financial-reports.services', $this->buildServicesReportData($request));
+    }
+
+    public function executiveReport(Request $request)
+    {
+        $data = $this->buildServicesReportData($request);
+        $groups = $data['serviceGroups'];
+        $totalAmount = (float) ($data['summary']['totalMonto'] ?? 0);
+        $totalSales = (float) ($data['summary']['cantidadVentas'] ?? 0);
+        $topGroup = $groups->first();
+        $monthNames = [
+            1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril',
+            5 => 'Mayo', 6 => 'Junio', 7 => 'Julio', 8 => 'Agosto',
+            9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre',
+        ];
+
+        $data['generatedAt'] = now();
+        $data['periodLabel'] = collect($data['selectedMonths'])
+            ->map(fn (int $month) => $monthNames[$month] ?? (string) $month)
+            ->implode(', ').' de '.$data['anio'];
+        $data['averageTicket'] = $totalSales > 0 ? $totalAmount / $totalSales : 0;
+        $data['topGroup'] = $topGroup;
+        $data['topGroupShare'] = $totalAmount > 0
+            ? ((float) ($topGroup['totalMonto'] ?? 0) / $totalAmount) * 100
+            : 0;
+
+        $pdf = Pdf::loadView('financial-reports.executive-report-pdf', $data)
+            ->setPaper('A4', 'portrait');
+
+        return $pdf->download('reporte-ejecutivo-ventas-servicios-'.$data['anio'].'-'.now()->format('Ymd_His').'.pdf');
+    }
+
+    private function buildServicesReportData(Request $request): array
     {
         $validated = $request->validate([
             'servicio' => ['nullable', 'string', 'max:180'],
@@ -133,7 +168,7 @@ class FinancialReportController extends Controller
         $serviceGroups = $this->buildServiceGroups($services);
         $summary['cantidadServicios'] = $serviceGroups->count();
 
-        return view('financial-reports.services', [
+        return [
             'mes' => (int) $selectedMonths->first(),
             'anio' => $year,
             'limite' => $limit,
@@ -146,7 +181,7 @@ class FinancialReportController extends Controller
             'meta' => [],
             'errors' => $errors,
             'error' => $errors->first(),
-        ]);
+        ];
     }
 
     public function serviceDetail(Request $request)
