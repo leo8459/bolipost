@@ -174,6 +174,7 @@ class UserController extends Controller
     {
         $onlyWithEmpresa = $forceOnlyWithEmpresa ?? request()->boolean('only_with_empresa');
         $empresaId = request()->filled('empresa_id') ? (int) request()->input('empresa_id') : null;
+        $codigoCliente = trim((string) request()->input('codigo_cliente', ''));
 
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
@@ -182,7 +183,7 @@ class UserController extends Controller
         $headers = ['#', 'Nombre', 'Alias', 'Email', 'Regional', 'Provincia origen', 'CI', 'Empresa', 'Sucursal', 'Roles', 'Estado'];
         $sheet->fromArray($headers, null, 'A1');
 
-        $users = $this->usersReportQuery($onlyWithEmpresa, $empresaId)->get();
+        $users = $this->usersReportQuery($onlyWithEmpresa, $empresaId, $codigoCliente)->get();
         $row = 2;
 
         foreach ($users as $index => $user) {
@@ -218,7 +219,8 @@ class UserController extends Controller
     {
         $onlyWithEmpresa = $forceOnlyWithEmpresa ?? request()->boolean('only_with_empresa');
         $empresaId = request()->filled('empresa_id') ? (int) request()->input('empresa_id') : null;
-        $users = $this->usersReportQuery($onlyWithEmpresa, $empresaId)->get();
+        $codigoCliente = trim((string) request()->input('codigo_cliente', ''));
+        $users = $this->usersReportQuery($onlyWithEmpresa, $empresaId, $codigoCliente)->get();
         $generatedAt = now();
 
         $pdf = Pdf::loadView('user.pdf', [
@@ -459,11 +461,19 @@ class UserController extends Controller
         }
     }
 
-    private function usersReportQuery(bool $onlyWithEmpresa = false, ?int $empresaId = null)
+    private function usersReportQuery(bool $onlyWithEmpresa = false, ?int $empresaId = null, string $codigoCliente = '')
     {
         return User::withTrashed()
             ->with(['empresa', 'sucursal', 'roles'])
             ->when($onlyWithEmpresa, fn ($query) => $query->whereNotNull('empresa_id'))
+            ->when($codigoCliente !== '', function ($query) use ($codigoCliente) {
+                $query->whereHas('empresa', function ($empresaQuery) use ($codigoCliente) {
+                    $empresaQuery->whereRaw(
+                        "UPPER(TRIM(COALESCE(codigo_cliente, ''))) = ?",
+                        [mb_strtoupper($codigoCliente, 'UTF-8')]
+                    );
+                });
+            })
             ->when($empresaId, fn ($query) => $query->where('empresa_id', $empresaId))
             ->orderBy('name');
     }

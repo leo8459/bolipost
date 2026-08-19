@@ -19,3 +19,7 @@ Schedule::command('drivers:sync-expired')
 Schedule::command('vehicle-assignments:sync-expired')
     ->dailyAt('00:10')
     ->withoutOverlapping();
+
+Schedule::command('contracts:send-expiration-alerts')
+    ->cron('0 8 1,15 * *')
+    ->withoutOverlapping();

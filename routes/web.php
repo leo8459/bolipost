@@ -12,6 +12,7 @@ use App\Http\Controllers\ClientManagementController;
 use App\Http\Controllers\ClientRoleController;
 use App\Http\Controllers\CodigoEmpresaController;
 use App\Http\Controllers\ConceptoFacturacionController;
+use App\Http\Controllers\ContractExpirationEmailController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeliveryImageController;
 use App\Http\Controllers\DespachoController;
@@ -271,6 +272,19 @@ Route::post('/facturacion-servicio', [FacturacionServicioController::class, 'sto
     ->name('facturacion-servicio.store');
 
 Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function () {
+    Route::middleware('can:admin-only-menu')->group(function () {
+        Route::get('/administrador/correo-electronico', [ContractExpirationEmailController::class, 'index'])
+            ->name('contract-expiration-email.index');
+        Route::put('/administrador/correo-electronico', [ContractExpirationEmailController::class, 'update'])
+            ->name('contract-expiration-email.update');
+        Route::post('/administrador/correo-electronico/destinatarios', [ContractExpirationEmailController::class, 'addRecipient'])
+            ->name('contract-expiration-email.recipients.store');
+        Route::delete('/administrador/correo-electronico/destinatarios', [ContractExpirationEmailController::class, 'removeRecipient'])
+            ->name('contract-expiration-email.recipients.destroy');
+        Route::post('/administrador/correo-electronico/enviar', [ContractExpirationEmailController::class, 'send'])
+            ->name('contract-expiration-email.send');
+    });
+
     Route::get('/configuracion/aplicacion', [AppConfigController::class, 'edit'])->name('configuracion.aplicacion.edit');
     Route::put('/configuracion/aplicacion', [AppConfigController::class, 'update'])->name('configuracion.aplicacion.update');
     Route::get('/configuracion/apis', [ExternalApiTokenController::class, 'index'])->name('configuracion.apis.index');

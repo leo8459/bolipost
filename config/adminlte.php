@@ -364,6 +364,11 @@ return [
                     'icon' => 'fas fa-users-cog',
                 ],
                 [
+                    'text' => 'Correo electronico',
+                    'url' => 'administrador/correo-electronico',
+                    'icon' => 'fas fa-envelope',
+                ],
+                [
                     'text' => 'Todos los paquetes',
                     'url' => 'todos-paquetes',
                     'icon' => 'fas fa-layer-group',

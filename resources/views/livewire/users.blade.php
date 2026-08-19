@@ -265,6 +265,42 @@
             transition: width 0.35s ease;
         }
 
+        .bulk-company-list {
+            border: 1px solid #dbe4f1;
+            border-radius: 12px;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+            overflow: hidden;
+        }
+
+        .bulk-company-list li {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 11px 13px;
+            border-top: 1px solid #e9eef5;
+        }
+
+        .bulk-company-list li:first-child {
+            border-top: 0;
+        }
+
+        .bulk-company-name {
+            min-width: 0;
+        }
+
+        .bulk-company-name strong,
+        .bulk-company-name small {
+            display: block;
+        }
+
+        .bulk-company-count {
+            flex: 0 0 auto;
+            text-align: right;
+        }
+
         .regional-picker {
             border: 1px solid #d9e2ef;
             border-radius: 8px;
@@ -402,14 +438,26 @@
                         </div>
                     @endunless
                     @if($showOnlyWithEmpresa || $empresaMode)
-                        <select wire:model.live="filterEmpresaId" class="form-control users-company-select">
-                            <option value="">Todas las empresas</option>
-                            @foreach($empresas as $empresa)
-                                <option value="{{ $empresa->id }}">
-                                    {{ $empresa->codigo_cliente }} - {{ $empresa->nombre }} ({{ $empresa->sigla }})
+                        <select wire:model.live="filterCodigoCliente" class="form-control users-company-select">
+                            <option value="">Todos los codigos de cliente</option>
+                            @foreach($codigoClienteOptions as $codigoOption)
+                                <option value="{{ $codigoOption['codigo'] }}">
+                                    {{ $codigoOption['codigo'] }} - {{ $codigoOption['empresas_count'] }} empresa(s)
                                 </option>
                             @endforeach
                         </select>
+                        @if($filterCodigoCliente !== '')
+                            <select wire:model.live="filterEmpresaId" class="form-control users-company-select">
+                                <option value="">Todas las empresas del codigo {{ $filterCodigoCliente }}</option>
+                                @foreach($filterEmpresas as $empresa)
+                                    <option value="{{ $empresa->id }}">{{ $empresa->nombre }} ({{ $empresa->sigla }})</option>
+                                @endforeach
+                            </select>
+                        @endif
+                        <button type="button" class="btn btn-outline-light2" wire:click="applyFilters">
+                            <i class="fas fa-filter mr-1"></i> Aplicar filtrado
+                        </button>
+                        @error('filterEmpresaId') <small class="text-warning d-block">{{ $message }}</small> @enderror
                         @if(! $empresaMode && (auth()->user()?->can('feature.empresas.create') || auth()->user()?->can('empresas.index')))
                             <a href="{{ route('empresas.index', ['create' => 1]) }}" class="btn btn-dorado">
                                 <i class="fas fa-building mr-1"></i> Crear empresa
@@ -418,14 +466,24 @@
                     @endif
                     @if($empresaMode)
                         @canany(['users.empresas.excel', 'users.excel', 'feature.users.empresas.export', 'feature.users.empresas.manage'])
-                            <a href="{{ route('users.empresas.excel', ['empresa_id' => $filterEmpresaId ?: null]) }}" class="btn btn-success">Excel</a>
+                            <a href="{{ route('users.empresas.excel', ['codigo_cliente' => $appliedFilterCodigoCliente ?: null, 'empresa_id' => $appliedFilterEmpresaId ?: null]) }}" class="btn btn-success">Excel</a>
                         @endcanany
                         @canany(['users.empresas.pdf', 'users.pdf', 'feature.users.empresas.export', 'feature.users.empresas.manage'])
-                            <a href="{{ route('users.empresas.pdf', ['empresa_id' => $filterEmpresaId ?: null]) }}" class="btn btn-danger">PDF</a>
+                            <a href="{{ route('users.empresas.pdf', ['codigo_cliente' => $appliedFilterCodigoCliente ?: null, 'empresa_id' => $appliedFilterEmpresaId ?: null]) }}" class="btn btn-danger">PDF</a>
                         @endcanany
                     @else
                         <a href="{{ route('users.excel') }}" class="btn btn-success">Excel</a>
                         <a href="{{ route('users.pdf') }}" class="btn btn-danger">PDF</a>
+                    @endif
+                    @if($empresaMode && (auth()->user()?->can('feature.users.empresas.delete') || auth()->user()?->can('feature.users.empresas.manage') || auth()->user()?->can('users.destroy')))
+                        <button type="button" class="btn btn-warning" wire:click="openBulkStatusModal('delete')">
+                            <i class="fas fa-user-slash mr-1"></i> Dar de baja por codigo
+                        </button>
+                    @endif
+                    @if($empresaMode && (auth()->user()?->can('feature.users.empresas.restore') || auth()->user()?->can('feature.users.empresas.manage') || auth()->user()?->can('users.restore')))
+                        <button type="button" class="btn btn-success" wire:click="openBulkStatusModal('restore')">
+                            <i class="fas fa-user-check mr-1"></i> Dar de alta por codigo
+                        </button>
                     @endif
                     @unless($empresaMode)
                         <a href="{{ route('users.template-excel') }}" class="btn btn-info">Plantilla</a>
@@ -504,10 +562,13 @@
                         @else
                             @if($showOnlyWithEmpresa)
                                 Mostrando usuarios con empresa
-                                @if($filterEmpresaId !== '')
-                                    @php($empresaFiltro = $empresas->firstWhere('id', (int) $filterEmpresaId))
+                                @if($appliedFilterCodigoCliente !== '')
+                                    del codigo <strong>{{ $appliedFilterCodigoCliente }}</strong>
+                                @endif
+                                @if($appliedFilterEmpresaId !== '')
+                                    @php($empresaFiltro = $empresas->firstWhere('id', (int) $appliedFilterEmpresaId))
                                     @if($empresaFiltro)
-                                        : <strong>{{ $empresaFiltro->codigo_cliente }} - {{ $empresaFiltro->nombre }}</strong>
+                                        : <strong>{{ $empresaFiltro->nombre }}</strong>
                                     @endif
                                 @endif
                                 @if($groupByBillingSucursal)
@@ -921,6 +982,104 @@
             </div>
         </div>
     </div>
+
+    @if($empresaMode)
+        <div class="modal fade" id="bulkStatusModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            {{ $bulkStatusAction === 'restore' ? 'Dar de alta' : 'Dar de baja' }} usuarios por codigo de cliente
+                        </h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert {{ $bulkStatusAction === 'restore' ? 'alert-success' : 'alert-warning' }}">
+                            @if($bulkStatusAction === 'restore')
+                                Esta accion reactivara solamente a los usuarios inactivos de las empresas dependientes que selecciones.
+                            @else
+                                Esta accion dejara inactivos solamente a los usuarios de las empresas dependientes que selecciones.
+                            @endif
+                        </div>
+
+                        <div class="form-group">
+                            <label for="bulkCodigoCliente" class="font-weight-bold">Codigo de cliente</label>
+                            <select id="bulkCodigoCliente" wire:model.live="bulkCodigoCliente" class="form-control @error('bulkCodigoCliente') is-invalid @enderror">
+                                <option value="">Selecciona un codigo de cliente</option>
+                                @foreach($codigoClienteOptions as $codigoOption)
+                                    <option value="{{ $codigoOption['codigo'] }}">
+                                        {{ $codigoOption['codigo'] }} - {{ $codigoOption['empresas_count'] }} empresa(s)
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('bulkCodigoCliente') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
+
+                        @if($bulkCodigoCliente !== '')
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <strong>Empresas dependientes del codigo {{ $bulkCodigoCliente }}</strong>
+                                <div>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" wire:click="selectAllBulkCompanies">Seleccionar todas</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" wire:click="clearBulkCompanies">Limpiar</button>
+                                </div>
+                            </div>
+
+                            <div class="alert alert-light border py-2">
+                                Seleccionadas: <strong>{{ count($bulkEmpresaIds) }} empresa(s)</strong> |
+                                Usuarios {{ $bulkStatusAction === 'restore' ? 'inactivos' : 'activos' }} afectados:
+                                <strong>{{ $bulkTotalAffectedUsers }}</strong>
+                            </div>
+
+                            @if($bulkEmpresas->isNotEmpty())
+                                <ul class="bulk-company-list">
+                                @foreach($bulkEmpresas as $bulkEmpresa)
+                                    <li>
+                                        <label class="bulk-company-name mb-0 d-flex align-items-center" style="gap: 10px; cursor: pointer;">
+                                            <input type="checkbox" wire:model.live="bulkEmpresaIds" value="{{ $bulkEmpresa['id'] }}">
+                                            <span>
+                                                <strong>{{ $bulkEmpresa['nombre'] }}</strong>
+                                                <small class="text-muted">{{ $bulkEmpresa['sigla'] ?: 'Sin sigla' }}</small>
+                                            </span>
+                                        </label>
+                                        <div class="bulk-company-count">
+                                            <span class="badge {{ $bulkStatusAction === 'restore' ? 'badge-danger' : 'badge-success' }}">
+                                                {{ $bulkStatusAction === 'restore' ? $bulkEmpresa['usuarios_inactivos'].' inactivo(s)' : $bulkEmpresa['usuarios_activos'].' activo(s)' }}
+                                            </span>
+                                            <small class="d-block text-muted">{{ $bulkEmpresa['usuarios_total'] }} total</small>
+                                        </div>
+                                    </li>
+                                @endforeach
+                                </ul>
+                            @else
+                                <div class="alert alert-secondary mb-0">No se encontraron empresas para este codigo.</div>
+                            @endif
+                            @error('bulkEmpresaIds') <small class="text-danger d-block mt-2">{{ $message }}</small> @enderror
+                        @else
+                            <p class="text-muted mb-0">Selecciona un codigo para ver las empresas y usuarios que seran afectados.</p>
+                        @endif
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                        <button
+                            type="button"
+                            class="btn {{ $bulkStatusAction === 'restore' ? 'btn-success' : 'btn-warning' }}"
+                            wire:click="applyBulkStatusAction"
+                            wire:loading.attr="disabled"
+                            wire:target="applyBulkStatusAction"
+                            {{ $bulkCodigoCliente === '' || count($bulkEmpresaIds) < 1 || $bulkTotalAffectedUsers < 1 ? 'disabled' : '' }}
+                        >
+                            <span wire:loading.remove wire:target="applyBulkStatusAction">
+                                {{ $bulkStatusAction === 'restore' ? 'Dar de alta seleccionadas' : 'Dar de baja seleccionadas' }}
+                            </span>
+                            <span wire:loading wire:target="applyBulkStatusAction">Procesando...</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
 </div>
 
 <script>
@@ -949,6 +1108,14 @@
 
         window.addEventListener('closeStatusModal', () => {
             $('#statusModal').modal('hide');
+        });
+
+        window.addEventListener('openBulkStatusModal', () => {
+            $('#bulkStatusModal').modal('show');
+        });
+
+        window.addEventListener('closeBulkStatusModal', () => {
+            $('#bulkStatusModal').modal('hide');
         });
     }
 

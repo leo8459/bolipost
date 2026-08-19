@@ -66,7 +66,7 @@ class EmpresaContractUserSyncService
         }
 
         $today = Carbon::today()->toDateString();
-        $isExpired = !empty($empresa->fin_contrato) && Carbon::parse($empresa->fin_contrato)->lt(Carbon::parse($today));
+        $isExpired = ! empty($empresa->fin_contrato) && Carbon::parse($empresa->fin_contrato)->lt(Carbon::parse($today));
 
         if ($isExpired) {
             User::query()
@@ -135,14 +135,7 @@ class EmpresaContractUserSyncService
         $limitDate = $today->copy()->addDays(90);
 
         if ($this->canSeeAllExpirationAlerts($user)) {
-            return Empresa::query()
-                ->whereNotNull('fin_contrato')
-                ->whereDate('fin_contrato', '>=', $today->toDateString())
-                ->whereDate('fin_contrato', '<=', $limitDate->toDateString())
-                ->orderBy('fin_contrato')
-                ->get()
-                ->map(fn (Empresa $empresa) => $this->mapEmpresaAlert($empresa, true, $today))
-                ->values();
+            return $this->buildUpcomingExpirationAlerts($today);
         }
 
         if (! $this->isEmpresaUser($user) || (int) ($user->empresa_id ?? 0) <= 0) {
@@ -162,21 +155,37 @@ class EmpresaContractUserSyncService
         return collect([$this->mapEmpresaAlert($empresa, false, $today)]);
     }
 
+    public function buildUpcomingExpirationAlerts(?Carbon $today = null): Collection
+    {
+        $today = ($today ?? Carbon::today())->copy()->startOfDay();
+        $limitDate = $today->copy()->addDays(90);
+
+        return Empresa::query()
+            ->whereNotNull('fin_contrato')
+            ->whereDate('fin_contrato', '>=', $today->toDateString())
+            ->whereDate('fin_contrato', '<=', $limitDate->toDateString())
+            ->orderBy('fin_contrato')
+            ->get()
+            ->map(fn (Empresa $empresa) => $this->mapEmpresaAlert($empresa, true, $today))
+            ->values();
+    }
+
     private function mapEmpresaAlert(Empresa $empresa, bool $includeCompanyName, Carbon $today): array
     {
         $finContrato = Carbon::parse($empresa->fin_contrato)->startOfDay();
         $daysLeft = (int) $today->diffInDays($finContrato, false);
         $leadText = $daysLeft <= 0
             ? 'vence hoy'
-            : ($daysLeft <= 30 ? 'esta por vencer en ' . $daysLeft . ' dia(s)' : 'vence en ' . $daysLeft . ' dia(s)');
+            : ($daysLeft <= 30 ? 'esta por vencer en '.$daysLeft.' dia(s)' : 'vence en '.$daysLeft.' dia(s)');
 
         return [
+            'empresa_id' => (int) $empresa->id,
             'empresa' => (string) ($empresa->nombre ?? 'EMPRESA'),
             'fin_contrato' => $finContrato->format('d/m/Y'),
             'days_left' => $daysLeft,
             'message' => $includeCompanyName
-                ? 'La empresa ' . (string) ($empresa->nombre ?? 'EMPRESA') . ' ' . $leadText . ' (' . $finContrato->format('d/m/Y') . ').'
-                : 'Su contrato ' . $leadText . ' (' . $finContrato->format('d/m/Y') . ').',
+                ? 'La empresa '.(string) ($empresa->nombre ?? 'EMPRESA').' '.$leadText.' ('.$finContrato->format('d/m/Y').').'
+                : 'Su contrato '.$leadText.' ('.$finContrato->format('d/m/Y').').',
         ];
     }
 
