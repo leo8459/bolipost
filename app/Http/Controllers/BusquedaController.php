@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Destino;
 use App\Models\TrackingSubscription;
+use App\Services\TrackingLocalEventRuleService;
 use App\Support\CodigoContinuacionEvent;
 use App\Support\CarteroEvent;
 use App\Support\EncargadoEvent;
@@ -35,6 +36,11 @@ class BusquedaController extends Controller
         ['tabla' => 'eventos_ordi', 'servicio' => 'ORDI'],
         ['tabla' => 'eventos_tiktoker', 'servicio' => 'SOLICITUD'],
     ];
+
+    public static function trackingLocalSources(): array
+    {
+        return self::FUENTES_LOCALES;
+    }
 
     public function landing(Request $request): View
     {
@@ -568,18 +574,13 @@ class BusquedaController extends Controller
     private function consultarEventosDesdeApi(string $codigo): Collection
     {
         $codigo = $this->normalizeTrackingCode($codigo);
-        $baseUrl = $this->resolveTrackingApiUrl(
-            trim((string) config('services.tracking_sqlserver.base_url', ''))
-        );
-        $token = $this->normalizarTokenBearer(
-            trim((string) config('services.tracking_sqlserver.token', ''))
-        );
+        ['base_url' => $baseUrl, 'token' => $token] = $this->resolveTrackingApiConfig();
 
         if ($codigo === '' || $baseUrl === '' || $token === '') {
             return collect();
         }
 
-        $response = Http::timeout(10)
+        $response = Http::timeout((int) config('services.tracking_sqlserver.timeout', 15))
             ->acceptJson()
             ->withToken($token)
             ->get($baseUrl, ['codigo' => $codigo]);
@@ -605,6 +606,47 @@ class BusquedaController extends Controller
         return $this->ordenarEventosTracking(
             $eventosApi->map(fn ($item, $index) => $this->transformarEventoApi($item, $index, $codigo, $payload))
         );
+    }
+
+    private function resolveTrackingApiConfig(): array
+    {
+        $primaryBaseUrl = $this->resolveTrackingApiUrl(
+            trim((string) config('services.tracking_sqlserver.base_url', ''))
+        );
+        $primaryToken = $this->normalizarTokenBearer(
+            trim((string) config('services.tracking_sqlserver.token', ''))
+        );
+
+        if (! $this->trackingApiPointsToCurrentApp($primaryBaseUrl)) {
+            return [
+                'base_url' => $primaryBaseUrl,
+                'token' => $primaryToken,
+            ];
+        }
+
+        $fallbackBaseUrl = $this->resolveTrackingApiUrl(
+            trim((string) config('services.tracking_sqlserver.fallback_base_url', ''))
+        );
+        $fallbackToken = $this->normalizarTokenBearer(
+            trim((string) config('services.tracking_sqlserver.fallback_token', ''))
+        );
+
+        if ($fallbackBaseUrl !== '' && ! $this->trackingApiPointsToCurrentApp($fallbackBaseUrl)) {
+            Log::warning('Tracking externo configurado hacia la misma app; usando fallback.', [
+                'primary_base_url' => $primaryBaseUrl,
+                'fallback_base_url' => $fallbackBaseUrl,
+            ]);
+
+            return [
+                'base_url' => $fallbackBaseUrl,
+                'token' => $fallbackToken,
+            ];
+        }
+
+        return [
+            'base_url' => $primaryBaseUrl,
+            'token' => $primaryToken,
+        ];
     }
 
     private function normalizarTokenBearer(string $token): string
@@ -644,6 +686,31 @@ class BusquedaController extends Controller
         }
 
         return $configuredUrl;
+    }
+
+    private function trackingApiPointsToCurrentApp(string $url): bool
+    {
+        if ($url === '') {
+            return false;
+        }
+
+        $target = parse_url($url);
+        $current = parse_url((string) config('app.url', ''));
+
+        if (! is_array($target) || ! is_array($current)) {
+            return false;
+        }
+
+        $targetHost = strtolower((string) ($target['host'] ?? ''));
+        $currentHost = strtolower((string) ($current['host'] ?? ''));
+        $targetPort = (int) ($target['port'] ?? 80);
+        $currentPort = (int) ($current['port'] ?? 80);
+
+        if ($targetHost === '' || $currentHost === '') {
+            return false;
+        }
+
+        return $targetHost === $currentHost && $targetPort === $currentPort;
     }
 
     private function transformarEventoApi(mixed $item, int $index, string $codigo, array $payload): object
@@ -860,11 +927,38 @@ class BusquedaController extends Controller
             $union->unionAll($query);
         }
 
-        return DB::query()
+        $eventos = DB::query()
             ->fromSub($union, 'tracking')
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->get();
+
+        return $this->aplicarReglasEventosLocales($eventos);
+    }
+
+    private function aplicarReglasEventosLocales(Collection $eventos): Collection
+    {
+        /** @var TrackingLocalEventRuleService $ruleService */
+        $ruleService = app(TrackingLocalEventRuleService::class);
+
+        return $eventos
+            ->map(function (object $evento) use ($ruleService) {
+                $nombreVisible = $ruleService->present(
+                    isset($evento->nombre_evento) ? (string) $evento->nombre_evento : '',
+                    isset($evento->tabla_origen) ? (string) $evento->tabla_origen : '',
+                    $evento->evento_id ?? null
+                );
+
+                if ($nombreVisible === null) {
+                    return null;
+                }
+
+                $evento->nombre_evento = $nombreVisible;
+
+                return $evento;
+            })
+            ->filter()
+            ->values();
     }
 
     private function ordenarEventosTracking(Collection $eventos): Collection

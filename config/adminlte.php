@@ -1197,6 +1197,12 @@ return [
                     'icon' => 'fas fa-key',
                 ],
                 [
+                    'text' => 'Tracking Local',
+                    'url' => '/tracking-local-event-rules',
+                    'icon' => 'fas fa-eye',
+                    'can' => 'admin-only-menu',
+                ],
+                [
                     'text' => 'Aplicación',
                     'url' => '/configuracion/aplicacion',
                     'icon' => 'fas fa-mobile-alt',
