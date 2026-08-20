@@ -157,6 +157,55 @@
             font-size:.9rem;
         }
 
+        .solicitudes-capture-status{
+            min-height:22px;
+            margin-top:8px;
+            font-size:.9rem;
+            font-weight:700;
+        }
+
+        .solicitudes-capture-status.is-success{ color:#18733b; }
+        .solicitudes-capture-status.is-error{ color:#b42318; }
+
+        .solicitudes-prelist{
+            margin:0 20px 16px;
+            border:1px solid rgba(32,83,154,.22);
+            border-radius:14px;
+            overflow:hidden;
+            background:#f8fbff;
+        }
+
+        .solicitudes-prelist-head{
+            padding:14px 16px;
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:12px;
+            flex-wrap:wrap;
+            border-bottom:1px solid rgba(32,83,154,.14);
+        }
+
+        .solicitudes-prelist-head h3{
+            margin:0;
+            color:#163b6c;
+            font-size:1.05rem;
+            font-weight:900;
+        }
+
+        .solicitudes-prelist-empty{
+            padding:16px;
+            color:var(--muted);
+        }
+
+        .solicitudes-prelist-table{
+            margin:0;
+            background:#fff;
+        }
+
+        .solicitudes-prelist-table td{
+            vertical-align:middle;
+        }
+
         .solicitudes-table-card{
             border:1px solid var(--line);
             border-radius:14px;
@@ -252,6 +301,11 @@
             .solicitudes-search-actions .btn{
                 width:100%;
             }
+
+            .solicitudes-prelist{
+                margin-right:12px;
+                margin-left:12px;
+            }
         }
     </style>
 
@@ -296,11 +350,12 @@
                         >
                         <datalist id="solicitudesSearchSuggestions"></datalist>
                         <div class="solicitudes-search-help">
-                            Escribe al menos 2 caracteres para ver la prelista y selecciona una opcion para filtrar.
+                            Pega o escanea un codigo. Al encontrarlo se seleccionara automaticamente y quedara acumulado en la prelista.
                         </div>
+                        <div id="solicitudesCaptureStatus" class="solicitudes-capture-status" role="status" aria-live="polite"></div>
                     </div>
                     <div class="solicitudes-search-actions">
-                        <button type="submit" class="btn btn-primary">Buscar</button>
+                        <button type="submit" class="btn btn-primary">Agregar</button>
                         @if (!empty($search))
                             <a href="{{ route('paquetes-ems.solicitudes.index') }}" class="btn btn-outline-secondary">Limpiar</a>
                         @endif
@@ -324,21 +379,43 @@
                 </div>
     @endif
 
+            <form id="solicitudesAlmacenForm" method="POST" action="{{ route('paquetes-ems.solicitudes.send-almacen') }}">
+                @csrf
+                <div id="solicitudesSelectedInputs"></div>
+                <div class="solicitudes-prelist">
+                    <div class="solicitudes-prelist-head">
+                        <h3>Prelista para enviar a ALMACEN (<span id="solicitudesPrelistCount">0</span>)</h3>
+                        <button type="submit" id="solicitudesSendButton" class="btn btn-primary btn-sm" disabled>
+                            Mandar prelista a ALMACEN
+                        </button>
+                    </div>
+                    <div id="solicitudesPrelistEmpty" class="solicitudes-prelist-empty">
+                        Todavia no agregaste solicitudes. Pega o escanea el primer codigo arriba.
+                    </div>
+                    <div id="solicitudesPrelistTableWrap" class="table-responsive d-none">
+                        <table class="table table-sm solicitudes-prelist-table">
+                            <thead>
+                                <tr>
+                                    <th>Codigo</th>
+                                    <th>Destinatario</th>
+                                    <th>Telefono</th>
+                                    <th>Destino</th>
+                                    <th style="width:90px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="solicitudesPrelistBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
             <div class="solicitudes-table-wrap">
                 <div class="solicitudes-table-card">
                     <div class="solicitudes-table-head">
                         <h3>Listado de solicitudes en estado SOLICITUD</h3>
-                        @if ($solicitudes->isNotEmpty())
-                            <button type="submit" form="solicitudesAlmacenForm" class="btn btn-primary btn-sm">
-                                Mandar a ALMACEN
-                            </button>
-                        @endif
                     </div>
             @if ($solicitudes->isEmpty())
                         <div class="solicitudes-empty">No hay solicitudes en estado SOLICITUD.</div>
             @else
-                <form id="solicitudesAlmacenForm" method="POST" action="{{ route('paquetes-ems.solicitudes.send-almacen') }}">
-                    @csrf
                     <div class="table-responsive">
                                 <table class="table table-hover solicitudes-table">
                             <thead>
@@ -360,10 +437,17 @@
                             </thead>
                             <tbody>
                                 @foreach ($solicitudes as $solicitud)
-                                    @php($estadoNombre = (string) optional($solicitud->estadoRegistro)->nombre_estado)
+                                    @php
+                                        $estadoNombre = (string) optional($solicitud->estadoRegistro)->nombre_estado;
+                                    @endphp
                                     <tr>
                                         <td>
-                                            <input type="checkbox" name="solicitud_ids[]" value="{{ $solicitud->id }}">
+                                            <input
+                                                type="checkbox"
+                                                class="solicitud-row-checkbox"
+                                                value="{{ $solicitud->id }}"
+                                                aria-label="Agregar {{ $solicitud->codigo_solicitud ?: $solicitud->barcode }} a la prelista"
+                                            >
                                         </td>
                                                 <td><span class="solicitudes-pill">{{ $solicitud->codigo_solicitud ?: 'SIN CODIGO' }}</span></td>
                                         <td>{{ $solicitud->cliente_id ? 'Cliente' : 'Admisiones' }}</td>
@@ -396,10 +480,10 @@
                             </tbody>
                         </table>
                     </div>
-                </form>
             @endif
                 </div>
             </div>
+            </form>
         @if ($solicitudes->hasPages())
                 <div class="solicitudes-footer d-flex justify-content-end">
                     {{ $solicitudes->links() }}
@@ -411,13 +495,36 @@
 @endsection
 
 @section('js')
+@php
+    $solicitudesVisibleItems = $solicitudes->map(function ($solicitud) {
+        return [
+            'id' => (int) $solicitud->id,
+            'value' => trim((string) ($solicitud->codigo_solicitud ?: $solicitud->barcode ?: '')),
+            'codigo_solicitud' => $solicitud->codigo_solicitud,
+            'barcode' => $solicitud->barcode,
+            'destinatario' => $solicitud->nombre_destinatario,
+            'telefono_destinatario' => $solicitud->telefono_destinatario,
+            'ciudad' => $solicitud->destino?->nombre_destino ?: $solicitud->ciudad,
+        ];
+    })->values();
+@endphp
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const ticketUrl = @json($solicitudTicketUrl);
     const searchForm = document.getElementById('solicitudesSearchForm');
     const searchInput = document.getElementById('solicitudesSearchInput');
     const datalist = document.getElementById('solicitudesSearchSuggestions');
+    const captureStatus = document.getElementById('solicitudesCaptureStatus');
+    const almacenForm = document.getElementById('solicitudesAlmacenForm');
+    const selectedInputs = document.getElementById('solicitudesSelectedInputs');
+    const prelistBody = document.getElementById('solicitudesPrelistBody');
+    const prelistCount = document.getElementById('solicitudesPrelistCount');
+    const prelistEmpty = document.getElementById('solicitudesPrelistEmpty');
+    const prelistTableWrap = document.getElementById('solicitudesPrelistTableWrap');
+    const sendButton = document.getElementById('solicitudesSendButton');
     const suggestionsUrl = @json(route('paquetes-ems.solicitudes.index'));
+    const initialSearch = @json($search ?? '');
+    const visibleItems = @json($solicitudesVisibleItems);
 
     if (ticketUrl) {
         window.setTimeout(function () {
@@ -425,16 +532,101 @@ document.addEventListener('DOMContentLoaded', function () {
         }, 150);
     }
 
-    if (!searchForm || !searchInput || !datalist) {
+    if (!searchForm || !searchInput || !datalist || !almacenForm) {
         return;
     }
 
     let abortController = null;
     let debounceTimer = null;
     let lastSuggestionValues = [];
+    let lastSuggestions = [];
+    const selectedItems = new Map();
+
+    const normalize = function (value) {
+        return String(value || '').trim().toUpperCase();
+    };
+
+    const setStatus = function (message, type) {
+        captureStatus.textContent = message || '';
+        captureStatus.classList.toggle('is-success', type === 'success');
+        captureStatus.classList.toggle('is-error', type === 'error');
+    };
+
+    const itemMatches = function (item, term) {
+        const normalizedTerm = normalize(term);
+        return [item.value, item.codigo_solicitud, item.barcode]
+            .some(function (value) { return normalize(value) === normalizedTerm; });
+    };
+
+    const renderPrelist = function () {
+        const items = Array.from(selectedItems.values());
+        prelistBody.innerHTML = '';
+        selectedInputs.innerHTML = '';
+        prelistCount.textContent = String(items.length);
+        sendButton.disabled = items.length === 0;
+        prelistEmpty.classList.toggle('d-none', items.length > 0);
+        prelistTableWrap.classList.toggle('d-none', items.length === 0);
+
+        items.forEach(function (item) {
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = 'solicitud_ids[]';
+            hidden.value = item.id;
+            selectedInputs.appendChild(hidden);
+
+            const row = document.createElement('tr');
+            [item.value || item.codigo_solicitud || item.barcode || 'SIN CODIGO', item.destinatario || '-', item.telefono_destinatario || '-', item.ciudad || '-']
+                .forEach(function (value, index) {
+                    const cell = document.createElement('td');
+                    if (index === 0) {
+                        const pill = document.createElement('span');
+                        pill.className = 'solicitudes-pill';
+                        pill.textContent = value;
+                        cell.appendChild(pill);
+                    } else {
+                        cell.textContent = value;
+                    }
+                    row.appendChild(cell);
+                });
+
+            const actionCell = document.createElement('td');
+            const removeButton = document.createElement('button');
+            removeButton.type = 'button';
+            removeButton.className = 'btn btn-sm btn-outline-danger';
+            removeButton.textContent = 'Quitar';
+            removeButton.addEventListener('click', function () {
+                selectedItems.delete(String(item.id));
+                renderPrelist();
+            });
+            actionCell.appendChild(removeButton);
+            row.appendChild(actionCell);
+            prelistBody.appendChild(row);
+        });
+
+        document.querySelectorAll('.solicitud-row-checkbox').forEach(function (checkbox) {
+            checkbox.checked = selectedItems.has(String(checkbox.value));
+        });
+    };
+
+    const addItem = function (item) {
+        const key = String(item.id);
+        const wasSelected = selectedItems.has(key);
+        selectedItems.set(key, item);
+        renderPrelist();
+        searchInput.value = '';
+        renderSuggestions([]);
+        setStatus(
+            wasSelected
+                ? (item.value + ' ya estaba en la prelista.')
+                : (item.value + ' agregado. Puedes pegar el siguiente codigo.'),
+            'success'
+        );
+        searchInput.focus();
+    };
 
     const renderSuggestions = function (items) {
         datalist.innerHTML = '';
+        lastSuggestions = items;
         lastSuggestionValues = items.map(function (item) {
             const option = document.createElement('option');
             option.value = item.value || '';
@@ -445,7 +637,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     };
 
-    const fetchSuggestions = function (term) {
+    const fetchSuggestions = function (term, showNotFound) {
         if (abortController) {
             abortController.abort();
         }
@@ -455,7 +647,7 @@ document.addEventListener('DOMContentLoaded', function () {
         url.searchParams.set('autocomplete', '1');
         url.searchParams.set('q', term);
 
-        fetch(url.toString(), {
+        return fetch(url.toString(), {
             headers: {
                 'Accept': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
@@ -470,7 +662,17 @@ document.addEventListener('DOMContentLoaded', function () {
                 return response.json();
             })
             .then(function (payload) {
-                renderSuggestions(Array.isArray(payload.data) ? payload.data : []);
+                const items = Array.isArray(payload.data) ? payload.data : [];
+                renderSuggestions(items);
+                const exactItem = items.find(function (item) { return itemMatches(item, term); });
+
+                if (exactItem) {
+                    addItem(exactItem);
+                } else if (showNotFound) {
+                    setStatus('No se encontro una solicitud en estado SOLICITUD con ese codigo.', 'error');
+                }
+
+                return items;
             })
             .catch(function (error) {
                 if (error.name === 'AbortError') {
@@ -478,6 +680,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
 
                 renderSuggestions([]);
+                setStatus('No se pudo consultar la solicitud. Intenta nuevamente.', 'error');
+                return [];
             });
     };
 
@@ -485,6 +689,9 @@ document.addEventListener('DOMContentLoaded', function () {
         const term = searchInput.value.trim();
 
         window.clearTimeout(debounceTimer);
+        if (abortController) {
+            abortController.abort();
+        }
 
         if (term.length < 2) {
             renderSuggestions([]);
@@ -492,16 +699,60 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         debounceTimer = window.setTimeout(function () {
-            fetchSuggestions(term);
+            fetchSuggestions(term, false);
         }, 220);
     });
 
     searchInput.addEventListener('change', function () {
         const normalizedValue = searchInput.value.trim().toUpperCase();
         if (normalizedValue !== '' && lastSuggestionValues.includes(normalizedValue)) {
-            searchForm.submit();
+            const selectedItem = lastSuggestions.find(function (item) {
+                return normalize(item.value) === normalizedValue;
+            });
+            if (selectedItem) {
+                addItem(selectedItem);
+            }
         }
     });
+
+    searchForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        window.clearTimeout(debounceTimer);
+        const term = searchInput.value.trim();
+        if (term.length < 2) {
+            setStatus('Ingresa un codigo de al menos 2 caracteres.', 'error');
+            searchInput.focus();
+            return;
+        }
+        fetchSuggestions(term, true);
+    });
+
+    document.querySelectorAll('.solicitud-row-checkbox').forEach(function (checkbox) {
+        checkbox.addEventListener('change', function () {
+            const item = visibleItems.find(function (candidate) {
+                return String(candidate.id) === String(checkbox.value);
+            });
+            if (!item) {
+                return;
+            }
+            if (checkbox.checked) {
+                selectedItems.set(String(item.id), item);
+            } else {
+                selectedItems.delete(String(item.id));
+            }
+            renderPrelist();
+        });
+    });
+
+    const initialItem = visibleItems.find(function (item) {
+        return itemMatches(item, initialSearch);
+    });
+    if (initialItem) {
+        addItem(initialItem);
+    } else {
+        renderPrelist();
+        searchInput.focus();
+    }
 });
 </script>
 @endsection

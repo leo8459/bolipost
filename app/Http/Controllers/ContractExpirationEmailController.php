@@ -15,7 +15,25 @@ class ContractExpirationEmailController extends Controller
         return view('configuracion.contract-expiration-email', [
             'recipients' => $mailService->recipients(),
             'alerts' => $mailService->upcomingAlerts(),
+            'automaticSendingEnabled' => $mailService->automaticSendingEnabled(),
         ]);
+    }
+
+    public function updateAutomaticSending(Request $request, ContractExpirationMailService $mailService)
+    {
+        $data = $request->validate([
+            'enabled' => ['required', 'boolean'],
+        ]);
+
+        $enabled = (bool) $data['enabled'];
+        $mailService->setAutomaticSendingEnabled($enabled);
+
+        return back()->with(
+            'status',
+            $enabled
+                ? 'El envio automatico fue activado correctamente.'
+                : 'El envio automatico fue desactivado correctamente.'
+        );
     }
 
     public function update(Request $request, ContractExpirationMailService $mailService)

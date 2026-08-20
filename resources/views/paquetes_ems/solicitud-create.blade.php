@@ -35,6 +35,31 @@
             justify-content:space-between;
             gap:18px;
             flex-wrap:wrap;
+            position:relative;
+            overflow:hidden;
+            isolation:isolate;
+        }
+
+        .solicitud-hero::before{
+            content:"SOLICITUD EMS";
+            position:absolute;
+            top:50%;
+            left:50%;
+            z-index:-1;
+            transform:translate(-50%, -50%) rotate(-7deg);
+            color:rgba(255,255,255,.09);
+            font-size:clamp(2.2rem, 6vw, 5.5rem);
+            font-weight:900;
+            line-height:1;
+            letter-spacing:.14em;
+            white-space:nowrap;
+            pointer-events:none;
+            user-select:none;
+        }
+
+        .solicitud-hero > *{
+            position:relative;
+            z-index:1;
         }
 
         .solicitud-hero h1{
@@ -214,6 +239,11 @@
             .solicitud-hero{
                 flex-direction:column;
                 align-items:flex-start;
+            }
+
+            .solicitud-hero::before{
+                font-size:2.6rem;
+                letter-spacing:.08em;
             }
 
             .solicitud-actions{

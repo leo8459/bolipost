@@ -215,6 +215,8 @@ class PaquetesEmsController extends Controller
                     return [
                         'id' => (int) $solicitud->id,
                         'value' => $codigo,
+                        'codigo_solicitud' => $solicitud->codigo_solicitud,
+                        'barcode' => $solicitud->barcode,
                         'label' => trim(collect([
                             $codigo !== '' ? $codigo : 'SIN CODIGO',
                             $solicitud->nombre_destinatario ?: null,

@@ -13,6 +13,8 @@ class ContractExpirationMailService
 
     public const LAST_SENT_SETTING = 'contracts.expiration_email_last_sent';
 
+    public const AUTOMATIC_SENDING_ENABLED_SETTING = 'contracts.expiration_email_automatic_sending_enabled';
+
     public function __construct(
         private readonly EmpresaContractUserSyncService $contractService,
     ) {}
@@ -36,6 +38,16 @@ class ContractExpirationMailService
     public function saveRecipients(array $recipients): void
     {
         AppSetting::setValue(self::RECIPIENTS_SETTING, json_encode(array_values($recipients)));
+    }
+
+    public function automaticSendingEnabled(): bool
+    {
+        return AppSetting::getValue(self::AUTOMATIC_SENDING_ENABLED_SETTING, '1') === '1';
+    }
+
+    public function setAutomaticSendingEnabled(bool $enabled): void
+    {
+        AppSetting::setValue(self::AUTOMATIC_SENDING_ENABLED_SETTING, $enabled ? '1' : '0');
     }
 
     public function upcomingAlerts(): Collection

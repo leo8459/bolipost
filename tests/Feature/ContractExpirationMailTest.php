@@ -70,4 +70,34 @@ class ContractExpirationMailTest extends TestCase
                 && $mail->alerts->pluck('empresa')->all() === ['UPRE'];
         });
     }
+
+    public function test_automatic_sending_is_enabled_by_default_and_can_be_disabled(): void
+    {
+        $service = app(ContractExpirationMailService::class);
+
+        $this->assertTrue($service->automaticSendingEnabled());
+
+        $service->setAutomaticSendingEnabled(false);
+
+        $this->assertFalse($service->automaticSendingEnabled());
+        $this->assertSame(
+            '0',
+            AppSetting::getValue(ContractExpirationMailService::AUTOMATIC_SENDING_ENABLED_SETTING)
+        );
+    }
+
+    public function test_scheduled_command_does_not_send_when_automatic_sending_is_disabled(): void
+    {
+        Mail::fake();
+
+        $service = app(ContractExpirationMailService::class);
+        $service->saveRecipients(['contratos@example.com']);
+        $service->setAutomaticSendingEnabled(false);
+
+        $this->artisan('contracts:send-expiration-alerts', ['--force' => true])
+            ->expectsOutput('El envio automatico de avisos de contratos esta desactivado.')
+            ->assertSuccessful();
+
+        Mail::assertNothingSent();
+    }
 }

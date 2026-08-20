@@ -110,9 +110,36 @@
                             <i class="fas fa-envelope mr-1"></i> Mandar correo ahora
                         </button>
                     </form>
-                    <small class="form-text text-muted mt-2">
-                        El sistema lo enviara automaticamente los dias 1 y 15 de cada mes a las 08:00.
-                    </small>
+                </div>
+            </div>
+
+            <div class="card {{ $automaticSendingEnabled ? 'card-success' : 'card-secondary' }} card-outline shadow-sm">
+                <div class="card-header d-flex align-items-center">
+                    <h3 class="card-title">
+                        <i class="fas fa-clock mr-2"></i>Envio automatico
+                    </h3>
+                    <span class="badge {{ $automaticSendingEnabled ? 'badge-success' : 'badge-secondary' }} ml-auto p-2">
+                        {{ $automaticSendingEnabled ? 'Activo' : 'Inactivo' }}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">
+                        {{ $automaticSendingEnabled
+                            ? 'Los avisos se enviaran los dias 1 y 15 de cada mes a las 08:00.'
+                            : 'Los envios programados estan detenidos. El envio manual sigue disponible.' }}
+                    </p>
+                    <form
+                        method="POST"
+                        action="{{ route('contract-expiration-email.automatic-sending.update') }}"
+                        onsubmit="return confirm('{{ $automaticSendingEnabled ? 'Desea desactivar los envios automaticos?' : 'Desea activar los envios automaticos?' }}');">
+                        @csrf
+                        @method('PATCH')
+                        <input type="hidden" name="enabled" value="{{ $automaticSendingEnabled ? 0 : 1 }}">
+                        <button type="submit" class="btn {{ $automaticSendingEnabled ? 'btn-outline-danger' : 'btn-success' }} btn-block">
+                            <i class="fas {{ $automaticSendingEnabled ? 'fa-pause' : 'fa-play' }} mr-1"></i>
+                            {{ $automaticSendingEnabled ? 'Desactivar envio automatico' : 'Activar envio automatico' }}
+                        </button>
+                    </form>
                 </div>
             </div>
         </div>

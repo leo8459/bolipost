@@ -14,6 +14,12 @@ class SendContractExpirationAlerts extends Command
 
     public function handle(ContractExpirationMailService $mailService): int
     {
+        if (! $mailService->automaticSendingEnabled()) {
+            $this->info('El envio automatico de avisos de contratos esta desactivado.');
+
+            return self::SUCCESS;
+        }
+
         if (! $this->option('force') && AppSetting::getValue(ContractExpirationMailService::LAST_SENT_SETTING) === now()->toDateString()) {
             $this->info('Los avisos de contratos ya fueron enviados hoy.');
 

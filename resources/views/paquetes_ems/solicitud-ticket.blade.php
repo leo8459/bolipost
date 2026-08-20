@@ -25,6 +25,35 @@
             box-shadow: none;
             font-size: 10px;
             line-height: 1.25;
+            position: relative;
+        }
+
+        .ticket-watermark {
+            position: absolute;
+            inset: 55px 0 35px;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-evenly;
+            overflow: hidden;
+            color: rgba(0, 0, 0, .16);
+            pointer-events: none;
+            user-select: none;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .ticket-watermark span {
+            display: block;
+            width: 100%;
+            transform: rotate(-22deg);
+            font-size: 17px;
+            font-weight: 900;
+            line-height: 1.15;
+            letter-spacing: 1px;
+            text-align: center;
+            white-space: nowrap;
         }
 
         .ticket-head {
@@ -35,12 +64,15 @@
             border-bottom: 1px dashed #000;
         }
 
-        .brand {
-            margin: 0;
-            font-size: 12px;
-            font-weight: 700;
-            letter-spacing: .8px;
-            text-transform: uppercase;
+        .ticket-logo {
+            display: block;
+            width: 30mm;
+            max-width: 100%;
+            height: auto;
+            margin: 0 auto 4px;
+            filter: grayscale(100%) contrast(140%);
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
         }
 
         .subtitle {
@@ -243,6 +275,8 @@
         @media print {
             body {
                 background: #fff;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
             }
 
             .ticket {
@@ -253,6 +287,10 @@
 
             .actions {
                 display: none;
+            }
+
+            .ticket-watermark {
+                color: rgba(0, 0, 0, .16);
             }
         }
     </style>
@@ -274,8 +312,18 @@
     @endphp
 
     <main class="ticket">
+        <div class="ticket-watermark" aria-hidden="true">
+            <span>SOLICITUD<br>DELIVERY EXPRESS</span>
+            <span>SOLICITUD<br>DELIVERY EXPRESS</span>
+            <span>SOLICITUD<br>DELIVERY EXPRESS</span>
+        </div>
+
         <header class="ticket-head">
-            <p class="brand">Correos de Bolivia</p>
+            <img
+                src="{{ asset('images/logo-delivery-express.jpeg') }}"
+                alt="Delivery Express"
+                class="ticket-logo"
+            >
             <p class="subtitle">Comprobante de solicitud</p>
         </header>
 

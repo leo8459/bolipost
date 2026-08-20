@@ -286,6 +286,8 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
             ->name('contract-expiration-email.recipients.destroy');
         Route::post('/administrador/correo-electronico/enviar', [ContractExpirationEmailController::class, 'send'])
             ->name('contract-expiration-email.send');
+        Route::patch('/administrador/correo-electronico/envio-automatico', [ContractExpirationEmailController::class, 'updateAutomaticSending'])
+            ->name('contract-expiration-email.automatic-sending.update');
     });
 
     Route::get('/configuracion/aplicacion', [AppConfigController::class, 'edit'])->name('configuracion.aplicacion.edit');
