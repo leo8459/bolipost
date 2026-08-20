@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\MobileCrudApiController;
 use App\Http\Controllers\Api\MobileDbSnapshotController;
 use App\Http\Controllers\Api\MobileSnapshotController;
 use App\Http\Controllers\Api\MobileUtilityController;
+use App\Http\Controllers\Api\PaqueteContactoApiController;
 use App\Http\Controllers\Api\QrDecoderApiController;
 use App\Http\Controllers\Api\VehicleLogApiController;
 use App\Http\Controllers\AppConfigController;
@@ -54,18 +55,30 @@ Route::get('/siop/eventos', [EventosSiopApiController::class, 'index'])
     ->name('api.siop.eventos.index');
 
 Route::middleware(['external.api.jwt', 'throttle:120,1'])->group(function () {
+    Route::get('/paquetes-contactos', [PaqueteContactoApiController::class, 'index'])
+        ->name('api.paquetes-contactos.index');
+    Route::get('/paquetes-contactos/{tipo}', [PaqueteContactoApiController::class, 'index'])
+        ->where('tipo', 'certi|contrato|ems|ordinario|solicitud')
+        ->name('api.paquetes-contactos.tipo');
+
     Route::get('/direcciones-destino', [DireccionDestinoApiController::class, 'index'])
+        ->middleware('external.api.ability:direcciones-destino:read')
         ->name('api.direcciones-destino.index');
     Route::get('/direcciones-destino/todos', [DireccionDestinoApiController::class, 'todos'])
+        ->middleware('external.api.ability:direcciones-destino:read')
         ->name('api.direcciones-destino.todos');
     Route::get('/direcciones-destino/todo', [DireccionDestinoApiController::class, 'todo'])
+        ->middleware('external.api.ability:direcciones-destino:read')
         ->name('api.direcciones-destino.todo');
     Route::get('/direcciones-destino/cantidad', [DireccionDestinoApiController::class, 'cantidad'])
+        ->middleware('external.api.ability:direcciones-destino:read')
         ->name('api.direcciones-destino.cantidad');
     Route::get('/direcciones-destino/{tipo}/{id}', [DireccionDestinoApiController::class, 'show'])
+        ->middleware('external.api.ability:direcciones-destino:read')
         ->whereNumber('id')
         ->name('api.direcciones-destino.show');
     Route::match(['put', 'patch', 'post'], '/direcciones-destino/{tipo}/{id}', [DireccionDestinoApiController::class, 'update'])
+        ->middleware('external.api.ability:direcciones-destino:update')
         ->whereNumber('id')
         ->name('api.direcciones-destino.update');
 });

@@ -54,8 +54,8 @@ use App\Http\Controllers\SucursalController;
 use App\Http\Controllers\TarifaContratoController;
 use App\Http\Controllers\TarifarioController;
 use App\Http\Controllers\TarifarioTiktokerController;
-use App\Http\Controllers\TrackingLocalEventRuleController;
 use App\Http\Controllers\TodosPaquetesController;
+use App\Http\Controllers\TrackingLocalEventRuleController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserImpersonationController;
 use App\Http\Controllers\UserLoginLogController;
@@ -298,6 +298,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::patch('/configuracion/apis/{token}/regenerar', [ExternalApiTokenController::class, 'regenerate'])->name('configuracion.apis.regenerate');
     Route::patch('/configuracion/apis/{token}/dar-baja', [ExternalApiTokenController::class, 'deactivate'])->name('configuracion.apis.deactivate');
     Route::patch('/configuracion/apis/{token}/activar', [ExternalApiTokenController::class, 'activate'])->name('configuracion.apis.activate');
+    Route::delete('/configuracion/apis/{token}', [ExternalApiTokenController::class, 'destroy'])->name('configuracion.apis.destroy');
     Route::get('/tracking-local-event-rules', [TrackingLocalEventRuleController::class, 'index'])->name('tracking-local-event-rules.index');
     Route::get('/tracking-local-event-rules/create', [TrackingLocalEventRuleController::class, 'create'])->name('tracking-local-event-rules.create');
     Route::post('/tracking-local-event-rules', [TrackingLocalEventRuleController::class, 'store'])->name('tracking-local-event-rules.store');

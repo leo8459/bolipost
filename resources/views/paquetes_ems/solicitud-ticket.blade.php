@@ -66,7 +66,7 @@
 
         .ticket-logo {
             display: block;
-            width: 30mm;
+            width: 50mm;
             max-width: 100%;
             height: auto;
             margin: 0 auto 4px;
@@ -320,7 +320,7 @@
 
         <header class="ticket-head">
             <img
-                src="{{ asset('images/logo-delivery-express.jpeg') }}"
+                src="{{ asset('images/logo-horizontal-delivery.jpeg') }}"
                 alt="Delivery Express"
                 class="ticket-logo"
             >

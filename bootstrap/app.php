@@ -6,6 +6,7 @@ use App\Http\Middleware\EnsureClienteAclPermissionsSynced;
 use App\Http\Middleware\EnsureClienteProfileComplete;
 use App\Http\Middleware\EnsureClienteRoutePermission;
 use App\Http\Middleware\EnsureEmpresaContractUsersActive;
+use App\Http\Middleware\EnsureExternalApiAbility;
 use App\Http\Middleware\EnsureExternalApiJwt;
 use App\Http\Middleware\EnsureInternalWebAccess;
 use App\Http\Middleware\EnsureRoutePermission;
@@ -46,6 +47,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'empresa.contract.active' => EnsureEmpresaContractUsersActive::class,
             'siop.api.token' => EnsureSiopApiToken::class,
             'external.api.jwt' => EnsureExternalApiJwt::class,
+            'external.api.ability' => EnsureExternalApiAbility::class,
         ]);
 
         $middleware->web(append: [

@@ -1,0 +1,121 @@
+{
+  "info": {
+    "_postman_id": "7c9de932-241a-4e14-bcc9-e7f783c4f58d",
+    "name": "Bolipost - Paquetes y contactos",
+    "description": "Consultas protegidas de paquetes CERTI, contratos, EMS, ordinarios y solicitudes. Configure api_token con un JWT activo.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{api_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000"
+    },
+    {
+      "key": "api_token",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Todos los paquetes",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/paquetes-contactos?per_page=50&page=1"
+      }
+    },
+    {
+      "name": "Paquetes CERTI",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/paquetes-contactos/certi?per_page=50&page=1"
+      }
+    },
+    {
+      "name": "Paquetes de contrato",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/paquetes-contactos/contrato?per_page=50&page=1"
+      }
+    },
+    {
+      "name": "Paquetes EMS",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/paquetes-contactos/ems?per_page=50&page=1"
+      }
+    },
+    {
+      "name": "Paquetes ordinarios",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/paquetes-contactos/ordinario?per_page=50&page=1"
+      }
+    },
+    {
+      "name": "Solicitudes",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/paquetes-contactos/solicitud?per_page=50&page=1"
+      }
+    },
+    {
+      "name": "Buscar EMS por codigo",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/paquetes-contactos/ems?codigo=EE123456789BO&per_page=50&page=1"
+      }
+    }
+  ]
+}
