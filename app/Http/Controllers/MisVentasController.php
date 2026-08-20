@@ -801,6 +801,15 @@ class MisVentasController extends Controller
     private function resolveVentaForDetail(FacturacionCartService $service, object $user, int $cart): ?object
     {
         $venta = $service->fetchVentaById($user, $cart);
+        if (!$venta) {
+            return null;
+        }
+
+        $cartItems = $this->normalizeItems(data_get($venta, 'items', []));
+        if ($cartItems->isNotEmpty()) {
+            return $venta;
+        }
+
         $ventaId = (int) data_get($venta, 'venta_id', 0);
         if ($ventaId <= 0) {
             $ventaId = $this->extractOrigenVentaId($venta);
