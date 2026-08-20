@@ -1374,11 +1374,7 @@ class FacturacionCartService
             false
         );
 
-        $conceptoId = (int) data_get(
-            $existingItem,
-            'resumen_origen.concepto_facturacion_id',
-            data_get($existingItem, 'origen_id', 0)
-        );
+        $conceptoId = $this->resolveDraftConceptoFacturacionId($existingItem);
         $concepto = ConceptoFacturacion::query()->find($conceptoId);
 
         for ($position = 2; $position <= $effectiveQuantity; $position++) {
@@ -1479,11 +1475,7 @@ class FacturacionCartService
             return $groupedCart;
         }
 
-        $conceptoId = (int) data_get(
-            $existingItem,
-            'resumen_origen.concepto_facturacion_id',
-            data_get($existingItem, 'origen_id', 0)
-        );
+        $conceptoId = $this->resolveDraftConceptoFacturacionId($existingItem);
         $concepto = ConceptoFacturacion::query()->find($conceptoId);
 
         $workingCart = null;
@@ -2455,16 +2447,16 @@ class FacturacionCartService
                 'ciudad' => '',
                 'actividad_economica' => (string) ($concepto->actividad_economica ?? ''),
                 'codigo_sin' => (string) ($concepto->codigo_sin ?? ''),
-                'codigo_producto' => (string) ($concepto->codigo ?? ''),
+                'codigo_producto' => $resolvedCode,
                 'descripcion_servicio' => $conceptoNormalizado['descripcion_servicio'],
                 'unidad_medida' => (int) ($concepto->unidad_medida ?? 58),
                 'concepto_facturacion_id' => (int) $concepto->id,
-                'codigo_paquete' => (string) ($concepto->codigo ?? ''),
+                'codigo_paquete' => $resolvedCode,
                 'codigo_detalle_enviado' => $resolvedCode,
-                'codigo_servicio' => $this->buildServicioAnalyticsCodigo($conceptoNormalizado['nombre_servicio'], (string) ($concepto->codigo ?? '')),
+                'codigo_servicio' => $this->buildServicioAnalyticsCodigo($conceptoNormalizado['nombre_servicio'], $resolvedCode),
                 'servicio_nombre' => $this->normalizeServicioAnalyticsNombre($conceptoNormalizado['nombre_servicio']),
                 'servicio_familia' => 'CONCEPTO_FACTURABLE',
-                'codigo_producto_fiscal' => (string) ($concepto->codigo ?? ''),
+                'codigo_producto_fiscal' => $resolvedCode,
             ],
             'cantidad' => $cantidad,
             'monto_base' => $montoBase,
@@ -2618,12 +2610,21 @@ class FacturacionCartService
 
     private function buildDraftItemUpdatePayload(object $item, array $overrides = []): array
     {
+        $origenTipo = ltrim((string) data_get($item, 'origen_tipo', ''), '\\');
         $resumen = (array) data_get($item, 'resumen_origen', []);
         $base = round((float) ($overrides['monto_base'] ?? data_get($item, 'monto_base', data_get($item, 'precio', 0))), 2);
         $extras = round((float) ($overrides['monto_extras'] ?? data_get($item, 'monto_extras', 0)), 2);
         $cantidad = max(1, (int) ($overrides['cantidad'] ?? data_get($item, 'cantidad', 1)));
         $codigo = trim((string) ($overrides['codigo'] ?? data_get($item, 'codigo', '')));
         $codigoDetalleEnviado = trim((string) ($overrides['codigo_detalle_enviado'] ?? $codigo));
+
+        if ($origenTipo === ltrim(ConceptoFacturacion::class, '\\') && $codigo !== '') {
+            $resumen['codigo'] = $codigo;
+            $resumen['codigo_producto'] = trim((string) ($overrides['codigo_producto'] ?? $codigo));
+            $resumen['codigo_paquete'] = trim((string) ($overrides['codigo_paquete'] ?? $codigo));
+            $resumen['codigo_detalle_enviado'] = trim((string) ($overrides['codigo_detalle_enviado'] ?? $codigo));
+            $resumen['codigo_producto_fiscal'] = trim((string) ($overrides['codigo_producto_fiscal'] ?? $codigo));
+        }
 
         return array_merge([
             'codigo' => $codigo,
@@ -2655,6 +2656,7 @@ class FacturacionCartService
 
     private function buildDraftItemCreatePayload(object $item, array $overrides = [], ?int $originIdOverride = null): array
     {
+        $origenTipo = ltrim((string) data_get($item, 'origen_tipo', ''), '\\');
         $resumen = (array) data_get($item, 'resumen_origen', []);
         $base = round((float) ($overrides['monto_base'] ?? data_get($item, 'monto_base', data_get($item, 'precio', 0))), 2);
         $extras = round((float) ($overrides['monto_extras'] ?? data_get($item, 'monto_extras', 0)), 2);
@@ -2664,6 +2666,7 @@ class FacturacionCartService
         $titulo = trim((string) ($overrides['titulo'] ?? data_get($item, 'titulo', '')));
         $nombreServicio = trim((string) ($overrides['nombre_servicio'] ?? data_get($item, 'nombre_servicio', '')));
         $nombreDestinatario = trim((string) ($overrides['nombre_destinatario'] ?? data_get($item, 'nombre_destinatario', '')));
+        $resolvedOriginId = $originIdOverride ?? (int) data_get($item, 'origen_id', 0);
 
         $resumen['contenido'] = trim((string) ($overrides['contenido'] ?? ($resumen['contenido'] ?? '')));
         $resumen['direccion'] = trim((string) ($overrides['direccion'] ?? ($resumen['direccion'] ?? '')));
@@ -2682,9 +2685,19 @@ class FacturacionCartService
         $resumen['codigo_producto_fiscal'] = trim((string) ($overrides['codigo_producto_fiscal'] ?? ($resumen['codigo_producto_fiscal'] ?? $resumen['codigo_producto'] ?? '')));
         $resumen['codigo'] = $codigo;
 
+        if ($origenTipo === ltrim(ConceptoFacturacion::class, '\\') && $resolvedOriginId > 0) {
+            $resumen['concepto_facturacion_id'] = $resolvedOriginId;
+            if ($codigo !== '') {
+                $resumen['codigo_producto'] = trim((string) ($overrides['codigo_producto'] ?? $codigo));
+                $resumen['codigo_paquete'] = trim((string) ($overrides['codigo_paquete'] ?? $codigo));
+                $resumen['codigo_detalle_enviado'] = trim((string) ($overrides['codigo_detalle_enviado'] ?? $codigo));
+                $resumen['codigo_producto_fiscal'] = trim((string) ($overrides['codigo_producto_fiscal'] ?? $codigo));
+            }
+        }
+
         return [
-            'origen_tipo' => ltrim((string) data_get($item, 'origen_tipo', ''), '\\'),
-            'origen_id' => $originIdOverride ?? (int) data_get($item, 'origen_id', 0),
+            'origen_tipo' => $origenTipo,
+            'origen_id' => $resolvedOriginId,
             'codigo' => $codigo,
             'titulo' => $titulo,
             'nombre_servicio' => $nombreServicio,
@@ -3314,11 +3327,7 @@ class FacturacionCartService
                     return '__empty__';
                 }
 
-                $conceptoId = (int) data_get(
-                    $item,
-                    'resumen_origen.concepto_facturacion_id',
-                    data_get($item, 'origen_id', 0)
-                );
+                $conceptoId = $this->resolveDraftConceptoFacturacionId($item);
                 $baseCode = $this->extractDraftItemCodeFamily($codigo);
 
                 return implode('|', [
@@ -3406,11 +3415,7 @@ class FacturacionCartService
                 return ltrim((string) data_get($item, 'origen_tipo', ''), '\\') === ltrim(ConceptoFacturacion::class, '\\');
             })
             ->groupBy(function ($item) {
-                $conceptoId = (int) data_get(
-                    $item,
-                    'resumen_origen.concepto_facturacion_id',
-                    data_get($item, 'origen_id', 0)
-                );
+                $conceptoId = $this->resolveDraftConceptoFacturacionId($item);
                 $codigo = mb_strtolower($this->extractDraftItemCodeFamily((string) data_get($item, 'codigo', '')));
                 $montoBase = round((float) data_get($item, 'monto_base', data_get($item, 'precio', 0)), 2);
                 $montoExtras = round((float) data_get($item, 'monto_extras', 0), 2);
@@ -3546,7 +3551,7 @@ class FacturacionCartService
             $matchingItems = collect((array) ($workingCart->items ?? []))
                 ->filter(function ($item) use ($conceptoId, $expectedGroup) {
                     return ltrim((string) data_get($item, 'origen_tipo', ''), '\\') === ltrim(ConceptoFacturacion::class, '\\')
-                        && (int) data_get($item, 'resumen_origen.concepto_facturacion_id', data_get($item, 'origen_id', 0)) === $conceptoId
+                        && $this->resolveDraftConceptoFacturacionId($item) === $conceptoId
                         && mb_strtolower(trim((string) data_get($item, 'codigo', ''))) === mb_strtolower((string) ($expectedGroup['codigo'] ?? ''))
                         && round((float) data_get($item, 'monto_base', data_get($item, 'precio', 0)), 2) === round((float) ($expectedGroup['precio'] ?? 0), 2)
                         && trim((string) data_get($item, 'resumen_origen.descripcion_servicio', '')) === (string) ($expectedGroup['descripcion_servicio'] ?? '');
@@ -3656,7 +3661,7 @@ class FacturacionCartService
         }
 
         if ($origenTipo === ltrim(ConceptoFacturacion::class, '\\')) {
-            $conceptoId = (int) data_get($item, 'resumen_origen.concepto_facturacion_id', $origenId);
+            $conceptoId = $this->resolveDraftConceptoFacturacionId($item);
             $concepto = ConceptoFacturacion::query()->find($conceptoId);
             if (!$concepto) {
                 return null;
@@ -3671,13 +3676,25 @@ class FacturacionCartService
                 'nombre_servicio' => $conceptoNormalizado['nombre_servicio'],
                 'actividadEconomica' => (string) ($concepto->actividad_economica ?? ''),
                 'codigoSin' => (string) ($concepto->codigo_sin ?? ''),
-                'codigo' => (string) ($concepto->codigo ?? ''),
+                'codigo' => (string) data_get($item, 'codigo', $concepto->codigo ?? ''),
                 'descripcion' => $conceptoNormalizado['descripcion_servicio'],
                 'unidadMedida' => (int) ($concepto->unidad_medida ?? 58),
             ]);
         }
 
         return null;
+    }
+
+    private function resolveDraftConceptoFacturacionId(object $item): int
+    {
+        $origenTipo = ltrim((string) data_get($item, 'origen_tipo', ''), '\\');
+        $origenId = (int) data_get($item, 'origen_id', 0);
+
+        if ($origenTipo === ltrim(ConceptoFacturacion::class, '\\') && $origenId > 0) {
+            return $origenId;
+        }
+
+        return (int) data_get($item, 'resumen_origen.concepto_facturacion_id', $origenId);
     }
 
     public function normalizeConceptoFacturacionFiscalData(ConceptoFacturacion $concepto, ?string $draftCode = null): array
