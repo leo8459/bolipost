@@ -10,7 +10,7 @@ class EnsureSiopApiToken
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $configuredToken = trim((string) env('EVENTOS_SIOP_API_TOKEN', ''));
+        $configuredToken = trim((string) config('services.siop.token', ''));
 
         if ($configuredToken === '') {
             return response()->json([

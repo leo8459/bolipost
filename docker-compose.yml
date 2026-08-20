@@ -1,0 +1,54 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bolipost_app
+    env_file:
+      - .env.runtime
+    environment:
+      - EVENTOS_SIOP_API_TOKEN=${EVENTOS_SIOP_API_TOKEN:?Define EVENTOS_SIOP_API_TOKEN in .env}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE:-bolipost}
+      - DB_USERNAME=${DB_USERNAME:-agbc}
+      - DB_PASSWORD=${DB_PASSWORD:?Define DB_PASSWORD in .env}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "172.65.10.56:18100:8000"
+    volumes:
+      - composer_cache:/tmp/composer-cache
+      - /home/agbc/bolipost/storage:/var/www/html/storage
+      - ./docker/start.sh:/usr/local/bin/start.sh:ro
+      - /home/agbc/bolipost/docker/nginx.conf:/etc/nginx/conf.d/default.conf
+      - /home/agbc/bolipost/docker/www.conf:/usr/local/etc/php-fpm.d/www.conf
+      - /home/agbc/bolipost/docker/supervisord.conf:/etc/supervisor/conf.d/supervisord.conf
+      - /home/agbc/SSL2026/fullchain.crt:/etc/nginx/ssl/fullchain.crt:ro
+      - /home/agbc/SSL2026/_correos.gob.bo_priv.key:/etc/nginx/ssl/privkey.key:ro
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  db:
+    image: postgres:17
+    container_name: bolipost_db
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-bolipost}
+      POSTGRES_USER: ${DB_USERNAME:-agbc}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Define DB_PASSWORD in .env}
+    ports:
+      - "172.65.10.56:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agbc -d bolipost"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  composer_cache:
+  postgres_data:

@@ -180,7 +180,15 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse ($recojos as $recojo)
+                            @if(count($recojos) === 0)
+                                <tr>
+                                    <td colspan="12" class="text-center py-5">
+                                        <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
+                                        <div class="muted">Prueba con otro texto de busqueda.</div>
+                                    </td>
+                                </tr>
+                            @else
+                                @foreach ($recojos as $recojo)
                                 <tr>
                                     <td><span class="pill-id">{{ $recojo->codigo }}</span></td>
                                     <td>{{ optional($recojo->estadoRegistro)->nombre_estado ?? '-' }}</td>
@@ -241,14 +249,8 @@
                                         </div>
                                     </td>
                                 </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="12" class="text-center py-5">
-                                        <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
-                                        <div class="muted">Prueba con otro texto de busqueda.</div>
-                                    </td>
-                                </tr>
-                            @endforelse
+                                @endforeach
+                            @endif
                         </tbody>
                     </table>
                 </div>

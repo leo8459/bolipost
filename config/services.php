@@ -75,6 +75,10 @@ return [
         'ssl_verify' => env('FACTURACION_BRIDGE_SSL_VERIFY', true),
     ],
 
+    'siop' => [
+        'token' => env('EVENTOS_SIOP_API_TOKEN'),
+    ],
+
     'facturacion_reports' => [
         'base_url' => env('FACTURACION_REPORTS_BASE_URL', 'https://safe.correos.gob.bo/api/factura-venta'),
         'token' => env('FACTURACION_BRIDGE_TOKEN'),

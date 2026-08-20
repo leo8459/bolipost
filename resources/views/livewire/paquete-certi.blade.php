@@ -330,7 +330,15 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse ($paquetes as $paquete)
+                            @if(count($paquetes) === 0)
+                                <tr>
+                                    <td colspan="{{ $this->isAlmacen ? 14 : 13 }}" class="text-center py-5">
+                                        <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
+                                        <div class="muted">Prueba con otro texto de busqueda.</div>
+                                    </td>
+                                </tr>
+                            @else
+                                @foreach ($paquetes as $paquete)
                                 <tr>
                                     @if ($this->isAlmacen)
                                         <td>
@@ -396,14 +404,8 @@
                                         </div>
                                     </td>
                                 </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="{{ $this->isAlmacen ? 14 : 13 }}" class="text-center py-5">
-                                        <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
-                                        <div class="muted">Prueba con otro texto de busqueda.</div>
-                                    </td>
-                                </tr>
-                            @endforelse
+                                @endforeach
+                            @endif
                         </tbody>
                     </table>
                     </div>
