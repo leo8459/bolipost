@@ -62,10 +62,21 @@ class ExternalApiTokenSelectionTest extends TestCase
             ->assertSee('Consultar solicitudes Delivery Express')
             ->assertSee('Consultar direcciones de entrega')
             ->assertSee('Actualizar direcciones de entrega')
+            ->assertSee('Iniciar sesion Delivery Express con Google')
+            ->assertSee('Iniciar sesion Delivery Express con usuario y contrasena')
+            ->assertSee('Crear usuario Delivery Express')
+            ->assertSee('Crear solicitud Delivery Express para un cliente')
+            ->assertSee('Ver solicitudes Delivery Express de un cliente')
             ->assertSee('seleccionadas de')
             ->assertSee('PUT / PATCH')
             ->assertSee('/api/paquetes-contactos/ems')
             ->assertSee('/api/paquetes-contactos/solicitud')
+            ->assertSee('/api/integraciones/clientes/google-login')
+            ->assertSee('/api/integraciones/clientes/login')
+            ->assertSee('/api/integraciones/clientes')
+            ->assertSee('/api/integraciones/clientes/{cliente}/solicitudes')
+            ->assertSee('Ver ejemplo Postman')
+            ->assertSee('Body &gt; raw &gt; JSON', false)
             ->assertSee('Crear credencial con APIs seleccionadas')
             ->assertDontSee('/api/mobile/login')
             ->assertDontSee('/api/carteros/asignar')
@@ -97,6 +108,31 @@ class ExternalApiTokenSelectionTest extends TestCase
         $this->assertSame($abilities, $token->abilities);
         $this->assertNotEmpty($token->token_plain);
         $this->assertTrue($token->isUsable());
+    }
+
+    public function test_puede_crear_una_credencial_para_las_apis_delivery_express(): void
+    {
+        $abilities = [
+            'clientes:create',
+            'clientes:google-login',
+            'clientes:login',
+            'clientes:solicitudes:create',
+            'clientes:solicitudes:read',
+        ];
+
+        $this->post('/configuracion/apis', [
+            'name' => 'Aplicacion Delivery Express',
+            'abilities' => $abilities,
+        ])->assertRedirect(route('configuracion.apis.index'));
+
+        $token = ExternalApiToken::query()->firstOrFail();
+
+        $this->assertSame($abilities, $token->abilities);
+        $this->assertNotEmpty($token->token_plain);
+
+        $this->get(route('configuracion.apis.token-manual', $token))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     }
 
     public function test_rechaza_permisos_que_no_existen_en_el_catalogo(): void

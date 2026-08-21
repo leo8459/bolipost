@@ -358,10 +358,20 @@ return [
             'icon' => 'fas fa-user-shield',
             'can' => 'admin-only-menu',
             'submenu' => [
+                 [
+                            'text' => 'Personal AGBC',
+                            'url' => 'users',
+                            'icon' => 'fas fa-user',
+                        ],
                 [
                     'text' => 'Roles',
                     'url' => 'roles',
                     'icon' => 'fas fa-users-cog',
+                ],
+                [
+                    'text' => 'APIS',
+                    'url' => '/configuracion/apis',
+                    'icon' => 'fas fa-key',
                 ],
                 [
                     'text' => 'Correo electronico',
@@ -1127,11 +1137,7 @@ return [
                     'icon' => 'fas fa-users',
                     // 'can'  => 'users.index',
                     'submenu' => [
-                        [
-                            'text' => 'Personal AGBC',
-                            'url' => 'users',
-                            'icon' => 'fas fa-user',
-                        ],
+                       
                         [
                             'text' => 'Ingresos',
                             'url' => 'ingresos',
@@ -1196,11 +1202,7 @@ return [
 
                     'icon' => 'fas fa-chart-line',
                 ],
-                [
-                    'text' => 'APIS',
-                    'url' => '/configuracion/apis',
-                    'icon' => 'fas fa-key',
-                ],
+                
                 [
                     'text' => 'Tracking Local',
                     'url' => '/tracking-local-event-rules',

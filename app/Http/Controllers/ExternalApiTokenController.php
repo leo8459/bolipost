@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ExternalApiToken;
+use App\Services\ApiManualDocxService;
 use App\Support\ExternalApiJwt;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Route as LaravelRoute;
@@ -14,8 +15,6 @@ use Illuminate\Validation\Rule;
 
 class ExternalApiTokenController extends Controller
 {
-    private const MANUAL_PATH = 'docs/documentacion_api_direcciones_destino.docx';
-
     public function index(Request $request)
     {
         $tokens = ExternalApiToken::query()
@@ -105,6 +104,9 @@ class ExternalApiTokenController extends Controller
                     'access' => 'Token externo configurable',
                     'access_color' => 'success',
                     'selectable' => true,
+                    'query' => (string) ($endpoint['example'] ?? ''),
+                    'body' => $endpoint['body'] ?? null,
+                    'response' => $endpoint['response'] ?? null,
                 ]);
             }
         }
@@ -151,7 +153,8 @@ class ExternalApiTokenController extends Controller
         return redirect()
             ->route('configuracion.apis.index')
             ->with('status', 'Token generado correctamente. Copia el token ahora; no se mostrara completo otra vez.')
-            ->with('new_token', $jwt);
+            ->with('new_token', $jwt)
+            ->with('manual_url', route('configuracion.apis.token-manual', $apiToken));
     }
 
     public function deactivate(ExternalApiToken $token)
@@ -222,13 +225,23 @@ class ExternalApiTokenController extends Controller
             ->with('new_token', $jwt);
     }
 
-    public function downloadManual()
+    public function downloadManual(ApiManualDocxService $manual)
     {
-        $path = base_path(self::MANUAL_PATH);
+        $path = $manual->generate();
 
-        abort_unless(is_file($path), 404, 'No se encontro el manual de la API.');
+        return response()->download($path, 'manual-completo-apis-trackingbo.docx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ])->deleteFileAfterSend(true);
+    }
 
-        return response()->download($path, 'manual-api-direcciones-destino.docx');
+    public function downloadTokenManual(ExternalApiToken $token, ApiManualDocxService $manual)
+    {
+        $path = $manual->generate($token);
+        $filename = 'manual-api-'.Str::slug($token->name).'.docx';
+
+        return response()->download($path, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ])->deleteFileAfterSend(true);
     }
 
     /**

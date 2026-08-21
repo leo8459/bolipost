@@ -3,8 +3,10 @@
 use App\Http\Controllers\Api\AlertReadApiController;
 use App\Http\Controllers\Api\AuthTokenController;
 use App\Http\Controllers\Api\ClienteAuthApiController;
+use App\Http\Controllers\Api\ClienteSolicitudApiController;
 use App\Http\Controllers\Api\DireccionDestinoApiController;
 use App\Http\Controllers\Api\EventosSiopApiController;
+use App\Http\Controllers\Api\ExternalClienteSolicitudApiController;
 use App\Http\Controllers\Api\FuelLogApiController;
 use App\Http\Controllers\Api\FuelScrapeApiController;
 use App\Http\Controllers\Api\MaintenanceRequestApiController;
@@ -28,6 +30,19 @@ Route::prefix('clientes')->group(function () {
     Route::post('/login', [ClienteAuthApiController::class, 'login'])
         ->middleware('throttle:10,1')
         ->name('api.clientes.login');
+    Route::post('/google-login', [ClienteAuthApiController::class, 'googleLogin'])
+        ->middleware('throttle:10,1')
+        ->name('api.clientes.google-login');
+
+    Route::middleware(['auth:sanctum', 'abilities:cliente'])->group(function () {
+        Route::get('/me', [ClienteAuthApiController::class, 'me'])->name('api.clientes.me');
+        Route::post('/logout', [ClienteAuthApiController::class, 'logout'])->name('api.clientes.logout');
+        Route::get('/solicitudes', [ClienteSolicitudApiController::class, 'index'])
+            ->name('api.clientes.solicitudes.index');
+        Route::post('/solicitudes', [ClienteSolicitudApiController::class, 'store'])
+            ->middleware('throttle:30,1')
+            ->name('api.clientes.solicitudes.store');
+    });
 });
 
 Route::post('/public/paquetes-contrato', [RecojoController::class, 'storePublic'])
@@ -54,7 +69,25 @@ Route::get('/siop/eventos', [EventosSiopApiController::class, 'index'])
     ->middleware(['siop.api.token', 'throttle:20,1'])
     ->name('api.siop.eventos.index');
 
-Route::middleware(['external.api.jwt', 'throttle:120,1'])->group(function () {
+Route::middleware(['force.json', 'external.api.jwt', 'throttle:120,1'])->group(function () {
+    Route::post('/integraciones/clientes', [ClienteAuthApiController::class, 'register'])
+        ->middleware('external.api.ability:clientes:create')
+        ->name('api.integraciones.clientes.store');
+    Route::post('/integraciones/clientes/google-login', [ClienteAuthApiController::class, 'googleLogin'])
+        ->middleware('external.api.ability:clientes:google-login')
+        ->name('api.integraciones.clientes.google-login');
+    Route::post('/integraciones/clientes/login', [ClienteAuthApiController::class, 'login'])
+        ->middleware('external.api.ability:clientes:login')
+        ->name('api.integraciones.clientes.login');
+    Route::get('/integraciones/clientes/{cliente}/solicitudes', [ExternalClienteSolicitudApiController::class, 'index'])
+        ->middleware('external.api.ability:clientes:solicitudes:read')
+        ->whereNumber('cliente')
+        ->name('api.integraciones.clientes.solicitudes.index');
+    Route::post('/integraciones/clientes/{cliente}/solicitudes', [ExternalClienteSolicitudApiController::class, 'store'])
+        ->middleware('external.api.ability:clientes:solicitudes:create')
+        ->whereNumber('cliente')
+        ->name('api.integraciones.clientes.solicitudes.store');
+
     Route::get('/paquetes-contactos', [PaqueteContactoApiController::class, 'index'])
         ->name('api.paquetes-contactos.index');
     Route::get('/paquetes-contactos/{tipo}', [PaqueteContactoApiController::class, 'index'])

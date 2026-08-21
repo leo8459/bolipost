@@ -313,6 +313,11 @@
             <button type="button" class="btn btn-sm btn-dark js-copy-token" data-target="new-token">
                 <i class="fas fa-copy mr-1"></i> Copiar token
             </button>
+            @if (session('manual_url'))
+                <a href="{{ session('manual_url') }}" class="btn btn-sm btn-success ml-1">
+                    <i class="fas fa-file-word mr-1"></i> Descargar manual Word de esta credencial
+                </a>
+            @endif
         </div>
     @endif
 
@@ -395,6 +400,7 @@
                                             <th style="width: 90px;">Método</th>
                                             <th>Nombre comprensible</th>
                                             <th>URL</th>
+                                            <th>Ejemplo</th>
                                             <th>Acceso</th>
                                         </tr>
                                     </thead>
@@ -428,13 +434,36 @@
                                                     @endif
                                                 </td>
                                                 <td><code class="api-inventory-uri">{{ $apiRoute['uri'] }}</code></td>
+                                                <td class="text-center">
+                                                    @php
+                                                        $postmanExample = [
+                                                            'name' => $apiRoute['name'],
+                                                            'method' => $apiRoute['method'],
+                                                            'url' => rtrim(request()->getSchemeAndHttpHost(), '/').$apiRoute['uri'].$apiRoute['query'],
+                                                            'headers' => [
+                                                                'Authorization' => 'Bearer TOKEN_JWT_DE_LA_INTEGRACION',
+                                                                'Accept' => 'application/json',
+                                                                'Content-Type' => 'application/json',
+                                                            ],
+                                                            'body' => $apiRoute['body'],
+                                                            'response' => $apiRoute['response'],
+                                                        ];
+                                                    @endphp
+                                                    <button
+                                                        type="button"
+                                                        class="btn btn-sm btn-outline-info text-nowrap js-api-example"
+                                                        data-example="{{ base64_encode(json_encode($postmanExample, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) }}"
+                                                    >
+                                                        <i class="fas fa-paper-plane mr-1"></i>Ver ejemplo Postman
+                                                    </button>
+                                                </td>
                                                 <td>
                                                     <span class="badge badge-{{ $apiRoute['access_color'] }}">{{ $apiRoute['access'] }}</span>
                                                     <div class="small text-success mt-1"><i class="fas fa-check-circle mr-1"></i>Seleccionable</div>
                                                 </td>
                                             </tr>
                                         @empty
-                                            <tr><td colspan="5" class="text-center text-muted py-3">No hay APIs con este método.</td></tr>
+                                            <tr><td colspan="6" class="text-center text-muted py-3">No hay APIs con este método.</td></tr>
                                         @endforelse
                                     </tbody>
                                 </table>
@@ -448,7 +477,47 @@
                     </button>
                 </div>
             </section>
+
             </form>
+
+            <div class="modal fade" id="apiExampleModal" tabindex="-1" role="dialog" aria-labelledby="apiExampleModalTitle" aria-hidden="true">
+                <div class="modal-dialog modal-xl" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title font-weight-bold" id="apiExampleModalTitle">Ejemplo para Postman</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="form-group">
+                                <label>Metodo y URL</label>
+                                <div class="input-group">
+                                    <div class="input-group-prepend"><span class="input-group-text font-weight-bold" id="apiExampleMethod">GET</span></div>
+                                    <input type="text" class="form-control" id="apiExampleUrl" readonly>
+                                    <div class="input-group-append"><button type="button" class="btn btn-outline-primary js-copy-example" data-target="apiExampleUrl"><i class="fas fa-copy mr-1"></i>Copiar</button></div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-lg-6">
+                                    <label>Authorization y Headers</label>
+                                    <textarea class="form-control api-token-value" id="apiExampleHeaders" rows="7" readonly></textarea>
+                                </div>
+                                <div class="col-lg-6">
+                                    <label>Body &gt; raw &gt; JSON</label>
+                                    <textarea class="form-control api-token-value" id="apiExampleBody" rows="7" readonly></textarea>
+                                </div>
+                            </div>
+                            <div class="form-group mt-3 mb-0">
+                                <label>Respuesta de ejemplo</label>
+                                <textarea class="form-control api-token-value" id="apiExampleResponse" rows="6" readonly></textarea>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-primary js-copy-example" data-target="apiExampleBody"><i class="fas fa-copy mr-1"></i>Copiar Body</button>
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     </div>
@@ -544,6 +613,9 @@
                                     @endif
                                 </td>
                                 <td class="text-right" style="min-width: 145px;">
+                                    <a href="{{ route('configuracion.apis.token-manual', $token) }}" class="btn btn-sm btn-outline-success mb-1">
+                                        <i class="fas fa-file-word mr-1"></i> Manual Word
+                                    </a>
                                     <form method="POST" action="{{ route('configuracion.apis.regenerate', $token) }}" class="d-inline">
                                         @csrf
                                         @method('PATCH')
@@ -655,6 +727,42 @@
 
                 document.querySelectorAll('.js-api-route-row').forEach((row) => {
                     row.hidden = query !== '' && ! row.textContent.toLocaleLowerCase('es').includes(query);
+                });
+            });
+
+            document.querySelectorAll('.js-api-example').forEach((button) => {
+                button.addEventListener('click', () => {
+                    const bytes = Uint8Array.from(atob(button.dataset.example), (character) => character.charCodeAt(0));
+                    const example = JSON.parse(new TextDecoder().decode(bytes));
+                    document.getElementById('apiExampleModalTitle').textContent = example.name;
+                    document.getElementById('apiExampleMethod').textContent = example.method;
+                    document.getElementById('apiExampleUrl').value = example.url;
+                    document.getElementById('apiExampleHeaders').value = Object.entries(example.headers)
+                        .map(([name, value]) => `${name}: ${value}`)
+                        .join('\n');
+                    document.getElementById('apiExampleBody').value = example.body
+                        ? JSON.stringify(example.body, null, 2)
+                        : 'Esta solicitud no requiere Body.';
+                    document.getElementById('apiExampleResponse').value = example.response
+                        ? JSON.stringify(example.response, null, 2)
+                        : 'La API devuelve una respuesta JSON con los datos solicitados.';
+                    $('#apiExampleModal').modal('show');
+                });
+            });
+
+            document.querySelectorAll('.js-copy-example').forEach((button) => {
+                button.addEventListener('click', async () => {
+                    const target = document.getElementById(button.dataset.target);
+                    if (! target) {
+                        return;
+                    }
+
+                    target.select();
+                    if (navigator.clipboard && window.isSecureContext) {
+                        await navigator.clipboard.writeText(target.value);
+                    } else {
+                        document.execCommand('copy');
+                    }
                 });
             });
 

@@ -8,6 +8,7 @@ use App\Http\Middleware\EnsureClienteRoutePermission;
 use App\Http\Middleware\EnsureEmpresaContractUsersActive;
 use App\Http\Middleware\EnsureExternalApiAbility;
 use App\Http\Middleware\EnsureExternalApiJwt;
+use App\Http\Middleware\ForceJsonResponse;
 use App\Http\Middleware\EnsureInternalWebAccess;
 use App\Http\Middleware\EnsureRoutePermission;
 use App\Http\Middleware\EnsureSingleMobileSession;
@@ -24,6 +25,7 @@ use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Facades\Route;
+use Laravel\Sanctum\Http\Middleware\CheckAbilities;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -48,6 +50,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'siop.api.token' => EnsureSiopApiToken::class,
             'external.api.jwt' => EnsureExternalApiJwt::class,
             'external.api.ability' => EnsureExternalApiAbility::class,
+            'force.json' => ForceJsonResponse::class,
+            'abilities' => CheckAbilities::class,
         ]);
 
         $middleware->web(append: [
