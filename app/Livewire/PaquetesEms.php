@@ -2,6 +2,9 @@
 
 namespace App\Livewire;
 
+use App\Mail\PaqueteEmsRecibidoMail;
+use App\Mail\PaqueteEmsRecibidoDestinoMail;
+use App\Mail\PaqueteEmsSalidaRegionalMail;
 use App\Models\Cartero;
 use App\Models\CodigoEmpresa;
 use App\Models\Destino;
@@ -31,6 +34,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
@@ -230,6 +235,7 @@ class PaquetesEms extends Component
     public $telefono_remitente = '';
     public $nombre_destinatario = '';
     public $telefono_destinatario = '';
+    public $correo_electronico = '';
     public $direccion = '';
     public $referencia = '';
     public $observacion = '';
@@ -2657,6 +2663,7 @@ class PaquetesEms extends Component
         $this->telefono_remitente = $formulario->telefono_remitente ?? $paquete->telefono_remitente;
         $this->nombre_destinatario = $formulario->nombre_destinatario ?? $paquete->nombre_destinatario;
         $this->telefono_destinatario = $formulario->telefono_destinatario ?? $paquete->telefono_destinatario;
+        $this->correo_electronico = $formulario->correo_electronico ?? $paquete->correo_electronico ?? '';
         $this->direccion = $formulario->direccion ?? $paquete->direccion;
         $this->referencia = $formulario->referencia ?? $paquete->referencia ?? '';
         $this->observacion = (string) ($paquete->observacion ?? '');
@@ -2775,6 +2782,7 @@ class PaquetesEms extends Component
 
             $facturacionSyncOk = false;
             $facturacionSyncError = null;
+            $correoEnviado = $this->sendPaqueteRecibidoEmail($paquete);
 
             if ($this->isCreateEms && $this->canUseFacturacionShortcut($user)) {
                 try {
@@ -2798,9 +2806,20 @@ class PaquetesEms extends Component
                 }
             }
 
-            session()->flash('success', 'Paquete creado correctamente.');
+            $successMessage = 'Paquete creado correctamente.';
+            if ($correoEnviado === true) {
+                $successMessage .= ' Se envio la confirmacion con la boleta al correo registrado.';
+            }
+            session()->flash('success', $successMessage);
+            $warnings = [];
             if ($facturacionSyncError !== null) {
-                session()->flash('warning', 'La admision se guardo correctamente, pero no se pudo sincronizar con Facturacion: ' . $facturacionSyncError);
+                $warnings[] = 'No se pudo sincronizar con Facturacion: ' . $facturacionSyncError;
+            }
+            if ($correoEnviado === false) {
+                $warnings[] = 'No se pudo enviar el correo con la boleta. Revisa la configuracion SMTP.';
+            }
+            if ($warnings !== []) {
+                session()->flash('warning', 'La admision se guardo correctamente. ' . implode(' ', $warnings));
             }
             $this->showPaqueteConfirmModal = false;
             $this->dispatch('closePaqueteConfirm');
@@ -3228,7 +3247,11 @@ class PaquetesEms extends Component
                 $paquetes = PaqueteEms::query()
                     ->whereIn('id', $idsEms)
                     ->whereIn('estado_id', $eligibleEstadoIds)
-                    ->with(['user:id,name,empresa_id', 'user.empresa:id,nombre'])
+                    ->with([
+                        'user:id,name,empresa_id',
+                        'user.empresa:id,nombre',
+                        'formulario:paquete_ems_id,correo_electronico',
+                    ])
                     ->orderBy('id')
                     ->lockForUpdate()
                     ->get($this->paqueteEmsColumns([
@@ -3241,6 +3264,7 @@ class PaquetesEms extends Component
                         'peso',
                         'precio',
                         'nombre_remitente',
+                        'correo_electronico',
                         'user_id',
                         'created_at',
                     ]));
@@ -3417,6 +3441,14 @@ class PaquetesEms extends Component
             return;
         }
 
+        $correoRegionalResultado = $this->sendPaquetesSalidaRegionalEmails(
+            $paquetes,
+            (string) $this->regionalDestino,
+            (string) $this->regionalTransportMode,
+            (string) $manifiesto,
+            $generatedAt
+        );
+
         $paquetesPdf = $paquetes->map(function ($paquete) {
             return (object) [
                 'codigo' => $paquete->codigo,
@@ -3505,7 +3537,18 @@ class PaquetesEms extends Component
         $this->resetRegionalIntRows();
         $this->dispatch('closeRegionalModal');
 
-        session()->flash('success', $updated . ' registro(s) enviado(s) a regional (' . $estadoRegionalNombre . ').');
+        $successMessage = $updated . ' registro(s) enviado(s) a regional (' . $estadoRegionalNombre . ').';
+        if ($correoRegionalResultado['sent'] > 0) {
+            $successMessage .= ' Se enviaron ' . $correoRegionalResultado['sent'] . ' notificacion(es) por correo.';
+        }
+        session()->flash('success', $successMessage);
+
+        if ($correoRegionalResultado['failed'] > 0) {
+            session()->flash(
+                'warning',
+                $correoRegionalResultado['failed'] . ' paquete(s) salieron correctamente, pero su correo de notificacion no pudo enviarse.'
+            );
+        }
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
@@ -5063,11 +5106,21 @@ class PaquetesEms extends Component
         $paquetesRecibir = collect();
         if (!empty($idsEms)) {
             $paquetesRecibir = PaqueteEms::query()
-                ->with('formulario:id,paquete_ems_id,peso')
+                ->with('formulario:id,paquete_ems_id,peso,correo_electronico')
                 ->whereIn('id', $idsEms)
                 ->whereIn('estado_id', $estadoRecibirRegionalIds)
                 ->orderBy('id')
-                ->get(['id', 'codigo', 'peso', 'estado_id']);
+                ->get([
+                    'id',
+                    'codigo',
+                    'cod_especial',
+                    'origen',
+                    'ciudad',
+                    'peso',
+                    'nombre_remitente',
+                    'correo_electronico',
+                    'estado_id',
+                ]);
         }
 
         $contratosRecibir = collect();
@@ -5279,6 +5332,11 @@ class PaquetesEms extends Component
             return;
         }
 
+        $correoDestinoResultado = $this->sendPaquetesRecibidosDestinoEmails(
+            $paquetesRecibir,
+            now()
+        );
+
         $this->selectedPaquetes = [];
         $this->selectedPaquetesInt = [];
         $this->selectedContratos = [];
@@ -5286,10 +5344,18 @@ class PaquetesEms extends Component
         $this->recibirRegionalPreview = [];
         $this->recibirRegionalPesos = [];
         $this->dispatch('closeRecibirRegionalModal');
-        session()->flash(
-            'success',
-            $updatedTotal . ' registro(s) recibido(s) en RECIBIDO. EMS: ' . $updatedEms . ', INT: ' . $updatedInt . ', Contratos: ' . $updatedContratos . ', Solicitudes: ' . $updatedSolicitudes . '.'
-        );
+        $successMessage = $updatedTotal . ' registro(s) recibido(s) en RECIBIDO. EMS: ' . $updatedEms . ', INT: ' . $updatedInt . ', Contratos: ' . $updatedContratos . ', Solicitudes: ' . $updatedSolicitudes . '.';
+        if ($correoDestinoResultado['sent'] > 0) {
+            $successMessage .= ' Se enviaron ' . $correoDestinoResultado['sent'] . ' notificacion(es) por correo.';
+        }
+        session()->flash('success', $successMessage);
+
+        if ($correoDestinoResultado['failed'] > 0) {
+            session()->flash(
+                'warning',
+                $correoDestinoResultado['failed'] . ' paquete(s) fueron recibidos correctamente, pero su correo de notificacion no pudo enviarse.'
+            );
+        }
     }
 
     public function devolverAAdmisiones($id)
@@ -5486,6 +5552,7 @@ class PaquetesEms extends Component
             'telefono_remitente',
             'nombre_destinatario',
             'telefono_destinatario',
+            'correo_electronico',
             'direccion',
             'referencia',
             'observacion',
@@ -5536,6 +5603,7 @@ class PaquetesEms extends Component
             'telefono_remitente' => $telefonoRemitenteRules,
             'nombre_destinatario' => 'required|string|max:255',
             'telefono_destinatario' => $telefonoDestinatarioRules,
+            'correo_electronico' => 'nullable|email:rfc|max:255',
             'direccion' => 'required|string|max:255',
             'referencia' => 'nullable|string|max:255',
             'observacion' => $observacionRules,
@@ -5553,6 +5621,7 @@ class PaquetesEms extends Component
 
         $this->telefono_remitente = preg_replace('/\D+/', '', (string) $this->telefono_remitente) ?? '';
         $this->telefono_destinatario = preg_replace('/\D+/', '', (string) $this->telefono_destinatario) ?? '';
+        $this->correo_electronico = trim((string) $this->correo_electronico);
 
         if (!$this->mostrar_empresa) {
             $this->nombre_envia = '';
@@ -5576,6 +5645,7 @@ class PaquetesEms extends Component
             'telefono_remitente' => $this->telefono_remitente,
             'nombre_destinatario' => $this->nombre_destinatario,
             'telefono_destinatario' => $this->telefono_destinatario,
+            'correo_electronico' => trim((string) $this->correo_electronico) !== '' ? trim((string) $this->correo_electronico) : null,
             'direccion' => $this->direccion,
             'referencia' => $this->referencia,
             'observacion' => trim((string) $this->observacion) !== '' ? trim((string) $this->observacion) : null,
@@ -5589,6 +5659,128 @@ class PaquetesEms extends Component
         }
 
         return $payload;
+    }
+
+    protected function sendPaqueteRecibidoEmail(PaqueteEms $paquete): ?bool
+    {
+        $correo = trim((string) $paquete->correo_electronico);
+        if ($correo === '') {
+            return null;
+        }
+
+        try {
+            $paquete->loadMissing([
+                'tarifario.destino',
+                'tarifario.servicio',
+                'tarifario.origen',
+                'tarifario.peso',
+                'formulario',
+            ]);
+            Mail::to($correo)->send(new PaqueteEmsRecibidoMail($paquete));
+
+            return true;
+        } catch (\Throwable $exception) {
+            Log::error('No se pudo enviar el correo de recepcion del paquete EMS.', [
+                'paquete_id' => $paquete->id,
+                'codigo' => $paquete->codigo,
+                'correo_electronico' => $correo,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return false;
+        }
+    }
+
+    protected function sendPaquetesSalidaRegionalEmails(
+        Collection $paquetes,
+        string $destino,
+        string $transporte,
+        string $manifiesto,
+        $fechaSalida
+    ): array {
+        $resultado = [
+            'sent' => 0,
+            'failed' => 0,
+            'skipped' => 0,
+        ];
+
+        foreach ($paquetes as $paquete) {
+            $correo = trim((string) (
+                $paquete->correo_electronico
+                ?: $paquete->formulario?->correo_electronico
+            ));
+
+            if ($correo === '') {
+                $resultado['skipped']++;
+                continue;
+            }
+
+            try {
+                Mail::to($correo)->send(new PaqueteEmsSalidaRegionalMail(
+                    $paquete,
+                    strtoupper(trim($destino)),
+                    strtoupper(trim($transporte)),
+                    $manifiesto,
+                    $fechaSalida
+                ));
+                $resultado['sent']++;
+            } catch (\Throwable $exception) {
+                $resultado['failed']++;
+                Log::error('No se pudo enviar el correo de salida regional del paquete EMS.', [
+                    'paquete_id' => $paquete->id,
+                    'codigo' => $paquete->codigo,
+                    'correo_electronico' => $correo,
+                    'destino' => $destino,
+                    'manifiesto' => $manifiesto,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
+        }
+
+        return $resultado;
+    }
+
+    protected function sendPaquetesRecibidosDestinoEmails(Collection $paquetes, $fechaRecepcion): array
+    {
+        $resultado = [
+            'sent' => 0,
+            'failed' => 0,
+            'skipped' => 0,
+        ];
+
+        foreach ($paquetes as $paquete) {
+            $correo = trim((string) (
+                $paquete->correo_electronico
+                ?: $paquete->formulario?->correo_electronico
+            ));
+
+            if ($correo === '') {
+                $resultado['skipped']++;
+                continue;
+            }
+
+            $destino = strtoupper(trim((string) $paquete->ciudad));
+
+            try {
+                Mail::to($correo)->send(new PaqueteEmsRecibidoDestinoMail(
+                    $paquete,
+                    $destino,
+                    $fechaRecepcion
+                ));
+                $resultado['sent']++;
+            } catch (\Throwable $exception) {
+                $resultado['failed']++;
+                Log::error('No se pudo enviar el correo de recepcion del paquete EMS en destino.', [
+                    'paquete_id' => $paquete->id,
+                    'codigo' => $paquete->codigo,
+                    'correo_electronico' => $correo,
+                    'destino' => $destino,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
+        }
+
+        return $resultado;
     }
 
     public function render()
@@ -8665,6 +8857,7 @@ class PaquetesEms extends Component
                 'telefono_remitente' => $this->telefono_remitente,
                 'nombre_destinatario' => $this->nombre_destinatario,
                 'telefono_destinatario' => $this->telefono_destinatario,
+                'correo_electronico' => trim((string) $this->correo_electronico) !== '' ? trim((string) $this->correo_electronico) : null,
                 'direccion' => $this->direccion,
                 'referencia' => $this->referencia,
                 'ciudad' => $this->normalizeDestinoNombre((string) $this->ciudad),
@@ -8723,6 +8916,7 @@ class PaquetesEms extends Component
         $this->telefono_remitente = preg_replace('/\D+/', '', (string) ($preregistro->telefono_remitente ?? '')) ?? '';
         $this->nombre_destinatario = (string) $preregistro->nombre_destinatario;
         $this->telefono_destinatario = preg_replace('/\D+/', '', (string) ($preregistro->telefono_destinatario ?? '')) ?? '';
+        $this->correo_electronico = (string) ($preregistro->correo_electronico ?? '');
         $this->direccion = (string) $preregistro->direccion;
         $this->referencia = (string) ($preregistro->referencia ?? '');
         $this->ciudad = $this->normalizeDestinoNombre((string) $preregistro->ciudad);

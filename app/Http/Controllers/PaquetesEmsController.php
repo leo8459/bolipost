@@ -1972,7 +1972,9 @@ class PaquetesEmsController extends Controller
                 'peso' => (float) $data['peso'],
                 'precio' => null,
                 'tarifa_contrato_id' => null,
-                'fecha_recojo' => null,
+                // La guia hija debe conservar como fecha de recojo el momento
+                // en que ella misma fue creada, no la fecha de su guia madre.
+                'fecha_recojo' => now(),
                 'observacion' => $this->nullableTrim($data['observacion'] ?? null),
                 'justificacion' => null,
                 'imagen' => null,

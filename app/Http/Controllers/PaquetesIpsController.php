@@ -17,19 +17,30 @@ class PaquetesIpsController extends Controller
     {
         $filters = $request->validate([
             'q' => ['nullable', 'string', 'max:100'],
+            'fecha_desde' => ['nullable', 'required_with:fecha_hasta', 'date_format:Y-m-d'],
+            'fecha_hasta' => ['nullable', 'required_with:fecha_desde', 'date_format:Y-m-d', 'after_or_equal:fecha_desde'],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'in:25,50,100'],
         ]);
 
         $search = trim((string) ($filters['q'] ?? ''));
+        $fechaDesde = $filters['fecha_desde'] ?? null;
+        $fechaHasta = $filters['fecha_hasta'] ?? null;
         $page = (int) ($filters['page'] ?? 1);
         $perPage = (int) ($filters['per_page'] ?? 25);
         $items = collect();
+        $totalPackages = null;
         $error = null;
 
         try {
-            $payload = $this->fetchPackages($page, $perPage, $search);
+            $payload = $this->fetchPackages($page, $perPage, $search, $fechaDesde, $fechaHasta);
             $items = collect(Arr::get($payload, 'data', []));
+            $totalFromApi = (
+                Arr::get($payload, 'meta.total')
+                ?? Arr::get($payload, 'pagination.total')
+                ?? Arr::get($payload, 'total')
+            );
+            $totalPackages = is_numeric($totalFromApi) ? (int) $totalFromApi : null;
         } catch (ConnectionException $exception) {
             Log::warning('No fue posible conectar con la API de Paquetes IPS.', [
                 'message' => $exception->getMessage(),
@@ -54,14 +65,23 @@ class PaquetesIpsController extends Controller
 
         return view('paquetes_ips.index', [
             'packages' => $packages,
+            'totalPackages' => $totalPackages,
             'search' => $search,
+            'fechaDesde' => $fechaDesde,
+            'fechaHasta' => $fechaHasta,
             'perPage' => $perPage,
             'perPageOptions' => self::PER_PAGE_OPTIONS,
             'error' => $error,
         ]);
     }
 
-    private function fetchPackages(int $page, int $perPage, string $search): array
+    private function fetchPackages(
+        int $page,
+        int $perPage,
+        string $search,
+        ?string $fechaDesde,
+        ?string $fechaHasta,
+    ): array
     {
         $url = trim((string) config('services.tracking_sqlserver.paquetes_url'));
         $token = $this->normalizeBearerToken((string) config('services.tracking_sqlserver.token'));
@@ -77,6 +97,11 @@ class PaquetesIpsController extends Controller
 
         if ($search !== '') {
             $query['q'] = $search;
+        }
+
+        if ($fechaDesde !== null && $fechaHasta !== null) {
+            $query['fecha_desde'] = $fechaDesde;
+            $query['fecha_hasta'] = $fechaHasta;
         }
 
         return Http::acceptJson()

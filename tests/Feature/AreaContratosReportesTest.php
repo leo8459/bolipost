@@ -41,6 +41,7 @@ class AreaContratosReportesTest extends TestCase
             $table->unsignedBigInteger('empresa_id')->nullable();
             $table->unsignedBigInteger('estados_id')->nullable();
             $table->string('codigo')->nullable();
+            $table->string('codigo_madre')->nullable();
             $table->string('origen')->nullable();
             $table->text('imagen')->nullable();
             $table->dateTime('fecha_recojo')->nullable();
@@ -124,6 +125,42 @@ class AreaContratosReportesTest extends TestCase
         $this->assertSame(1, $data['totalReportes']);
         $this->assertSame([1], $data['contratos']->pluck('id')->all());
         $this->assertNotNull($data['contratos']->first()->fecha_recojo);
+    }
+
+    public function test_migracion_asigna_a_guias_hijas_su_propia_fecha_de_creacion(): void
+    {
+        DB::table('paquetes_contrato')->insert([
+            'id' => 31,
+            'estados_id' => 1,
+            'codigo' => 'C0047A34547BO',
+            'codigo_madre' => 'C0047A34530BO',
+            'origen' => 'COCHABAMBA',
+            'fecha_recojo' => null,
+            'created_at' => '2026-07-16 19:26:57',
+            'updated_at' => '2026-07-16 19:26:57',
+        ]);
+
+        $migration = require database_path(
+            'migrations/2026_08_21_010000_backfill_fecha_recojo_on_guias_hijas.php'
+        );
+        $migration->up();
+
+        $this->assertDatabaseHas('paquetes_contrato', [
+            'codigo' => 'C0047A34547BO',
+            'fecha_recojo' => '2026-07-16 19:26:57',
+        ]);
+
+        $view = app(AreaContratosController::class)->reportes(
+            Request::create('/area-contratos/reportes', 'GET', [
+                'from' => '2026-07-01',
+                'to' => '2026-07-31',
+            ])
+        );
+
+        $this->assertSame(
+            ['C0047A34547BO'],
+            $view->getData()['contratos']->pluck('codigo')->all()
+        );
     }
 
     public function test_agrega_un_enlace_para_descargar_la_imagen_sin_incrustarla_en_el_excel(): void

@@ -26,13 +26,13 @@
                     <span class="ips-heading-icon"><i class="fas fa-search"></i></span>
                     <div>
                         <h3 class="card-title">Buscar paquetes</h3>
-                        <div class="ips-muted">Filtra por código u otro dato disponible en IPS.</div>
+                        <div class="ips-muted">Filtra por código, otro dato disponible en IPS o fecha de registro.</div>
                     </div>
                 </div>
             </div>
             <div class="card-body">
                 <form method="GET" action="{{ route('paquetes-ips.index') }}" class="row align-items-end">
-                    <div class="col-lg-7 col-md-7 mb-3">
+                    <div class="col-lg-4 col-md-6 mb-3">
                         <label for="ips-search" class="small font-weight-bold">Buscar</label>
                         <input
                             id="ips-search"
@@ -44,7 +44,36 @@
                             placeholder="Ej.: CP556326695CN"
                         >
                     </div>
-                    <div class="col-lg-2 col-md-2 mb-3">
+                    <div class="col-lg-2 col-md-3 mb-3">
+                        <label for="ips-fecha-desde" class="small font-weight-bold">Desde</label>
+                        <input
+                            id="ips-fecha-desde"
+                            type="date"
+                            name="fecha_desde"
+                            value="{{ $fechaDesde }}"
+                            class="form-control {{ session('errors')?->has('fecha_desde') ? 'is-invalid' : '' }}"
+                            max="{{ now()->toDateString() }}"
+                        >
+                        @if(session('errors')?->has('fecha_desde'))
+                            <div class="invalid-feedback">Selecciona ambas fechas del rango.</div>
+                        @endif
+                    </div>
+                    <div class="col-lg-2 col-md-3 mb-3">
+                        <label for="ips-fecha-hasta" class="small font-weight-bold">Hasta</label>
+                        <input
+                            id="ips-fecha-hasta"
+                            type="date"
+                            name="fecha_hasta"
+                            value="{{ $fechaHasta }}"
+                            class="form-control {{ session('errors')?->has('fecha_hasta') ? 'is-invalid' : '' }}"
+                            min="{{ $fechaDesde }}"
+                            max="{{ now()->toDateString() }}"
+                        >
+                        @if(session('errors')?->has('fecha_hasta'))
+                            <div class="invalid-feedback">La fecha final debe ser igual o posterior a la inicial.</div>
+                        @endif
+                    </div>
+                    <div class="col-lg-1 col-md-3 mb-3">
                         <label for="ips-per-page" class="small font-weight-bold">Por página</label>
                         <select id="ips-per-page" name="per_page" class="form-control">
                             @foreach($perPageOptions as $option)
@@ -52,7 +81,7 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-lg-3 col-md-3 mb-3">
+                    <div class="col-lg-3 col-md-5 mb-3">
                         <div class="ips-actions">
                             <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-search mr-1"></i> Buscar
@@ -81,6 +110,15 @@
                         <i class="fas fa-sync-alt"></i>
                         <span>Actualizar</span>
                     </a>
+                    <span class="ips-total-pill ips-general-total">
+                        <i class="fas fa-boxes"></i>
+                        <span>Total filtrado:</span>
+                        @if($totalPackages !== null)
+                            <strong>{{ number_format($totalPackages) }}</strong>
+                        @else
+                            <strong title="La API de IPS no devolvió el total del resultado">No disponible</strong>
+                        @endif
+                    </span>
                 </div>
             </div>
 
@@ -90,6 +128,7 @@
                         <thead>
                             <tr>
                                 <th>Identificador</th>
+                                <th>Fecha de registro</th>
                                 <th>Código</th>
                                 <th>Servicio</th>
                                 <th>Peso</th>
@@ -109,6 +148,13 @@
                                 @endphp
                                 <tr>
                                     <td><span class="ips-id">#{{ data_get($package, 'mailitm_pid', '-') }}</span></td>
+                                    <td class="text-nowrap">
+                                        @if(data_get($package, 'fecha_registro'))
+                                            {{ \Illuminate\Support\Carbon::parse(data_get($package, 'fecha_registro'))->format('d/m/Y H:i') }}
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
                                     <td class="ips-code-cell">
                                         <strong>{{ data_get($package, 'codigo', '-') ?: '-' }}</strong>
                                         <small>S10: {{ data_get($package, 'codigo_s10', '-') ?: '-' }}</small>
@@ -142,11 +188,13 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="8" class="text-center text-muted py-5">
+                                    <td colspan="9" class="text-center text-muted py-5">
                                         @if($error)
                                             No se pudieron cargar los paquetes.
                                         @elseif($search !== '')
                                             No se encontraron paquetes para “{{ $search }}”.
+                                        @elseif($fechaDesde && $fechaHasta)
+                                            No se encontraron paquetes entre el {{ \Illuminate\Support\Carbon::parse($fechaDesde)->format('d/m/Y') }} y el {{ \Illuminate\Support\Carbon::parse($fechaHasta)->format('d/m/Y') }}.
                                         @else
                                             No hay paquetes para mostrar en esta página.
                                         @endif
@@ -174,6 +222,7 @@
                                 <span><small>Destino</small><strong>{{ data_get($package, 'destino.codigo', '-') ?: '-' }}</strong>{{ data_get($package, 'destino.nombre', '-') ?: '-' }}</span>
                             </div>
                             <div class="ips-package-grid">
+                                <div><small>Fecha de registro</small><strong>{{ data_get($package, 'fecha_registro') ? \Illuminate\Support\Carbon::parse(data_get($package, 'fecha_registro'))->format('d/m/Y H:i') : '-' }}</strong></div>
                                 <div><small>Peso</small><strong>{{ is_numeric(data_get($package, 'peso')) ? number_format((float) data_get($package, 'peso'), 3, ',', '.').' kg' : '-' }}</strong></div>
                                 <div><small>Estado postal</small><strong>{{ data_get($package, 'estado_postal', '-') ?: '-' }}</strong></div>
                                 <div><small>Clase de correo</small><strong>{{ data_get($package, 'clase_correo', '-') ?: '-' }}</strong></div>
@@ -209,9 +258,11 @@
         .ips-muted { color:rgba(255,255,255,.78); font-size:.85rem; }
         .ips-actions { display:flex; gap:8px; }
         .ips-actions .btn { flex:1 1 0; }
-        .ips-results-tools { display:flex; align-items:center; gap:10px; }
+        .ips-results-tools { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
         .ips-total-pill { display:inline-flex; align-items:baseline; gap:5px; padding:8px 12px; border:1px solid rgba(255,255,255,.22); border-radius:999px; color:#dbeafe; font-size:.78rem; white-space:nowrap; }
         .ips-total-pill strong { color:#fff; font-size:.95rem; }
+        .ips-general-total { border-color:rgba(255,255,255,.38); background:rgba(15,37,75,.22); }
+        .ips-general-total > span { color:#fff; font-weight:700; }
         .ips-refresh-btn { display:inline-flex; align-items:center; gap:7px; font-weight:700; }
         .ips-table thead th { background:#eaf1fb; color:#1f3f78; border-top:0; border-bottom:1px solid #d8e2f0; font-size:.7rem; font-weight:800; letter-spacing:.045em; padding:13px 12px; text-transform:uppercase; white-space:nowrap; }
         .ips-table td { border-color:#e7edf5; color:#26344d; vertical-align:middle; font-size:.82rem; padding:12px; }
@@ -239,6 +290,7 @@
             .ips-page { margin:0 -7.5px; padding:10px; border-radius:12px; }
             .ips-card-head, .ips-results-head { align-items:flex-start; flex-direction:column; }
             .ips-results-tools { width:100%; justify-content:space-between; }
+            .ips-general-total { width:100%; justify-content:center; }
             .ips-refresh-btn span { display:none; }
             .ips-desktop-results { display:none; }
             .ips-mobile-results { display:block; padding:12px; }

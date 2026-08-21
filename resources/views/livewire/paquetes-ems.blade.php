@@ -418,6 +418,74 @@
             color:var(--muted);
             margin-bottom:12px;
         }
+        .form-option-card{
+            min-height:74px;
+            display:flex;
+            align-items:center;
+            padding:12px 14px;
+            border:1px solid #dbe2ea;
+            border-radius:10px;
+            background:#fff;
+        }
+        .form-option-card .form-check{
+            margin:0;
+            padding-left:1.35rem;
+        }
+        .form-option-card .form-text{
+            line-height:1.35;
+        }
+        .confirm-summary{
+            display:grid;
+            gap:14px;
+        }
+        .confirm-summary-group{
+            padding:16px;
+            border:1px solid #dfe5ec;
+            border-radius:12px;
+            background:#fff;
+        }
+        .confirm-summary-group-title{
+            margin:0 0 12px;
+            color:var(--azul);
+            font-size:13px;
+            font-weight:900;
+            letter-spacing:.04em;
+            text-transform:uppercase;
+        }
+        .confirm-summary-grid{
+            display:grid;
+            grid-template-columns:repeat(2, minmax(0, 1fr));
+            gap:12px 20px;
+        }
+        .confirm-summary-item{
+            min-width:0;
+            padding-bottom:9px;
+            border-bottom:1px solid #edf0f4;
+        }
+        .confirm-summary-item.is-wide{
+            grid-column:1 / -1;
+        }
+        .confirm-summary-label{
+            display:block;
+            margin-bottom:3px;
+            color:var(--muted);
+            font-size:11px;
+            font-weight:800;
+            letter-spacing:.04em;
+            text-transform:uppercase;
+        }
+        .confirm-summary-value{
+            display:block;
+            color:#172033;
+            font-size:14px;
+            font-weight:700;
+            line-height:1.4;
+            overflow-wrap:anywhere;
+        }
+        @media (max-width: 767.98px){
+            .confirm-summary-grid{ grid-template-columns:1fr; }
+            .confirm-summary-item.is-wide{ grid-column:auto; }
+        }
         .badge-pill{
             background: rgba(185,156,70,.15);
             color: var(--dorado);
@@ -1205,7 +1273,7 @@
                                 $observacionOficialRequerida = $tipoCorrespondenciaActual !== '' && str_contains($tipoCorrespondenciaActual, 'OFICIAL');
                             @endphp
                             <div class="form-row">
-                                <div class="form-group col-md-6">
+                                <div class="form-group col-md-4">
                                     <label>Servicio<span class="required-star">*</span></label>
                                     <select wire:model.live="servicio_id" class="form-control" required>
                                         <option value="">Seleccione...</option>
@@ -1215,7 +1283,13 @@
                                     </select>
                                     @error('servicio_id') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
-                                <div class="form-group col-md-6">
+                                <div class="form-group col-md-4">
+                                    <label>Origen</label>
+                                    <input type="text" wire:model.defer="origen" class="form-control" readonly>
+                                    @error('origen') <small class="text-danger">{{ $message }}</small> @enderror
+                                    <small class="text-muted">Asignado automaticamente.</small>
+                                </div>
+                                <div class="form-group col-md-4">
                                     <label>Destino<span class="required-star">*</span></label>
                                     <select wire:model.live="destino_id" class="form-control" required>
                                         <option value="">Seleccione...</option>
@@ -1229,19 +1303,14 @@
 
                             <div class="form-row">
                                 <div class="form-group col-md-4">
-                                    <label>Origen (automatico)</label>
-                                    <input type="text" wire:model.defer="origen" class="form-control" readonly>
-                                    @error('origen') <small class="text-danger">{{ $message }}</small> @enderror
-                                </div>
-                                <div class="form-group col-md-4">
                                     <label>Tipo de correspondencia</label>
                                     <input type="text" wire:model.live="tipo_correspondencia" class="form-control">
                                     @error('tipo_correspondencia') <small class="text-danger">{{ $message }}</small> @enderror
-                                    <small class="text-muted">Si es OFICIAL, se registra sin precio ni tarifario y se envia directo a facturacion como venta, sin pasar por el carrito.</small>
+                                    <small class="text-muted">Los envios OFICIAL se registran directamente en facturacion.</small>
                                 </div>
-                                <div class="form-group col-md-4">
+                                <div class="form-group col-md-8">
                                     <label>Observacion: que se esta mandando @if($observacionOficialRequerida)<span class="required-star">*</span>@endif</label>
-                                    <input type="text" wire:model.defer="observacion" class="form-control" placeholder="Que se esta mandando">
+                                    <input type="text" wire:model.defer="observacion" class="form-control" placeholder="Describa brevemente que se esta enviando">
                                     @error('observacion') <small class="text-danger">{{ $message }}</small> @enderror
                                     <small class="text-muted">Obligatorio cuando el tipo de correspondencia es OFICIAL.</small>
                                 </div>
@@ -1258,23 +1327,29 @@
                                     </select>
                                     @error('servicio_especial') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
+                                <div class="form-group col-md-6">
+                                    <label>Correo electronico</label>
+                                    <input type="email" wire:model.defer="correo_electronico" class="form-control" maxlength="255" placeholder="cliente@ejemplo.com">
+                                    @error('correo_electronico') <small class="text-danger">{{ $message }}</small> @enderror
+                                    <small class="text-muted">Opcional. Se enviara la confirmacion de recepcion con la boleta EMS adjunta.</small>
+                                </div>
                             </div>
 
                             <div class="form-row">
-                                <div class="form-group col-md-12">
+                                <div class="form-group col-12">
                                     <label>Contenido<span class="required-star">*</span></label>
-                                    <textarea wire:model.defer="contenido" class="form-control" rows="2" required></textarea>
+                                    <textarea wire:model.defer="contenido" class="form-control" rows="2" placeholder="Detalle el contenido del paquete" required></textarea>
                                     @error('contenido') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
 
                             <div class="form-row">
-                                <div class="form-group col-md-6">
+                                <div class="form-group col-md-4">
                                     <label>Cantidad<span class="required-star">*</span></label>
                                     <input type="number" wire:model.defer="cantidad" class="form-control" min="1" required>
                                     @error('cantidad') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
-                                <div class="form-group col-md-6">
+                                <div class="form-group col-md-4">
                                     <x-peso-qz-field
                                         model="peso"
                                         input-id="peso-create-ems"
@@ -1284,24 +1359,10 @@
                                         :live="true"
                                     />
                                 </div>
-                            </div>
-
-                            <div class="form-row">
                                 <div class="form-group col-md-4">
                                     <label>Precio</label>
                                     <input type="number" wire:model.defer="precio" class="form-control" step="0.01" min="0" readonly>
                                     @error('precio') <small class="text-danger">{{ $message }}</small> @enderror
-                                </div>
-                                <div class="form-group col-md-8 d-flex align-items-center" style="padding-top:28px;">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="anadirRecargo30Create" wire:model.live="anadir_recargo_30">
-                                        <label class="form-check-label font-weight-bold" for="anadirRecargo30Create">
-                                            Añadir 30%
-                                        </label>
-                                        <small class="form-text text-muted">
-                                            Aplica un recargo del 30% si el paquete supera los 2 metros de alto o de ancho.
-                                        </small>
-                                    </div>
                                 </div>
                             </div>
 
@@ -1311,12 +1372,27 @@
                                     <input type="text" wire:model.defer="codigo" class="form-control" @if($auto_codigo) readonly @endif required>
                                     @error('codigo') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
-                                <div class="form-group col-md-8 d-flex align-items-center" style="padding-top:28px;">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="autoCodigoCreate" wire:model.live="auto_codigo">
-                                        <label class="form-check-label" for="autoCodigoCreate">
-                                            Generar codigo automatico
-                                        </label>
+                                <div class="form-group col-md-4">
+                                    <div class="form-option-card">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="autoCodigoCreate" wire:model.live="auto_codigo">
+                                            <label class="form-check-label font-weight-bold" for="autoCodigoCreate">
+                                                Generar codigo automatico
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group col-md-4">
+                                    <div class="form-option-card">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="anadirRecargo30Create" wire:model.live="anadir_recargo_30">
+                                            <label class="form-check-label font-weight-bold" for="anadirRecargo30Create">
+                                                A&ntilde;adir 30 %
+                                            </label>
+                                            <small class="form-text text-muted">
+                                                Para paquetes que superan 2 metros de alto o ancho.
+                                            </small>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1331,7 +1407,12 @@
                                     <input type="text" wire:model.defer="nombre_remitente" class="form-control" required>
                                     @error('nombre_remitente') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
-                                <div class="form-group col-md-6">
+                                <div class="form-group col-md-3">
+                                    <label>Carnet remitente<span class="required-star">*</span></label>
+                                    <input type="text" wire:model.defer="carnet" class="form-control" required>
+                                    @error('carnet') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                                <div class="form-group col-md-3">
                                     <label>Telefono remitente<span class="required-star">*</span></label>
                                     <input
                                         type="text"
@@ -1347,31 +1428,23 @@
                             </div>
 
                             <div class="form-row">
-                                <div class="form-group col-md-6">
-                                    <label>Carnet remitente<span class="required-star">*</span></label>
-                                    <input
-                                        type="text"
-                                        wire:model.defer="carnet"
-                                        class="form-control"
-                                        required
-                                    >
-                                    @error('carnet') <small class="text-danger">{{ $message }}</small> @enderror
-                                </div>
-                                <div class="form-group col-md-6">
-                                    <div class="form-check mt-4">
-                                        <input class="form-check-input" type="checkbox" id="mostrarEmpresaCreate" wire:model.live="mostrar_empresa">
-                                        <label class="form-check-label font-weight-bold" for="mostrarEmpresaCreate">
-                                            Empresa
-                                        </label>
-                                    </div>
-
-                                    @if ($mostrar_empresa)
-                                        <div class="mt-2">
-                                            <input type="text" wire:model.defer="nombre_envia" class="form-control" placeholder="Nombre de la empresa">
-                                            @error('nombre_envia') <small class="text-danger">{{ $message }}</small> @enderror
+                                <div class="form-group col-md-4">
+                                    <div class="form-option-card">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="mostrarEmpresaCreate" wire:model.live="mostrar_empresa">
+                                            <label class="form-check-label font-weight-bold" for="mostrarEmpresaCreate">
+                                                El remitente envia como empresa
+                                            </label>
                                         </div>
-                                    @endif
+                                    </div>
                                 </div>
+                                @if ($mostrar_empresa)
+                                    <div class="form-group col-md-8">
+                                        <label>Nombre de la empresa</label>
+                                        <input type="text" wire:model.defer="nombre_envia" class="form-control" placeholder="Ingrese la razon social o nombre comercial">
+                                        @error('nombre_envia') <small class="text-danger">{{ $message }}</small> @enderror
+                                    </div>
+                                @endif
                             </div>
 
                         </div>
@@ -1380,12 +1453,12 @@
                             <div class="section-title">Datos del destinatario</div>
 
                             <div class="form-row">
-                                <div class="form-group col-md-6">
+                                <div class="form-group col-md-5">
                                     <label>Nombre destinatario<span class="required-star">*</span></label>
                                     <input type="text" wire:model.defer="nombre_destinatario" class="form-control" required>
                                     @error('nombre_destinatario') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
-                                <div class="form-group col-md-6">
+                                <div class="form-group col-md-3">
                                     <label>Telefono destinatario</label>
                                     <input
                                         type="text"
@@ -1397,23 +1470,7 @@
                                     >
                                     @error('telefono_destinatario') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
-                            </div>
-
-                            <div class="form-row">
-                                <div class="form-group col-md-6">
-                                    <label>Direccion destinatario<span class="required-star">*</span></label>
-                                    <input type="text" wire:model.defer="direccion" class="form-control" required>
-                                    @error('direccion') <small class="text-danger">{{ $message }}</small> @enderror
-                                </div>
-                                <div class="form-group col-md-6">
-                                    <label>Referencia</label>
-                                    <input type="text" wire:model.defer="referencia" class="form-control">
-                                    @error('referencia') <small class="text-danger">{{ $message }}</small> @enderror
-                                </div>
-                            </div>
-
-                            <div class="form-row">
-                                <div class="form-group col-md-6">
+                                <div class="form-group col-md-4">
                                     <label>Ciudad destinatario</label>
                                     <select wire:model.defer="ciudad" class="form-control" disabled>
                                         <option value="">Seleccione...</option>
@@ -1422,6 +1479,19 @@
                                         @endforeach
                                     </select>
                                     @error('ciudad') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group col-md-8">
+                                    <label>Direccion destinatario<span class="required-star">*</span></label>
+                                    <input type="text" wire:model.defer="direccion" class="form-control" required>
+                                    @error('direccion') <small class="text-danger">{{ $message }}</small> @enderror
+                                </div>
+                                <div class="form-group col-md-4">
+                                    <label>Referencia</label>
+                                    <input type="text" wire:model.defer="referencia" class="form-control">
+                                    @error('referencia') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
                         </div>
@@ -2555,42 +2625,128 @@
             style="background: rgba(0, 0, 0, 0.5);"
         @endif
     >
-        <div class="modal-dialog modal-lg">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Confirmar datos</h5>
+                    <h5 class="modal-title">Revisar y confirmar admision</h5>
                     <button type="button" class="close" wire:click="closePaqueteConfirmModal" aria-label="Close">
                         <span aria-hidden="true">&times;</span>
                     </button>
                 </div>
                 <div class="modal-body">
-                    <div class="section-block">
-                        <div class="section-title">Resumen</div>
-                        <div class="row">
-                            <div class="col-md-6 mb-2"><strong>Destino:</strong>
-                                {{ optional(collect($destinos)->firstWhere('id', (int) $destino_id))->nombre_destino }}
-                            </div>
-                            <div class="col-md-12 mb-2"><strong>Contenido:</strong> {{ $contenido }}</div>
-                            <div class="col-md-4 mb-2"><strong>Cantidad:</strong> {{ $cantidad }}</div>
-                            <div class="col-md-4 mb-2"><strong>Peso:</strong> {{ $peso }}</div>
-                            <div class="col-md-6 mb-2"><strong>Remitente:</strong> {{ $nombre_remitente }}</div>
-                            <div class="col-md-6 mb-2"><strong>Destinatario:</strong> {{ $nombre_destinatario }}</div>
-                            @if (!$this->isAlmacenEms)
-                                <div class="col-md-6 mb-2"><strong>Servicio:</strong>
-                                    {{ optional(collect($servicios)->firstWhere('id', (int) $servicio_id))->nombre_servicio }}
+                    @php
+                        $servicioResumen = optional(collect($servicios)->firstWhere('id', (int) $servicio_id))->nombre_servicio;
+                        $destinoResumenRow = collect($destinos)->firstWhere('id', (int) $destino_id);
+                        $destinoResumen = $destinoResumenRow?->nombre_ems ?: $destinoResumenRow?->nombre_destino;
+                    @endphp
+                    <div class="confirm-summary">
+                        <div class="confirm-summary-group">
+                            <h6 class="confirm-summary-group-title">Datos del envio</h6>
+                            <div class="confirm-summary-grid">
+                                @if (!$this->isAlmacenEms)
+                                    <div class="confirm-summary-item">
+                                        <span class="confirm-summary-label">Servicio</span>
+                                        <span class="confirm-summary-value">{{ $servicioResumen ?: '-' }}</span>
+                                    </div>
+                                    <div class="confirm-summary-item">
+                                        <span class="confirm-summary-label">Codigo</span>
+                                        <span class="confirm-summary-value">{{ $codigo ?: '-' }}</span>
+                                    </div>
+                                    <div class="confirm-summary-item">
+                                        <span class="confirm-summary-label">Origen</span>
+                                        <span class="confirm-summary-value">{{ $origen ?: '-' }}</span>
+                                    </div>
+                                    <div class="confirm-summary-item">
+                                        <span class="confirm-summary-label">Destino</span>
+                                        <span class="confirm-summary-value">{{ $destinoResumen ?: $ciudad ?: '-' }}</span>
+                                    </div>
+                                    <div class="confirm-summary-item">
+                                        <span class="confirm-summary-label">Tipo de correspondencia</span>
+                                        <span class="confirm-summary-value">{{ $tipo_correspondencia ?: '-' }}</span>
+                                    </div>
+                                    <div class="confirm-summary-item">
+                                        <span class="confirm-summary-label">Servicio especial</span>
+                                        <span class="confirm-summary-value">{{ $servicio_especial ?: '-' }}</span>
+                                    </div>
+                                @endif
+                                <div class="confirm-summary-item is-wide">
+                                    <span class="confirm-summary-label">Contenido</span>
+                                    <span class="confirm-summary-value">{{ $contenido ?: '-' }}</span>
                                 </div>
-                                <div class="col-md-6 mb-2"><strong>Origen:</strong> {{ $origen }}</div>
-                                <div class="col-md-6 mb-2"><strong>Tipo:</strong> {{ $tipo_correspondencia }}</div>
-                                <div class="col-md-4 mb-2"><strong>Precio:</strong> {{ $precio_confirm ?? $precio }}</div>
-                                <div class="col-md-4 mb-2"><strong>Añadir 30%:</strong> {{ $anadir_recargo_30 ? 'SI' : 'NO' }}</div>
-                                <div class="col-md-6 mb-2"><strong>Codigo:</strong> {{ $codigo }}</div>
-                                <div class="col-md-6 mb-2"><strong>Ciudad:</strong> {{ $ciudad }}</div>
-                                <div class="col-md-6 mb-2"><strong>Telefono remitente:</strong> {{ $telefono_remitente }}</div>
-                                <div class="col-md-6 mb-2"><strong>Telefono destinatario:</strong> {{ $telefono_destinatario }}</div>
-                                <div class="col-md-6 mb-2"><strong>Direccion destinatario:</strong> {{ $direccion }}</div>
-                                <div class="col-md-6 mb-2"><strong>Referencia:</strong> {{ $referencia }}</div>
-                            @endif
+                                @if (trim((string) $observacion) !== '')
+                                    <div class="confirm-summary-item is-wide">
+                                        <span class="confirm-summary-label">Observacion</span>
+                                        <span class="confirm-summary-value">{{ $observacion }}</span>
+                                    </div>
+                                @endif
+                                <div class="confirm-summary-item">
+                                    <span class="confirm-summary-label">Cantidad</span>
+                                    <span class="confirm-summary-value">{{ $cantidad }}</span>
+                                </div>
+                                <div class="confirm-summary-item">
+                                    <span class="confirm-summary-label">Peso</span>
+                                    <span class="confirm-summary-value">{{ $peso }} kg</span>
+                                </div>
+                                @if (!$this->isAlmacenEms)
+                                    <div class="confirm-summary-item">
+                                        <span class="confirm-summary-label">Precio</span>
+                                        <span class="confirm-summary-value">Bs {{ number_format((float) ($precio_confirm ?? $precio), 2, ',', '.') }}</span>
+                                    </div>
+                                    <div class="confirm-summary-item">
+                                        <span class="confirm-summary-label">Recargo 30 %</span>
+                                        <span class="confirm-summary-value">{{ $anadir_recargo_30 ? 'SI' : 'NO' }}</span>
+                                    </div>
+                                @endif
+                            </div>
                         </div>
+
+                        <div class="confirm-summary-group">
+                            <h6 class="confirm-summary-group-title">Remitente y destinatario</h6>
+                            <div class="confirm-summary-grid">
+                                <div class="confirm-summary-item">
+                                    <span class="confirm-summary-label">Remitente</span>
+                                    <span class="confirm-summary-value">{{ $nombre_remitente ?: '-' }}</span>
+                                </div>
+                                <div class="confirm-summary-item">
+                                    <span class="confirm-summary-label">Destinatario</span>
+                                    <span class="confirm-summary-value">{{ $nombre_destinatario ?: '-' }}</span>
+                                </div>
+                                @if (!$this->isAlmacenEms)
+                                    <div class="confirm-summary-item">
+                                        <span class="confirm-summary-label">Telefono remitente</span>
+                                        <span class="confirm-summary-value">{{ $telefono_remitente ?: '-' }}</span>
+                                    </div>
+                                    <div class="confirm-summary-item">
+                                        <span class="confirm-summary-label">Telefono destinatario</span>
+                                        <span class="confirm-summary-value">{{ $telefono_destinatario ?: '-' }}</span>
+                                    </div>
+                                    <div class="confirm-summary-item is-wide">
+                                        <span class="confirm-summary-label">Correo electronico</span>
+                                        <span class="confirm-summary-value">{{ $correo_electronico ?: 'No registrado' }}</span>
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+
+                        @if (!$this->isAlmacenEms)
+                            <div class="confirm-summary-group">
+                                <h6 class="confirm-summary-group-title">Datos de entrega</h6>
+                                <div class="confirm-summary-grid">
+                                    <div class="confirm-summary-item">
+                                        <span class="confirm-summary-label">Ciudad</span>
+                                        <span class="confirm-summary-value">{{ $ciudad ?: $destinoResumen ?: '-' }}</span>
+                                    </div>
+                                    <div class="confirm-summary-item">
+                                        <span class="confirm-summary-label">Referencia</span>
+                                        <span class="confirm-summary-value">{{ $referencia ?: '-' }}</span>
+                                    </div>
+                                    <div class="confirm-summary-item is-wide">
+                                        <span class="confirm-summary-label">Direccion del destinatario</span>
+                                        <span class="confirm-summary-value">{{ $direccion ?: '-' }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -2600,7 +2756,7 @@
                     </div>
                     <button
                         type="button"
-                        class="btn btn-secondary"
+                        class="btn btn-outline-azul"
                         wire:click="closePaqueteConfirmModal"
                         wire:loading.attr="disabled"
                         wire:target="saveConfirmed"
@@ -2610,13 +2766,13 @@
                     @if ($editingId ? $canEmsEdit : $canEmsCreate)
                     <button
                         type="button"
-                        class="btn btn-primary"
+                        class="btn btn-dorado"
                         wire:click="saveConfirmed"
                         wire:loading.attr="disabled"
                         wire:target="saveConfirmed"
                     >
                         <span wire:loading.remove wire:target="saveConfirmed">
-                            {{ $this->isCreateEms ? 'Confirmar y volver' : 'Confirmar y guardar' }}
+                            {{ $this->isCreateEms ? 'Confirmar registro' : 'Confirmar y guardar' }}
                         </span>
                         <span wire:loading.inline-flex wire:target="saveConfirmed" class="align-items-center">
                             <span class="spinner-border spinner-border-sm mr-2" role="status" aria-hidden="true"></span>

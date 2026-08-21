@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\PaqueteEmsDistribucionMail;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\Cartero;
 use App\Models\CarteroAssignmentReport;
@@ -19,10 +20,12 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -482,6 +485,12 @@ class CarterosController extends Controller
         $actorUser = User::query()->find($actorUserId, ['id', 'name', 'ciudad']);
         $assigneeUser = User::query()->find($assigneeUserId, ['id', 'name', 'ciudad']);
 
+        if (! $assigneeUser) {
+            throw ValidationException::withMessages([
+                'user_id' => 'No se encontro el usuario que recibira los paquetes.',
+            ]);
+        }
+
         if ($validated['assignment_mode'] === 'user') {
             $assigneeHasAllowedRole = User::query()
                 ->whereKey($assigneeUserId)
@@ -690,8 +699,45 @@ class CarterosController extends Controller
                 $this->insertEventosPorTipoDesdeIds('SOLICITUD', $solicitudIds, $eventoId, $assigneeUserId, $eventDetail);
             }
         });
+
+        $correoDistribucionResultado = [
+            'sent' => 0,
+            'failed' => 0,
+            'skipped' => 0,
+        ];
+
+        if ($updatedEms > 0 && !empty($emsIds)) {
+            $paquetesEmsNotificar = PaqueteEms::query()
+                ->with('formulario:id,paquete_ems_id,correo_electronico')
+                ->whereIn('id', $emsIds)
+                ->orderBy('id')
+                ->get([
+                    'id',
+                    'codigo',
+                    'cod_especial',
+                    'origen',
+                    'ciudad',
+                    'nombre_remitente',
+                    'correo_electronico',
+                ]);
+
+            $correoDistribucionResultado = $this->sendPaquetesDistribucionEmails(
+                $paquetesEmsNotificar,
+                $assigneeUser,
+                now()
+            );
+        }
+
+        $responseMessage = 'Paquetes asignados correctamente en estado CARTERO.';
+        if ($correoDistribucionResultado['sent'] > 0) {
+            $responseMessage .= ' Se enviaron ' . $correoDistribucionResultado['sent'] . ' notificacion(es) por correo.';
+        }
+        if ($correoDistribucionResultado['failed'] > 0) {
+            $responseMessage .= ' La asignacion se guardo, pero ' . $correoDistribucionResultado['failed'] . ' correo(s) no pudieron enviarse.';
+        }
+
         return response()->json([
-            'message' => 'Paquetes asignados correctamente en estado CARTERO.',
+            'message' => $responseMessage,
             'updated' => [
                 'ems' => $updatedEms,
                 'certi' => $updatedCerti,
@@ -710,6 +756,48 @@ class CarterosController extends Controller
             ]),
         ]);
     }
+
+    protected function sendPaquetesDistribucionEmails(Collection $paquetes, User $cartero, $fechaSalida): array
+    {
+        $resultado = [
+            'sent' => 0,
+            'failed' => 0,
+            'skipped' => 0,
+        ];
+
+        foreach ($paquetes as $paquete) {
+            $correo = trim((string) (
+                $paquete->correo_electronico
+                ?: $paquete->formulario?->correo_electronico
+            ));
+
+            if ($correo === '') {
+                $resultado['skipped']++;
+                continue;
+            }
+
+            try {
+                Mail::to($correo)->send(new PaqueteEmsDistribucionMail(
+                    $paquete,
+                    $cartero,
+                    $fechaSalida
+                ));
+                $resultado['sent']++;
+            } catch (\Throwable $exception) {
+                $resultado['failed']++;
+                Log::error('No se pudo enviar el correo de salida a distribucion del paquete EMS.', [
+                    'paquete_id' => $paquete->id,
+                    'codigo' => $paquete->codigo,
+                    'correo_electronico' => $correo,
+                    'cartero_id' => $cartero->id,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
+        }
+
+        return $resultado;
+    }
+
     public function returnToAlmacen(Request $request): JsonResponse
     {
         $this->authorizeRoutePermission('carteros.devolucion');
