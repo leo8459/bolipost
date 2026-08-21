@@ -65,7 +65,7 @@
                                     <strong>servicio_extra</strong> y <strong>peso3</strong> son opcionales. Si llenas <strong>servicio_extra</strong>, debe coincidir con un nombre de la hoja <strong>ServiciosExtras</strong>.
                                 </p>
                                 <p class="mb-0">
-                                    <strong>Obligatorios:</strong> origen, destino, peso1, peso2, peso_extra y tiempo_entrega. <strong>tiempo_entrega</strong> se importa en horas.
+                                    <strong>Obligatorios:</strong> origen, destino y tiempo_entrega. Peso1 se guarda en Bs 15 para rutas con origen y destino iguales, o Bs 20 para las demas; peso2, peso3 y peso_extra quedan en NULL.
                                 </p>
                             </div>
 

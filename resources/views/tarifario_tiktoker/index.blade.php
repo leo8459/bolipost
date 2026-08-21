@@ -138,9 +138,9 @@
                                             <td>{{ $regionalLabel($tarifa->destino?->nombre_destino) }}</td>
                                             <td>{{ $tarifa->servicioExtra?->nombre ?? '-' }}</td>
                                             <td>{{ number_format((float) $tarifa->peso1, 2) }}</td>
-                                            <td>{{ number_format((float) $tarifa->peso2, 2) }}</td>
+                                            <td>{{ $tarifa->peso2 !== null ? number_format((float) $tarifa->peso2, 2) : '-' }}</td>
                                             <td>{{ $tarifa->peso3 !== null ? number_format((float) $tarifa->peso3, 2) : '-' }}</td>
-                                            <td>{{ number_format((float) $tarifa->peso_extra, 2) }}</td>
+                                            <td>{{ $tarifa->peso_extra !== null ? number_format((float) $tarifa->peso_extra, 2) : '-' }}</td>
                                             <td>{{ $tarifa->tiempo_entrega }} h</td>
                                             <td>
                                                 <form action="{{ route('tarifario-tiktoker.destroy', $tarifa->id) }}" method="POST">

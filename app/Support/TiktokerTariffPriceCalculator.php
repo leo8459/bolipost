@@ -6,46 +6,26 @@ use App\Models\TarifarioTiktoker;
 
 class TiktokerTariffPriceCalculator
 {
-    public static function calculate(TarifarioTiktoker $tarifario, float $peso, bool $pagoDestinatario = false): float
+    public static function calculate(
+        TarifarioTiktoker $tarifario,
+        float $peso,
+        bool $pagoDestinatario = false,
+        bool $paqueteMuyGrande = false
+    ): float
     {
-        $precioBase = self::resolveBasePrice($tarifario, $peso);
+        $precio = (float) $tarifario->peso1;
 
-        if ($pagoDestinatario) {
-            $precioBase += 2.50;
+        if ($paqueteMuyGrande) {
+            $origen = self::normalizePlace((string) optional($tarifario->origen)->nombre_origen);
+            $destino = self::normalizePlace((string) optional($tarifario->destino)->nombre_destino);
+            $precio += $origen !== '' && $origen === $destino ? 5.00 : 10.00;
         }
 
-        return round($precioBase, 2);
+        return round($precio, 2);
     }
 
-    private static function resolveBasePrice(TarifarioTiktoker $tarifario, float $peso): float
+    private static function normalizePlace(string $value): string
     {
-        if (self::hasPeso3($tarifario)) {
-            if ($peso <= 0.500) {
-                return (float) $tarifario->peso1;
-            }
-
-            if ($peso <= 2.000) {
-                return (float) $tarifario->peso2;
-            }
-
-            return (float) $tarifario->peso3;
-        }
-
-        if ($peso <= 2.000) {
-            return (float) $tarifario->peso1;
-        }
-
-        if ($peso <= 5.000) {
-            return (float) $tarifario->peso2;
-        }
-
-        $bloquesExtra = (int) ceil($peso - 5);
-
-        return (float) $tarifario->peso2 + ($bloquesExtra * (float) $tarifario->peso_extra);
-    }
-
-    private static function hasPeso3(TarifarioTiktoker $tarifario): bool
-    {
-        return $tarifario->peso3 !== null && $tarifario->peso3 !== '';
+        return strtoupper(trim($value));
     }
 }

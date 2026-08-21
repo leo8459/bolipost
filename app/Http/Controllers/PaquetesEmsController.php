@@ -176,6 +176,9 @@ class PaquetesEmsController extends Controller
                 'estadoRegistro:id,nombre_estado',
                 'servicioExtra:id,nombre,descripcion',
                 'destino:id,nombre_destino',
+                'tarifarioTiktoker:id,origen_id,destino_id,peso1',
+                'tarifarioTiktoker.origen:id,nombre_origen',
+                'tarifarioTiktoker.destino:id,nombre_destino',
             ])
             ->when($estadoSolicitudId > 0, function ($query) use ($estadoSolicitudId) {
                 $query->where('estado_id', $estadoSolicitudId);
@@ -196,6 +199,10 @@ class PaquetesEmsController extends Controller
                     'nombre_destinatario',
                     'telefono_destinatario',
                     'ciudad',
+                    'origen',
+                    'precio',
+                    'paquete_muy_grande',
+                    'tarifario_tiktoker_id',
                     'created_at',
                 ])
                 ->orderByRaw(
@@ -227,6 +234,9 @@ class PaquetesEmsController extends Controller
                         'destinatario' => $solicitud->nombre_destinatario,
                         'telefono_destinatario' => $solicitud->telefono_destinatario,
                         'ciudad' => $solicitud->ciudad,
+                        'origen' => $solicitud->origen,
+                        'precio_base' => (float) ($solicitud->tarifarioTiktoker?->peso1 ?? $solicitud->precio ?? 0),
+                        'paquete_muy_grande' => (bool) $solicitud->paquete_muy_grande,
                         'created_at' => optional($solicitud->created_at)->format('d/m/Y H:i'),
                     ];
                 })
@@ -258,6 +268,8 @@ class PaquetesEmsController extends Controller
         $data = $request->validate([
             'solicitud_ids' => ['required', 'array', 'min:1'],
             'solicitud_ids.*' => ['integer', 'exists:solicitud_clientes,id'],
+            'paquetes_muy_grandes' => ['nullable', 'array'],
+            'paquetes_muy_grandes.*' => ['nullable', 'boolean'],
         ], [], [
             'solicitud_ids' => 'solicitudes',
             'solicitud_ids.*' => 'solicitud',
@@ -283,13 +295,45 @@ class PaquetesEmsController extends Controller
             ->values()
             ->all();
 
-        $updated = SolicitudCliente::query()
-            ->whereIn('id', $ids)
-            ->where('estado_id', $estadoSolicitudId)
-            ->update([
-                'estado_id' => $estadoAlmacenId,
-                'updated_at' => now(),
-            ]);
+        $paquetesMuyGrandes = collect($data['paquetes_muy_grandes'] ?? [])
+            ->mapWithKeys(fn ($value, $id) => [(int) $id => filter_var($value, FILTER_VALIDATE_BOOLEAN)])
+            ->all();
+
+        $updated = 0;
+
+        DB::transaction(function () use ($ids, $paquetesMuyGrandes, $estadoSolicitudId, $estadoAlmacenId, &$updated) {
+            $solicitudes = SolicitudCliente::query()
+                ->whereIn('id', $ids)
+                ->where('estado_id', $estadoSolicitudId)
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($solicitudes as $solicitud) {
+                [$tarifario] = $this->resolveTarifarioYPrecio(
+                    (int) $solicitud->servicio_extra_id,
+                    (string) $solicitud->origen,
+                    (int) $solicitud->destino_id,
+                    (float) ($solicitud->peso ?? 0),
+                    (bool) $solicitud->pago_destinatario
+                );
+
+                $esMuyGrande = (bool) ($paquetesMuyGrandes[(int) $solicitud->id] ?? false);
+
+                $solicitud->update([
+                    'estado_id' => $estadoAlmacenId,
+                    'tarifario_tiktoker_id' => (int) $tarifario->id,
+                    'precio' => TiktokerTariffPriceCalculator::calculate(
+                        $tarifario,
+                        (float) ($solicitud->peso ?? 0),
+                        (bool) $solicitud->pago_destinatario,
+                        $esMuyGrande
+                    ),
+                    'paquete_muy_grande' => $esMuyGrande,
+                ]);
+
+                $updated++;
+            }
+        });
 
         if ($updated > 0) {
             $actorUserId = (int) optional(Auth::user())->id;

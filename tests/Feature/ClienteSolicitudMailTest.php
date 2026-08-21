@@ -65,6 +65,8 @@ class ClienteSolicitudMailTest extends TestCase
         $this->assertDatabaseHas('solicitud_clientes', [
             'cliente_id' => $cliente->id,
             'barcode' => 'SOL00000001',
+            'precio' => 20,
+            'peso' => null,
         ]);
 
         Mail::assertSent(SolicitudClienteCreadaMail::class, function (SolicitudClienteCreadaMail $mail) use ($cliente) {

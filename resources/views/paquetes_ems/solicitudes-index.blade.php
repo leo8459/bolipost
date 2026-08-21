@@ -206,6 +206,23 @@
             vertical-align:middle;
         }
 
+        .solicitudes-large-check{
+            display:flex;
+            align-items:flex-start;
+            gap:8px;
+            min-width:260px;
+            margin:0;
+            font-size:.86rem;
+            line-height:1.25;
+            color:#163b6c;
+            cursor:pointer;
+        }
+
+        .solicitudes-large-check input{
+            margin-top:2px;
+            flex:0 0 auto;
+        }
+
         .solicitudes-table-card{
             border:1px solid var(--line);
             border-radius:14px;
@@ -400,6 +417,8 @@
                                     <th>Destinatario</th>
                                     <th>Telefono</th>
                                     <th>Destino</th>
+                                    <th>Precio</th>
+                                    <th>Paquete grande</th>
                                     <th style="width:90px;"></th>
                                 </tr>
                             </thead>
@@ -505,6 +524,9 @@
             'destinatario' => $solicitud->nombre_destinatario,
             'telefono_destinatario' => $solicitud->telefono_destinatario,
             'ciudad' => $solicitud->destino?->nombre_destino ?: $solicitud->ciudad,
+            'origen' => $solicitud->origen,
+            'precio_base' => (float) ($solicitud->tarifarioTiktoker?->peso1 ?? $solicitud->precio ?? 0),
+            'paquete_muy_grande' => (bool) $solicitud->paquete_muy_grande,
         ];
     })->values();
 @endphp
@@ -574,6 +596,12 @@ document.addEventListener('DOMContentLoaded', function () {
             hidden.value = item.id;
             selectedInputs.appendChild(hidden);
 
+            const largeHidden = document.createElement('input');
+            largeHidden.type = 'hidden';
+            largeHidden.name = 'paquetes_muy_grandes[' + item.id + ']';
+            largeHidden.value = item.paquete_muy_grande ? '1' : '0';
+            selectedInputs.appendChild(largeHidden);
+
             const row = document.createElement('tr');
             [item.value || item.codigo_solicitud || item.barcode || 'SIN CODIGO', item.destinatario || '-', item.telefono_destinatario || '-', item.ciudad || '-']
                 .forEach(function (value, index) {
@@ -588,6 +616,30 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                     row.appendChild(cell);
                 });
+
+            const mismoDestino = normalize(item.origen) !== '' && normalize(item.origen) === normalize(item.ciudad);
+            const precioBase = Number(item.precio_base || 0);
+            const recargo = item.paquete_muy_grande ? (mismoDestino ? 5 : 10) : 0;
+            const priceCell = document.createElement('td');
+            priceCell.textContent = 'Bs ' + (precioBase + recargo).toFixed(2);
+            row.appendChild(priceCell);
+
+            const largeCell = document.createElement('td');
+            const largeLabel = document.createElement('label');
+            largeLabel.className = 'solicitudes-large-check';
+            const largeCheckbox = document.createElement('input');
+            largeCheckbox.type = 'checkbox';
+            largeCheckbox.checked = Boolean(item.paquete_muy_grande);
+            const largeText = document.createElement('span');
+            largeText.textContent = 'Si el paquete es muy grande se aumenta el precio en base al tarifario';
+            largeCheckbox.addEventListener('change', function () {
+                item.paquete_muy_grande = largeCheckbox.checked;
+                renderPrelist();
+            });
+            largeLabel.appendChild(largeCheckbox);
+            largeLabel.appendChild(largeText);
+            largeCell.appendChild(largeLabel);
+            row.appendChild(largeCell);
 
             const actionCell = document.createElement('td');
             const removeButton = document.createElement('button');

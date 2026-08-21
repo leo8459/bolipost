@@ -45,9 +45,6 @@ class TarifarioTiktokerController extends Controller
     private const REQUIRED_IMPORT_COLUMNS = [
         'origen',
         'destino',
-        'peso1',
-        'peso2',
-        'peso_extra',
         'tiempo_entrega',
     ];
 
@@ -474,9 +471,9 @@ class TarifarioTiktokerController extends Controller
             $sheetInstrucciones->setCellValue('A1', 'INSTRUCCIONES DE USO');
             $sheetInstrucciones->setCellValue('A3', '1) No cambies los nombres de columnas en la hoja DeliveryExpress.');
             $sheetInstrucciones->setCellValue('A4', '2) Usa los nombres de departamento de las hojas Origenes y Destinos.');
-            $sheetInstrucciones->setCellValue('A5', '3) servicio_extra y peso3 pueden quedar vacios.');
+            $sheetInstrucciones->setCellValue('A5', '3) servicio_extra, peso2, peso3 y peso_extra pueden quedar vacios.');
             $sheetInstrucciones->setCellValue('A6', '4) origen y destino deben escribirse exactamente como en las listas.');
-            $sheetInstrucciones->setCellValue('A7', '5) peso1 es el precio hasta 2 kg, peso2 hasta 5 kg, peso3 es opcional y peso_extra se suma por cada kg o fraccion adicional despues de 5 kg.');
+            $sheetInstrucciones->setCellValue('A7', '5) El sistema guarda peso1 en Bs 15 cuando origen y destino coinciden, o Bs 20 para las demas rutas; el peso no modifica el precio.');
             $sheetInstrucciones->setCellValue('A8', '6) tiempo_entrega se registra en horas.');
             $sheetInstrucciones->getStyle('A1')->applyFromArray([
                 'font' => ['bold' => true, 'size' => 14],
@@ -508,10 +505,10 @@ class TarifarioTiktokerController extends Controller
             'origen_id' => ['required', 'integer', Rule::exists('origen', 'id')],
             'destino_id' => ['required', 'integer', Rule::exists('destino', 'id')],
             'servicio_extra_id' => ['nullable', 'integer', Rule::exists('servicio_extras', 'id')],
-            'peso1' => ['required', 'numeric', 'min:0'],
-            'peso2' => ['required', 'numeric', 'min:0'],
+            'peso1' => ['nullable', 'numeric', 'min:0'],
+            'peso2' => ['nullable', 'numeric', 'min:0'],
             'peso3' => ['nullable', 'numeric', 'min:0'],
-            'peso_extra' => ['required', 'numeric', 'min:0'],
+            'peso_extra' => ['nullable', 'numeric', 'min:0'],
             'tiempo_entrega' => ['required', 'integer', 'min:0'],
         ];
     }

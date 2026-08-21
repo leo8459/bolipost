@@ -1912,7 +1912,8 @@ class PaquetesEms extends Component
                 (string) $solicitud->origen,
                 (int) $solicitud->destino_id,
                 (float) $validated['tiktokerPeso'],
-                (bool) $solicitud->pago_destinatario
+                (bool) $solicitud->pago_destinatario,
+                (bool) $solicitud->paquete_muy_grande
             );
         } catch (\RuntimeException $exception) {
             $this->addError('tiktokerPeso', $exception->getMessage());
@@ -1952,7 +1953,7 @@ class PaquetesEms extends Component
         ]);
 
         $this->dispatch('closeTiktokerPesoModal');
-        session()->flash('success', 'Peso asignado a solicitud Delivery Express, precio recalculado y estado cambiado a ALMACEN.');
+        session()->flash('success', 'Peso asignado a solicitud Delivery Express, precio de peso1 conservado y estado cambiado a ALMACEN.');
     }
 
     protected function findSolicitudTiktokerForPesoByCodigo(string $codigo): ?SolicitudCliente
@@ -2004,6 +2005,7 @@ class PaquetesEms extends Component
                 'servicio_extra_id',
                 'destino_id',
                 'pago_destinatario',
+                'paquete_muy_grande',
                 'nombre_remitente',
                 'nombre_destinatario',
                 'telefono_destinatario',
@@ -7789,7 +7791,7 @@ class PaquetesEms extends Component
         return 25;
     }
 
-    protected function resolveTarifarioTiktokerYPrecio(int $servicioExtraId, string $origen, int $destinoId, float $peso, bool $pagoDestinatario = false): array
+    protected function resolveTarifarioTiktokerYPrecio(int $servicioExtraId, string $origen, int $destinoId, float $peso, bool $pagoDestinatario = false, bool $paqueteMuyGrande = false): array
     {
         $origenNombre = strtoupper(trim($origen));
 
@@ -7811,7 +7813,7 @@ class PaquetesEms extends Component
             throw new \RuntimeException('No existe tarifario Delivery Express para el servicio, origen y destino seleccionados.');
         }
 
-        return [$tarifario, $this->calculatePrecioTiktokerInterno($tarifario, $peso, $pagoDestinatario)];
+        return [$tarifario, TiktokerTariffPriceCalculator::calculate($tarifario, $peso, $pagoDestinatario, $paqueteMuyGrande)];
     }
 
     protected function calculatePrecioTiktokerInterno(TarifarioTiktoker $tarifario, float $peso, bool $pagoDestinatario = false): float
@@ -9351,6 +9353,7 @@ class PaquetesEms extends Component
                                 'destino_id',
                                 'origen',
                                 'pago_destinatario',
+                                'paquete_muy_grande',
                             ]);
 
                         if (!$solicitud) {
@@ -9363,7 +9366,8 @@ class PaquetesEms extends Component
                                 (string) $solicitud->origen,
                                 (int) $solicitud->destino_id,
                                 $peso,
-                                (bool) $solicitud->pago_destinatario
+                                (bool) $solicitud->pago_destinatario,
+                                (bool) $solicitud->paquete_muy_grande
                             );
                         } catch (\RuntimeException $exception) {
                             throw new \RuntimeException($key . '|' . $exception->getMessage());

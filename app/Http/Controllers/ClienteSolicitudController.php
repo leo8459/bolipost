@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Mail\SolicitudClienteCreadaMail;
 use App\Models\Destino;
 use App\Models\Estado;
+use App\Models\Origen;
 use App\Models\ServicioExtra;
 use App\Models\SolicitudCliente;
 use App\Models\TarifarioTiktoker;
@@ -107,6 +108,11 @@ class ClienteSolicitudController extends Controller
         try {
             $destino = Destino::query()->findOrFail((int) $data['destino_id']);
             $servicioExtra = ServicioExtra::query()->findOrFail((int) $data['servicio_extra_id']);
+            $tarifarioTiktoker = $this->resolveTarifarioTiktoker(
+                (int) $data['servicio_extra_id'],
+                (string) $data['origen'],
+                (int) $data['destino_id']
+            );
             $estadoSolicitudId = $this->resolveSolicitudEstadoId();
         } catch (\RuntimeException $exception) {
             return redirect()
@@ -129,7 +135,7 @@ class ClienteSolicitudController extends Controller
             'contenido' => trim((string) $data['contenido']),
             'cantidad' => (int) $data['cantidad'],
             'peso' => null,
-            'precio' => null,
+            'precio' => (float) $tarifarioTiktoker->peso1,
             'nombre_remitente' => $this->upper($data['nombre_remitente']),
             'nombre_envia' => null,
             'carnet' => trim((string) $data['carnet']),
@@ -141,7 +147,7 @@ class ClienteSolicitudController extends Controller
             'ciudad' => $this->upper((string) $destino->nombre_destino),
             'servicio_id' => null,
             'destino_id' => (int) $data['destino_id'],
-            'tarifario_tiktoker_id' => null,
+            'tarifario_tiktoker_id' => (int) $tarifarioTiktoker->id,
         ]);
 
         $codigoSolicitud = $this->generateSolicitudCode((int) $solicitud->id, $solicitud->origen);
@@ -195,6 +201,29 @@ class ClienteSolicitudController extends Controller
         }
 
         return $estadoId;
+    }
+
+    private function resolveTarifarioTiktoker(int $servicioExtraId, string $origen, int $destinoId): TarifarioTiktoker
+    {
+        $origenId = (int) (Origen::query()
+            ->whereRaw('trim(upper(nombre_origen)) = ?', [$this->upper($origen)])
+            ->value('id') ?? 0);
+
+        if ($origenId <= 0) {
+            throw new \RuntimeException('No existe el origen seleccionado en la tabla origen.');
+        }
+
+        $tarifario = TarifarioTiktoker::query()
+            ->where('origen_id', $origenId)
+            ->where('destino_id', $destinoId)
+            ->where('servicio_extra_id', $servicioExtraId)
+            ->first();
+
+        if (! $tarifario) {
+            throw new \RuntimeException('No existe un tarifario Delivery Express para el servicio, origen y destino seleccionados.');
+        }
+
+        return $tarifario;
     }
 
     private function upper(string $value): string

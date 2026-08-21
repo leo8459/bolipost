@@ -27,6 +27,7 @@ class SolicitudCliente extends Model
         'cantidad',
         'peso',
         'precio',
+        'paquete_muy_grande',
         'pago_destinatario',
         'servicio_extra_id',
         'nombre_remitente',
@@ -50,6 +51,7 @@ class SolicitudCliente extends Model
     protected $casts = [
         'peso' => 'decimal:3',
         'precio' => 'decimal:2',
+        'paquete_muy_grande' => 'boolean',
         'pago_destinatario' => 'boolean',
         'envio_cn33' => 'datetime',
     ];

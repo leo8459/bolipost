@@ -11,6 +11,10 @@ class TarifarioTiktoker extends Model
 {
     use HasFactory;
 
+    public const PRECIO_MISMO_DESTINO = 15.00;
+
+    public const PRECIO_OTRO_DESTINO = 20.00;
+
     protected $table = 'tarifario_tiktoker';
 
     protected $fillable = [
@@ -31,6 +35,29 @@ class TarifarioTiktoker extends Model
         'peso_extra' => 'decimal:2',
         'tiempo_entrega' => 'integer',
     ];
+
+    protected static function booted(): void
+    {
+        static::saving(function (TarifarioTiktoker $tarifario): void {
+            $origen = (string) Origen::query()->whereKey($tarifario->origen_id)->value('nombre_origen');
+            $destino = (string) Destino::query()->whereKey($tarifario->destino_id)->value('nombre_destino');
+
+            $mismoDestino = self::normalizePlace($origen) !== ''
+                && self::normalizePlace($origen) === self::normalizePlace($destino);
+
+            $tarifario->peso1 = $mismoDestino
+                ? self::PRECIO_MISMO_DESTINO
+                : self::PRECIO_OTRO_DESTINO;
+            $tarifario->peso2 = null;
+            $tarifario->peso3 = null;
+            $tarifario->peso_extra = null;
+        });
+    }
+
+    private static function normalizePlace(string $value): string
+    {
+        return strtoupper(trim($value));
+    }
 
     public function origen(): BelongsTo
     {

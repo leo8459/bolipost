@@ -660,11 +660,11 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         if (!servicioExtraId || !origen || !destinoId || !peso) {
-            setPrecioEstado('Selecciona servicio, origen, destino y peso para calcular el precio.', 'info');
+            setPrecioEstado('Selecciona servicio, origen, destino y peso. El precio se tomara de peso1.', 'info');
             return;
         }
 
-        setPrecioEstado('Calculando precio...', 'info');
+        setPrecioEstado('Confirmando precio fijo...', 'info');
 
         try {
             const response = await fetch(
@@ -695,7 +695,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 precioReferencialInput.value = payload.precio;
             }
 
-            setPrecioEstado('Precio calculado correctamente. Tiempo de entrega: ' + payload.tiempo_entrega + ' horas.', 'success');
+            setPrecioEstado('Precio de peso1: Bs ' + payload.precio + '. Tiempo de entrega: ' + payload.tiempo_entrega + ' horas.', 'success');
         } catch (error) {
             setPrecioEstado(error.message || 'No se pudo calcular el precio.', 'error');
         }
