@@ -2667,6 +2667,11 @@ class FacturacionCartService
         $nombreServicio = trim((string) ($overrides['nombre_servicio'] ?? data_get($item, 'nombre_servicio', '')));
         $nombreDestinatario = trim((string) ($overrides['nombre_destinatario'] ?? data_get($item, 'nombre_destinatario', '')));
         $resolvedOriginId = $originIdOverride ?? (int) data_get($item, 'origen_id', 0);
+        $conceptoFacturacionBaseId = (int) ($overrides['concepto_facturacion_id'] ?? data_get(
+            $item,
+            'resumen_origen.concepto_facturacion_id',
+            data_get($item, 'origen_id', 0)
+        ));
 
         $resumen['contenido'] = trim((string) ($overrides['contenido'] ?? ($resumen['contenido'] ?? '')));
         $resumen['direccion'] = trim((string) ($overrides['direccion'] ?? ($resumen['direccion'] ?? '')));
@@ -2686,7 +2691,7 @@ class FacturacionCartService
         $resumen['codigo'] = $codigo;
 
         if ($origenTipo === ltrim(ConceptoFacturacion::class, '\\') && $resolvedOriginId > 0) {
-            $resumen['concepto_facturacion_id'] = $resolvedOriginId;
+            $resumen['concepto_facturacion_id'] = $conceptoFacturacionBaseId > 0 ? $conceptoFacturacionBaseId : $resolvedOriginId;
             if ($codigo !== '') {
                 $resumen['codigo_producto'] = trim((string) ($overrides['codigo_producto'] ?? $codigo));
                 $resumen['codigo_paquete'] = trim((string) ($overrides['codigo_paquete'] ?? $codigo));
@@ -3341,39 +3346,67 @@ class FacturacionCartService
                     return;
                 }
 
-                $orderedGroup = $group
-                    ->sortBy(fn ($item) => (int) data_get($item, 'id', 0))
+                $variantGroups = $group
+                    ->groupBy(function ($item) {
+                        return implode('|', [
+                            number_format(round((float) data_get($item, 'monto_base', data_get($item, 'precio', 0)), 2), 2, '.', ''),
+                            number_format(round((float) data_get($item, 'monto_extras', 0), 2), 2, '.', ''),
+                            trim((string) data_get($item, 'titulo', '')),
+                            trim((string) data_get($item, 'nombre_servicio', '')),
+                            trim((string) data_get($item, 'resumen_origen.descripcion_servicio', '')),
+                        ]);
+                    })
+                    ->sortBy(function ($variantGroup) {
+                        $first = collect($variantGroup)->sortBy(fn ($item) => (int) data_get($item, 'id', 0))->first();
+
+                        return [
+                            number_format(round((float) data_get($first, 'monto_base', data_get($first, 'precio', 0)), 2), 2, '.', ''),
+                            trim((string) data_get($first, 'resumen_origen.descripcion_servicio', '')),
+                            (int) data_get($first, 'id', 0),
+                        ];
+                    })
                     ->values();
 
+                if ($variantGroups->count() <= 1) {
+                    return;
+                }
+
                 $baseCode = $this->extractDraftItemCodeFamily(
-                    trim((string) data_get($orderedGroup->first(), 'codigo', ''))
+                    trim((string) data_get(collect($variantGroups->first())->first(), 'codigo', ''))
                 );
                 if ($baseCode === '') {
                     return;
                 }
 
-                foreach ($orderedGroup as $index => $item) {
-                    $expectedCode = $index === 0
+                foreach ($variantGroups as $variantIndex => $variantGroup) {
+                    $orderedGroup = collect($variantGroup)
+                        ->sortBy(fn ($item) => (int) data_get($item, 'id', 0))
+                        ->values();
+
+                    $expectedCode = $variantIndex === 0
                         ? $baseCode
-                        : $this->buildAlternateDraftItemCode($baseCode, $index + 1);
-                    $currentCode = trim((string) data_get($item, 'codigo', ''));
+                        : $this->buildAlternateDraftItemCode($baseCode, $variantIndex + 1);
 
-                    if ($currentCode === $expectedCode) {
-                        continue;
-                    }
+                    foreach ($orderedGroup as $item) {
+                        $currentCode = trim((string) data_get($item, 'codigo', ''));
 
-                    try {
-                        $this->updateDraftItem(
-                            $user,
-                            (int) data_get($item, 'id'),
-                            $this->buildDraftItemUpdatePayload($item, [
-                                'codigo' => $expectedCode,
-                            ]),
-                            false
-                        );
-                        $changed = true;
-                    } catch (\Throwable) {
-                        // keep flow resilient; item can still be edited manually in UI
+                        if ($currentCode === $expectedCode) {
+                            continue;
+                        }
+
+                        try {
+                            $this->updateDraftItem(
+                                $user,
+                                (int) data_get($item, 'id'),
+                                $this->buildDraftItemUpdatePayload($item, [
+                                    'codigo' => $expectedCode,
+                                ]),
+                                false
+                            );
+                            $changed = true;
+                        } catch (\Throwable) {
+                            // keep flow resilient; item can still be edited manually in UI
+                        }
                     }
                 }
             });
@@ -3398,6 +3431,7 @@ class FacturacionCartService
         }
 
         $cart = $this->mergeEquivalentConceptoDraftItems($user, $cart);
+        $cart = $this->normalizeConceptDraftVariantCodes($user, $cart);
 
         if (!$this->ensureDraftItemCodesUnique($user, $cart)) {
             return $cart;
@@ -3406,6 +3440,83 @@ class FacturacionCartService
         $refreshed = $this->fetchVentaById($user, (int) ($cart->id ?? 0));
 
         return $refreshed ?: $cart;
+    }
+
+    private function normalizeConceptDraftVariantCodes(User $user, object $cart): object
+    {
+        $variantGroups = collect($cart->items ?? [])
+            ->filter(function ($item) {
+                return ltrim((string) data_get($item, 'origen_tipo', ''), '\\') === ltrim(ConceptoFacturacion::class, '\\');
+            })
+            ->groupBy(function ($item) {
+                return implode('|', [
+                    $this->resolveDraftConceptoFacturacionId($item),
+                    mb_strtolower($this->extractDraftItemCodeFamily((string) data_get($item, 'codigo', ''))),
+                ]);
+            })
+            ->filter(fn ($group) => $group->count() > 0);
+
+        if ($variantGroups->isEmpty()) {
+            return $cart;
+        }
+
+        $workingCart = $cart;
+        $changed = false;
+
+        foreach ($variantGroups as $group) {
+            $sortedItems = $group
+                ->sortBy(function ($item) {
+                    return [
+                        round((float) data_get($item, 'monto_base', data_get($item, 'precio', 0)), 2),
+                        trim((string) data_get($item, 'resumen_origen.descripcion_servicio', '')),
+                        (int) data_get($item, 'id', 0),
+                    ];
+                })
+                ->values();
+
+            $primaryItem = $sortedItems->first();
+            if (!$primaryItem) {
+                continue;
+            }
+
+            $baseCode = $this->extractDraftItemCodeFamily((string) data_get($primaryItem, 'codigo', ''));
+            if ($baseCode === '') {
+                continue;
+            }
+
+            foreach ($sortedItems as $index => $item) {
+                $expectedCode = $index === 0
+                    ? $baseCode
+                    : $this->buildAlternateDraftItemCode($baseCode, $index + 1);
+                $currentCode = trim((string) data_get($item, 'codigo', ''));
+
+                if ($currentCode === $expectedCode) {
+                    continue;
+                }
+
+                $workingCart = $this->updateDraftItem(
+                    $user,
+                    (int) data_get($item, 'id'),
+                    $this->buildDraftItemUpdatePayload($item, [
+                        'codigo' => $expectedCode,
+                        'codigo_producto' => $expectedCode,
+                        'codigo_paquete' => $expectedCode,
+                        'codigo_detalle_enviado' => $expectedCode,
+                        'codigo_producto_fiscal' => $expectedCode,
+                    ]),
+                    false
+                );
+                $changed = true;
+            }
+        }
+
+        if (!$changed) {
+            return $workingCart;
+        }
+
+        $refreshed = $this->fetchVentaById($user, (int) ($workingCart->id ?? 0));
+
+        return $refreshed ?: $workingCart;
     }
 
     private function mergeEquivalentConceptoDraftItems(User $user, object $cart): object
@@ -3526,17 +3637,20 @@ class FacturacionCartService
 
         $expectedGroups = $normalizedEntries
             ->groupBy(function (array $entry) {
+                $codigo = trim((string) ($entry['codigo'] ?? ''));
+
                 return implode('|', [
-                    mb_strtolower(trim((string) ($entry['codigo'] ?? ''))),
+                    mb_strtolower($this->extractDraftItemCodeFamily($codigo)),
                     number_format(round((float) ($entry['precio'] ?? 0), 2), 2, '.', ''),
                     trim((string) ($entry['descripcion_servicio'] ?? '')),
                 ]);
             })
             ->map(function (\Illuminate\Support\Collection $group) {
                 $first = (array) $group->first();
+                $codigo = trim((string) ($first['codigo'] ?? ''));
 
                 return [
-                    'codigo' => trim((string) ($first['codigo'] ?? '')),
+                    'codigo' => $this->extractDraftItemCodeFamily($codigo),
                     'precio' => round((float) ($first['precio'] ?? 0), 2),
                     'descripcion_servicio' => trim((string) ($first['descripcion_servicio'] ?? '')),
                     'cantidad' => $group->count(),
@@ -3550,9 +3664,12 @@ class FacturacionCartService
         foreach ($expectedGroups as $expectedGroup) {
             $matchingItems = collect((array) ($workingCart->items ?? []))
                 ->filter(function ($item) use ($conceptoId, $expectedGroup) {
+                    $itemCode = trim((string) data_get($item, 'codigo', ''));
+                    $expectedCode = trim((string) ($expectedGroup['codigo'] ?? ''));
+
                     return ltrim((string) data_get($item, 'origen_tipo', ''), '\\') === ltrim(ConceptoFacturacion::class, '\\')
                         && $this->resolveDraftConceptoFacturacionId($item) === $conceptoId
-                        && mb_strtolower(trim((string) data_get($item, 'codigo', ''))) === mb_strtolower((string) ($expectedGroup['codigo'] ?? ''))
+                        && mb_strtolower($this->extractDraftItemCodeFamily($itemCode)) === mb_strtolower($this->extractDraftItemCodeFamily($expectedCode))
                         && round((float) data_get($item, 'monto_base', data_get($item, 'precio', 0)), 2) === round((float) ($expectedGroup['precio'] ?? 0), 2)
                         && trim((string) data_get($item, 'resumen_origen.descripcion_servicio', '')) === (string) ($expectedGroup['descripcion_servicio'] ?? '');
                 })
@@ -3574,6 +3691,7 @@ class FacturacionCartService
                     $user,
                     (int) data_get($primaryItem, 'id'),
                     $this->buildDraftItemUpdatePayload($primaryItem, [
+                        'codigo' => (string) ($expectedGroup['codigo'] ?? data_get($primaryItem, 'codigo', '')),
                         'cantidad' => $expectedQuantity,
                         'precio' => $montoBase,
                         'monto_base' => $montoBase,
@@ -3689,12 +3807,13 @@ class FacturacionCartService
     {
         $origenTipo = ltrim((string) data_get($item, 'origen_tipo', ''), '\\');
         $origenId = (int) data_get($item, 'origen_id', 0);
+        $baseConceptoId = (int) data_get($item, 'resumen_origen.concepto_facturacion_id', 0);
 
         if ($origenTipo === ltrim(ConceptoFacturacion::class, '\\') && $origenId > 0) {
-            return $origenId;
+            return $baseConceptoId > 0 ? $baseConceptoId : $origenId;
         }
 
-        return (int) data_get($item, 'resumen_origen.concepto_facturacion_id', $origenId);
+        return $baseConceptoId > 0 ? $baseConceptoId : $origenId;
     }
 
     public function normalizeConceptoFacturacionFiscalData(ConceptoFacturacion $concepto, ?string $draftCode = null): array
