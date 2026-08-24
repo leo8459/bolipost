@@ -32,20 +32,26 @@ class PaqueteContactoApiTest extends TestCase
             $table->timestamps();
         });
 
+        Schema::create('estados', function (Blueprint $table): void {
+            $table->id();
+            $table->string('nombre_estado');
+            $table->timestamps();
+        });
+
         $this->createPackageTable('paquetes_certi', [
-            'codigo', 'destinatario', 'telefono',
+            'codigo', 'destinatario', 'telefono', 'zona', 'cuidad', 'fk_estado',
         ]);
         $this->createPackageTable('paquetes_contrato', [
-            'codigo', 'nombre_r', 'telefono_r', 'nombre_d', 'telefono_d',
+            'codigo', 'origen', 'destino', 'estados_id', 'nombre_r', 'telefono_r', 'nombre_d', 'telefono_d', 'direccion_d',
         ]);
         $this->createPackageTable('paquetes_ems', [
-            'codigo', 'nombre_remitente', 'telefono_remitente', 'nombre_destinatario', 'telefono_destinatario',
+            'codigo', 'origen', 'ciudad', 'estado_id', 'nombre_remitente', 'telefono_remitente', 'nombre_destinatario', 'telefono_destinatario', 'direccion',
         ]);
         $this->createPackageTable('paquetes_ordi', [
-            'codigo', 'destinatario', 'telefono',
+            'codigo', 'ciudad', 'fk_estado', 'destinatario', 'telefono', 'zona',
         ]);
         $this->createPackageTable('solicitud_clientes', [
-            'codigo_solicitud', 'nombre_remitente', 'telefono_remitente', 'nombre_destinatario', 'telefono_destinatario',
+            'codigo_solicitud', 'origen', 'ciudad', 'estado_id', 'nombre_remitente', 'telefono_remitente', 'nombre_destinatario', 'telefono_destinatario', 'direccion',
         ]);
     }
 
@@ -59,29 +65,40 @@ class PaqueteContactoApiTest extends TestCase
     public function test_devuelve_los_contactos_unificados_de_todos_los_tipos(): void
     {
         $now = now();
+        $estadoId = DB::table('estados')->insertGetId([
+            'nombre_estado' => 'EN TRANSITO', 'created_at' => $now, 'updated_at' => $now,
+        ]);
 
         DB::table('paquetes_certi')->insert([
             'codigo' => 'CERTI-1', 'destinatario' => 'Destino Certi', 'telefono' => '70000001',
+            'zona' => 'Zona Central', 'cuidad' => 'POTOSI', 'fk_estado' => $estadoId,
             'created_at' => $now->copy()->subMinutes(5), 'updated_at' => $now,
         ]);
         DB::table('paquetes_contrato')->insert([
             'codigo' => 'CONTRATO-1', 'nombre_r' => 'Remitente Contrato', 'telefono_r' => '70000002',
             'nombre_d' => 'Destino Contrato', 'telefono_d' => '70000003',
+            'origen' => 'LA PAZ', 'destino' => 'COCHABAMBA', 'estados_id' => $estadoId,
+            'direccion_d' => 'Av. Blanco Galindo 123',
             'created_at' => $now->copy()->subMinutes(4), 'updated_at' => $now,
         ]);
         DB::table('paquetes_ems')->insert([
             'codigo' => 'EMS-1', 'nombre_remitente' => 'Remitente EMS', 'telefono_remitente' => '70000004',
             'nombre_destinatario' => 'Destino EMS', 'telefono_destinatario' => '70000005',
+            'origen' => 'ORURO', 'ciudad' => 'TARIJA', 'estado_id' => $estadoId,
+            'direccion' => 'Calle Bolivar 456',
             'created_at' => $now->copy()->subMinutes(3), 'updated_at' => $now,
         ]);
         DB::table('paquetes_ordi')->insert([
             'codigo' => 'ORDI-1', 'destinatario' => 'Destino Ordinario', 'telefono' => '70000006',
+            'zona' => 'Zona Norte', 'ciudad' => 'BENI', 'fk_estado' => $estadoId,
             'created_at' => $now->copy()->subMinutes(2), 'updated_at' => $now,
         ]);
         DB::table('solicitud_clientes')->insert([
             'codigo_solicitud' => 'SOL-1', 'nombre_remitente' => 'Remitente Solicitud',
             'telefono_remitente' => '70000007', 'nombre_destinatario' => 'Destino Solicitud',
-            'telefono_destinatario' => '70000008', 'created_at' => $now->copy()->subMinute(), 'updated_at' => $now,
+            'telefono_destinatario' => '70000008', 'origen' => 'SUCRE', 'ciudad' => 'PANDO',
+            'direccion' => 'Av. Las Americas 789',
+            'estado_id' => $estadoId, 'created_at' => $now->copy()->subMinute(), 'updated_at' => $now,
         ]);
 
         $response = $this->withToken($this->issueToken())
@@ -96,12 +113,29 @@ class PaqueteContactoApiTest extends TestCase
 
         $this->assertSame('Remitente Contrato', $items['contrato']['remitente']['nombre']);
         $this->assertSame('70000003', $items['contrato']['destinatario']['telefono']);
+        $this->assertSame('Av. Blanco Galindo 123', $items['contrato']['destinatario']['direccion']);
+        $this->assertSame('LA PAZ', $items['contrato']['origen']);
+        $this->assertSame('COCHABAMBA', $items['contrato']['destino']);
+        $this->assertSame($estadoId, $items['contrato']['estado']['id']);
+        $this->assertSame('EN TRANSITO', $items['contrato']['estado']['nombre']);
         $this->assertSame('Remitente EMS', $items['ems']['remitente']['nombre']);
+        $this->assertSame('Calle Bolivar 456', $items['ems']['destinatario']['direccion']);
+        $this->assertSame('ORURO', $items['ems']['origen']);
+        $this->assertSame('TARIJA', $items['ems']['destino']);
         $this->assertSame('Destino Solicitud', $items['solicitud']['destinatario']['nombre']);
+        $this->assertSame('Av. Las Americas 789', $items['solicitud']['destinatario']['direccion']);
+        $this->assertSame('SUCRE', $items['solicitud']['origen']);
+        $this->assertSame('PANDO', $items['solicitud']['destino']);
         $this->assertNull($items['certi']['remitente']['nombre']);
+        $this->assertNull($items['certi']['origen']);
+        $this->assertSame('POTOSI', $items['certi']['destino']);
         $this->assertSame('Destino Certi', $items['certi']['destinatario']['nombre']);
+        $this->assertSame('Zona Central', $items['certi']['destinatario']['direccion']);
         $this->assertNull($items['ordinario']['remitente']['telefono']);
+        $this->assertNull($items['ordinario']['origen']);
+        $this->assertSame('BENI', $items['ordinario']['destino']);
         $this->assertSame('70000006', $items['ordinario']['destinatario']['telefono']);
+        $this->assertSame('Zona Norte', $items['ordinario']['destinatario']['direccion']);
     }
 
     public function test_permite_filtrar_por_tipo_y_codigo(): void

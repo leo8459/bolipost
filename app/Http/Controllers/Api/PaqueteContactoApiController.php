@@ -26,42 +26,62 @@ class PaqueteContactoApiController extends Controller
         'certi' => [
             'table' => 'paquetes_certi',
             'code' => 'codigo',
+            'origin' => null,
+            'destination' => 'cuidad',
+            'state_key' => 'fk_estado',
             'sender_name' => null,
             'sender_phone' => null,
             'recipient_name' => 'destinatario',
             'recipient_phone' => 'telefono',
+            'recipient_address' => 'zona',
         ],
         'contrato' => [
             'table' => 'paquetes_contrato',
             'code' => 'codigo',
+            'origin' => 'origen',
+            'destination' => 'destino',
+            'state_key' => 'estados_id',
             'sender_name' => 'nombre_r',
             'sender_phone' => 'telefono_r',
             'recipient_name' => 'nombre_d',
             'recipient_phone' => 'telefono_d',
+            'recipient_address' => 'direccion_d',
         ],
         'ems' => [
             'table' => 'paquetes_ems',
             'code' => 'codigo',
+            'origin' => 'origen',
+            'destination' => 'ciudad',
+            'state_key' => 'estado_id',
             'sender_name' => 'nombre_remitente',
             'sender_phone' => 'telefono_remitente',
             'recipient_name' => 'nombre_destinatario',
             'recipient_phone' => 'telefono_destinatario',
+            'recipient_address' => 'direccion',
         ],
         'ordinario' => [
             'table' => 'paquetes_ordi',
             'code' => 'codigo',
+            'origin' => null,
+            'destination' => 'ciudad',
+            'state_key' => 'fk_estado',
             'sender_name' => null,
             'sender_phone' => null,
             'recipient_name' => 'destinatario',
             'recipient_phone' => 'telefono',
+            'recipient_address' => 'zona',
         ],
         'solicitud' => [
             'table' => 'solicitud_clientes',
             'code' => 'codigo_solicitud',
+            'origin' => 'origen',
+            'destination' => 'ciudad',
+            'state_key' => 'estado_id',
             'sender_name' => 'nombre_remitente',
             'sender_phone' => 'telefono_remitente',
             'recipient_name' => 'nombre_destinatario',
             'recipient_phone' => 'telefono_destinatario',
+            'recipient_address' => 'direccion',
         ],
     ];
 
@@ -92,6 +112,12 @@ class PaqueteContactoApiController extends Controller
                 'tipo' => $row->tipo,
                 'id' => (int) $row->id,
                 'codigo' => $row->codigo,
+                'origen' => $row->origen,
+                'destino' => $row->destino,
+                'estado' => [
+                    'id' => $row->estado_id !== null ? (int) $row->estado_id : null,
+                    'nombre' => $row->estado,
+                ],
                 'remitente' => [
                     'nombre' => $row->nombre_remitente,
                     'telefono' => $row->telefono_remitente !== null ? (string) $row->telefono_remitente : null,
@@ -99,6 +125,7 @@ class PaqueteContactoApiController extends Controller
                 'destinatario' => [
                     'nombre' => $row->nombre_destinatario,
                     'telefono' => $row->telefono_destinatario !== null ? (string) $row->telefono_destinatario : null,
+                    'direccion' => $row->direccion_destinatario,
                 ],
                 'fecha_registro' => $row->created_at !== null
                     ? Carbon::parse($row->created_at)->toIso8601String()
@@ -116,7 +143,7 @@ class PaqueteContactoApiController extends Controller
                 'hasta' => $total > 0 ? (($currentPage - 1) * $perPage) + $items->count() : null,
             ],
             'tipos_incluidos' => $types,
-            'nota' => 'CERTI y ordinario no almacenan datos del remitente; esos campos se devuelven como null.',
+            'nota' => 'CERTI y ordinario no almacenan origen ni datos del remitente; esos campos se devuelven como null.',
         ]);
     }
 
@@ -159,16 +186,23 @@ class PaqueteContactoApiController extends Controller
     {
         $queries = collect($types)->map(function (string $type) use ($codigo): Builder {
             $config = self::RESOURCES[$type];
-            $query = DB::table($config['table'])->select([
-                DB::raw("'{$type}' as tipo"),
-                'id',
-                $this->textColumn($config['code'], 'codigo'),
-                $this->textColumn($config['sender_name'], 'nombre_remitente'),
-                $this->textColumn($config['sender_phone'], 'telefono_remitente'),
-                $this->textColumn($config['recipient_name'], 'nombre_destinatario'),
-                $this->textColumn($config['recipient_phone'], 'telefono_destinatario'),
-                'created_at',
-            ]);
+            $query = DB::table($config['table'])
+                ->leftJoin('estados', $config['table'].'.'.$config['state_key'], '=', 'estados.id')
+                ->select([
+                    DB::raw("'{$type}' as tipo"),
+                    $config['table'].'.id',
+                    $this->textColumn($config['code'], 'codigo'),
+                    $this->textColumn($config['origin'], 'origen'),
+                    $this->textColumn($config['destination'], 'destino'),
+                    $this->textColumn($config['state_key'], 'estado_id'),
+                    $this->textColumn('estados.nombre_estado', 'estado'),
+                    $this->textColumn($config['sender_name'], 'nombre_remitente'),
+                    $this->textColumn($config['sender_phone'], 'telefono_remitente'),
+                    $this->textColumn($config['recipient_name'], 'nombre_destinatario'),
+                    $this->textColumn($config['recipient_phone'], 'telefono_destinatario'),
+                    $this->textColumn($config['recipient_address'], 'direccion_destinatario'),
+                    $config['table'].'.created_at',
+                ]);
 
             if ($codigo !== null && trim($codigo) !== '') {
                 $query->where($config['code'], 'like', '%'.trim($codigo).'%');
@@ -195,6 +229,10 @@ class PaqueteContactoApiController extends Controller
             return DB::raw('CAST(NULL AS TEXT) as '.$alias);
         }
 
-        return DB::raw('CAST('.$grammar->wrap($column).' AS TEXT) as '.$alias);
+        $qualifiedColumn = collect(explode('.', $column))
+            ->map(fn (string $segment): string => $grammar->wrap($segment))
+            ->implode('.');
+
+        return DB::raw('CAST('.$qualifiedColumn.' AS TEXT) as '.$alias);
     }
 }
