@@ -178,6 +178,8 @@
             'PE' => 'Peru',
             'ES' => 'Espana',
             'AR' => 'Argentina',
+            'NL' => 'Paises Bajos',
+            'CA' => 'Canada',
             'BR' => 'Brasil',
             'CL' => 'Chile',
             'US' => 'Estados Unidos',
@@ -522,10 +524,12 @@
             $destinoLabel = 'Internacional';
             $destinoBanderaIso2 = null;
         } else {
+            $destinoBanderaIso2 = $destinoIso2DesdeCiudad ?? ($esDestinoNacional ? 'BO' : $destinoIso2);
             $destinoLabel = $ciudadDestinoLocal !== ''
                 ? ucwords(mb_strtolower($ciudadDestinoLocal))
-                : ($esDestinoNacional ? 'Nacional' : ($destinoIso2 ?? 'Internacional'));
-            $destinoBanderaIso2 = $destinoIso2DesdeCiudad ?? ($esDestinoNacional ? 'BO' : $destinoIso2);
+                : ($esDestinoNacional
+                    ? ($destinoBanderaIso2 === 'BO' ? 'Bolivia' : 'Nacional')
+                    : ($destinoIso2 ?? 'Internacional'));
         }
         $esEventoLocalBolivia = function ($evento) use ($detectarDepartamentoBolivia) {
             $office = trim((string) ($evento->office ?? ''));
@@ -568,8 +572,8 @@
             ],
             'Santa Cruz' => [
                 'regional' => 'Regional: Santa Cruz',
-                'direccion' => 'Calle Cobija Entre Sucre y Ballivian N° 24',
-                'coords' => "17°47'00.6\"S 63°10'28.8\"W",
+                'direccion' => 'Calle Adriana Coimbra, entre 3er Anillo Externo y 4to Anillo',
+                'coords' => '-17.7567141,-63.1787119',
             ],
             'Oruro' => [
                 'regional' => 'Regional: Oruro',
@@ -1014,6 +1018,7 @@
             document.querySelectorAll('[data-country-name][data-country-iso]').forEach((el) => {
                 const iso = (el.getAttribute('data-country-iso') || '').toUpperCase();
                 if (!/^[A-Z]{2}$/.test(iso)) return;
+                if ((el.textContent || '').trim() !== '') return;
                 const label = regionNames.of(iso);
                 if (label) el.textContent = label;
             });
