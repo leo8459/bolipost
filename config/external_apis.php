@@ -117,6 +117,68 @@ return [
                 ['method' => 'GET', 'path' => '/api/integraciones/clientes/{cliente}/solicitudes', 'example' => '?per_page=50&page=1'],
             ],
         ],
+        'solicitudes-clientes:read' => [
+            'name' => 'Ver todos los paquetes de solicitudes de clientes',
+            'description' => 'Lista todas las solicitudes Delivery Express de todos los clientes, con paginacion, datos del cliente, estado, servicio y destino.',
+            'access' => 'Solo lectura',
+            'icon' => 'fas fa-boxes',
+            'color' => 'success',
+            'endpoints' => [
+                [
+                    'method' => 'GET',
+                    'path' => '/api/integraciones/solicitudes-clientes',
+                    'example' => '?per_page=50&page=1',
+                    'response' => [
+                        'message' => 'Solicitudes de clientes obtenidas correctamente.',
+                        'solicitudes' => [
+                            'current_page' => 1,
+                            'data' => [
+                                [
+                                    'id' => 1,
+                                    'cliente_id' => 1,
+                                    'codigo_solicitud' => 'SL00000001LP',
+                                    'nombre_remitente' => 'CLIENTE DEMO',
+                                    'nombre_destinatario' => 'DESTINATARIO DEMO',
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ],
+        'solicitudes-clientes:create' => [
+            'name' => 'Crear solicitud de cliente',
+            'description' => 'Crea una solicitud Delivery Express para el cliente indicado mediante cliente_id.',
+            'access' => 'Escritura',
+            'icon' => 'fas fa-plus-square',
+            'color' => 'primary',
+            'endpoints' => [
+                [
+                    'method' => 'POST',
+                    'path' => '/api/integraciones/solicitudes-clientes',
+                    'example' => '',
+                    'body' => [
+                        'cliente_id' => 1,
+                        'servicio_extra_id' => 1,
+                        'origen' => 'LA PAZ',
+                        'destino_id' => 2,
+                        'cantidad' => 1,
+                        'contenido' => 'Documentos',
+                        'nombre_remitente' => 'Cliente Demo',
+                        'carnet' => '1234567',
+                        'telefono_remitente' => '70000000',
+                        'nombre_destinatario' => 'Destinatario Demo',
+                        'telefono_destinatario' => '71111111',
+                        'direccion_recojo' => 'Zona Central',
+                        'direccion_entrega' => 'Avenida Principal',
+                    ],
+                    'response' => [
+                        'message' => 'Solicitud registrada correctamente.',
+                        'solicitud' => ['codigo_solicitud' => 'SL00000001LP'],
+                    ],
+                ],
+            ],
+        ],
         'paquetes-contactos:certi:read' => [
             'name' => 'Consultar paquetes CERTI',
             'description' => 'Muestra el código y los datos disponibles del destinatario de los envíos certificados.',

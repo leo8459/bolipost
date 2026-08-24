@@ -70,6 +70,12 @@ Route::get('/siop/eventos', [EventosSiopApiController::class, 'index'])
     ->name('api.siop.eventos.index');
 
 Route::middleware(['force.json', 'external.api.jwt', 'throttle:120,1'])->group(function () {
+    Route::get('/integraciones/solicitudes-clientes', [ExternalClienteSolicitudApiController::class, 'globalIndex'])
+        ->middleware('external.api.ability:solicitudes-clientes:read')
+        ->name('api.integraciones.solicitudes-clientes.index');
+    Route::post('/integraciones/solicitudes-clientes', [ExternalClienteSolicitudApiController::class, 'globalStore'])
+        ->middleware('external.api.ability:solicitudes-clientes:create')
+        ->name('api.integraciones.solicitudes-clientes.store');
     Route::post('/integraciones/clientes', [ClienteAuthApiController::class, 'register'])
         ->middleware('external.api.ability:clientes:create')
         ->name('api.integraciones.clientes.store');
