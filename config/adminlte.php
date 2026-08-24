@@ -560,6 +560,17 @@ return [
             ],
         ],
         [
+            'text' => 'Empresa',
+            'icon' => 'fas fa-building',
+            'submenu' => [
+                [
+                    'text' => 'Guías Empresa',
+                    'url' => 'empresa/guias',
+                    'icon' => 'fas fa-file-alt',
+                ],
+            ],
+        ],
+        [
             'text' => 'Paquetes Contratos',
             'icon' => 'fas fa-file-contract',
             'submenu' => [
@@ -590,6 +601,12 @@ return [
                             'icon' => 'fas fa-file-pdf',
                         ],
                     ],
+                ],
+                [
+                    'text' => 'Mandar alertas',
+                    'url' => 'alertas-empresa',
+                    'icon' => 'fas fa-bell',
+                    'can' => 'alertas-empresa.index',
                 ],
                 [
                     'text' => 'Gestor',
@@ -1152,6 +1169,12 @@ return [
                             'text' => 'Empresas',
                             'url' => 'empresas',
                             'icon' => 'fas fa-building',
+                        ],
+                        [
+                            'text' => 'Historial de empresas',
+                            'url' => 'empresas/historial',
+                            'icon' => 'fas fa-history',
+                            'can' => 'empresas.historial.index',
                         ],
                         [
                             'text' => 'Permisos',

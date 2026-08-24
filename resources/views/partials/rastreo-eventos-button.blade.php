@@ -1,7 +1,7 @@
 @php
     $trackingTipo = strtolower(trim((string) ($tipo ?? 'ems')));
     $trackingCodigo = trim((string) ($codigo ?? ''));
-    $trackingRoute = match ($trackingTipo) {
+    $trackingRoute = $routeName ?? match ($trackingTipo) {
         'contrato' => 'eventos-contrato.index',
         'certi', 'certificado' => 'eventos-certi.index',
         'ordi', 'ordinario' => 'eventos-ordi.index',

@@ -146,6 +146,8 @@
                     @endforeach
                 </div>
             @endif
+
+            @include('alertas_empresa.partials.recipient-modal')
         @endauth
 
         @include('partials.facturacion-shortcut')

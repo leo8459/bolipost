@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AclController;
+use App\Http\Controllers\AlertaEmpresaController;
 use App\Http\Controllers\AppConfigController;
 use App\Http\Controllers\AreaContratosController;
 use App\Http\Controllers\AuditoriaController;
@@ -274,6 +275,15 @@ Route::post('/facturacion-servicio', [FacturacionServicioController::class, 'sto
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('facturacion-servicio.store');
 
+Route::middleware(['auth', 'internal.only', 'verified'])->group(function () {
+    Route::get('/alertas-empresa/{alertaEmpresa}/portada', [AlertaEmpresaController::class, 'portada'])
+        ->name('alertas-empresa.portada');
+    Route::get('/alertas-empresa/{alertaEmpresa}/pdf', [AlertaEmpresaController::class, 'pdf'])
+        ->name('alertas-empresa.pdf');
+    Route::post('/alertas-empresa/{alertaEmpresa}/vista', [AlertaEmpresaController::class, 'markAsRead'])
+        ->name('alertas-empresa.read');
+});
+
 Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function () {
     Route::middleware('can:admin-only-menu')->group(function () {
         Route::get('/administrador/correo-electronico', [ContractExpirationEmailController::class, 'index'])
@@ -513,10 +523,15 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/auditoria', [AuditoriaController::class, 'index'])->name('auditoria.index');
     Route::get('/eventos-auditoria', [EventosAuditoriaController::class, 'index'])->name('eventos-auditoria.index');
     Route::get('/empresas', [EmpresaController::class, 'index'])->name('empresas.index');
+    Route::get('/empresas/historial', [EmpresaController::class, 'history'])->name('empresas.historial.index');
+    Route::get('/empresas/historial/{empresaHistorial}/pdf', [EmpresaController::class, 'viewHistoryPdf'])->name('empresas.historial.pdf');
     Route::get('/empresas/import', [EmpresaController::class, 'importForm'])->name('empresas.import-form');
     Route::post('/empresas/import', [EmpresaController::class, 'import'])->name('empresas.import');
     Route::get('/empresas/plantilla-excel', [EmpresaController::class, 'downloadTemplateExcel'])->name('empresas.template-excel');
     Route::get('/empresas/pdf', [EmpresaController::class, 'downloadPdf'])->name('empresas.pdf');
+    Route::get('/alertas-empresa', [AlertaEmpresaController::class, 'index'])->name('alertas-empresa.index');
+    Route::post('/alertas-empresa', [AlertaEmpresaController::class, 'store'])->name('alertas-empresa.store');
+    Route::delete('/alertas-empresa/{alertaEmpresa}', [AlertaEmpresaController::class, 'destroy'])->name('alertas-empresa.destroy');
     Route::get('/codigo-empresa', [CodigoEmpresaController::class, 'index'])->name('codigo-empresa.index');
     Route::get('/paquetes-contrato', [RecojoController::class, 'index'])->name('paquetes-contrato.index');
     Route::get('/paquetes-contrato/recoger-envios', [RecojoController::class, 'recogerEnvios'])->name('paquetes-contrato.recoger-envios');
@@ -537,6 +552,9 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/paquetes-contrato/reporte-hoy', [RecojoController::class, 'reporteHoy'])->name('paquetes-contrato.reporte-hoy');
     Route::get('/paquetes-contrato/{contrato}/reporte', [RecojoController::class, 'reporte'])->name('paquetes-contrato.reporte');
     Route::get('/area-contratos/todos', [AreaContratosController::class, 'todos'])->name('area-contratos.todos');
+    Route::get('/empresa/guias', [AreaContratosController::class, 'guiasEmpresa'])->name('empresa.guias.index');
+    Route::get('/empresa/guias/reporte-excel', [AreaContratosController::class, 'exportGuiasEmpresaExcel'])->name('empresa.guias.excel');
+    Route::get('/empresa/guias/rastreo', [EventoController::class, 'contratoIndex'])->name('empresa.guias.rastreo');
     Route::get('/area-contratos/entregados', [AreaContratosController::class, 'entregados'])->name('area-contratos.entregados');
     Route::get('/area-contratos/reportes', [AreaContratosController::class, 'reportes'])->name('area-contratos.reportes');
     Route::get('/area-contratos/reportes/excel', [AreaContratosController::class, 'exportReportesExcel'])->name('area-contratos.reportes.excel');

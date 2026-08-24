@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Empresa;
+use App\Models\EmpresaHistorial;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -23,6 +24,50 @@ class EmpresaController extends Controller
     public function index()
     {
         return view('empresa.index');
+    }
+
+    public function history(Request $request)
+    {
+        $search = trim((string) $request->query('q', ''));
+
+        $historiales = EmpresaHistorial::query()
+            ->with(['archivadoPor:id,name'])
+            ->when($search !== '', function ($query) use ($search): void {
+                $query->where(function ($inner) use ($search): void {
+                    $inner->where('nombre', 'ILIKE', "%{$search}%")
+                        ->orWhere('sigla', 'ILIKE', "%{$search}%")
+                        ->orWhere('codigo_cliente', 'ILIKE', "%{$search}%")
+                        ->orWhere('clasificacion', 'ILIKE', "%{$search}%")
+                        ->orWhere('documentacion_legal', 'ILIKE', "%{$search}%")
+                        ->orWhere('cobertura', 'ILIKE', "%{$search}%");
+                });
+            })
+            ->latest()
+            ->paginate(25)
+            ->withQueryString();
+
+        return view('empresa.historial', [
+            'historiales' => $historiales,
+            'search' => $search,
+        ]);
+    }
+
+    public function viewHistoryPdf(EmpresaHistorial $empresaHistorial)
+    {
+        $path = trim((string) $empresaHistorial->documento_pdf_path);
+        $disk = Storage::disk('public');
+
+        if ($path === '' || ! $disk->exists($path)) {
+            abort(404, 'El PDF historico no se encuentra disponible.');
+        }
+
+        $identifier = $empresaHistorial->sigla ?: ($empresaHistorial->codigo_cliente ?: $empresaHistorial->nombre);
+        $filename = 'historial-empresa-'.(Str::slug((string) $identifier) ?: $empresaHistorial->id).'.pdf';
+
+        return $disk->response($path, $filename, [
+            'Content-Type' => 'application/pdf',
+            'X-Content-Type-Options' => 'nosniff',
+        ], 'inline');
     }
 
     public function scannedContracts(Request $request)

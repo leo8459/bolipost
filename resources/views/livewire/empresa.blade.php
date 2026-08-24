@@ -24,7 +24,52 @@
         .header-app{
             background: linear-gradient(90deg, var(--azul), #20539A);
             color:#fff;
-            padding:18px 20px;
+            padding:22px 24px;
+            display:grid;
+            grid-template-columns:minmax(210px, .7fr) minmax(620px, 2fr);
+            gap:24px;
+            align-items:center;
+        }
+
+        .empresas-title{
+            display:flex;
+            align-items:center;
+            gap:14px;
+        }
+        .empresas-title-icon{
+            width:46px;
+            height:46px;
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            border-radius:14px;
+            color:var(--azul);
+            background:var(--dorado);
+            box-shadow:0 8px 18px rgba(0,0,0,.14);
+            flex:0 0 auto;
+        }
+        .empresas-title h4{
+            font-size:1.45rem;
+            font-weight:800;
+            margin:0;
+        }
+        .empresas-title p{
+            color:rgba(255,255,255,.78);
+            margin:3px 0 0;
+            font-size:.88rem;
+        }
+        .empresas-toolbar{
+            display:flex;
+            justify-content:flex-end;
+            align-items:center;
+            gap:8px;
+            flex-wrap:wrap;
+        }
+        .empresas-search{
+            display:flex;
+            flex:1 1 330px;
+            min-width:280px;
+            gap:8px;
         }
 
         .search-input{
@@ -32,6 +77,8 @@
             border:1px solid rgba(255,255,255,.45);
             padding:10px 12px;
             background: rgba(255,255,255,.95);
+            min-width:0;
+            height:42px;
         }
 
         .btn-dorado{
@@ -81,31 +128,164 @@
         }
 
         .table thead th{
-            background: rgba(52,68,124,.08);
+            background:#eef3fa;
             color: var(--azul);
-            font-weight: 900;
-            border-bottom: 2px solid rgba(52,68,124,.2);
+            font-weight: 800;
+            font-size:.78rem;
+            letter-spacing:.025em;
+            text-transform:uppercase;
+            border-bottom: 1px solid #d7e0ee;
             white-space: nowrap;
         }
 
         .pill-id{
-            background: rgba(52,68,124,.12);
+            background:#eef3fa;
             color: var(--azul);
-            font-weight: 900;
-            padding: 4px 10px;
-            border-radius: 999px;
-            display:inline-block;
+            font-weight:800;
+            padding:7px 10px;
+            border-radius:10px;
+            display:block;
+            line-height:1.25;
+            max-width:250px;
         }
 
         .muted{ color:var(--muted); }
 
         .table td{ vertical-align: middle; }
         .table-empresa{
-            font-size:.92rem;
+            font-family:inherit;
+            font-size:.88rem;
+            min-width:1050px;
+            width:100%;
+            table-layout:fixed;
+            margin-bottom:0;
         }
         .table-empresa th,
         .table-empresa td{
-            padding:.55rem .6rem;
+            padding:.8rem .65rem;
+        }
+        .table-empresa tbody tr{
+            border-bottom:1px solid #edf0f4;
+            transition:background-color .15s ease;
+        }
+        .table-empresa tbody tr:hover{
+            background:#f8fbff;
+        }
+        .table-shell{
+            border:1px solid #e3e8f0;
+            border-radius:14px;
+            overflow-x:auto;
+        }
+        .company-meta{
+            display:block;
+            color:var(--muted);
+            font-size:.75rem;
+            margin-top:4px;
+        }
+        .data-badge{
+            display:inline-flex;
+            align-items:center;
+            border-radius:999px;
+            padding:5px 9px;
+            background:#f1f5f9;
+            color:#475569;
+            font-size:.75rem;
+            font-weight:700;
+            white-space:nowrap;
+        }
+        .data-badge.publica{ background:#e8f1ff; color:#174e94; }
+        .data-badge.privada{ background:#f4ecff; color:#6b3fa0; }
+        .date-cell,
+        .budget-cell{
+            white-space:nowrap;
+            font-variant-numeric:tabular-nums;
+        }
+        .budget-cell{
+            font-weight:700;
+            color:#243b5a;
+        }
+        .coverage-cell{
+            line-height:1.35;
+            overflow-wrap:anywhere;
+        }
+        .empresa-actions{
+            display:flex;
+            align-items:center;
+            justify-content:flex-start;
+            gap:6px;
+            min-width:0;
+            white-space:nowrap;
+        }
+        .empresa-actions .btn{
+            border-radius:9px;
+            min-height:36px;
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            padding:7px 10px;
+            box-shadow:none;
+        }
+        .empresa-actions .action-icon{
+            width:38px;
+            padding:7px;
+        }
+        .btn-history{
+            background:#e8f1ff;
+            border:1px solid #b9d1f1;
+            color:#174e94;
+            font-weight:800;
+        }
+        .btn-history:hover{
+            background:#d9e9ff;
+            color:#123f78;
+        }
+        .empresas-summary{
+            background:#f8fafc;
+            border:1px solid #e5eaf1;
+            border-radius:12px;
+            padding:10px 13px;
+        }
+        .empresas-count{
+            display:inline-flex;
+            align-items:center;
+            gap:7px;
+            background:#eaf1fb;
+            color:var(--azul);
+            border-radius:999px;
+            padding:6px 11px;
+            font-weight:800;
+            white-space:nowrap;
+        }
+        .col-company{ width:21%; }
+        .col-contract{ width:12%; }
+        .col-dates{ width:12%; }
+        .col-coverage{ width:16%; }
+        .col-budget{ width:10%; }
+        .col-document{ width:11%; }
+        .col-actions{ width:18%; }
+        .contract-stack,
+        .document-stack{
+            display:flex;
+            flex-direction:column;
+            align-items:flex-start;
+            gap:6px;
+        }
+        .date-range{
+            display:grid;
+            gap:4px;
+            font-variant-numeric:tabular-nums;
+            white-space:nowrap;
+        }
+        .date-range small{
+            color:var(--muted);
+            font-size:.7rem;
+            font-weight:700;
+            text-transform:uppercase;
+        }
+        .date-range i{
+            color:#9aa8ba;
+            font-size:.7rem;
+            margin:0 5px;
         }
         .empresa-modal-grid{
             display:grid;
@@ -126,6 +306,19 @@
             .empresa-modal-grid .form-span-2{
                 grid-column:auto;
             }
+            .plantilla-wrap{ padding:10px; }
+            .header-app{ padding:18px; }
+            .empresas-search{ min-width:100%; }
+            .empresas-toolbar .btn,
+            .empresas-toolbar a{ flex:1 1 auto; }
+        }
+
+        @media (max-width: 1199.98px){
+            .header-app{
+                grid-template-columns:1fr;
+                gap:16px;
+            }
+            .empresas-toolbar{ justify-content:flex-start; }
         }
 
         .modal-content{
@@ -166,28 +359,50 @@
 
     <div class="plantilla-wrap">
         <div class="card card-app">
-            <div class="header-app d-flex flex-column flex-md-row justify-content-between gap-3 align-items-md-center">
-                <div>
-                    <h4 class="fw-bold mb-0">Empresas</h4>
+            <div class="header-app">
+                <div class="empresas-title">
+                    <span class="empresas-title-icon"><i class="fas fa-building"></i></span>
+                    <div>
+                        <h4>Empresas</h4>
+                        <p>Contratos, documentos y vigencias empresariales</p>
+                    </div>
                 </div>
 
-                <div class="d-flex gap-2 align-items-center flex-wrap">
-                    <input
-                        type="text"
-                        class="form-control search-input"
-                        placeholder="Buscar..."
-                        wire:model="search"
-                    >
-                    <button class="btn btn-outline-light2" type="button" wire:click="searchEmpresas">Buscar</button>
+                <div class="empresas-toolbar">
+                    <div class="empresas-search">
+                        <input
+                            type="text"
+                            class="form-control search-input"
+                            placeholder="Buscar empresa, sigla, codigo o cobertura..."
+                            wire:model="search"
+                            wire:keydown.enter="searchEmpresas"
+                        >
+                        <button class="btn btn-outline-light2" type="button" wire:click="searchEmpresas">
+                            <i class="fas fa-search mr-1"></i> Buscar
+                        </button>
+                    </div>
+                    @can('empresas.historial.index')
+                    <a class="btn btn-outline-light2" href="{{ route('empresas.historial.index') }}">
+                        <i class="fas fa-history mr-1"></i> Historial
+                    </a>
+                    @endcan
                     @if (auth()->user()?->can('empresas.template-excel') || auth()->user()?->can('feature.empresas.export'))
-                    <a class="btn btn-outline-light2" href="{{ route('empresas.pdf') }}" target="_blank">Reporte PDF</a>
-                    <a class="btn btn-outline-light2" href="{{ route('empresas.template-excel') }}">Plantilla Excel</a>
+                    <a class="btn btn-outline-light2" href="{{ route('empresas.pdf') }}" target="_blank" title="Generar reporte PDF">
+                        <i class="fas fa-file-pdf mr-1"></i> Reporte
+                    </a>
+                    <a class="btn btn-outline-light2" href="{{ route('empresas.template-excel') }}" title="Descargar plantilla Excel">
+                        <i class="fas fa-file-excel mr-1"></i> Plantilla
+                    </a>
                     @endif
                     @if (auth()->user()?->can('empresas.import-form') || auth()->user()?->can('feature.empresas.import'))
-                    <a class="btn btn-outline-light2" href="{{ route('empresas.import-form') }}">Importar Excel</a>
+                    <a class="btn btn-outline-light2" href="{{ route('empresas.import-form') }}">
+                        <i class="fas fa-file-import mr-1"></i> Importar
+                    </a>
                     @endif
                     @aclcan('create', $this)
-                    <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                    <button class="btn btn-dorado" type="button" wire:click="openCreateModal">
+                        <i class="fas fa-plus mr-1"></i> Nueva empresa
+                    </button>
                     @endaclcan
                 </div>
             </div>
@@ -210,50 +425,68 @@
             @endif
 
             <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="empresas-summary d-flex flex-column flex-sm-row justify-content-between align-items-sm-center mb-3">
                     <div class="muted">
                         @if(!empty($searchQuery))
-                            Resultados para: <strong>{{ $searchQuery }}</strong>
+                            <i class="fas fa-filter mr-1"></i> Resultados para: <strong>{{ $searchQuery }}</strong>
                         @else
-                            Mostrando todos los registros
+                            <i class="fas fa-list mr-1"></i> Mostrando todos los registros
                         @endif
                     </div>
-                    <div class="muted small">
-                        Total en pagina: <strong>{{ $empresas->count() }}</strong>
+                    <div class="empresas-count mt-2 mt-sm-0">
+                        <i class="fas fa-building"></i>
+                        {{ $empresas->count() }} en esta pagina
                     </div>
                 </div>
 
-                <div class="table-responsive">
+                <div class="table-responsive table-shell">
                     <table class="table table-hover align-middle table-empresa">
                         <thead>
                             <tr>
-                                <th>Nombre</th>
-                                <th>Sigla</th>
-                                <th>Codigo cliente</th>
-                                <th>Clasificacion</th>
-                                <th>Doc. legal</th>
-                                <th>Inicio</th>
-                                <th>Fin</th>
-                                <th>Cobertura</th>
-                                <th>Presupuesto</th>
-                                <th>PDF</th>
-                                <th>Creado</th>
-                                <th>Acciones</th>
+                                <th class="col-company">Empresa</th>
+                                <th class="col-contract">Contrato</th>
+                                <th class="col-dates">Vigencia</th>
+                                <th class="col-coverage">Cobertura</th>
+                                <th class="col-budget">Presupuesto</th>
+                                <th class="col-document">Documento</th>
+                                <th class="col-actions">Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
                             @forelse ($empresas as $empresa)
                                 <tr>
-                                    <td><span class="pill-id">{{ $empresa->nombre }}</span></td>
-                                    <td>{{ $empresa->sigla }}</td>
-                                    <td>{{ $empresa->codigo_cliente }}</td>
-                                    <td>{{ $empresa->clasificacion ?? '-' }}</td>
-                                    <td>{{ $empresa->documentacion_legal ?? '-' }}</td>
-                                    <td>{{ !empty($empresa->inicio_contrato) ? \Illuminate\Support\Carbon::parse($empresa->inicio_contrato)->format('d/m/Y') : '-' }}</td>
-                                    <td>{{ !empty($empresa->fin_contrato) ? \Illuminate\Support\Carbon::parse($empresa->fin_contrato)->format('d/m/Y') : '-' }}</td>
-                                    <td>{{ $empresa->cobertura ?? '-' }}</td>
-                                    <td>{{ !is_null($empresa->presupuesto) ? number_format((float) $empresa->presupuesto, 2) : '-' }}</td>
                                     <td>
+                                        <span class="pill-id">{{ $empresa->nombre }}</span>
+                                        <small class="company-meta">
+                                            <strong>{{ $empresa->sigla }}</strong>
+                                            <span class="mx-1">•</span>
+                                            Codigo {{ $empresa->codigo_cliente }}
+                                            <span class="mx-1">•</span>
+                                            #{{ $empresa->id }}
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <div class="contract-stack">
+                                        @if($empresa->clasificacion)
+                                            <span class="data-badge {{ strtolower($empresa->clasificacion) }}">{{ $empresa->clasificacion }}</span>
+                                        @else
+                                            <span class="muted">-</span>
+                                        @endif
+                                        @if($empresa->documentacion_legal)
+                                            <span class="data-badge">{{ $empresa->documentacion_legal }}</span>
+                                        @endif
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="date-range">
+                                            <span><small>Inicio</small> {{ !empty($empresa->inicio_contrato) ? \Illuminate\Support\Carbon::parse($empresa->inicio_contrato)->format('d/m/Y') : '-' }}</span>
+                                            <span><small>Fin</small><i class="fas fa-arrow-right"></i>{{ !empty($empresa->fin_contrato) ? \Illuminate\Support\Carbon::parse($empresa->fin_contrato)->format('d/m/Y') : '-' }}</span>
+                                        </div>
+                                    </td>
+                                    <td class="coverage-cell" title="{{ $empresa->cobertura }}">{{ $empresa->cobertura ?? '-' }}</td>
+                                    <td class="budget-cell">{{ !is_null($empresa->presupuesto) ? number_format((float) $empresa->presupuesto, 2) : '-' }}</td>
+                                    <td>
+                                        <div class="document-stack">
                                         @if (!empty($empresa->documento_pdf_path))
                                             <a
                                                 href="{{ asset('storage/' . $empresa->documento_pdf_path) }}"
@@ -261,34 +494,46 @@
                                                 class="btn btn-sm btn-outline-azul"
                                                 title="Ver PDF"
                                             >
-                                                <i class="fas fa-file-pdf"></i>
+                                                <i class="fas fa-file-pdf mr-1"></i> Abrir
                                             </a>
                                         @else
                                             <span class="muted small">Sin PDF</span>
                                         @endif
+                                        <small class="muted">
+                                            Creado {{ optional($empresa->created_at)->format('d/m/Y H:i') ?: '-' }}
+                                        </small>
+                                        </div>
                                     </td>
-                                    <td class="muted small">{{ optional($empresa->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
+                                        <div class="empresa-actions">
                                         @aclcan('edit', $this)
                                         <button wire:click="openEditModal({{ $empresa->id }})"
-                                            class="btn btn-sm btn-azul"
+                                            class="btn btn-sm btn-azul action-icon"
                                             title="Editar">
                                             <i class="fas fa-pen"></i>
                                         </button>
                                         @endaclcan
+                                        @aclcan('history', $this)
+                                        <button wire:click="openHistoryModal({{ $empresa->id }})"
+                                            class="btn btn-sm btn-history"
+                                            title="Añadir a historial">
+                                            <i class="fas fa-history mr-1"></i> Historial
+                                        </button>
+                                        @endaclcan
                                         @aclcan('delete', $this)
                                         <button wire:click="delete({{ $empresa->id }})"
-                                            class="btn btn-sm btn-outline-azul"
+                                            class="btn btn-sm btn-outline-danger action-icon"
                                             title="Eliminar"
                                             onclick="return confirm('Seguro que deseas eliminar esta empresa?')">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                         @endaclcan
+                                        </div>
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="12" class="text-center py-5">
+                                    <td colspan="7" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>
@@ -298,7 +543,7 @@
                     </table>
                 </div>
 
-                <div class="d-flex justify-content-end">
+                <div class="d-flex justify-content-end mt-3">
                     {{ $empresas->links() }}
                 </div>
             </div>
@@ -311,7 +556,7 @@
                 <form wire:submit.prevent="save">
                     <div class="modal-header">
                         <h5 class="modal-title">
-                            {{ $editingId ? 'Editar empresa' : 'Nueva empresa' }}
+                            {{ $archivingToHistory ? 'Añadir a historial y renovar empresa' : ($editingId ? 'Editar empresa' : 'Nueva empresa') }}
                         </h5>
                         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                             <span aria-hidden="true">&times;</span>
@@ -319,6 +564,11 @@
                     </div>
 
                     <div class="modal-body">
+                        @if($archivingToHistory)
+                            <div class="alert alert-warning">
+                                Los datos y el PDF vigentes se respaldaran en el historial. Debes cambiar las dos fechas antes de guardar.
+                            </div>
+                        @endif
                         <div class="empresa-modal-grid">
                             <div class="form-group form-span-2">
                                 <label>Nombre</label>
@@ -355,12 +605,12 @@
                                 @error('documentacion_legal') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group">
-                                <label>Inicio contrato</label>
+                                <label>{{ $archivingToHistory ? 'Nueva fecha de inicio' : 'Inicio contrato' }}</label>
                                 <input type="date" wire:model.defer="inicio_contrato" class="form-control">
                                 @error('inicio_contrato') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group">
-                                <label>Fin contrato</label>
+                                <label>{{ $archivingToHistory ? 'Nueva fecha de finalizacion' : 'Fin contrato' }}</label>
                                 <input type="date" wire:model.defer="fin_contrato" class="form-control">
                                 @error('fin_contrato') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
@@ -375,10 +625,17 @@
                                 @error('presupuesto') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group form-span-2">
-                                <label>Documento PDF</label>
+                                <label>{{ $archivingToHistory ? 'Nuevo documento PDF (opcional)' : 'Documento PDF' }}</label>
                                 <input type="file" wire:model="documento_pdf_file" class="form-control" accept="application/pdf">
                                 @error('documento_pdf_file') <small class="text-danger">{{ $message }}</small> @enderror
-                                <div class="muted small mt-2">Puedes subir un PDF de contrato, convenio o adenda. Tamano maximo: 50 MB.</div>
+                                <div class="muted small mt-2">
+                                    @if($archivingToHistory)
+                                        El PDF actual sera copiado al historial. Si no eliges otro, continuara tambien como documento vigente.
+                                    @else
+                                        Puedes subir un PDF de contrato, convenio o adenda.
+                                    @endif
+                                    Tamano maximo: 50 MB.
+                                </div>
                                 @if ($documento_pdf_file)
                                     <div class="small text-info mt-1">PDF listo para guardar: {{ $documento_pdf_file->getClientOriginalName() }}</div>
                                 @elseif (!empty($documento_pdf_path))
@@ -395,7 +652,7 @@
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
                         <button type="submit" class="btn btn-primary">
-                            {{ $editingId ? 'Guardar cambios' : 'Crear' }}
+                            {{ $archivingToHistory ? 'Guardar en historial y actualizar' : ($editingId ? 'Guardar cambios' : 'Crear') }}
                         </button>
                     </div>
                 </form>

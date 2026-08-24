@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\AlertaEmpresaService;
 use App\Services\EmpresaContractUserSyncService;
 use Closure;
 use Illuminate\Http\Request;
@@ -12,9 +13,9 @@ use Symfony\Component\HttpFoundation\Response;
 class EnsureEmpresaContractUsersActive
 {
     public function __construct(
-        private readonly EmpresaContractUserSyncService $syncService
-    ) {
-    }
+        private readonly EmpresaContractUserSyncService $syncService,
+        private readonly AlertaEmpresaService $alertaEmpresaService
+    ) {}
 
     public function handle(Request $request, Closure $next): Response
     {
@@ -33,6 +34,7 @@ class EnsureEmpresaContractUsersActive
         }
 
         View::share('empresaContractAlerts', $this->syncService->buildExpirationAlertsForUser($user));
+        View::share('alertaEmpresaPendiente', $this->alertaEmpresaService->siguienteNoLeida($user));
 
         return $next($request);
     }

@@ -338,10 +338,13 @@ class AclPermissionRegistry
         'paquetes-certificados.rezago' => ['edit', 'delete', 'assign'],
         'paquetes-certificados.todos' => ['edit', 'delete'],
         'todos-paquetes.index' => ['create', 'edit', 'assign', 'print'],
+        'empresa.guias.index' => ['search', 'export', 'view', 'print'],
         'bitacoras.index' => ['create', 'save', 'edit', 'delete', 'export'],
         'bitacoras.create' => ['create', 'save'],
         'tarifa-contrato.index' => ['create', 'duplicate', 'edit', 'delete', 'save', 'import', 'export', 'report'],
-        'empresas.index' => ['create', 'edit', 'delete', 'import', 'export'],
+        'empresas.index' => ['create', 'edit', 'history', 'delete', 'import', 'export'],
+        'empresas.historial.index' => ['search', 'view-pdf'],
+        'alertas-empresa.index' => ['view', 'create', 'delete', 'export'],
         'servicios.index' => ['create', 'edit', 'delete'],
         'conceptos-facturacion.index' => ['create', 'edit', 'delete'],
         'sucursales.index' => ['create', 'edit', 'delete'],
@@ -781,6 +784,7 @@ class AclPermissionRegistry
         ],
         'paquetes-contrato.reporte' => [
             'paquetes-contrato.reporte',
+            'feature.empresa.guias.index.print',
             'feature.paquetes-contrato.index.print',
             'feature.paquetes-contrato.almacen.print',
             'feature.paquetes-contrato.recoger-envios.print',
@@ -824,6 +828,11 @@ class AclPermissionRegistry
             'empresas.template-excel',
             'feature.empresas.export',
         ],
+        'empresas.historial.pdf' => [
+            'empresas.historial.pdf',
+            'feature.empresas.historial.view-pdf',
+            'empresas.historial.index',
+        ],
         'carteros.entrega.store' => [
             'carteros.entrega.store',
             'feature.carteros.entrega.deliver',
@@ -866,6 +875,21 @@ class AclPermissionRegistry
             'api.carteros.desasignar',
             'feature.carteros.asignados.unassign',
         ],
+        'empresa.guias.index' => [
+            'empresa.guias.index',
+            'area-contratos.todos',
+        ],
+        'empresa.guias.excel' => [
+            'empresa.guias.excel',
+            'feature.empresa.guias.index.export',
+            'empresa.guias.index',
+            'area-contratos.todos',
+        ],
+        'empresa.guias.rastreo' => [
+            'empresa.guias.rastreo',
+            'feature.empresa.guias.index.view',
+            'empresa.guias.index',
+        ],
     ];
 
     /**
@@ -900,11 +924,21 @@ class AclPermissionRegistry
         'bitacoras.export-excel' => 'bitacoras.index',
         'bitacoras.export-pdf' => 'bitacoras.index',
         'area-contratos.reportes.excel' => 'area-contratos.reportes',
+        'empresa.guias.excel' => 'empresa.guias.index',
         'vehicle-assignments.report.pdf' => 'livewire.vehicle-assignments',
         'maintenance-incentives.export.pdf' => 'livewire.maintenance-incentives',
         'maintenance-documents.report.pdf' => 'livewire.maintenance-documents',
         'maintenance-appointments.approved-report.pdf' => 'livewire.maintenance-appointments',
         'workshops.location-report.pdf' => 'livewire.workshops',
+    ];
+
+    /**
+     * Non-export routes whose feature permission belongs to a concrete window.
+     *
+     * @var array<string, string>
+     */
+    private const ROUTE_FEATURE_WINDOW_MODULES = [
+        'empresa.guias.rastreo' => 'empresa.guias.index',
     ];
 
     /**
@@ -1778,6 +1812,10 @@ class AclPermissionRegistry
 
     private static function windowModuleForExportRoute(string $routePermission, string $featureAction): ?string
     {
+        if (isset(self::ROUTE_FEATURE_WINDOW_MODULES[$routePermission])) {
+            return self::ROUTE_FEATURE_WINDOW_MODULES[$routePermission];
+        }
+
         if ($featureAction !== 'export') {
             return null;
         }
@@ -1937,6 +1975,11 @@ class AclPermissionRegistry
             'feature.paquetes-contrato.gestor.export' => 'Boton: Descargar imagen',
             'feature.paquetes-contrato.gestor.print' => 'Boton: Reimprimir rotulo',
             'feature.paquetes-contrato.gestor.report' => 'Boton: Descargar reporte PDF',
+            'empresa.guias.index' => 'Ventana: Guías Empresa',
+            'feature.empresa.guias.index.search' => 'Botones: Filtrar y limpiar',
+            'feature.empresa.guias.index.export' => 'Boton: Descargar reporte Excel',
+            'feature.empresa.guias.index.view' => 'Boton: Rastreo',
+            'feature.empresa.guias.index.print' => 'Boton: Imprimir guia',
             'feature.paquetes-contrato.almacen.report' => 'Boton: Imprimir generados hoy',
             'feature.paquetes-contrato.almacen.print' => 'Boton: Reimprimir rotulo',
             'feature.paquetes-contrato.recoger-envios.assign' => 'Boton: Mandar seleccionados a almacen',
@@ -1955,9 +1998,12 @@ class AclPermissionRegistry
             'feature.users.empresas.manage' => 'Botones: Administrar usuarios empresa',
             'feature.empresas.create' => 'Boton: Nuevo',
             'feature.empresas.edit' => 'Boton: Editar',
+            'feature.empresas.history' => 'Boton: Añadir a historial',
             'feature.empresas.delete' => 'Boton: Eliminar',
             'feature.empresas.import' => 'Boton: Importar Excel',
             'feature.empresas.export' => 'Boton: Plantilla Excel / Reporte PDF',
+            'feature.empresas.historial.search' => 'Botones: Buscar y limpiar historial',
+            'feature.empresas.historial.view-pdf' => 'Boton: Ver PDF historico',
             'feature.codigo-empresa.create' => 'Boton: Nuevo',
             'feature.codigo-empresa.edit' => 'Boton: Editar',
             'feature.codigo-empresa.delete' => 'Boton: Eliminar',
@@ -2302,6 +2348,11 @@ class AclPermissionRegistry
             'feature.paquetes-contrato.gestor.export' => 'Controla Descargar imagen dentro de Gestor.',
             'feature.paquetes-contrato.gestor.print' => 'Controla Reimprimir rotulo dentro de Gestor.',
             'feature.paquetes-contrato.gestor.report' => 'Controla Descargar PDF dentro de Gestor.',
+            'empresa.guias.index' => 'Controla el acceso a la ventana Guías Empresa desde el menú Empresa.',
+            'feature.empresa.guias.index.search' => 'Controla los botones Filtrar y Limpiar dentro de Guías Empresa.',
+            'feature.empresa.guias.index.export' => 'Controla el botón Descargar reporte Excel dentro de Guías Empresa.',
+            'feature.empresa.guias.index.view' => 'Controla el botón Rastreo dentro de Guías Empresa.',
+            'feature.empresa.guias.index.print' => 'Controla el botón Imprimir guía dentro de Guías Empresa.',
             'feature.paquetes-contrato.almacen.report' => 'Controla el boton Imprimir generados hoy dentro de Almacen contratos.',
             'feature.paquetes-contrato.almacen.print' => 'Controla Reimprimir rotulo dentro de Almacen contratos.',
             'feature.paquetes-contrato.recoger-envios.assign' => 'Controla Mandar seleccionados a ALMACEN dentro de Recoger envios contratos.',
@@ -2314,9 +2365,13 @@ class AclPermissionRegistry
             'feature.paquetes-contrato.entregados.export' => 'Controla Descargar imagen dentro de Contratos entregados.',
             'feature.empresas.create' => 'Controla el boton Nuevo dentro de la ventana Empresas.',
             'feature.empresas.edit' => 'Controla el boton Editar dentro de la ventana Empresas.',
+            'feature.empresas.history' => 'Controla el boton Añadir a historial dentro de la ventana Empresas.',
             'feature.empresas.delete' => 'Controla el boton Eliminar dentro de la ventana Empresas.',
             'feature.empresas.import' => 'Controla el boton Importar Excel y la carga del archivo dentro de la ventana Empresas.',
             'feature.empresas.export' => 'Controla los botones Plantilla Excel y Reporte PDF dentro de la ventana Empresas.',
+            'empresas.historial.index' => 'Controla el acceso a la ventana Historial de empresas.',
+            'feature.empresas.historial.search' => 'Controla los botones Buscar y Limpiar dentro de Historial de empresas.',
+            'feature.empresas.historial.view-pdf' => 'Controla el boton Ver PDF dentro de Historial de empresas.',
             'feature.codigo-empresa.create' => 'Controla el boton Nuevo dentro de la ventana Generar codigos.',
             'feature.codigo-empresa.edit' => 'Controla el boton Editar dentro de la ventana Generar codigos.',
             'feature.codigo-empresa.delete' => 'Controla el boton Eliminar dentro de la ventana Generar codigos.',

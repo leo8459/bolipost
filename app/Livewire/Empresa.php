@@ -4,10 +4,12 @@ namespace App\Livewire;
 
 use App\Models\Empresa as EmpresaModel;
 use App\Services\EmpresaContractUserSyncService;
+use App\Services\EmpresaHistoryService;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
+use Throwable;
 
 class Empresa extends Component
 {
@@ -32,6 +34,9 @@ class Empresa extends Component
     public $documento_pdf_file = null;
     public $documento_pdf_path = '';
     public $openCreateModalOnLoad = false;
+    public $archivingToHistory = false;
+    public $originalInicioContrato = '';
+    public $originalFinContrato = '';
 
     protected $paginationTheme = 'bootstrap';
 
@@ -66,12 +71,36 @@ class Empresa extends Component
     {
         $this->resetForm();
         $this->editingId = null;
+        $this->archivingToHistory = false;
         $this->dispatch('openEmpresaModal');
     }
 
     public function openEditModal($id)
     {
         $empresa = EmpresaModel::findOrFail($id);
+
+        $this->loadEmpresaForm($empresa);
+        $this->archivingToHistory = false;
+
+        $this->dispatch('openEmpresaModal');
+    }
+
+    public function openHistoryModal($id): void
+    {
+        $this->authorizeHistoryAction();
+        $empresa = EmpresaModel::findOrFail($id);
+
+        $this->loadEmpresaForm($empresa);
+        $this->archivingToHistory = true;
+        $this->originalInicioContrato = $this->inicio_contrato;
+        $this->originalFinContrato = $this->fin_contrato;
+
+        $this->dispatch('openEmpresaModal');
+    }
+
+    protected function loadEmpresaForm(EmpresaModel $empresa): void
+    {
+        $this->resetValidation();
 
         $this->editingId = $empresa->id;
         $this->nombre = $empresa->nombre;
@@ -85,19 +114,47 @@ class Empresa extends Component
         $this->presupuesto = !is_null($empresa->presupuesto) ? (string) $empresa->presupuesto : '';
         $this->documento_pdf_file = null;
         $this->documento_pdf_path = (string) ($empresa->documento_pdf_path ?? '');
-
-        $this->dispatch('openEmpresaModal');
     }
 
-    public function save()
+    public function save(EmpresaHistoryService $historyService)
     {
         $this->validate($this->rules());
+
+        if ($this->archivingToHistory) {
+            $this->authorizeHistoryAction();
+            if ($this->inicio_contrato === $this->originalInicioContrato) {
+                $this->addError('inicio_contrato', 'Debes registrar una nueva fecha de inicio para enviar el contrato vigente al historial.');
+            }
+            if ($this->fin_contrato === $this->originalFinContrato) {
+                $this->addError('fin_contrato', 'Debes registrar una nueva fecha de finalizacion para enviar el contrato vigente al historial.');
+            }
+            if ($this->getErrorBag()->has('inicio_contrato') || $this->getErrorBag()->has('fin_contrato')) {
+                return;
+            }
+        }
 
         $payload = $this->payload();
 
         if ($this->editingId) {
             $empresa = EmpresaModel::findOrFail($this->editingId);
-            if ($this->documento_pdf_file) {
+
+            if ($this->archivingToHistory) {
+                try {
+                    $historyService->archiveAndRenew(
+                        $empresa,
+                        $payload,
+                        $this->documento_pdf_file,
+                        auth()->id()
+                    );
+                } catch (Throwable $exception) {
+                    report($exception);
+                    $this->addError('documento_pdf_file', 'No se pudo guardar el historial. No se modifico la empresa; intenta nuevamente.');
+
+                    return;
+                }
+
+                session()->flash('success', 'El contrato anterior se guardo en el historial y la empresa fue actualizada.');
+            } elseif ($this->documento_pdf_file) {
                 if (!empty($empresa->documento_pdf_path)) {
                     Storage::disk('public')->delete($empresa->documento_pdf_path);
                 }
@@ -105,9 +162,11 @@ class Empresa extends Component
                 $payload['documento_pdf_path'] = (string) $this->documento_pdf_file->store('empresa-documentos', 'public');
             }
 
-            $empresa->update($payload);
-            app(EmpresaContractUserSyncService::class)->syncCompanyById((int) $empresa->id);
-            session()->flash('success', 'Empresa actualizada correctamente.');
+            if (! $this->archivingToHistory) {
+                $empresa->update($payload);
+                app(EmpresaContractUserSyncService::class)->syncCompanyById((int) $empresa->id);
+                session()->flash('success', 'Empresa actualizada correctamente.');
+            }
         } else {
             if ($this->documento_pdf_file) {
                 $payload['documento_pdf_path'] = (string) $this->documento_pdf_file->store('empresa-documentos', 'public');
@@ -147,6 +206,9 @@ class Empresa extends Component
             'presupuesto',
             'documento_pdf_file',
             'documento_pdf_path',
+            'archivingToHistory',
+            'originalInicioContrato',
+            'originalFinContrato',
         ]);
 
         $this->resetValidation();
@@ -234,5 +296,10 @@ class Empresa extends Component
         $user = auth()->user();
 
         return $user && ($user->can('feature.empresas.create') || $user->can('empresas.index'));
+    }
+
+    private function authorizeHistoryAction(): void
+    {
+        abort_unless(auth()->user()?->can('feature.empresas.history'), 403, 'No tienes permiso para añadir empresas al historial.');
     }
 }

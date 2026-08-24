@@ -40,6 +40,7 @@ class DashboardController extends Controller
     private const DASHBOARD_CACHE_SECONDS = 300;
     private const DASHBOARD_ALERT_CACHE_SECONDS = 20;
     private const DASHBOARD_HEAVY_ALERT_CACHE_SECONDS = 300;
+    private const DASHBOARD_MAX_EXECUTION_SECONDS = 180;
     private const DESTINOS_LARGA_DISTANCIA = [
         'SANTA CRUZ',
         'TRINIDAD',
@@ -125,6 +126,9 @@ class DashboardController extends Controller
 
     public function index(Request $request)
     {
+        @set_time_limit(self::DASHBOARD_MAX_EXECUTION_SECONDS);
+        @ini_set('max_execution_time', (string) self::DASHBOARD_MAX_EXECUTION_SECONDS);
+
         $data = Cache::remember(
             $this->dashboardCacheKey($request),
             now()->addSeconds(self::DASHBOARD_CACHE_SECONDS),

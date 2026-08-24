@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Exports\AreaContratosEntregadosExport;
+use App\Exports\EmpresaGuiasExport;
 use App\Models\Empresa;
 use App\Models\Estado;
 use App\Models\Recojo;
@@ -12,6 +13,122 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class AreaContratosController extends Controller
 {
+    public function guiasEmpresa(Request $request)
+    {
+        $filters = $this->validatedGuiasEmpresaFilters($request);
+
+        $search = trim((string) ($filters['q'] ?? ''));
+        $empresaId = (int) ($filters['empresa_id'] ?? 0);
+        $fechaDesde = (string) ($filters['fecha_desde'] ?? '');
+        $fechaHasta = (string) ($filters['fecha_hasta'] ?? '');
+
+        $guias = $this->buildGuiasEmpresaQuery($filters)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->paginate(25)
+            ->withQueryString();
+
+        return view('empresa.guias', [
+            'guias' => $guias,
+            'empresas' => Empresa::query()
+                ->orderBy('nombre')
+                ->get(['id', 'nombre', 'sigla', 'codigo_cliente']),
+            'search' => $search,
+            'empresaId' => $empresaId,
+            'fechaDesde' => $fechaDesde,
+            'fechaHasta' => $fechaHasta,
+        ]);
+    }
+
+    public function exportGuiasEmpresaExcel(Request $request)
+    {
+        $filters = $this->validatedGuiasEmpresaFilters($request);
+        $rows = $this->buildGuiasEmpresaQuery($filters)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->get();
+
+        return Excel::download(
+            new EmpresaGuiasExport($rows),
+            'reporte-guias-empresa-'.now()->format('Ymd-His').'.xlsx'
+        );
+    }
+
+    private function validatedGuiasEmpresaFilters(Request $request): array
+    {
+        $fechaHastaRules = ['nullable', 'date_format:Y-m-d'];
+        if ($request->filled('fecha_desde')) {
+            $fechaHastaRules[] = 'after_or_equal:fecha_desde';
+        }
+
+        return $request->validate([
+            'q' => ['nullable', 'string', 'max:150'],
+            'empresa_id' => ['nullable', 'integer', 'exists:empresa,id'],
+            'fecha_desde' => ['nullable', 'date_format:Y-m-d'],
+            'fecha_hasta' => $fechaHastaRules,
+        ], [
+            'fecha_hasta.after_or_equal' => 'La fecha hasta debe ser igual o posterior a la fecha desde.',
+        ], [
+            'empresa_id' => 'empresa',
+            'fecha_desde' => 'fecha desde',
+            'fecha_hasta' => 'fecha hasta',
+        ]);
+    }
+
+    private function buildGuiasEmpresaQuery(array $filters)
+    {
+        $search = trim((string) ($filters['q'] ?? ''));
+        $empresaId = (int) ($filters['empresa_id'] ?? 0);
+        $fechaDesde = (string) ($filters['fecha_desde'] ?? '');
+        $fechaHasta = (string) ($filters['fecha_hasta'] ?? '');
+
+        return Recojo::query()
+            ->with([
+                'estadoRegistro:id,nombre_estado',
+                'empresa:id,nombre,sigla,codigo_cliente',
+                'user:id,name,empresa_id',
+                'user.empresa:id,nombre,sigla,codigo_cliente',
+            ])
+            ->whereNotNull('estados_id')
+            ->where('estados_id', '!=', 0)
+            ->where(function ($query) {
+                $query->whereNotNull('empresa_id')
+                    ->orWhereHas('user', fn ($userQuery) => $userQuery->whereNotNull('empresa_id'));
+            })
+            ->when($empresaId > 0, function ($query) use ($empresaId) {
+                $query->where(function ($companyQuery) use ($empresaId) {
+                    $companyQuery->where('empresa_id', $empresaId)
+                        ->orWhere(function ($legacyQuery) use ($empresaId) {
+                            $legacyQuery->whereNull('empresa_id')
+                                ->whereHas('user', fn ($userQuery) => $userQuery->where('empresa_id', $empresaId));
+                        });
+                });
+            })
+            ->when($fechaDesde !== '', fn ($query) => $query->whereDate('created_at', '>=', $fechaDesde))
+            ->when($fechaHasta !== '', fn ($query) => $query->whereDate('created_at', '<=', $fechaHasta))
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($searchQuery) use ($search) {
+                    $searchQuery->where('codigo', 'like', '%'.$search.'%')
+                        ->orWhere('codigo_madre', 'like', '%'.$search.'%')
+                        ->orWhere('cod_especial', 'like', '%'.$search.'%')
+                        ->orWhere('nombre_r', 'like', '%'.$search.'%')
+                        ->orWhere('nombre_d', 'like', '%'.$search.'%')
+                        ->orWhere('origen', 'like', '%'.$search.'%')
+                        ->orWhere('destino', 'like', '%'.$search.'%')
+                        ->orWhereHas('estadoRegistro', fn ($estadoQuery) => $estadoQuery
+                            ->where('nombre_estado', 'like', '%'.$search.'%'))
+                        ->orWhereHas('empresa', fn ($empresaQuery) => $empresaQuery
+                            ->where('nombre', 'like', '%'.$search.'%')
+                            ->orWhere('sigla', 'like', '%'.$search.'%')
+                            ->orWhere('codigo_cliente', 'like', '%'.$search.'%'))
+                        ->orWhereHas('user.empresa', fn ($empresaQuery) => $empresaQuery
+                            ->where('nombre', 'like', '%'.$search.'%')
+                            ->orWhere('sigla', 'like', '%'.$search.'%')
+                            ->orWhere('codigo_cliente', 'like', '%'.$search.'%'));
+                });
+            });
+    }
+
     public function todos(Request $request)
     {
         $search = trim((string) $request->query('q', ''));
