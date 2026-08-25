@@ -208,6 +208,9 @@ Route::get('/dir-comercial/rendimiento-servicios/export/pdf', [ReportesControlle
 Route::get('/dir-financiera/ventas-servicios', [FinancialReportController::class, 'services'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.financiera.ventas-servicios');
+Route::get('/conciliacion/facturado', [FinancialReportController::class, 'invoicedContracts'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.conciliacion.facturado');
 Route::get('/dir-financiera/ventas-servicios/reporte-ejecutivo.pdf', [FinancialReportController::class, 'executiveReport'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.financiera.ventas-servicios.pdf');

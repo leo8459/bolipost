@@ -752,9 +752,14 @@ class DashboardController extends Controller
         bool $hasGlobalDepartmentAccess,
         string $userCity
     ): array {
+        // El equipo de Delivery Express gestiona recojos de todo el pais, aunque
+        // el usuario tenga una regional asignada y no sea un perfil global.
+        $hasNationalPickupAccess = $hasGlobalDepartmentAccess
+            || $this->userHasRole($authUser, 'delivery_express');
+
         $emptyAlert = [
             'count' => 0,
-            'is_national' => $hasGlobalDepartmentAccess,
+            'is_national' => $hasNationalPickupAccess,
             'scope_label' => $userCity !== '' ? $userCity : 'TU DEPARTAMENTO',
             'departments' => collect(),
             'requests' => collect(),
@@ -774,13 +779,13 @@ class DashboardController extends Controller
             ->unique()
             ->values();
 
-        if (!$hasGlobalDepartmentAccess && $assignedDepartments->isEmpty()) {
+        if (!$hasNationalPickupAccess && $assignedDepartments->isEmpty()) {
             return $emptyAlert;
         }
 
         $pickupQuery = SolicitudCliente::query()
             ->where('estado_id', $estadoSolicitudId)
-            ->when(!$hasGlobalDepartmentAccess, function ($query) use ($assignedDepartments) {
+            ->when(!$hasNationalPickupAccess, function ($query) use ($assignedDepartments) {
                 $query->where(function ($departmentQuery) use ($assignedDepartments) {
                     foreach ($assignedDepartments as $department) {
                         $departmentQuery->orWhereRaw('trim(upper(origen)) = ?', [$department]);
@@ -791,7 +796,7 @@ class DashboardController extends Controller
         $count = (int) (clone $pickupQuery)->count();
         if ($count === 0) {
             return array_merge($emptyAlert, [
-                'scope_label' => $hasGlobalDepartmentAccess
+                'scope_label' => $hasNationalPickupAccess
                     ? 'NIVEL NACIONAL'
                     : $assignedDepartments->implode(', '),
             ]);
@@ -832,8 +837,8 @@ class DashboardController extends Controller
 
         return [
             'count' => $count,
-            'is_national' => $hasGlobalDepartmentAccess,
-            'scope_label' => $hasGlobalDepartmentAccess
+            'is_national' => $hasNationalPickupAccess,
+            'scope_label' => $hasNationalPickupAccess
                 ? 'NIVEL NACIONAL'
                 : $assignedDepartments->implode(', '),
             'departments' => $departments,

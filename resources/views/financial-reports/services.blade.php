@@ -1,12 +1,14 @@
 @extends('adminlte::page')
 
-@section('title', 'Ventas por servicio')
+@section('title', ($soloContratos ?? false) ? 'Facturado - Contratos' : 'Ventas por servicio')
 
 @section('content_header')
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center">
         <div>
-            <h1 class="mb-0">Ventas por servicio</h1>
-            <small class="text-muted">Resumen consolidado de uno o varios servicios y meses.</small>
+            <h1 class="mb-0">{{ ($soloContratos ?? false) ? 'Facturado' : 'Ventas por servicio' }}</h1>
+            <small class="text-muted">
+                {{ ($soloContratos ?? false) ? 'Facturación correspondiente únicamente al servicio de contratos.' : 'Resumen consolidado de uno o varios servicios y meses.' }}
+            </small>
         </div>
         <a href="{{ route('dashboard') }}" class="btn btn-outline-secondary btn-sm mt-2 mt-md-0">
             <i class="fas fa-arrow-left mr-1"></i> Dashboard
@@ -58,12 +60,39 @@
 @endpush
 
 @section('content')
-    @include('financial-reports.partials.multi-filters', [
-        'action' => route('dashboard.financiera.ventas-servicios'),
-        'showLimit' => true,
-        'filterTitle' => 'Construya su resumen',
-        'filterHelp' => 'Seleccione los servicios y meses que desea comparar; los totales se consolidan automáticamente.',
-    ])
+    @if($soloContratos)
+        <div class="card card-outline card-primary mb-3">
+            <div class="card-body py-3">
+                <form method="GET" action="{{ route('dashboard.conciliacion.facturado') }}" class="form-row align-items-end">
+                    <input type="hidden" name="limite" value="{{ $limite }}">
+                    <div class="col-sm-5 col-md-3 mb-2 mb-sm-0">
+                        <label for="contract-report-month" class="small mb-1">Mes facturado</label>
+                        <select id="contract-report-month" name="meses[]" class="form-control">
+                            @foreach([1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril', 5 => 'Mayo', 6 => 'Junio', 7 => 'Julio', 8 => 'Agosto', 9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre'] as $number => $monthName)
+                                <option value="{{ $number }}" @selected(in_array($number, $selectedMonths, true))>{{ $monthName }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-sm-4 col-md-2 mb-2 mb-sm-0">
+                        <label for="contract-report-year" class="small mb-1">Año</label>
+                        <input id="contract-report-year" type="number" name="anio" class="form-control" min="2000" max="{{ now()->year + 1 }}" value="{{ $anio }}">
+                    </div>
+                    <div class="col-sm-3 col-md-2">
+                        <button type="submit" class="btn btn-primary btn-block">
+                            <i class="fas fa-filter mr-1"></i> Mostrar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @else
+        @include('financial-reports.partials.multi-filters', [
+            'action' => route('dashboard.financiera.ventas-servicios'),
+            'showLimit' => true,
+            'filterTitle' => 'Construya su resumen',
+            'filterHelp' => 'Seleccione los servicios y meses que desea comparar; los totales se consolidan automáticamente.',
+        ])
+    @endif
 
     @if($errors->isNotEmpty())
         <div class="alert alert-warning">
@@ -76,6 +105,7 @@
         </div>
     @endif
 
+    @unless($soloContratos)
     <div class="row">
         @foreach([
             ['Servicios', $summary['cantidadServicios'] ?? 0, 'fa-layer-group', 'primary'],
@@ -94,17 +124,25 @@
             </div>
         @endforeach
     </div>
+    @endunless
 
+    @if($soloContratos)
+        @include('financial-reports.partials.invoice-rows-table', [
+            'tableTitle' => 'Facturas del servicio de contratos',
+            'tableHelp' => 'Detalle completo de las ventas facturadas para el período seleccionado.',
+            'salesCount' => $summary['cantidadVentas'] ?? 0,
+        ])
+    @else
     <div class="card card-outline card-secondary">
         <div class="card-header d-flex justify-content-between align-items-center">
             <div>
-                <strong><i class="fas fa-layer-group mr-1"></i> Servicios agrupados</strong>
-                <div class="text-muted small">Haga clic en un grupo para mostrar u ocultar sus subservicios.</div>
+                <strong><i class="fas {{ $soloContratos ? 'fa-file-contract' : 'fa-layer-group' }} mr-1"></i> {{ $soloContratos ? 'Facturado - Servicio de contratos' : 'Servicios agrupados' }}</strong>
+                <div class="text-muted small">{{ $soloContratos ? 'La tabla contiene exclusivamente los datos facturados de contratos.' : 'Haga clic en un grupo para mostrar u ocultar sus subservicios.' }}</div>
             </div>
             <div class="text-right">
                 <span class="badge badge-primary">{{ number_format($serviceGroups->count()) }} grupos</span>
                 <span class="badge badge-light border">{{ number_format($services->count()) }} subservicios</span>
-                <a href="{{ route('dashboard.financiera.ventas-servicios.pdf', ['servicios' => $selectedServices, 'meses' => $selectedMonths, 'anio' => $anio, 'limite' => $limite]) }}" class="btn btn-danger btn-sm ml-2" target="_blank">
+                <a href="{{ route('dashboard.financiera.ventas-servicios.pdf', ['servicios' => $selectedServices, 'meses' => $selectedMonths, 'anio' => $anio, 'limite' => $limite, 'solo_contratos' => $soloContratos ? 1 : null]) }}" class="btn btn-danger btn-sm ml-2" target="_blank">
                     <i class="fas fa-file-pdf mr-1"></i> Reporte ejecutivo PDF
                 </a>
             </div>
@@ -200,4 +238,5 @@
             </div>
         </div>
     </div>
+    @endif
 @stop

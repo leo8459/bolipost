@@ -169,6 +169,78 @@ class FinancialReportTest extends TestCase
             });
     }
 
+    public function test_services_report_can_show_only_invoiced_contract_services(): void
+    {
+        Http::fake(function (Request $request) {
+            if (str_contains($request->url(), '/detalle')) {
+                return Http::response(json_encode([
+                    'servicio' => [
+                        'rows' => [[
+                            'ventaId' => 'venta-contrato-1',
+                            'detalleId' => 10,
+                            'descripcion' => 'Factura de contrato',
+                            'codigoOrden' => 'orden-contrato-1',
+                            'codigoSeguimiento' => 'BO-CONTRATO-1',
+                            'fecha' => '2026-08-19',
+                            'totalLinea' => 150,
+                        ]],
+                    ],
+                ]), 200);
+            }
+
+            return Http::response(json_encode([
+                'servicios' => [
+                    [
+                        'servicio' => 'Servicio Internacional',
+                        'cantidadVentas' => 8,
+                        'cantidadDetalles' => 8,
+                        'totalCantidad' => 8,
+                        'totalMonto' => 800,
+                        'ultimaFecha' => '2026-08-18',
+                    ],
+                    [
+                        'servicio' => 'Servicio Contratos por concepto de pago de servicios de courier correspondiente',
+                        'cantidadVentas' => 3,
+                        'cantidadDetalles' => 4,
+                        'totalCantidad' => 5,
+                        'totalMonto' => 150,
+                        'ultimaFecha' => '2026-08-19',
+                    ],
+                ],
+            ]), 200);
+        });
+
+        $response = $this->withoutMiddleware()->get(route('dashboard.conciliacion.facturado', [
+            'mes' => 8,
+            'anio' => 2026,
+        ]));
+
+        $response->assertOk()
+            ->assertSee('Servicio Contratos')
+            ->assertSee('Facturas del servicio de contratos')
+            ->assertSee('3 ventas')
+            ->assertSee('BO-CONTRATO-1')
+            ->assertDontSee('Servicio Internacional')
+            ->assertViewHas('soloContratos', true)
+            ->assertViewHas('serviceOptions', fn ($options) => $options->count() === 1
+                && $options->first() === 'Servicio Contratos por concepto de pago de servicios de courier correspondiente'
+            )
+            ->assertViewHas('services', fn ($services) => $services->count() === 1
+                && $services->first()['cantidadVentas'] === 3.0
+                && $services->first()['totalMonto'] === 150.0
+            )
+            ->assertViewHas('serviceGroups', fn ($groups) => $groups->count() === 1
+                && $groups->first()['servicio'] === 'Servicio Contratos'
+            )
+            ->assertViewHas('rows', fn ($rows) => $rows->total() === 1
+                && $rows->first()['ventaId'] === 'venta-contrato-1'
+            )
+            ->assertViewHas('summary', fn ($summary) => $summary['cantidadServicios'] === 1
+                && $summary['cantidadVentas'] === 3.0
+                && $summary['totalMonto'] === 150.0
+            );
+    }
+
     public function test_executive_report_downloads_a_professional_pdf_with_selected_filters(): void
     {
         Http::fake([

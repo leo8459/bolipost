@@ -44,7 +44,22 @@ class FinancialReportController extends Controller
 
     public function services(Request $request)
     {
-        return view('financial-reports.services', $this->buildServicesReportData($request));
+        return view('financial-reports.services', $this->buildServicesReportData($request, false));
+    }
+
+    public function invoicedContracts(Request $request)
+    {
+        $data = $this->buildServicesReportData($request, true);
+
+        $data['rows'] = $this->buildInvoiceRows(
+            $request,
+            collect($data['selectedServices']),
+            collect($data['selectedMonths']),
+            $data['anio'],
+            $data['errors']
+        );
+
+        return view('financial-reports.services', $data);
     }
 
     public function executiveReport(Request $request)
@@ -76,7 +91,7 @@ class FinancialReportController extends Controller
         return $pdf->download('reporte-ejecutivo-ventas-servicios-'.$data['anio'].'-'.now()->format('Ymd_His').'.pdf');
     }
 
-    private function buildServicesReportData(Request $request): array
+    private function buildServicesReportData(Request $request, ?bool $forceOnlyContracts = null): array
     {
         $validated = $request->validate([
             'servicio' => ['nullable', 'string', 'max:180'],
@@ -87,10 +102,12 @@ class FinancialReportController extends Controller
             'meses.*' => ['integer', 'distinct', 'between:1,12'],
             'anio' => ['nullable', 'integer', 'between:2000,'.(now()->year + 1)],
             'limite' => ['nullable', 'integer', 'between:1,200'],
+            'solo_contratos' => ['nullable', 'boolean'],
         ]);
 
         $year = (int) ($validated['anio'] ?? now()->year);
         $limit = (int) ($validated['limite'] ?? 200);
+        $onlyContracts = $forceOnlyContracts ?? (bool) ($validated['solo_contratos'] ?? false);
         $selectedMonths = collect($validated['meses'] ?? [$validated['mes'] ?? now()->month])
             ->map(fn ($month) => (int) $month)
             ->unique()
@@ -150,9 +167,13 @@ class FinancialReportController extends Controller
             }
         }
 
-        $selectedServices = $hasServiceFilter
-            ? $requestedServices
-            : $serviceOptions->sortKeys()->values();
+        $contractServices = $aggregated
+            ->filter(fn (array $service) => $this->serviceGroupName((string) ($service['servicio'] ?? '')) === 'Servicio Contratos')
+            ->keys()
+            ->values();
+        $selectedServices = $onlyContracts
+            ? $contractServices
+            : ($hasServiceFilter ? $requestedServices : $serviceOptions->sortKeys()->values());
         $services = $aggregated
             ->only($selectedServices->all())
             ->values()
@@ -172,9 +193,12 @@ class FinancialReportController extends Controller
             'mes' => (int) $selectedMonths->first(),
             'anio' => $year,
             'limite' => $limit,
+            'soloContratos' => $onlyContracts,
             'selectedMonths' => $selectedMonths->all(),
             'selectedServices' => $selectedServices->all(),
-            'serviceOptions' => $serviceOptions->sortKeys()->values(),
+            'serviceOptions' => $onlyContracts
+                ? $contractServices
+                : $serviceOptions->sortKeys()->values(),
             'summary' => $summary,
             'services' => $services,
             'serviceGroups' => $serviceGroups,
@@ -290,6 +314,45 @@ class FinancialReportController extends Controller
             'mes' => $month,
             'anio' => $year,
         ]);
+    }
+
+    private function buildInvoiceRows(
+        Request $request,
+        Collection $services,
+        Collection $months,
+        int $year,
+        Collection $errors
+    ): LengthAwarePaginator {
+        $rows = collect();
+
+        foreach ($services as $serviceName) {
+            foreach ($months as $month) {
+                try {
+                    $report = $this->reports->serviceDetail((string) $serviceName, (int) $month, $year);
+                    $detail = (array) ($report['servicio'] ?? []);
+                    $rows->push(...collect($detail['rows'] ?? [])->map(fn ($row) => [
+                        ...(array) $row,
+                        '_servicio' => $serviceName,
+                        '_mes' => (int) $month,
+                    ])->all());
+                } catch (\Throwable $exception) {
+                    $errors->push("No se pudo cargar {$serviceName} para el mes {$month}: {$exception->getMessage()}");
+                    $this->logDetailError($exception, (string) $serviceName, (int) $month, $year);
+                }
+            }
+        }
+
+        $rows = $rows->sortByDesc('fecha')->values();
+        $page = max(1, (int) $request->query('page', 1));
+        $perPage = 200;
+
+        return new LengthAwarePaginator(
+            $rows->forPage($page, $perPage)->values(),
+            $rows->count(),
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->except('page')]
+        );
     }
 
     private function buildServiceGroups(Collection $services): Collection

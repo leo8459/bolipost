@@ -354,6 +354,24 @@ return [
             'icon' => 'fas fa-tachometer-alt',
         ],
         [
+            'text' => 'Conciliación',
+            'icon' => 'fas fa-balance-scale',
+            'can' => 'dashboard.conciliacion',
+            'submenu' => [
+                [
+                    'text' => 'Facturado',
+                    'can' => 'dashboard.conciliacion.facturado',
+                    'url' => '/conciliacion/facturado',
+                    'icon' => 'fas fa-file-invoice-dollar',
+                ],
+                [
+                    'text' => 'Conciliaciones',
+                    'url' => '#',
+                    'icon' => 'fas fa-exchange-alt',
+                ],
+            ],
+        ],
+        [
             'text' => 'Administrador',
             'icon' => 'fas fa-user-shield',
             'can' => 'admin-only-menu',

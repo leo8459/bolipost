@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\DashboardController;
+use App\Models\Role;
 use App\Models\SolicitudCliente;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
@@ -53,6 +54,7 @@ class DeliveryExpressPickupAlertTest extends TestCase
             'ciudad' => 'LA PAZ',
             'regionales' => ['LA PAZ'],
         ]);
+        $user->setRelation('roles', collect());
 
         $alert = $this->invokePickupAlert($user);
 
@@ -61,6 +63,37 @@ class DeliveryExpressPickupAlertTest extends TestCase
         $this->assertSame(['LA PAZ'], $alert['departments']->pluck('departamento')->all());
         $this->assertEqualsCanonicalizing(
             ['LP-001', 'LP-002'],
+            $alert['requests']->pluck('codigo_solicitud')->all()
+        );
+    }
+
+    public function test_delivery_express_role_receives_the_national_pickup_modal(): void
+    {
+        SolicitudCliente::query()->insert([
+            $this->requestRow('LP-001', 'LA PAZ', 28),
+            $this->requestRow('CBBA-001', 'COCHABAMBA', 28),
+            $this->requestRow('CLOSED', 'SANTA CRUZ', 30),
+        ]);
+
+        $user = new User([
+            'ciudad' => 'LA PAZ',
+            'regionales' => ['LA PAZ'],
+        ]);
+        $user->setRelation('roles', collect([
+            new Role(['name' => 'delivery_express', 'guard_name' => 'web']),
+        ]));
+
+        $alert = $this->invokePickupAlert($user);
+
+        $this->assertSame(2, $alert['count']);
+        $this->assertTrue($alert['is_national']);
+        $this->assertSame('NIVEL NACIONAL', $alert['scope_label']);
+        $this->assertEqualsCanonicalizing(
+            ['LA PAZ', 'COCHABAMBA'],
+            $alert['departments']->pluck('departamento')->all()
+        );
+        $this->assertEqualsCanonicalizing(
+            ['LP-001', 'CBBA-001'],
             $alert['requests']->pluck('codigo_solicitud')->all()
         );
     }

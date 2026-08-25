@@ -206,6 +206,8 @@ return [
         'feature.empresa.guias.index.print',
         'dashboard.dir-operaciones',
         'dashboard.dir-comercial',
+        'dashboard.conciliacion',
+        'dashboard.conciliacion.facturado',
         'dashboard.dir-financiera',
         'dashboard.financiera.ventas-servicios',
         'dashboard.financiera.ventas-servicios.detalle',

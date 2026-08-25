@@ -10,6 +10,9 @@
     </div>
 
     <form method="GET" action="{{ $action }}" class="report-filter-form">
+        @if($soloContratos ?? false)
+            <input type="hidden" name="solo_contratos" value="1">
+        @endif
         <div class="card-body pt-3">
             <div class="row">
                 <div class="col-lg-7 mb-4 mb-lg-0">
