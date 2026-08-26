@@ -26,6 +26,7 @@
 <body>
     @php
         $ultimoNombre = $ultimoEvento->nombre_evento ?? ('Evento #' . ($ultimoEvento->evento_id ?? '-'));
+        $ultimoEventoTexto = mb_strtolower((string) ($ultimoEvento->nombre_evento ?? ''));
         $eventoTextos = $eventos->map(fn($item) => mb_strtolower((string) ($item->nombre_evento ?? '')))->implode(' | ');
         $tieneIncidencia = str_contains($eventoTextos, 'fall') || str_contains($eventoTextos, 'incid') || str_contains($eventoTextos, 'devuelt');
         $fechaUltima = \Illuminate\Support\Carbon::parse($ultimoEvento->created_at);
@@ -51,29 +52,29 @@
 
         $idxEntregado = $incluyeCartero ? 5 : 4;
         $pasoActual = 0;
-        $textoIndicaDespacho = str_contains($eventoTextos, 'despach');
-        $textoIndicaExpedicion = str_contains($eventoTextos, 'exped')
-            || str_contains($eventoTextos, 'saca')
-            || str_contains($eventoTextos, 'transit')
-            || str_contains($eventoTextos, 'extranj');
-        $textoIndicaVentanilla = str_contains($eventoTextos, 'ventanilla')
-            || str_contains($eventoTextos, 'listo para entregar')
-            || str_contains($eventoTextos, 'oficina de entrega');
+        $textoIndicaDespacho = str_contains($ultimoEventoTexto, 'despach');
+        $textoIndicaExpedicion = str_contains($ultimoEventoTexto, 'exped')
+            || str_contains($ultimoEventoTexto, 'saca')
+            || str_contains($ultimoEventoTexto, 'transit')
+            || str_contains($ultimoEventoTexto, 'extranj');
+        $textoIndicaVentanilla = str_contains($ultimoEventoTexto, 'ventanilla')
+            || str_contains($ultimoEventoTexto, 'listo para entregar')
+            || str_contains($ultimoEventoTexto, 'oficina de entrega');
 
         if ($primerPaso === 'Clasificacion') {
-            if (str_contains($eventoTextos, 'clasific') || str_contains($eventoTextos, 'recibid') || str_contains($eventoTextos, 'registr')) $pasoActual = max($pasoActual, 0);
+            if (str_contains($ultimoEventoTexto, 'clasific') || str_contains($ultimoEventoTexto, 'recibid') || str_contains($ultimoEventoTexto, 'registr')) $pasoActual = max($pasoActual, 0);
         } else {
-            if (str_contains($eventoTextos, 'admi') || str_contains($eventoTextos, 'recibid') || str_contains($eventoTextos, 'registr')) $pasoActual = max($pasoActual, 0);
+            if (str_contains($ultimoEventoTexto, 'admi') || str_contains($ultimoEventoTexto, 'recibid') || str_contains($ultimoEventoTexto, 'registr')) $pasoActual = max($pasoActual, 0);
         }
         if ($textoIndicaDespacho) $pasoActual = max($pasoActual, 1);
         if ($textoIndicaExpedicion) $pasoActual = max($pasoActual, 2);
         if ($textoIndicaVentanilla) $pasoActual = max($pasoActual, 3);
-        if ($incluyeCartero && (str_contains($eventoTextos, 'cartero') || str_contains($eventoTextos, 'distrib') || str_contains($eventoTextos, 'domicilio') || str_contains($eventoTextos, 'intento'))) {
+        if ($incluyeCartero && (str_contains($ultimoEventoTexto, 'cartero') || str_contains($ultimoEventoTexto, 'distrib') || str_contains($ultimoEventoTexto, 'domicilio') || str_contains($ultimoEventoTexto, 'intento'))) {
             $pasoActual = max($pasoActual, 4);
         }
 
-        $entregaConfirmada = $eventos->contains(function ($item) {
-            $texto = mb_strtolower((string) ($item->nombre_evento ?? ''));
+        $entregaConfirmada = (function () use ($ultimoEventoTexto) {
+            $texto = $ultimoEventoTexto;
             if ($texto === '') {
                 return false;
             }
@@ -110,7 +111,7 @@
             }
 
             return false;
-        });
+        })();
 
         if ($entregaConfirmada) $pasoActual = max($pasoActual, $idxEntregado);
 
@@ -325,8 +326,80 @@
 
             return '';
         };
+        $extraerCodigoUpuOficina = function (?string $valor): ?string {
+            $textoOriginal = strtoupper(trim((string) $valor));
+            if ($textoOriginal === '') {
+                return null;
+            }
 
-        $iso2DesdeOficina = function (?string $texto) use ($normalizarIso2, $extraerPaisDesdeOffice, $iso2DesdeNombrePais): ?string {
+            if (preg_match('/^([A-Z]{2}[A-Z]{3}[A-Z0-9])(?:\b|\s*-)/', $textoOriginal, $match) === 1) {
+                return (string) ($match[1] ?? null);
+            }
+
+            return null;
+        };
+        $esEtiquetaUpuRecortable = function (?string $valor) use ($extraerCodigoUpuOficina, $normalizarIso2, $iso2DesdeNombrePais): bool {
+            $textoOriginal = trim((string) $valor);
+            $codigoUpu = $extraerCodigoUpuOficina($textoOriginal);
+
+            if ($codigoUpu === null || preg_match('/^[A-Z]{2}[A-Z]{3}[A-Z0-9]\s*-\s*(.+)$/u', $textoOriginal, $match) !== 1) {
+                return false;
+            }
+
+            $etiqueta = trim((string) ($match[1] ?? ''));
+            if ($etiqueta === '') {
+                return false;
+            }
+
+            $isoCodigo = $normalizarIso2(substr($codigoUpu, 0, 2));
+            $isoPaisTexto = $iso2DesdeNombrePais($etiqueta);
+
+            if ($isoCodigo !== null && $isoPaisTexto !== null) {
+                return $isoCodigo === $isoPaisTexto;
+            }
+
+            return true;
+        };
+        $limpiarEtiquetaOficina = function (?string $valor) use ($extraerPaisDesdeOffice, $extraerCodigoUpuOficina, $esEtiquetaUpuRecortable): string {
+            $textoOriginal = trim((string) $valor);
+            if ($textoOriginal === '') {
+                return '';
+            }
+
+            $pais = trim($extraerPaisDesdeOffice($textoOriginal));
+            if ($pais !== '') {
+                return $pais;
+            }
+
+            if ($extraerCodigoUpuOficina($textoOriginal) !== null
+                && $esEtiquetaUpuRecortable($textoOriginal)
+                && preg_match('/^[A-Z]{2}[A-Z]{3}[A-Z0-9]\s*-\s*(.+)$/u', $textoOriginal, $match) === 1) {
+                return trim((string) ($match[1] ?? ''));
+            }
+
+            return $textoOriginal;
+        };
+        $limpiarNombreEvento = function (?string $valor) use ($limpiarEtiquetaOficina, $extraerCodigoUpuOficina, $esEtiquetaUpuRecortable): string {
+            $textoOriginal = trim((string) $valor);
+            if ($textoOriginal === '') {
+                return 'Evento de seguimiento';
+            }
+
+            if (preg_match('/^(.*?)-\s*([A-Z]{2}[A-Z]{3}[A-Z0-9]\s*-\s*.+)$/u', $textoOriginal, $match) === 1
+                && $extraerCodigoUpuOficina((string) ($match[2] ?? '')) !== null
+                && $esEtiquetaUpuRecortable((string) ($match[2] ?? ''))) {
+                $prefijo = rtrim(trim((string) ($match[1] ?? '')), '- ');
+                $ubicacion = $limpiarEtiquetaOficina((string) ($match[2] ?? ''));
+
+                if ($prefijo !== '' && $ubicacion !== '') {
+                    return $prefijo . ' - ' . $ubicacion;
+                }
+            }
+
+            return $textoOriginal;
+        };
+
+        $iso2DesdeOficina = function (?string $texto) use ($normalizarIso2, $extraerPaisDesdeOffice, $iso2DesdeNombrePais, $extraerCodigoUpuOficina): ?string {
             $valor = strtoupper(trim((string) $texto));
             if ($valor === '') {
                 return null;
@@ -337,8 +410,14 @@
                 return $iso2DesdeNombrePais($paisDesdeOffice);
             }
 
-            if (preg_match('/^([A-Z]{2}[A-Z]{3}[A-Z0-9]*)\b/', $valor, $m) === 1) {
-                return $normalizarIso2(substr((string) $m[1], 0, 2));
+            $paisPorNombreDirecto = $iso2DesdeNombrePais($texto);
+            if ($paisPorNombreDirecto !== null) {
+                return $paisPorNombreDirecto;
+            }
+
+            $codigoUpu = $extraerCodigoUpuOficina($valor);
+            if ($codigoUpu !== null) {
+                return $normalizarIso2(substr($codigoUpu, 0, 2));
             }
 
             return null;
@@ -507,8 +586,7 @@
             && $origenIso2 !== null
             && $origenIso2 !== 'BO'
             && $destinoIso2DesdePayload === null
-            && $destinoNombreDesdePayload === ''
-            && $ciudadDestinoDesdeOficina !== null;
+            && $destinoNombreDesdePayload === '';
         if ($destinoIso2DesdeCiudad !== null) {
             $destinoBanderaIso2 = $destinoIso2DesdeCiudad;
             $destinoLabel = $destinoNombreDesdePayload !== ''
@@ -516,7 +594,7 @@
                 : ($nombrePaisDesdeIso2($destinoBanderaIso2) ?? $ciudadDestinoLocal);
         } elseif ($esIngresoInternacionalSinDestinoExplicito) {
             $destinoBanderaIso2 = 'BO';
-            $destinoLabel = $ciudadDestinoDesdeOficina;
+            $destinoLabel = 'Bolivia';
         } elseif ($esCodigoBoliviano && is_array($rutaInternacionalSaliente)) {
             $destinoBanderaIso2 = $rutaInternacionalSaliente['destino'];
             $destinoLabel = $nombrePaisDesdeIso2($destinoBanderaIso2) ?? $destinoBanderaIso2;
@@ -524,12 +602,13 @@
             $destinoLabel = 'Internacional';
             $destinoBanderaIso2 = null;
         } else {
-            $destinoBanderaIso2 = $destinoIso2DesdeCiudad ?? ($esDestinoNacional ? 'BO' : $destinoIso2);
+            $destinoBanderaIso2 = $destinoIso2DesdeCiudad
+                ?? ($esIngresoInternacionalSinDestinoExplicito ? 'BO' : ($esDestinoNacional ? 'BO' : $destinoIso2));
             $destinoLabel = $ciudadDestinoLocal !== ''
                 ? ucwords(mb_strtolower($ciudadDestinoLocal))
                 : ($esDestinoNacional
                     ? ($destinoBanderaIso2 === 'BO' ? 'Bolivia' : 'Nacional')
-                    : ($destinoIso2 ?? 'Internacional'));
+                    : (($esIngresoInternacionalSinDestinoExplicito ? 'Bolivia' : $destinoIso2) ?? 'Internacional'));
         }
         $esEventoLocalBolivia = function ($evento) use ($detectarDepartamentoBolivia) {
             $office = trim((string) ($evento->office ?? ''));
@@ -781,12 +860,14 @@
                                         </div>
                                         <div class="history-event-body">
                                             <div class="history-event-head">
-                                                <h4>{{ $evento->nombre_evento ?? ('Evento #' . ($evento->evento_id ?? '-')) }}</h4>
+                                                <h4>{{ $limpiarNombreEvento($evento->nombre_evento ?? ('Evento #' . ($evento->evento_id ?? '-'))) }}</h4>
                                             </div>
                                             <div class="history-event-meta">
                                                 @php
                                                     $office = trim((string) ($evento->office ?? ''));
                                                     $nextOffice = trim((string) ($evento->next_office ?? ''));
+                                                    $officeLabel = $limpiarEtiquetaOficina($office);
+                                                    $nextOfficeLabel = $limpiarEtiquetaOficina($nextOffice);
                                                     $codigoEvento = trim((string) ($evento->codigo ?? $codigo));
                                                     $paisDesdeOffice = $extraerPaisDesdeOffice($office);
                                                     $officeEsPaisOrigenGenerico = str_starts_with(mb_strtolower($office), 'país origen:')
@@ -799,13 +880,13 @@
                                                 @if ($office !== '' && !$officeEsPaisOrigenGenerico)
                                                     <div class="history-meta-row">
                                                         <span class="history-meta-label">Oficina</span>
-                                                        <span class="history-meta-value">{{ $office }} @if($isoOffice)<img class="country-flag" src="https://flagcdn.com/16x12/{{ strtolower($isoOffice) }}.png" alt="Bandera oficina">@endif</span>
+                                                        <span class="history-meta-value">{{ $officeLabel }} @if($isoOffice)<img class="country-flag" src="https://flagcdn.com/16x12/{{ strtolower($isoOffice) }}.png" alt="Bandera oficina">@endif</span>
                                                     </div>
                                                 @endif
                                                 @if ($nextOffice !== '')
                                                     <div class="history-meta-row">
                                                         <span class="history-meta-label">Siguiente Oficina</span>
-                                                        <span class="history-meta-value">{{ $nextOffice }} @if($isoNextOffice)<img class="country-flag" src="https://flagcdn.com/16x12/{{ strtolower($isoNextOffice) }}.png" alt="Bandera siguiente oficina">@endif</span>
+                                                        <span class="history-meta-value">{{ $nextOfficeLabel }} @if($isoNextOffice)<img class="country-flag" src="https://flagcdn.com/16x12/{{ strtolower($isoNextOffice) }}.png" alt="Bandera siguiente oficina">@endif</span>
                                                     </div>
                                                 @endif
                                             </div>
