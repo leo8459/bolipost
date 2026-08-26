@@ -13,6 +13,92 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class AreaContratosController extends Controller
 {
+    public function empresasPaquetes(Request $request)
+    {
+        $filters = $request->validate([
+            'anio' => ['nullable', 'integer', 'between:2000,'.(now()->year + 1)],
+            'meses' => ['nullable', 'array', 'min:1', 'max:12'],
+            'meses.*' => ['integer', 'distinct', 'between:1,12'],
+        ]);
+        $anio = (int) ($filters['anio'] ?? now()->year);
+        $mesesSeleccionados = collect($filters['meses'] ?? [now()->month])
+            ->map(fn ($mes) => (int) $mes)
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+        $nombresMeses = [
+            1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril',
+            5 => 'Mayo', 6 => 'Junio', 7 => 'Julio', 8 => 'Agosto',
+            9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre',
+        ];
+
+        $directosQuery = Recojo::query()
+            ->leftJoin('estados as estado_contrato', 'estado_contrato.id', '=', 'paquetes_contrato.estados_id')
+            ->whereNotNull('paquetes_contrato.empresa_id');
+        $this->applyEmpresasPaquetesPeriod($directosQuery, $anio, $mesesSeleccionados);
+
+        $directos = $directosQuery
+            ->groupBy('paquetes_contrato.empresa_id')
+            ->selectRaw('paquetes_contrato.empresa_id as empresa_id, COUNT(*) as registrados')
+            ->selectRaw("SUM(CASE WHEN TRIM(UPPER(COALESCE(estado_contrato.nombre_estado, ''))) = 'ENTREGADO' THEN 1 ELSE 0 END) as entregados")
+            ->get()
+            ->keyBy(fn ($row) => (int) $row->empresa_id);
+
+        // Los registros anteriores a empresa_id se atribuyen a la empresa del usuario que los creó.
+        $antiguosQuery = Recojo::query()
+            ->join('users as usuario_registro', 'usuario_registro.id', '=', 'paquetes_contrato.user_id')
+            ->leftJoin('estados as estado_contrato', 'estado_contrato.id', '=', 'paquetes_contrato.estados_id')
+            ->whereNull('paquetes_contrato.empresa_id')
+            ->whereNotNull('usuario_registro.empresa_id');
+        $this->applyEmpresasPaquetesPeriod($antiguosQuery, $anio, $mesesSeleccionados);
+
+        $antiguos = $antiguosQuery
+            ->groupBy('usuario_registro.empresa_id')
+            ->selectRaw('usuario_registro.empresa_id as empresa_id, COUNT(*) as registrados')
+            ->selectRaw("SUM(CASE WHEN TRIM(UPPER(COALESCE(estado_contrato.nombre_estado, ''))) = 'ENTREGADO' THEN 1 ELSE 0 END) as entregados")
+            ->get()
+            ->keyBy(fn ($row) => (int) $row->empresa_id);
+
+        $empresas = Empresa::query()
+            ->orderBy('nombre')
+            ->get(['id', 'nombre', 'sigla', 'codigo_cliente', 'presupuesto'])
+            ->map(function (Empresa $empresa) use ($directos, $antiguos) {
+                $directo = $directos->get((int) $empresa->id);
+                $antiguo = $antiguos->get((int) $empresa->id);
+
+                $empresa->setAttribute('contratos_registrados',
+                    (int) ($directo->registrados ?? 0) + (int) ($antiguo->registrados ?? 0)
+                );
+                $empresa->setAttribute('contratos_entregados',
+                    (int) ($directo->entregados ?? 0) + (int) ($antiguo->entregados ?? 0)
+                );
+
+                return $empresa;
+            });
+
+        return view('conciliacion.empresas-paquetes', [
+            'empresas' => $empresas,
+            'totalRegistrados' => $empresas->sum('contratos_registrados'),
+            'totalEntregados' => $empresas->sum('contratos_entregados'),
+            'totalPresupuesto' => $empresas->sum(fn (Empresa $empresa) => (float) ($empresa->presupuesto ?? 0)),
+            'anio' => $anio,
+            'mesesSeleccionados' => $mesesSeleccionados,
+            'nombresMeses' => $nombresMeses,
+        ]);
+    }
+
+    private function applyEmpresasPaquetesPeriod($query, int $anio, array $meses): void
+    {
+        $query->whereYear('paquetes_contrato.created_at', $anio)
+            ->where(function ($monthQuery) use ($meses) {
+                foreach ($meses as $index => $mes) {
+                    $method = $index === 0 ? 'whereMonth' : 'orWhereMonth';
+                    $monthQuery->{$method}('paquetes_contrato.created_at', $mes);
+                }
+            });
+    }
+
     public function guiasEmpresa(Request $request)
     {
         $filters = $this->validatedGuiasEmpresaFilters($request);

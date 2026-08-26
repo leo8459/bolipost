@@ -17,6 +17,7 @@ class Empresa extends Model
         'nombre',
         'sigla',
         'codigo_cliente',
+        'nit',
         'clasificacion',
         'documentacion_legal',
         'inicio_contrato',
@@ -39,5 +40,10 @@ class Empresa extends Model
     public function historiales(): HasMany
     {
         return $this->hasMany(EmpresaHistorial::class, 'empresa_id');
+    }
+
+    public function conciliaciones(): HasMany
+    {
+        return $this->hasMany(ConciliacionEmpresa::class, 'empresa_id');
     }
 }

@@ -4,15 +4,22 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ExternalApiToken;
+use App\Support\CarteroEvent;
+use App\Support\CodigoContinuacionEvent;
+use App\Support\EncargadoEvent;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class PaqueteContactoApiController extends Controller
 {
     private const LEGACY_ABILITY = 'paquetes-contactos:read';
+
+    private const ALL_PACKAGES_EVENTS_ABILITY = 'paquetes-eventos:read';
 
     private const TYPE_ABILITIES = [
         'certi' => 'paquetes-contactos:certi:read',
@@ -20,6 +27,14 @@ class PaqueteContactoApiController extends Controller
         'ems' => 'paquetes-contactos:ems:read',
         'ordinario' => 'paquetes-contactos:ordinario:read',
         'solicitud' => 'paquetes-contactos:solicitud:read',
+    ];
+
+    private const EVENT_TABLES = [
+        'certi' => 'eventos_certi',
+        'contrato' => 'eventos_contrato',
+        'ems' => 'eventos_ems',
+        'ordinario' => 'eventos_ordi',
+        'solicitud' => 'eventos_tiktoker',
     ];
 
     private const RESOURCES = [
@@ -103,12 +118,17 @@ class PaqueteContactoApiController extends Controller
         $lastPage = max(1, (int) ceil($total / $perPage));
         $currentPage = min($page, $lastPage);
 
-        $items = $query
+        $rows = $query
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->forPage($currentPage, $perPage)
-            ->get()
-            ->map(fn (object $row): array => [
+            ->get();
+        $eventsByPackage = $this->eventsForPackages($rows);
+
+        $items = $rows->map(function (object $row) use ($eventsByPackage): array {
+            $events = $eventsByPackage->get($this->packageKey($row->tipo, $row->codigo), collect());
+
+            return [
                 'tipo' => $row->tipo,
                 'id' => (int) $row->id,
                 'codigo' => $row->codigo,
@@ -130,7 +150,10 @@ class PaqueteContactoApiController extends Controller
                 'fecha_registro' => $row->created_at !== null
                     ? Carbon::parse($row->created_at)->toIso8601String()
                     : null,
-            ]);
+                'cantidad_eventos' => $events->count(),
+                'eventos' => $events->values(),
+            ];
+        });
 
         return response()->json([
             'data' => $items,
@@ -156,11 +179,12 @@ class PaqueteContactoApiController extends Controller
         $token = $request->attributes->get('external_api_token');
         $abilities = is_array($token?->abilities) ? $token->abilities : [];
         $hasLegacyAccess = in_array(self::LEGACY_ABILITY, $abilities, true);
+        $hasAllPackagesEventsAccess = in_array(self::ALL_PACKAGES_EVENTS_ABILITY, $abilities, true);
 
         if ($requestedType !== null) {
             $requiredAbility = self::TYPE_ABILITIES[$requestedType];
             abort_unless(
-                $hasLegacyAccess || in_array($requiredAbility, $abilities, true),
+                $hasLegacyAccess || $hasAllPackagesEventsAccess || in_array($requiredAbility, $abilities, true),
                 403,
                 'El token no tiene permiso para consultar este tipo de paquete.'
             );
@@ -169,7 +193,7 @@ class PaqueteContactoApiController extends Controller
         }
 
         $types = collect(array_keys(self::RESOURCES))
-            ->filter(fn (string $type): bool => $hasLegacyAccess
+            ->filter(fn (string $type): bool => $hasLegacyAccess || $hasAllPackagesEventsAccess
                 || in_array(self::TYPE_ABILITIES[$type], $abilities, true))
             ->values()
             ->all();
@@ -234,5 +258,126 @@ class PaqueteContactoApiController extends Controller
             ->implode('.');
 
         return DB::raw('CAST('.$qualifiedColumn.' AS TEXT) as '.$alias);
+    }
+
+    /**
+     * Obtiene el historial completo en una consulta por tipo, evitando una consulta por paquete.
+     *
+     * @param  Collection<int, object>  $packages
+     * @return Collection<string, Collection<int, array<string, mixed>>>
+     */
+    private function eventsForPackages(Collection $packages): Collection
+    {
+        return $packages
+            ->groupBy('tipo')
+            ->flatMap(function (Collection $typePackages, string $type): Collection {
+                $eventTable = self::EVENT_TABLES[$type] ?? null;
+
+                if ($eventTable === null || ! Schema::hasTable($eventTable) || ! Schema::hasTable('eventos')) {
+                    return collect();
+                }
+
+                $codes = $typePackages
+                    ->pluck('codigo')
+                    ->map(fn ($code): string => $this->normalizedCode($code))
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                if ($codes === []) {
+                    return collect();
+                }
+
+                $hasUsers = Schema::hasTable('users');
+                $hasClients = $type === 'solicitud'
+                    && Schema::hasTable('clientes')
+                    && Schema::hasColumn($eventTable, 'cliente_id');
+
+                $query = DB::table($eventTable.' as tracking')
+                    ->leftJoin('eventos as evento', 'evento.id', '=', 'tracking.evento_id')
+                    ->whereIn(DB::raw('UPPER(TRIM(tracking.codigo))'), $codes)
+                    ->select([
+                        'tracking.id',
+                        'tracking.codigo',
+                        'tracking.evento_id',
+                        'evento.nombre_evento',
+                        'tracking.created_at',
+                    ]);
+
+                if ($hasUsers) {
+                    $query->leftJoin('users as usuario', 'usuario.id', '=', 'tracking.user_id')
+                        ->addSelect(['tracking.user_id', 'usuario.name as usuario_nombre']);
+                } else {
+                    $query->addSelect([DB::raw('NULL as user_id'), DB::raw('NULL as usuario_nombre')]);
+                }
+
+                if ($hasClients) {
+                    $query->leftJoin('clientes as cliente', 'cliente.id', '=', 'tracking.cliente_id')
+                        ->addSelect(['tracking.cliente_id', 'cliente.name as cliente_nombre']);
+                } else {
+                    $query->addSelect([DB::raw('NULL as cliente_id'), DB::raw('NULL as cliente_nombre')]);
+                }
+
+                $query->addSelect([
+                    Schema::hasColumn($eventTable, 'codigo_relacionado')
+                        ? 'tracking.codigo_relacionado'
+                        : DB::raw('NULL as codigo_relacionado'),
+                    Schema::hasColumn($eventTable, 'detalle_evento')
+                        ? 'tracking.detalle_evento'
+                        : DB::raw('NULL as detalle_evento'),
+                ]);
+
+                return $query
+                    ->orderBy('tracking.created_at')
+                    ->orderBy('tracking.id')
+                    ->get()
+                    ->map(function (object $event) use ($type): array {
+                        $eventName = CodigoContinuacionEvent::nombreMostrado(
+                            (string) ($event->nombre_evento ?? ''),
+                            $event->codigo_relacionado ?? null
+                        );
+                        $eventName = EncargadoEvent::nombreMostrado($eventName, $event->detalle_evento ?? null);
+                        $eventName = CarteroEvent::nombreMostrado($eventName, $event->detalle_evento ?? null);
+
+                        return [
+                            '_package_key' => $this->packageKey($type, $event->codigo),
+                            'id' => (int) $event->id,
+                            'evento_id' => $event->evento_id !== null ? (int) $event->evento_id : null,
+                            'nombre' => $eventName !== '' ? $eventName : null,
+                            'detalle' => $event->detalle_evento,
+                            'codigo_relacionado' => $event->codigo_relacionado,
+                            'usuario' => [
+                                'id' => $event->user_id !== null ? (int) $event->user_id : null,
+                                'nombre' => $event->usuario_nombre,
+                            ],
+                            'cliente' => [
+                                'id' => $event->cliente_id !== null ? (int) $event->cliente_id : null,
+                                'nombre' => $event->cliente_nombre,
+                            ],
+                            'fecha' => $event->created_at !== null
+                                ? Carbon::parse($event->created_at)->toIso8601String()
+                                : null,
+                        ];
+                    });
+            })
+            ->groupBy('_package_key')
+            ->map(fn (Collection $events): Collection => $events
+                ->map(function (array $event): array {
+                    unset($event['_package_key']);
+
+                    return $event;
+                })
+                ->values());
+    }
+
+    private function packageKey(string $type, mixed $code): string
+    {
+        return $type.'|'.$this->normalizedCode($code);
+    }
+
+    private function normalizedCode(mixed $code): string
+    {
+        return mb_strtoupper(trim((string) $code), 'UTF-8');
     }
 }

@@ -25,6 +25,7 @@ class Empresa extends Component
     public $nombre = '';
     public $sigla = '';
     public $codigo_cliente = '';
+    public $nit = '';
     public $clasificacion = '';
     public $documentacion_legal = '';
     public $inicio_contrato = '';
@@ -106,6 +107,7 @@ class Empresa extends Component
         $this->nombre = $empresa->nombre;
         $this->sigla = $empresa->sigla;
         $this->codigo_cliente = $empresa->codigo_cliente;
+        $this->nit = (string) ($empresa->nit ?? '');
         $this->clasificacion = (string) ($empresa->clasificacion ?? '');
         $this->documentacion_legal = (string) ($empresa->documentacion_legal ?? '');
         $this->inicio_contrato = !empty($empresa->inicio_contrato) ? (string) $empresa->inicio_contrato : '';
@@ -198,6 +200,7 @@ class Empresa extends Component
             'nombre',
             'sigla',
             'codigo_cliente',
+            'nit',
             'clasificacion',
             'documentacion_legal',
             'inicio_contrato',
@@ -220,6 +223,7 @@ class Empresa extends Component
             'nombre' => 'required|string|max:255',
             'sigla' => 'required|string|max:255',
             'codigo_cliente' => 'required|string|max:255',
+            'nit' => ['required', 'string', 'max:32', 'regex:/^[0-9]+$/'],
             'clasificacion' => 'required|in:PUBLICA,PRIVADA',
             'documentacion_legal' => 'required|in:CONTRATO,CONVENIO,ADENDA',
             'inicio_contrato' => 'required|date',
@@ -235,6 +239,7 @@ class Empresa extends Component
         return [
             'documento_pdf_file.max' => 'El documento PDF no debe superar los 50 MB.',
             'documento_pdf_file.mimes' => 'El documento debe ser un archivo PDF.',
+            'nit.regex' => 'El NIT solo debe contener numeros.',
         ];
     }
 
@@ -244,6 +249,7 @@ class Empresa extends Component
             'nombre' => $this->upper($this->nombre),
             'sigla' => $this->upper($this->sigla),
             'codigo_cliente' => $this->upper($this->codigo_cliente),
+            'nit' => trim((string) $this->nit),
             'clasificacion' => $this->upper($this->clasificacion),
             'documentacion_legal' => $this->upper($this->documentacion_legal),
             'inicio_contrato' => $this->inicio_contrato,
@@ -279,6 +285,7 @@ class Empresa extends Component
                 $query->where('nombre', 'ILIKE', "%{$q}%")
                     ->orWhere('sigla', 'ILIKE', "%{$q}%")
                     ->orWhere('codigo_cliente', 'ILIKE', "%{$q}%")
+                    ->orWhere('nit', 'ILIKE', "%{$q}%")
                     ->orWhere('clasificacion', 'ILIKE', "%{$q}%")
                     ->orWhere('documentacion_legal', 'ILIKE', "%{$q}%")
                     ->orWhere('cobertura', 'ILIKE', "%{$q}%");

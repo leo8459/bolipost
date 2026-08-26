@@ -13,6 +13,7 @@ use App\Http\Controllers\ClientManagementController;
 use App\Http\Controllers\ClientRoleController;
 use App\Http\Controllers\CodigoEmpresaController;
 use App\Http\Controllers\ConceptoFacturacionController;
+use App\Http\Controllers\ConciliacionEmpresaController;
 use App\Http\Controllers\ContractExpirationEmailController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeliveryImageController;
@@ -211,6 +212,25 @@ Route::get('/dir-financiera/ventas-servicios', [FinancialReportController::class
 Route::get('/conciliacion/facturado', [FinancialReportController::class, 'invoicedContracts'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.conciliacion.facturado');
+Route::get('/conciliacion/empresas-paquetes', [AreaContratosController::class, 'empresasPaquetes'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.conciliacion.empresas-paquetes');
+Route::prefix('conciliacion/conciliaciones')
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.conciliacion.conciliaciones')
+    ->controller(ConciliacionEmpresaController::class)
+    ->group(function (): void {
+        Route::get('/', 'index')->name('');
+        Route::post('/empresa/{empresa}/documento', 'subirDocumento')->name('.documento');
+        Route::post('/{conciliacion}/conciliado', 'marcarConciliado')->name('.conciliado');
+        Route::post('/por-cobrar', 'asociarPorCobrar')->name('.por-cobrar');
+        Route::get('/facturas-disponibles', 'facturasDisponibles')->name('.facturas-disponibles');
+        Route::get('/factura/{conciliacion}/pdf', 'descargarFacturaPdf')->name('.factura-pdf');
+        Route::post('/{conciliacion}/pago-recibido', 'marcarPagoRecibido')->name('.pago-recibido');
+        Route::get('/{conciliacion}/comprobante-pago', 'descargarComprobantePago')->name('.comprobante-pago');
+        Route::post('/{conciliacion}/confirmacion-pago', 'confirmarPago')->name('.confirmacion-pago');
+        Route::get('/documento/{conciliacion}', 'descargarDocumento')->name('.descargar');
+    });
 Route::get('/dir-financiera/ventas-servicios/reporte-ejecutivo.pdf', [FinancialReportController::class, 'executiveReport'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.financiera.ventas-servicios.pdf');

@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ConciliacionEmpresa;
+use App\Models\Empresa;
 use App\Services\FacturacionReportService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class FinancialReportController extends Controller
 {
@@ -58,6 +61,17 @@ class FinancialReportController extends Controller
             $data['anio'],
             $data['errors']
         );
+        $ventaIds = $data['rows']->getCollection()->pluck('ventaId')->filter()->values();
+        $data['empresas'] = Schema::hasTable('empresa')
+            ? Empresa::query()->orderBy('nombre')->get(['id', 'nombre', 'sigla', 'codigo_cliente'])
+            : collect();
+        $data['facturasAsociadas'] = Schema::hasColumn('conciliaciones_empresa', 'factura_venta_id')
+            ? ConciliacionEmpresa::query()
+                ->with('empresa:id,nombre')
+                ->whereIn('factura_venta_id', $ventaIds)
+                ->get()
+                ->keyBy('factura_venta_id')
+            : collect();
 
         return view('financial-reports.services', $data);
     }
@@ -179,12 +193,36 @@ class FinancialReportController extends Controller
             ->values()
             ->sortByDesc('totalMonto')
             ->values();
+        $contractReceivables = $this->contractReceivables($services, $selectedMonths, $year);
+        if (! $onlyContracts && $contractReceivables['has_contracts']) {
+            $validatedSales = $contractReceivables['validated_sales'];
+            $validatedAmount = $contractReceivables['validated_amount'];
+
+            $services = $services->map(function (array $service) use (&$validatedSales, &$validatedAmount): array {
+                if ($this->serviceGroupName((string) ($service['servicio'] ?? '')) !== 'Servicio Contratos') {
+                    return $service;
+                }
+
+                $service['cantidadVentas'] = $validatedSales;
+                $service['totalMonto'] = $validatedAmount;
+                $validatedSales = 0;
+                $validatedAmount = 0;
+
+                return $service;
+            })->sortByDesc('totalMonto')->values();
+        }
         $summary = [
             'cantidadServicios' => $services->count(),
             'cantidadVentas' => $services->sum('cantidadVentas'),
             'cantidadDetalles' => $services->sum('cantidadDetalles'),
             'totalCantidad' => $services->sum('totalCantidad'),
             'totalMonto' => $services->sum('totalMonto'),
+            'contratosFacturadosVentas' => $contractReceivables['invoiced_sales'],
+            'contratosFacturadosMonto' => $contractReceivables['invoiced_amount'],
+            'contratosValidadosVentas' => $contractReceivables['validated_sales'],
+            'contratosValidadosMonto' => $contractReceivables['validated_amount'],
+            'contratosPorCobrarVentas' => $contractReceivables['receivable_sales'],
+            'contratosPorCobrarMonto' => $contractReceivables['receivable_amount'],
         ];
         $serviceGroups = $this->buildServiceGroups($services);
         $summary['cantidadServicios'] = $serviceGroups->count();
@@ -205,6 +243,49 @@ class FinancialReportController extends Controller
             'meta' => [],
             'errors' => $errors,
             'error' => $errors->first(),
+        ];
+    }
+
+    /**
+     * Separa las facturas de contratos pendientes de aquellas que ya fueron
+     * validadas y asociadas desde Conciliaciones.
+     */
+    private function contractReceivables(Collection $services, Collection $months, int $year): array
+    {
+        $contracts = $services->filter(
+            fn (array $service): bool => $this->serviceGroupName((string) ($service['servicio'] ?? '')) === 'Servicio Contratos'
+        );
+        $invoicedSales = (float) $contracts->sum('cantidadVentas');
+        $invoicedAmount = (float) $contracts->sum('totalMonto');
+        $validatedSales = 0.0;
+        $validatedAmount = 0.0;
+
+        if (
+            $contracts->isNotEmpty()
+            && Schema::hasTable('conciliaciones_empresa')
+            && Schema::hasColumn('conciliaciones_empresa', 'factura_venta_id')
+            && Schema::hasColumn('conciliaciones_empresa', 'factura_monto')
+            && Schema::hasColumn('conciliaciones_empresa', 'conciliado_at')
+        ) {
+            $validatedInvoices = ConciliacionEmpresa::query()
+                ->where('facturado_anio', $year)
+                ->whereIn('facturado_mes', $months->all())
+                ->whereNotNull('factura_venta_id')
+                ->whereNotNull('conciliado_at')
+                ->get(['factura_venta_id', 'factura_monto']);
+
+            $validatedSales = min($invoicedSales, (float) $validatedInvoices->count());
+            $validatedAmount = min($invoicedAmount, (float) $validatedInvoices->sum('factura_monto'));
+        }
+
+        return [
+            'has_contracts' => $contracts->isNotEmpty(),
+            'invoiced_sales' => $invoicedSales,
+            'invoiced_amount' => $invoicedAmount,
+            'validated_sales' => $validatedSales,
+            'validated_amount' => $validatedAmount,
+            'receivable_sales' => max(0, $invoicedSales - $validatedSales),
+            'receivable_amount' => max(0, $invoicedAmount - $validatedAmount),
         ];
     }
 
@@ -334,6 +415,7 @@ class FinancialReportController extends Controller
                         ...(array) $row,
                         '_servicio' => $serviceName,
                         '_mes' => (int) $month,
+                        '_mes_servicio' => $this->monthFromDescription((string) ($row['descripcion'] ?? '')) ?? (int) $month,
                     ])->all());
                 } catch (\Throwable $exception) {
                     $errors->push("No se pudo cargar {$serviceName} para el mes {$month}: {$exception->getMessage()}");
@@ -353,6 +435,22 @@ class FinancialReportController extends Controller
             $page,
             ['path' => $request->url(), 'query' => $request->except('page')]
         );
+    }
+
+    private function monthFromDescription(string $description): ?int
+    {
+        $normalized = mb_strtoupper($description);
+        foreach ([
+            1 => 'ENERO', 2 => 'FEBRERO', 3 => 'MARZO', 4 => 'ABRIL',
+            5 => 'MAYO', 6 => 'JUNIO', 7 => 'JULIO', 8 => 'AGOSTO',
+            9 => 'SEPTIEMBRE', 10 => 'OCTUBRE', 11 => 'NOVIEMBRE', 12 => 'DICIEMBRE',
+        ] as $month => $name) {
+            if (str_contains($normalized, $name)) {
+                return $month;
+            }
+        }
+
+        return null;
     }
 
     private function buildServiceGroups(Collection $services): Collection

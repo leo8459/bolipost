@@ -29,7 +29,7 @@
                             name="q"
                             value="{{ $search }}"
                             class="form-control"
-                            placeholder="Empresa, sigla, codigo, clasificacion o cobertura"
+                            placeholder="Empresa, sigla, codigo, NIT, clasificacion o cobertura"
                         >
                     </div>
                     <div class="col-md-4 col-lg-6 mt-2 mt-md-0">
@@ -53,6 +53,7 @@
                         <tr>
                             <th>Empresa</th>
                             <th>Codigo cliente</th>
+                            <th>NIT</th>
                             <th>Clasificacion</th>
                             <th>Doc. legal</th>
                             <th>Inicio</th>
@@ -72,6 +73,7 @@
                                     <small class="d-block text-muted">{{ $historial->sigla ?: 'Sin sigla' }}</small>
                                 </td>
                                 <td>{{ $historial->codigo_cliente ?: '-' }}</td>
+                                <td>{{ $historial->nit ?: '-' }}</td>
                                 <td>{{ $historial->clasificacion ?: '-' }}</td>
                                 <td>{{ $historial->documentacion_legal ?: '-' }}</td>
                                 <td>{{ optional($historial->inicio_contrato)->format('d/m/Y') ?: '-' }}</td>
@@ -101,7 +103,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="11" class="text-center py-5">
+                                <td colspan="12" class="text-center py-5">
                                     <strong>No hay contratos guardados en el historial.</strong>
                                     <div class="text-muted mt-1">Usa el boton “Añadir a historial” en la vista Empresas.</div>
                                 </td>

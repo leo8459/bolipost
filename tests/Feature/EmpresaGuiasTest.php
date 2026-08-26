@@ -23,6 +23,7 @@ class EmpresaGuiasTest extends TestCase
             $table->string('nombre');
             $table->string('sigla')->nullable();
             $table->string('codigo_cliente')->nullable();
+            $table->decimal('presupuesto', 14, 2)->nullable();
             $table->timestamps();
         });
 
@@ -59,14 +60,15 @@ class EmpresaGuiasTest extends TestCase
         });
 
         DB::table('empresa')->insert([
-            ['id' => 1, 'nombre' => 'Empresa Uno', 'sigla' => 'E1', 'codigo_cliente' => '001'],
-            ['id' => 2, 'nombre' => 'Empresa Dos', 'sigla' => 'E2', 'codigo_cliente' => '002'],
+            ['id' => 1, 'nombre' => 'Empresa Uno', 'sigla' => 'E1', 'codigo_cliente' => '001', 'presupuesto' => 1000],
+            ['id' => 2, 'nombre' => 'Empresa Dos', 'sigla' => 'E2', 'codigo_cliente' => '002', 'presupuesto' => null],
         ]);
         DB::table('users')->insert([
             ['id' => 1, 'name' => 'Usuario antiguo', 'empresa_id' => 1],
             ['id' => 2, 'name' => 'Usuario interno', 'empresa_id' => null],
         ]);
         DB::table('estados')->insert(['id' => 1, 'nombre_estado' => 'ADMITIDO']);
+        DB::table('estados')->insert(['id' => 2, 'nombre_estado' => ' entregado ']);
 
         DB::table('paquetes_contrato')->insert([
             [
@@ -82,7 +84,7 @@ class EmpresaGuiasTest extends TestCase
                 'id' => 2,
                 'user_id' => 1,
                 'empresa_id' => null,
-                'estados_id' => 1,
+                'estados_id' => 2,
                 'codigo' => 'GUIA-ANTIGUA',
                 'created_at' => '2026-08-15 10:00:00',
                 'updated_at' => '2026-08-15 10:00:00',
@@ -113,6 +115,15 @@ class EmpresaGuiasTest extends TestCase
                 'codigo' => 'GUIA-ESTADO-CERO',
                 'created_at' => '2026-08-22 10:00:00',
                 'updated_at' => '2026-08-22 10:00:00',
+            ],
+            [
+                'id' => 6,
+                'user_id' => 2,
+                'empresa_id' => 2,
+                'estados_id' => 0,
+                'codigo' => 'GUIA-JULIO',
+                'created_at' => '2026-07-10 10:00:00',
+                'updated_at' => '2026-07-10 10:00:00',
             ],
         ]);
     }
@@ -213,5 +224,45 @@ class EmpresaGuiasTest extends TestCase
                 config('acl.custom_permissions')
             );
         }
+    }
+
+    public function test_resumen_de_empresas_incluye_contratos_directos_antiguos_y_entregados(): void
+    {
+        $view = app(AreaContratosController::class)->empresasPaquetes(
+            Request::create('/conciliacion/empresas-paquetes', 'GET', [
+                'anio' => 2026,
+                'meses' => [8],
+            ])
+        );
+        $empresas = $view->getData()['empresas']->keyBy('id');
+
+        $this->assertCount(2, $empresas);
+        $this->assertSame(3, $empresas[1]->contratos_registrados);
+        $this->assertSame(1, $empresas[1]->contratos_entregados);
+        $this->assertSame(1, $empresas[2]->contratos_registrados);
+        $this->assertSame(0, $empresas[2]->contratos_entregados);
+        $this->assertSame(4, $view->getData()['totalRegistrados']);
+        $this->assertSame(1, $view->getData()['totalEntregados']);
+        $this->assertSame(1000.0, $view->getData()['totalPresupuesto']);
+        $this->assertSame('conciliacion.empresas-paquetes', $view->getName());
+        $this->assertSame([8], $view->getData()['mesesSeleccionados']);
+
+        $multiMonthView = app(AreaContratosController::class)->empresasPaquetes(
+            Request::create('/conciliacion/empresas-paquetes', 'GET', [
+                'anio' => 2026,
+                'meses' => [7, 8],
+            ])
+        );
+        $this->assertSame(5, $multiMonthView->getData()['totalRegistrados']);
+        $this->assertSame([7, 8], $multiMonthView->getData()['mesesSeleccionados']);
+
+        $conciliacionMenu = collect(config('adminlte.menu'))
+            ->first(fn ($item) => is_array($item) && ($item['can'] ?? null) === 'dashboard.conciliacion');
+
+        $this->assertTrue(collect($conciliacionMenu['submenu'] ?? [])->contains(
+            fn ($child) => ($child['url'] ?? null) === '/conciliacion/empresas-paquetes'
+                && ($child['can'] ?? null) === 'dashboard.conciliacion.empresas-paquetes'
+        ));
+        $this->assertContains('dashboard.conciliacion.empresas-paquetes', config('acl.custom_permissions'));
     }
 }

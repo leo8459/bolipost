@@ -15,6 +15,7 @@ class EmpresaHistorial extends Model
         'nombre',
         'sigla',
         'codigo_cliente',
+        'nit',
         'clasificacion',
         'documentacion_legal',
         'inicio_contrato',

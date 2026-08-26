@@ -60,6 +60,18 @@
 @endpush
 
 @section('content')
+    @if(session('success'))
+        <div class="alert alert-success alert-dismissible fade show">
+            <button type="button" class="close" data-dismiss="alert">&times;</button>
+            <i class="fas fa-check-circle mr-2"></i>{{ session('success') }}
+        </div>
+    @endif
+    @if(session('errors')?->any())
+        <div class="alert alert-danger alert-dismissible fade show">
+            <button type="button" class="close" data-dismiss="alert">&times;</button>
+            <i class="fas fa-exclamation-circle mr-2"></i>{{ session('errors')->first() }}
+        </div>
+    @endif
     @if($soloContratos)
         <div class="card card-outline card-primary mb-3">
             <div class="card-body py-3">
@@ -109,20 +121,28 @@
     <div class="row">
         @foreach([
             ['Servicios', $summary['cantidadServicios'] ?? 0, 'fa-layer-group', 'primary'],
-            ['Ventas', $summary['cantidadVentas'] ?? 0, 'fa-file-invoice', 'info'],
+            ['Ventas contabilizadas', $summary['cantidadVentas'] ?? 0, 'fa-file-invoice', 'info'],
             ['Cantidad total', $summary['totalCantidad'] ?? 0, 'fa-boxes', 'warning'],
-            ['Monto total', 'Bs ' . number_format((float) ($summary['totalMonto'] ?? 0), 2), 'fa-money-bill-wave', 'success'],
-        ] as [$label, $value, $icon, $color])
-            <div class="col-sm-6 col-xl-3 mb-3">
+            ['Monto contabilizado', 'Bs ' . number_format((float) ($summary['totalMonto'] ?? 0), 2), 'fa-money-bill-wave', 'success'],
+            ['Contratos por cobrar', 'Bs ' . number_format((float) ($summary['contratosPorCobrarMonto'] ?? 0), 2), 'fa-hand-holding-usd', 'warning', number_format((float) ($summary['contratosPorCobrarVentas'] ?? 0)) . ' factura(s) pendiente(s)'],
+            ['Contratos validados', 'Bs ' . number_format((float) ($summary['contratosValidadosMonto'] ?? 0), 2), 'fa-clipboard-check', 'success', number_format((float) ($summary['contratosValidadosVentas'] ?? 0)) . ' factura(s) asociada(s)'],
+        ] as $metric)
+            @php([$label, $value, $icon, $color, $help] = array_pad($metric, 5, null))
+            <div class="col-sm-6 col-xl-4 mb-3">
                 <div class="info-box bg-white border mb-0">
                     <span class="info-box-icon bg-{{ $color }}"><i class="fas {{ $icon }}"></i></span>
                     <div class="info-box-content">
                         <span class="info-box-text">{{ $label }}</span>
                         <span class="info-box-number">{{ is_numeric($value) ? number_format((float) $value) : $value }}</span>
+                        @if($help)<small class="text-muted">{{ $help }}</small>@endif
                     </div>
                 </div>
             </div>
         @endforeach
+    </div>
+    <div class="alert alert-light border text-muted py-2">
+        <i class="fas fa-info-circle mr-1 text-primary"></i>
+        Las facturas de contratos se mantienen en <strong>Por cobrar</strong> y no forman parte del monto contabilizado hasta que su conciliaciÃ³n sea aprobada y la factura quede asociada.
     </div>
     @endunless
 
@@ -131,13 +151,14 @@
             'tableTitle' => 'Facturas del servicio de contratos',
             'tableHelp' => 'Detalle completo de las ventas facturadas para el período seleccionado.',
             'salesCount' => $summary['cantidadVentas'] ?? 0,
+            'showReceivableActions' => true,
         ])
     @else
     <div class="card card-outline card-secondary">
         <div class="card-header d-flex justify-content-between align-items-center">
             <div>
                 <strong><i class="fas {{ $soloContratos ? 'fa-file-contract' : 'fa-layer-group' }} mr-1"></i> {{ $soloContratos ? 'Facturado - Servicio de contratos' : 'Servicios agrupados' }}</strong>
-                <div class="text-muted small">{{ $soloContratos ? 'La tabla contiene exclusivamente los datos facturados de contratos.' : 'Haga clic en un grupo para mostrar u ocultar sus subservicios.' }}</div>
+                <div class="text-muted small">{{ $soloContratos ? 'La tabla contiene exclusivamente los datos facturados de contratos.' : 'Haga clic en un grupo para mostrar u ocultar sus subservicios. En contratos, solo se contabilizan las facturas validadas en Conciliaciones.' }}</div>
             </div>
             <div class="text-right">
                 <span class="badge badge-primary">{{ number_format($serviceGroups->count()) }} grupos</span>
