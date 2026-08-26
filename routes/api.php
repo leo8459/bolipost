@@ -99,6 +99,9 @@ Route::middleware(['force.json', 'external.api.jwt', 'throttle:120,1'])->group(f
     Route::get('/paquetes-contactos/{tipo}', [PaqueteContactoApiController::class, 'index'])
         ->where('tipo', 'certi|contrato|ems|ordinario|solicitud')
         ->name('api.paquetes-contactos.tipo');
+    Route::get('/paquetes-eventos', [PaqueteContactoApiController::class, 'index'])
+        ->middleware('external.api.ability:paquetes-eventos:read')
+        ->name('api.paquetes-eventos.index');
 
     Route::get('/direcciones-destino', [DireccionDestinoApiController::class, 'index'])
         ->middleware('external.api.ability:direcciones-destino:read')

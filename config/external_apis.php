@@ -179,6 +179,44 @@ return [
                 ],
             ],
         ],
+        'paquetes-eventos:read' => [
+            'name' => 'EVENTOS SIOP',
+            'description' => 'Lista paquetes ordinarios, EMS, de contrato, certificados y solicitudes de clientes, incluyendo todo el historial de eventos de cada envio.',
+            'access' => 'Solo lectura',
+            'icon' => 'fas fa-route',
+            'color' => 'success',
+            'endpoints' => [
+                [
+                    'method' => 'GET',
+                    'path' => '/api/paquetes-eventos',
+                    'example' => '?per_page=50&page=1',
+                    'response' => [
+                        'data' => [
+                            [
+                                'tipo' => 'ems',
+                                'codigo' => 'EE123456789BO',
+                                'estado' => ['id' => 2, 'nombre' => 'EN TRANSITO'],
+                                'cantidad_eventos' => 2,
+                                'eventos' => [
+                                    [
+                                        'evento_id' => 1,
+                                        'nombre' => 'Envio admitido.',
+                                        'usuario' => ['id' => 4, 'nombre' => 'Operador'],
+                                        'fecha' => '2026-08-26T10:30:00-04:00',
+                                    ],
+                                ],
+                            ],
+                        ],
+                        'paginacion' => [
+                            'pagina_actual' => 1,
+                            'por_pagina' => 50,
+                            'total_registros' => 1,
+                        ],
+                        'tipos_incluidos' => ['certi', 'contrato', 'ems', 'ordinario', 'solicitud'],
+                    ],
+                ],
+            ],
+        ],
         'paquetes-contactos:certi:read' => [
             'name' => 'Consultar paquetes CERTI',
             'description' => 'Muestra el código y los datos disponibles del destinatario de los envíos certificados.',

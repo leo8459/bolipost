@@ -53,6 +53,10 @@ class PaqueteContactoApiTest extends TestCase
         $this->createPackageTable('solicitud_clientes', [
             'codigo_solicitud', 'origen', 'ciudad', 'estado_id', 'nombre_remitente', 'telefono_remitente', 'nombre_destinatario', 'telefono_destinatario', 'direccion',
         ]);
+
+        foreach (['eventos_certi', 'eventos_contrato', 'eventos_ems', 'eventos_ordi', 'eventos_tiktoker'] as $table) {
+            $this->createEventTable($table);
+        }
     }
 
     public function test_rechaza_consultas_sin_token(): void
@@ -189,6 +193,63 @@ class PaqueteContactoApiTest extends TestCase
             ->assertJsonPath('message', 'El token no tiene permiso para consultar este tipo de paquete.');
     }
 
+    public function test_api_de_todos_los_paquetes_incluye_todo_el_historial_de_eventos(): void
+    {
+        $now = now();
+        $eventoAdmitido = DB::table('estados')->insertGetId([
+            'nombre_estado' => 'ADMITIDO', 'created_at' => $now, 'updated_at' => $now,
+        ]);
+
+        Schema::create('eventos', function (Blueprint $table): void {
+            $table->id();
+            $table->string('nombre_evento');
+            $table->timestamps();
+        });
+
+        $primerEvento = DB::table('eventos')->insertGetId([
+            'nombre_evento' => 'Envio admitido.',
+            'created_at' => $now->copy()->subMinutes(3),
+            'updated_at' => $now,
+        ]);
+        $segundoEvento = DB::table('eventos')->insertGetId([
+            'nombre_evento' => 'Envio en transito.',
+            'created_at' => $now->copy()->subMinute(),
+            'updated_at' => $now,
+        ]);
+
+        DB::table('paquetes_ems')->insert([
+            'codigo' => 'EMS-EVENTOS',
+            'estado_id' => $eventoAdmitido,
+            'nombre_destinatario' => 'Destino',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        DB::table('eventos_ems')->insert([
+            [
+                'codigo' => 'ems-eventos',
+                'evento_id' => $primerEvento,
+                'created_at' => $now->copy()->subMinutes(3),
+                'updated_at' => $now,
+            ],
+            [
+                'codigo' => 'EMS-EVENTOS',
+                'evento_id' => $segundoEvento,
+                'created_at' => $now->copy()->subMinute(),
+                'updated_at' => $now,
+            ],
+        ]);
+
+        $this->withToken($this->issueToken(['paquetes-eventos:read']))
+            ->getJson('/api/paquetes-eventos?per_page=10')
+            ->assertOk()
+            ->assertJsonPath('paginacion.total_registros', 1)
+            ->assertJsonPath('tipos_incluidos', ['certi', 'contrato', 'ems', 'ordinario', 'solicitud'])
+            ->assertJsonPath('data.0.tipo', 'ems')
+            ->assertJsonPath('data.0.cantidad_eventos', 2)
+            ->assertJsonPath('data.0.eventos.0.nombre', 'Envio admitido.')
+            ->assertJsonPath('data.0.eventos.1.nombre', 'Envio en transito.');
+    }
+
     public function test_un_token_sin_permiso_de_direcciones_es_rechazado(): void
     {
         $this->withToken($this->issueToken(['paquetes-contactos:ems:read']))
@@ -207,6 +268,16 @@ class PaqueteContactoApiTest extends TestCase
             foreach ($columns as $column) {
                 $table->string($column)->nullable();
             }
+            $table->timestamps();
+        });
+    }
+
+    private function createEventTable(string $name): void
+    {
+        Schema::create($name, function (Blueprint $table): void {
+            $table->id();
+            $table->string('codigo');
+            $table->unsignedBigInteger('evento_id');
             $table->timestamps();
         });
     }
