@@ -337,7 +337,7 @@
 
             return null;
         };
-        $esEtiquetaUpuConPaisCoincidente = function (?string $valor) use ($extraerCodigoUpuOficina, $normalizarIso2, $iso2DesdeNombrePais): bool {
+        $esEtiquetaUpuRecortable = function (?string $valor) use ($extraerCodigoUpuOficina, $normalizarIso2, $iso2DesdeNombrePais): bool {
             $textoOriginal = trim((string) $valor);
             $codigoUpu = $extraerCodigoUpuOficina($textoOriginal);
 
@@ -345,12 +345,21 @@
                 return false;
             }
 
-            $isoCodigo = $normalizarIso2(substr($codigoUpu, 0, 2));
-            $isoPaisTexto = $iso2DesdeNombrePais(trim((string) ($match[1] ?? '')));
+            $etiqueta = trim((string) ($match[1] ?? ''));
+            if ($etiqueta === '') {
+                return false;
+            }
 
-            return $isoCodigo !== null && $isoPaisTexto !== null && $isoCodigo === $isoPaisTexto;
+            $isoCodigo = $normalizarIso2(substr($codigoUpu, 0, 2));
+            $isoPaisTexto = $iso2DesdeNombrePais($etiqueta);
+
+            if ($isoCodigo !== null && $isoPaisTexto !== null) {
+                return $isoCodigo === $isoPaisTexto;
+            }
+
+            return true;
         };
-        $limpiarEtiquetaOficina = function (?string $valor) use ($extraerPaisDesdeOffice, $extraerCodigoUpuOficina, $esEtiquetaUpuConPaisCoincidente): string {
+        $limpiarEtiquetaOficina = function (?string $valor) use ($extraerPaisDesdeOffice, $extraerCodigoUpuOficina, $esEtiquetaUpuRecortable): string {
             $textoOriginal = trim((string) $valor);
             if ($textoOriginal === '') {
                 return '';
@@ -362,14 +371,14 @@
             }
 
             if ($extraerCodigoUpuOficina($textoOriginal) !== null
-                && $esEtiquetaUpuConPaisCoincidente($textoOriginal)
+                && $esEtiquetaUpuRecortable($textoOriginal)
                 && preg_match('/^[A-Z]{2}[A-Z]{3}[A-Z0-9]\s*-\s*(.+)$/u', $textoOriginal, $match) === 1) {
                 return trim((string) ($match[1] ?? ''));
             }
 
             return $textoOriginal;
         };
-        $limpiarNombreEvento = function (?string $valor) use ($limpiarEtiquetaOficina, $extraerCodigoUpuOficina, $esEtiquetaUpuConPaisCoincidente): string {
+        $limpiarNombreEvento = function (?string $valor) use ($limpiarEtiquetaOficina, $extraerCodigoUpuOficina, $esEtiquetaUpuRecortable): string {
             $textoOriginal = trim((string) $valor);
             if ($textoOriginal === '') {
                 return 'Evento de seguimiento';
@@ -377,7 +386,7 @@
 
             if (preg_match('/^(.*?)-\s*([A-Z]{2}[A-Z]{3}[A-Z0-9]\s*-\s*.+)$/u', $textoOriginal, $match) === 1
                 && $extraerCodigoUpuOficina((string) ($match[2] ?? '')) !== null
-                && $esEtiquetaUpuConPaisCoincidente((string) ($match[2] ?? ''))) {
+                && $esEtiquetaUpuRecortable((string) ($match[2] ?? ''))) {
                 $prefijo = rtrim(trim((string) ($match[1] ?? '')), '- ');
                 $ubicacion = $limpiarEtiquetaOficina((string) ($match[2] ?? ''));
 
