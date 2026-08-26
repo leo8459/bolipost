@@ -385,6 +385,7 @@ return [
         'dashboard.comercial.rendimiento-servicios' => 'Dir. Comercial - Rendimiento Servicios',
         'reportes' => 'Reportes',
         'malencaminados' => 'Malencaminados',
+        'bastiones' => 'Bastiones',
         'mis-ventas' => 'Mis Ventas',
         'facturacion-servicio' => 'Facturacion por servicio',
         'ventas-sucursal' => 'Ventas Sucursal',

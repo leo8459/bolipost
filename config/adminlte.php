@@ -564,6 +564,19 @@ return [
             'can' => 'malencaminados.index',
         ],
         [
+            'text' => 'Bastiones',
+            'icon' => 'fas fa-shield-alt',
+            'can' => 'bastiones.index',
+            'submenu' => [
+                [
+                    'text' => 'Recuperar paquetes',
+                    'url' => 'bastiones/paquetes',
+                    'icon' => 'fas fa-undo-alt',
+                    'can' => 'bastiones.index',
+                ],
+            ],
+        ],
+        [
             'text' => 'Admisiones',
             'icon' => 'fas fa-inbox',
             'submenu' => [

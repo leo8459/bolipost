@@ -6,6 +6,7 @@ use App\Http\Controllers\AppConfigController;
 use App\Http\Controllers\AreaContratosController;
 use App\Http\Controllers\AuditoriaController;
 use App\Http\Controllers\BackupController;
+use App\Http\Controllers\BastionController;
 use App\Http\Controllers\BitacoraController;
 use App\Http\Controllers\BusquedaController;
 use App\Http\Controllers\CarterosController;
@@ -407,6 +408,11 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
 
     // gets
     Route::get('/plantilla', [PlantillaController::class, 'getplantilla']);
+    Route::get('/bastiones/paquetes', [BastionController::class, 'index'])->name('bastiones.index');
+    Route::post('/bastiones/paquetes/{tipo}/{id}/recuperar', [BastionController::class, 'recuperar'])
+        ->whereIn('tipo', ['ems', 'contratos', 'certificados', 'ordinarios'])
+        ->whereNumber('id')
+        ->name('bastiones.recuperar');
     Route::get('/paquetes-ems', [PaquetesEmsController::class, 'index'])->name('paquetes-ems.index');
     Route::get('/paquetes-ems/create', [PaquetesEmsController::class, 'create'])->name('paquetes-ems.create');
     Route::get('/paquetes-ems/solicitudes', [PaquetesEmsController::class, 'indexSolicitudes'])->name('paquetes-ems.solicitudes.index');

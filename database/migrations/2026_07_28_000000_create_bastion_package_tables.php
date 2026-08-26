@@ -10,6 +10,8 @@ return new class extends Migration
     {
         if (! Schema::hasTable('bastion_ems')) {
             Schema::create('bastion_ems', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('id_origen')->nullable()->index();
                 $table->string('origen')->nullable();
                 $table->string('tipo_correspondencia')->nullable();
                 $table->string('servicio_especial')->nullable();
@@ -40,6 +42,8 @@ return new class extends Migration
 
         if (! Schema::hasTable('bastion_contratos')) {
             Schema::create('bastion_contratos', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('id_origen')->nullable()->index();
                 $table->unsignedBigInteger('user_id')->nullable();
                 $table->unsignedBigInteger('empresa_id')->nullable();
                 $table->string('codigo')->nullable();
@@ -72,6 +76,8 @@ return new class extends Migration
 
         if (! Schema::hasTable('bastion_certi')) {
             Schema::create('bastion_certi', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('id_origen')->nullable()->index();
                 $table->string('codigo')->nullable();
                 $table->string('cod_especial')->nullable();
                 $table->unsignedBigInteger('servicio_id')->nullable();
@@ -94,6 +100,8 @@ return new class extends Migration
 
         if (! Schema::hasTable('bastion_ordi')) {
             Schema::create('bastion_ordi', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('id_origen')->nullable()->index();
                 $table->string('codigo')->nullable();
                 $table->unsignedBigInteger('servicio_id')->nullable();
                 $table->string('destinatario')->nullable();
