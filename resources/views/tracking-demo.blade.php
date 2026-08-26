@@ -26,6 +26,7 @@
 <body>
     @php
         $ultimoNombre = $ultimoEvento->nombre_evento ?? ('Evento #' . ($ultimoEvento->evento_id ?? '-'));
+        $ultimoEventoTexto = mb_strtolower((string) ($ultimoEvento->nombre_evento ?? ''));
         $eventoTextos = $eventos->map(fn($item) => mb_strtolower((string) ($item->nombre_evento ?? '')))->implode(' | ');
         $tieneIncidencia = str_contains($eventoTextos, 'fall') || str_contains($eventoTextos, 'incid') || str_contains($eventoTextos, 'devuelt');
         $fechaUltima = \Illuminate\Support\Carbon::parse($ultimoEvento->created_at);
@@ -51,29 +52,29 @@
 
         $idxEntregado = $incluyeCartero ? 5 : 4;
         $pasoActual = 0;
-        $textoIndicaDespacho = str_contains($eventoTextos, 'despach');
-        $textoIndicaExpedicion = str_contains($eventoTextos, 'exped')
-            || str_contains($eventoTextos, 'saca')
-            || str_contains($eventoTextos, 'transit')
-            || str_contains($eventoTextos, 'extranj');
-        $textoIndicaVentanilla = str_contains($eventoTextos, 'ventanilla')
-            || str_contains($eventoTextos, 'listo para entregar')
-            || str_contains($eventoTextos, 'oficina de entrega');
+        $textoIndicaDespacho = str_contains($ultimoEventoTexto, 'despach');
+        $textoIndicaExpedicion = str_contains($ultimoEventoTexto, 'exped')
+            || str_contains($ultimoEventoTexto, 'saca')
+            || str_contains($ultimoEventoTexto, 'transit')
+            || str_contains($ultimoEventoTexto, 'extranj');
+        $textoIndicaVentanilla = str_contains($ultimoEventoTexto, 'ventanilla')
+            || str_contains($ultimoEventoTexto, 'listo para entregar')
+            || str_contains($ultimoEventoTexto, 'oficina de entrega');
 
         if ($primerPaso === 'Clasificacion') {
-            if (str_contains($eventoTextos, 'clasific') || str_contains($eventoTextos, 'recibid') || str_contains($eventoTextos, 'registr')) $pasoActual = max($pasoActual, 0);
+            if (str_contains($ultimoEventoTexto, 'clasific') || str_contains($ultimoEventoTexto, 'recibid') || str_contains($ultimoEventoTexto, 'registr')) $pasoActual = max($pasoActual, 0);
         } else {
-            if (str_contains($eventoTextos, 'admi') || str_contains($eventoTextos, 'recibid') || str_contains($eventoTextos, 'registr')) $pasoActual = max($pasoActual, 0);
+            if (str_contains($ultimoEventoTexto, 'admi') || str_contains($ultimoEventoTexto, 'recibid') || str_contains($ultimoEventoTexto, 'registr')) $pasoActual = max($pasoActual, 0);
         }
         if ($textoIndicaDespacho) $pasoActual = max($pasoActual, 1);
         if ($textoIndicaExpedicion) $pasoActual = max($pasoActual, 2);
         if ($textoIndicaVentanilla) $pasoActual = max($pasoActual, 3);
-        if ($incluyeCartero && (str_contains($eventoTextos, 'cartero') || str_contains($eventoTextos, 'distrib') || str_contains($eventoTextos, 'domicilio') || str_contains($eventoTextos, 'intento'))) {
+        if ($incluyeCartero && (str_contains($ultimoEventoTexto, 'cartero') || str_contains($ultimoEventoTexto, 'distrib') || str_contains($ultimoEventoTexto, 'domicilio') || str_contains($ultimoEventoTexto, 'intento'))) {
             $pasoActual = max($pasoActual, 4);
         }
 
-        $entregaConfirmada = $eventos->contains(function ($item) {
-            $texto = mb_strtolower((string) ($item->nombre_evento ?? ''));
+        $entregaConfirmada = (function () use ($ultimoEventoTexto) {
+            $texto = $ultimoEventoTexto;
             if ($texto === '') {
                 return false;
             }
@@ -110,7 +111,7 @@
             }
 
             return false;
-        });
+        })();
 
         if ($entregaConfirmada) $pasoActual = max($pasoActual, $idxEntregado);
 
