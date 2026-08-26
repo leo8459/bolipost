@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Client\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
@@ -238,6 +240,72 @@ class FinancialReportTest extends TestCase
             ->assertViewHas('summary', fn ($summary) => $summary['cantidadServicios'] === 1
                 && $summary['cantidadVentas'] === 3.0
                 && $summary['totalMonto'] === 150.0
+            );
+    }
+
+    public function test_general_report_only_counts_contract_invoices_validated_in_reconciliation(): void
+    {
+        Schema::create('conciliaciones_empresa', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedSmallInteger('facturado_anio')->nullable();
+            $table->unsignedTinyInteger('facturado_mes')->nullable();
+            $table->string('factura_venta_id')->nullable();
+            $table->decimal('factura_monto', 15, 2)->nullable();
+            $table->timestamp('conciliado_at')->nullable();
+            $table->timestamps();
+        });
+        DB::table('conciliaciones_empresa')->insert([
+            [
+                'facturado_anio' => 2026,
+                'facturado_mes' => 8,
+                'factura_venta_id' => 'contrato-validado',
+                'factura_monto' => 150,
+                'conciliado_at' => now(),
+            ],
+            [
+                'facturado_anio' => 2026,
+                'facturado_mes' => 8,
+                'factura_venta_id' => 'contrato-sin-validar',
+                'factura_monto' => 100,
+                'conciliado_at' => null,
+            ],
+        ]);
+        Http::fake([
+            'safe.example.test/*' => Http::response(json_encode([
+                'servicios' => [
+                    [
+                        'servicio' => 'Servicio Internacional',
+                        'cantidadVentas' => 2,
+                        'cantidadDetalles' => 2,
+                        'totalCantidad' => 2,
+                        'totalMonto' => 200,
+                    ],
+                    [
+                        'servicio' => 'Servicio Contratos por concepto de pago de servicios de courier correspondiente',
+                        'cantidadVentas' => 3,
+                        'cantidadDetalles' => 3,
+                        'totalCantidad' => 3,
+                        'totalMonto' => 450,
+                    ],
+                ],
+            ]), 200),
+        ]);
+
+        $response = $this->withoutMiddleware()->get(route('dashboard.financiera.ventas-servicios', [
+            'mes' => 8,
+            'anio' => 2026,
+        ]));
+
+        $response->assertOk()
+            ->assertSee('Contratos por cobrar')
+            ->assertSee('Bs 300.00')
+            ->assertSee('Contratos validados')
+            ->assertViewHas('summary', fn (array $summary): bool => $summary['cantidadVentas'] === 3.0
+                && $summary['totalMonto'] === 350.0
+                && $summary['contratosValidadosVentas'] === 1.0
+                && $summary['contratosValidadosMonto'] === 150.0
+                && $summary['contratosPorCobrarVentas'] === 2.0
+                && $summary['contratosPorCobrarMonto'] === 300.0
             );
     }
 

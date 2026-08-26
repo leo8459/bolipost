@@ -296,6 +296,14 @@ class AclPermissionRegistry
      * @var array<string, array<int, string>>
      */
     private const WINDOW_FEATURE_ALLOWLIST = [
+        'dashboard.conciliacion.conciliaciones' => [
+            'conciliar',
+            'conciliado',
+            'por-cobrar',
+            'pago-recibido',
+            'confirmacion-pago',
+            'editar',
+        ],
         'despachos.abiertos' => ['create', 'edit', 'delete', 'opensacas', 'confirm', 'restore'],
         'despachos.expedicion' => ['print', 'confirm', 'restore', 'edit'],
         'despachos.admitidos' => ['assign', 'confirm'],
@@ -344,11 +352,20 @@ class AclPermissionRegistry
         'tarifa-contrato.index' => ['create', 'duplicate', 'edit', 'delete', 'save', 'import', 'export', 'report'],
         'empresas.index' => ['create', 'edit', 'history', 'delete', 'import', 'export'],
         'empresas.historial.index' => ['search', 'view-pdf'],
-        'alertas-empresa.index' => ['view', 'create', 'delete', 'export'],
+        'alertas-empresa.index' => ['view', 'create', 'delete', 'export', 'manage'],
         'servicios.index' => ['create', 'edit', 'delete'],
         'conceptos-facturacion.index' => ['create', 'edit', 'delete'],
         'sucursales.index' => ['create', 'edit', 'delete'],
         'sacas.index' => ['create', 'edit', 'delete', 'assign', 'confirm'],
+    ];
+
+    /**
+     * Feature modules whose names intentionally differ from their window route.
+     *
+     * @var array<string, string>
+     */
+    private const WINDOW_FEATURE_MODULE_OVERRIDES = [
+        'dashboard.conciliacion.conciliaciones' => 'conciliacion.conciliaciones',
     ];
 
     /**
@@ -508,6 +525,38 @@ class AclPermissionRegistry
      * @var array<string, array<int, string>>
      */
     private const ROUTE_ACCESS_PERMISSION_OVERRIDES = [
+        'dashboard.conciliacion.conciliaciones.documento' => [
+            'feature.conciliacion.conciliaciones.conciliar',
+            'feature.conciliacion.conciliaciones.editar',
+        ],
+        'dashboard.conciliacion.conciliaciones.conciliado' => [
+            'feature.conciliacion.conciliaciones.conciliado',
+        ],
+        'dashboard.conciliacion.conciliaciones.por-cobrar' => [
+            'feature.conciliacion.conciliaciones.por-cobrar',
+            'feature.conciliacion.conciliaciones.editar',
+        ],
+        'dashboard.conciliacion.conciliaciones.facturas-disponibles' => [
+            'feature.conciliacion.conciliaciones.por-cobrar',
+            'feature.conciliacion.conciliaciones.editar',
+        ],
+        'dashboard.conciliacion.conciliaciones.factura-pdf' => [
+            'dashboard.conciliacion.conciliaciones',
+            'dashboard.conciliacion.facturado',
+        ],
+        'dashboard.conciliacion.conciliaciones.pago-recibido' => [
+            'feature.conciliacion.conciliaciones.pago-recibido',
+            'feature.conciliacion.conciliaciones.editar',
+        ],
+        'dashboard.conciliacion.conciliaciones.confirmacion-pago' => [
+            'feature.conciliacion.conciliaciones.confirmacion-pago',
+        ],
+        'dashboard.conciliacion.conciliaciones.comprobante-pago' => [
+            'dashboard.conciliacion.conciliaciones',
+        ],
+        'dashboard.conciliacion.conciliaciones.descargar' => [
+            'dashboard.conciliacion.conciliaciones',
+        ],
         'facturacion-servicio.store' => [
             'facturacion-servicio.store',
             'facturacion-servicio.index',
@@ -1908,12 +1957,31 @@ class AclPermissionRegistry
             'feature.malencaminados.report' => 'Boton: Ver reporte / Generar reporte',
             'feature.malencaminados.export' => 'Boton: Exportar PDF',
             'feature.dashboard.facturacion' => 'Boton: Acceso rapido Facturacion',
+            'feature.conciliacion.conciliaciones.conciliar' => 'Botón 1: Subir o editar Excel/PDF',
+            'feature.conciliacion.conciliaciones.conciliado' => 'Botón 2: Marcar Conciliado',
+            'feature.conciliacion.conciliaciones.por-cobrar' => 'Botón 3: Por cobrar / Asociar factura',
+            'feature.conciliacion.conciliaciones.pago-recibido' => 'Botón 4: Pago recibido / Subir PDF',
+            'feature.conciliacion.conciliaciones.confirmacion-pago' => 'Botón 5: Confirmación de pago',
+            'feature.conciliacion.conciliaciones.editar' => 'Botón: Editar información cargada',
+            'alertas-empresa.index' => 'Ventana: Alertas para empresas',
+            'alertas-empresa.store' => 'Accion: Enviar alerta',
+            'alertas-empresa.destroy' => 'Accion: Eliminar alerta',
+            'alertas-empresa.portada' => 'Accion: Ver portada de alerta',
+            'alertas-empresa.pdf' => 'Accion: Ver PDF de alerta',
+            'alertas-empresa.read' => 'Accion: Confirmar lectura de alerta',
+            'feature.alertas-empresa.view' => 'Boton: Ver alertas',
+            'feature.alertas-empresa.create' => 'Boton: Mandar alerta',
+            'feature.alertas-empresa.delete' => 'Boton: Eliminar alerta',
+            'feature.alertas-empresa.export' => 'Boton: Ver PDF adjunto',
+            'feature.alertas-empresa.manage' => 'Acciones generales de alertas',
             'facturacion-servicio.index' => 'Ventana: Facturacion por servicio',
             'facturacion-servicio.store' => 'Accion: Emitir Facturacion por servicio',
             'dashboard.dir-operaciones' => 'Menu: Dir. Operaciones',
             'dashboard.dir-comercial' => 'Menu: Dir. Comercial',
             'dashboard.conciliacion' => 'Menu: Conciliación',
             'dashboard.conciliacion.facturado' => 'Ventana: Facturado de contratos',
+            'dashboard.conciliacion.empresas-paquetes' => 'Ventana: Empresas paquetes',
+            'dashboard.conciliacion.conciliaciones' => 'Ventana: Conciliaciones por empresa y mes',
             'dashboard.dir-financiera' => 'Menu: Dir. Financiera',
             'dashboard.financiera.ventas-servicios' => 'Ventana: Ventas por Servicio',
             'dashboard.financiera.ventas-servicios.detalle' => 'Ventana: Detalle por Servicio',
@@ -2136,6 +2204,10 @@ class AclPermissionRegistry
         [$moduleKey] = self::splitPermissionName($routeName);
         $group = $groupsByModule->get($moduleKey);
         $windowFeatureGroup = $groupsByModule->get($routeName);
+        $overrideFeatureModule = self::WINDOW_FEATURE_MODULE_OVERRIDES[$routeName] ?? null;
+        $overrideFeatureGroup = $overrideFeatureModule !== null
+            ? $groupsByModule->get($overrideFeatureModule)
+            : null;
 
         $routePermission = null;
         $featurePermissions = [];
@@ -2146,7 +2218,8 @@ class AclPermissionRegistry
 
         $featurePermissions = collect(array_merge(
             (array) ($group['permissions'] ?? []),
-            (array) ($windowFeatureGroup['permissions'] ?? [])
+            (array) ($windowFeatureGroup['permissions'] ?? []),
+            (array) ($overrideFeatureGroup['permissions'] ?? [])
         ))
             ->unique(fn (array $permission): string => (string) ($permission['name'] ?? ''))
             ->filter(function (array $permission) use ($routeName): bool {
@@ -2158,6 +2231,12 @@ class AclPermissionRegistry
                     (string) ($permission['name'] ?? ''),
                     $routeName
                 );
+            })
+            ->sortBy(function (array $permission) use ($routeName): int {
+                [, $actionKey] = self::splitPermissionName((string) ($permission['name'] ?? ''));
+                $position = array_search($actionKey, self::WINDOW_FEATURE_ALLOWLIST[$routeName] ?? [], true);
+
+                return $position === false ? PHP_INT_MAX : $position;
             })
             ->values()
             ->all();
@@ -2283,12 +2362,30 @@ class AclPermissionRegistry
             'feature.malencaminados.report' => 'Controla el boton Ver reporte y Generar reporte dentro del modulo Malencaminados.',
             'feature.malencaminados.export' => 'Controla el boton Exportar PDF dentro del reporte de Malencaminados.',
             'feature.dashboard.facturacion' => 'Controla el boton flotante Facturacion del dashboard y sus accesos rapidos a pantallas de tarifas.',
+            'feature.conciliacion.conciliaciones.conciliar' => 'Permite subir y reemplazar el documento Excel o PDF del paso 1 solamente antes de marcar Conciliado.',
+            'feature.conciliacion.conciliaciones.conciliado' => 'Permite aprobar el documento y marcar la empresa como Conciliada en el paso 2.',
+            'feature.conciliacion.conciliaciones.por-cobrar' => 'Permite consultar la API y asociar una factura en el paso 3.',
+            'feature.conciliacion.conciliaciones.pago-recibido' => 'Permite registrar Pago recibido y subir o reemplazar su PDF en el paso 4.',
+            'feature.conciliacion.conciliaciones.confirmacion-pago' => 'Permite confirmar definitivamente el pago en el paso 5.',
+            'feature.conciliacion.conciliaciones.editar' => 'Permite abrir Editar. El documento del paso 1 queda bloqueado después de marcar Conciliado.',
+            'alertas-empresa.index' => 'Permite abrir la ventana Mandar alertas desde Paquetes Contratos.',
+            'alertas-empresa.store' => 'Permite guardar y enviar una alerta a los perfiles de empresa seleccionados.',
+            'alertas-empresa.destroy' => 'Permite eliminar definitivamente una alerta enviada.',
+            'alertas-empresa.portada' => 'Permite visualizar la imagen de portada de una alerta recibida.',
+            'alertas-empresa.pdf' => 'Permite abrir el documento PDF adjunto a una alerta.',
+            'alertas-empresa.read' => 'Permite al usuario destinatario marcar una alerta como vista.',
+            'feature.alertas-empresa.view' => 'Controla la visualizacion de alertas dentro del modulo.',
+            'feature.alertas-empresa.create' => 'Controla el boton Mandar alerta, el modal y el boton Enviar alerta.',
+            'feature.alertas-empresa.delete' => 'Controla el boton Eliminar del historial de alertas.',
+            'feature.alertas-empresa.export' => 'Controla el boton Ver PDF dentro del historial de alertas.',
+            'feature.alertas-empresa.manage' => 'Agrupa las acciones generales del modulo Alertas para empresas.',
             'facturacion-servicio.index' => 'Controla el acceso a la ventana Facturacion por servicio dentro del menu Reportes.',
             'facturacion-servicio.store' => 'Controla la emision desde la ventana Facturacion por servicio. Usa el mismo acceso principal de la ventana.',
             'dashboard.dir-operaciones' => 'Controla la visibilidad del menu Dir. Operaciones en la barra lateral.',
             'dashboard.dir-comercial' => 'Controla la visibilidad del menu Dir. Comercial en la barra lateral.',
             'dashboard.conciliacion' => 'Controla la visibilidad del menú Conciliación en la barra lateral.',
             'dashboard.conciliacion.facturado' => 'Controla el acceso a la tabla Facturado de contratos.',
+            'dashboard.conciliacion.empresas-paquetes' => 'Controla el acceso al resumen de paquetes por empresa.',
             'dashboard.dir-financiera' => 'Controla la visibilidad del menu Dir. Financiera en la barra lateral.',
             'dashboard.financiera.ventas-servicios' => 'Controla el acceso al reporte mensual de ventas por servicio de Dir. Financiera.',
             'dashboard.financiera.ventas-servicios.detalle' => 'Controla el acceso al detalle mensual de ventas de un servicio de Dir. Financiera.',

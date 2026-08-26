@@ -46,6 +46,7 @@ class EmpresaHistoryService
                     'nombre' => $current->nombre,
                     'sigla' => $current->sigla,
                     'codigo_cliente' => $current->codigo_cliente,
+                    'nit' => $current->nit,
                     'clasificacion' => $current->clasificacion,
                     'documentacion_legal' => $current->documentacion_legal,
                     'inicio_contrato' => $current->inicio_contrato,

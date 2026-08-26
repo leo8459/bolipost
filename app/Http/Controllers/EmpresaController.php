@@ -37,6 +37,7 @@ class EmpresaController extends Controller
                     $inner->where('nombre', 'ILIKE', "%{$search}%")
                         ->orWhere('sigla', 'ILIKE', "%{$search}%")
                         ->orWhere('codigo_cliente', 'ILIKE', "%{$search}%")
+                        ->orWhere('nit', 'ILIKE', "%{$search}%")
                         ->orWhere('clasificacion', 'ILIKE', "%{$search}%")
                         ->orWhere('documentacion_legal', 'ILIKE', "%{$search}%")
                         ->orWhere('cobertura', 'ILIKE', "%{$search}%");

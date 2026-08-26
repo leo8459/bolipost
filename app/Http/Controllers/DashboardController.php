@@ -35,8 +35,6 @@ class DashboardController extends Controller
     private const EVENTO_EMS_SOLICITUD_ID = 295;
     private const CERTI_ORDI_GREEN_DAYS = 7;
     private const CERTI_ORDI_YELLOW_DAYS = 15;
-    private const RANKING_CUMPLIMIENTO_WEIGHT = 0.70;
-    private const RANKING_PARTICIPACION_WEIGHT = 0.30;
     private const DASHBOARD_CACHE_SECONDS = 300;
     private const DASHBOARD_ALERT_CACHE_SECONDS = 20;
     private const DASHBOARD_HEAVY_ALERT_CACHE_SECONDS = 300;
@@ -1784,39 +1782,8 @@ class DashboardController extends Controller
                 ];
             });
 
-        $totalNacional = (int) $rows->sum('total');
-        $entregadosNacional = (int) $rows->sum('entregados');
-
         return $rows
-            ->map(function ($row) use ($totalNacional, $entregadosNacional) {
-                $row->total_nacional = $totalNacional;
-                $row->entregados_nacional = $entregadosNacional;
-                $row->participacion_nacional = $totalNacional > 0
-                    ? round(((int) $row->total * 100) / $totalNacional, 1)
-                    : 0.0;
-                $row->aporte_entregado_nacional = $totalNacional > 0
-                    ? round(((int) $row->entregados * 100) / $totalNacional, 1)
-                    : 0.0;
-                $row->participacion_entregas_nacionales = $entregadosNacional > 0
-                    ? round(((int) $row->entregados * 100) / $entregadosNacional, 1)
-                    : 0.0;
-                $row->ranking_cumplimiento_peso = (int) (self::RANKING_CUMPLIMIENTO_WEIGHT * 100);
-                $row->ranking_participacion_peso = (int) (self::RANKING_PARTICIPACION_WEIGHT * 100);
-                $row->puntaje_ranking = round(
-                    ((float) $row->cumplimiento * self::RANKING_CUMPLIMIENTO_WEIGHT)
-                    + ((float) ($row->participacion_nacional ?? 0) * self::RANKING_PARTICIPACION_WEIGHT),
-                    1
-                );
-
-                return $row;
-            })
-            ->sortByDesc(fn ($row) => sprintf(
-                '%08.1f-%08.1f-%08.1f-%08d',
-                (float) ($row->puntaje_ranking ?? 0),
-                (float) $row->cumplimiento,
-                (float) ($row->participacion_nacional ?? 0),
-                (int) $row->entregados
-            ))
+            ->sortByDesc(fn ($row) => (float) $row->cumplimiento)
             ->values()
             ->map(function ($row, int $index) {
                 $row->puesto = $index + 1;

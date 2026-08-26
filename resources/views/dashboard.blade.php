@@ -588,7 +588,7 @@
                             <i class="fas fa-file-excel mr-1"></i> Reporte rendimiento Excel
                         </a>
                         <span class="badge badge-success">
-                            #1 {{ $topDepartamento->departamento }} - puntaje {{ number_format((float) ($topDepartamento->puntaje_ranking ?? 0), 1) }}%
+                            #1 {{ $topDepartamento->departamento }} - cumplimiento {{ number_format((float) $topDepartamento->cumplimiento, 1) }}%
                         </span>
                     @endif
                 </div>
@@ -605,9 +605,7 @@
                             <th class="text-right">Entregados</th>
                             <th class="text-right">Transito</th>
                             <th class="text-right">Pendientes</th>
-                            <th class="text-right">Parte nacional</th>
-                            <th class="text-right">Cumplio de su parte</th>
-                            <th class="text-right">Valor ranking</th>
+                            <th class="text-right">Cumplimiento</th>
                             <th>Quien entrega mas</th>
                             <th class="text-center">Ver</th>
                         </tr>
@@ -642,30 +640,11 @@
                                     </button>
                                 </td>
                                 <td class="text-right">
-                                    <strong>{{ number_format((float) ($item->participacion_nacional ?? 0), 1) }}%</strong>
-                                    <div class="small text-muted">del trabajo nacional</div>
-                                    <div class="small text-muted">
-                                        {{ number_format((int) $item->total) }} de {{ number_format((int) ($item->total_nacional ?? 0)) }}
-                                    </div>
-                                </td>
-                                <td class="text-right">
                                     <div class="tasa-entrega-wrap">
                                         <span>{{ number_format((float) $item->cumplimiento, 1) }}%</span>
                                         <div class="tasa-entrega-bar">
                                             <div class="tasa-entrega-fill" style="width: {{ min(100, max(0, (float) $item->cumplimiento)) }}%;"></div>
                                         </div>
-                                        <div class="small text-muted">
-                                            de su {{ number_format((float) ($item->participacion_nacional ?? 0), 1) }}% nacional
-                                        </div>
-                                        <span class="badge badge-success">
-                                            Aporta {{ number_format((float) ($item->aporte_entregado_nacional ?? 0), 1) }}% entregado al nacional
-                                        </span>
-                                    </div>
-                                </td>
-                                <td class="text-right">
-                                    <strong class="text-primary">{{ number_format((float) ($item->puntaje_ranking ?? 0), 1) }}%</strong>
-                                    <div class="small text-muted">
-                                        {{ (int) ($item->ranking_cumplimiento_peso ?? 70) }}% cumplimiento + {{ (int) ($item->ranking_participacion_peso ?? 30) }}% parte nacional
                                     </div>
                                 </td>
                                 <td>
@@ -686,7 +665,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="11" class="text-center text-muted py-4">No hay datos por departamento para los filtros seleccionados.</td>
+                                <td colspan="9" class="text-center text-muted py-4">No hay datos por departamento para los filtros seleccionados.</td>
                             </tr>
                         @endforelse
                     </tbody>

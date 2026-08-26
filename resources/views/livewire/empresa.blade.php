@@ -373,7 +373,7 @@
                         <input
                             type="text"
                             class="form-control search-input"
-                            placeholder="Buscar empresa, sigla, codigo o cobertura..."
+                            placeholder="Buscar empresa, sigla, codigo, NIT o cobertura..."
                             wire:model="search"
                             wire:keydown.enter="searchEmpresas"
                         >
@@ -462,6 +462,8 @@
                                             <span class="mx-1">•</span>
                                             Codigo {{ $empresa->codigo_cliente }}
                                             <span class="mx-1">•</span>
+                                            NIT {{ $empresa->nit ?: '-' }}
+                                            <span class="mx-1">&bull;</span>
                                             #{{ $empresa->id }}
                                         </small>
                                     </td>
@@ -584,6 +586,11 @@
                                 <label>Codigo cliente</label>
                                 <input type="text" wire:model.defer="codigo_cliente" class="form-control uppercase-input">
                                 @error('codigo_cliente') <small class="text-danger">{{ $message }}</small> @enderror
+                            </div>
+                            <div class="form-group">
+                                <label>NIT</label>
+                                <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="32" wire:model.defer="nit" class="form-control" placeholder="Ej. 123456789">
+                                @error('nit') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group">
                                 <label>Clasificacion</label>

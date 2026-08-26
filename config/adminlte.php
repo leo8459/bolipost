@@ -365,8 +365,15 @@ return [
                     'icon' => 'fas fa-file-invoice-dollar',
                 ],
                 [
+                    'text' => 'Empresas paquetes',
+                    'can' => 'dashboard.conciliacion.empresas-paquetes',
+                    'url' => '/conciliacion/empresas-paquetes',
+                    'icon' => 'fas fa-building',
+                ],
+                [
                     'text' => 'Conciliaciones',
-                    'url' => '#',
+                    'can' => 'dashboard.conciliacion.conciliaciones',
+                    'url' => '/conciliacion/conciliaciones',
                     'icon' => 'fas fa-exchange-alt',
                 ],
             ],
