@@ -325,8 +325,71 @@
 
             return '';
         };
+        $extraerCodigoUpuOficina = function (?string $valor): ?string {
+            $textoOriginal = strtoupper(trim((string) $valor));
+            if ($textoOriginal === '') {
+                return null;
+            }
 
-        $iso2DesdeOficina = function (?string $texto) use ($normalizarIso2, $extraerPaisDesdeOffice, $iso2DesdeNombrePais): ?string {
+            if (preg_match('/^([A-Z]{2}[A-Z]{3}[A-Z0-9])(?:\b|\s*-)/', $textoOriginal, $match) === 1) {
+                return (string) ($match[1] ?? null);
+            }
+
+            return null;
+        };
+        $esEtiquetaUpuConPaisCoincidente = function (?string $valor) use ($extraerCodigoUpuOficina, $normalizarIso2, $iso2DesdeNombrePais): bool {
+            $textoOriginal = trim((string) $valor);
+            $codigoUpu = $extraerCodigoUpuOficina($textoOriginal);
+
+            if ($codigoUpu === null || preg_match('/^[A-Z]{2}[A-Z]{3}[A-Z0-9]\s*-\s*(.+)$/u', $textoOriginal, $match) !== 1) {
+                return false;
+            }
+
+            $isoCodigo = $normalizarIso2(substr($codigoUpu, 0, 2));
+            $isoPaisTexto = $iso2DesdeNombrePais(trim((string) ($match[1] ?? '')));
+
+            return $isoCodigo !== null && $isoPaisTexto !== null && $isoCodigo === $isoPaisTexto;
+        };
+        $limpiarEtiquetaOficina = function (?string $valor) use ($extraerPaisDesdeOffice, $extraerCodigoUpuOficina, $esEtiquetaUpuConPaisCoincidente): string {
+            $textoOriginal = trim((string) $valor);
+            if ($textoOriginal === '') {
+                return '';
+            }
+
+            $pais = trim($extraerPaisDesdeOffice($textoOriginal));
+            if ($pais !== '') {
+                return $pais;
+            }
+
+            if ($extraerCodigoUpuOficina($textoOriginal) !== null
+                && $esEtiquetaUpuConPaisCoincidente($textoOriginal)
+                && preg_match('/^[A-Z]{2}[A-Z]{3}[A-Z0-9]\s*-\s*(.+)$/u', $textoOriginal, $match) === 1) {
+                return trim((string) ($match[1] ?? ''));
+            }
+
+            return $textoOriginal;
+        };
+        $limpiarNombreEvento = function (?string $valor) use ($limpiarEtiquetaOficina, $extraerCodigoUpuOficina, $esEtiquetaUpuConPaisCoincidente): string {
+            $textoOriginal = trim((string) $valor);
+            if ($textoOriginal === '') {
+                return 'Evento de seguimiento';
+            }
+
+            if (preg_match('/^(.*?)-\s*([A-Z]{2}[A-Z]{3}[A-Z0-9]\s*-\s*.+)$/u', $textoOriginal, $match) === 1
+                && $extraerCodigoUpuOficina((string) ($match[2] ?? '')) !== null
+                && $esEtiquetaUpuConPaisCoincidente((string) ($match[2] ?? ''))) {
+                $prefijo = rtrim(trim((string) ($match[1] ?? '')), '- ');
+                $ubicacion = $limpiarEtiquetaOficina((string) ($match[2] ?? ''));
+
+                if ($prefijo !== '' && $ubicacion !== '') {
+                    return $prefijo . ' - ' . $ubicacion;
+                }
+            }
+
+            return $textoOriginal;
+        };
+
+        $iso2DesdeOficina = function (?string $texto) use ($normalizarIso2, $extraerPaisDesdeOffice, $iso2DesdeNombrePais, $extraerCodigoUpuOficina): ?string {
             $valor = strtoupper(trim((string) $texto));
             if ($valor === '') {
                 return null;
@@ -337,8 +400,14 @@
                 return $iso2DesdeNombrePais($paisDesdeOffice);
             }
 
-            if (preg_match('/^([A-Z]{2}[A-Z]{3}[A-Z0-9]*)\b/', $valor, $m) === 1) {
-                return $normalizarIso2(substr((string) $m[1], 0, 2));
+            $paisPorNombreDirecto = $iso2DesdeNombrePais($texto);
+            if ($paisPorNombreDirecto !== null) {
+                return $paisPorNombreDirecto;
+            }
+
+            $codigoUpu = $extraerCodigoUpuOficina($valor);
+            if ($codigoUpu !== null) {
+                return $normalizarIso2(substr($codigoUpu, 0, 2));
             }
 
             return null;
@@ -507,8 +576,7 @@
             && $origenIso2 !== null
             && $origenIso2 !== 'BO'
             && $destinoIso2DesdePayload === null
-            && $destinoNombreDesdePayload === ''
-            && $ciudadDestinoDesdeOficina !== null;
+            && $destinoNombreDesdePayload === '';
         if ($destinoIso2DesdeCiudad !== null) {
             $destinoBanderaIso2 = $destinoIso2DesdeCiudad;
             $destinoLabel = $destinoNombreDesdePayload !== ''
@@ -516,7 +584,7 @@
                 : ($nombrePaisDesdeIso2($destinoBanderaIso2) ?? $ciudadDestinoLocal);
         } elseif ($esIngresoInternacionalSinDestinoExplicito) {
             $destinoBanderaIso2 = 'BO';
-            $destinoLabel = $ciudadDestinoDesdeOficina;
+            $destinoLabel = 'Bolivia';
         } elseif ($esCodigoBoliviano && is_array($rutaInternacionalSaliente)) {
             $destinoBanderaIso2 = $rutaInternacionalSaliente['destino'];
             $destinoLabel = $nombrePaisDesdeIso2($destinoBanderaIso2) ?? $destinoBanderaIso2;
@@ -524,12 +592,13 @@
             $destinoLabel = 'Internacional';
             $destinoBanderaIso2 = null;
         } else {
-            $destinoBanderaIso2 = $destinoIso2DesdeCiudad ?? ($esDestinoNacional ? 'BO' : $destinoIso2);
+            $destinoBanderaIso2 = $destinoIso2DesdeCiudad
+                ?? ($esIngresoInternacionalSinDestinoExplicito ? 'BO' : ($esDestinoNacional ? 'BO' : $destinoIso2));
             $destinoLabel = $ciudadDestinoLocal !== ''
                 ? ucwords(mb_strtolower($ciudadDestinoLocal))
                 : ($esDestinoNacional
                     ? ($destinoBanderaIso2 === 'BO' ? 'Bolivia' : 'Nacional')
-                    : ($destinoIso2 ?? 'Internacional'));
+                    : (($esIngresoInternacionalSinDestinoExplicito ? 'Bolivia' : $destinoIso2) ?? 'Internacional'));
         }
         $esEventoLocalBolivia = function ($evento) use ($detectarDepartamentoBolivia) {
             $office = trim((string) ($evento->office ?? ''));
@@ -781,12 +850,14 @@
                                         </div>
                                         <div class="history-event-body">
                                             <div class="history-event-head">
-                                                <h4>{{ $evento->nombre_evento ?? ('Evento #' . ($evento->evento_id ?? '-')) }}</h4>
+                                                <h4>{{ $limpiarNombreEvento($evento->nombre_evento ?? ('Evento #' . ($evento->evento_id ?? '-'))) }}</h4>
                                             </div>
                                             <div class="history-event-meta">
                                                 @php
                                                     $office = trim((string) ($evento->office ?? ''));
                                                     $nextOffice = trim((string) ($evento->next_office ?? ''));
+                                                    $officeLabel = $limpiarEtiquetaOficina($office);
+                                                    $nextOfficeLabel = $limpiarEtiquetaOficina($nextOffice);
                                                     $codigoEvento = trim((string) ($evento->codigo ?? $codigo));
                                                     $paisDesdeOffice = $extraerPaisDesdeOffice($office);
                                                     $officeEsPaisOrigenGenerico = str_starts_with(mb_strtolower($office), 'país origen:')
@@ -799,13 +870,13 @@
                                                 @if ($office !== '' && !$officeEsPaisOrigenGenerico)
                                                     <div class="history-meta-row">
                                                         <span class="history-meta-label">Oficina</span>
-                                                        <span class="history-meta-value">{{ $office }} @if($isoOffice)<img class="country-flag" src="https://flagcdn.com/16x12/{{ strtolower($isoOffice) }}.png" alt="Bandera oficina">@endif</span>
+                                                        <span class="history-meta-value">{{ $officeLabel }} @if($isoOffice)<img class="country-flag" src="https://flagcdn.com/16x12/{{ strtolower($isoOffice) }}.png" alt="Bandera oficina">@endif</span>
                                                     </div>
                                                 @endif
                                                 @if ($nextOffice !== '')
                                                     <div class="history-meta-row">
                                                         <span class="history-meta-label">Siguiente Oficina</span>
-                                                        <span class="history-meta-value">{{ $nextOffice }} @if($isoNextOffice)<img class="country-flag" src="https://flagcdn.com/16x12/{{ strtolower($isoNextOffice) }}.png" alt="Bandera siguiente oficina">@endif</span>
+                                                        <span class="history-meta-value">{{ $nextOfficeLabel }} @if($isoNextOffice)<img class="country-flag" src="https://flagcdn.com/16x12/{{ strtolower($isoNextOffice) }}.png" alt="Bandera siguiente oficina">@endif</span>
                                                     </div>
                                                 @endif
                                             </div>
