@@ -1482,6 +1482,8 @@ class FacturacionCartController extends Controller
             $validated = $request->validate([
                 'concepto_facturacion_id' => ['required', 'integer', 'exists:conceptos_facturacion,id'],
                 'cantidad' => ['nullable', 'integer', 'min:1', 'max:999'],
+                'precio' => ['nullable', 'numeric', 'min:0'],
+                'descripcion_servicio' => ['nullable', 'string', 'max:255'],
             ]);
 
             $concepto = ConceptoFacturacion::query()
@@ -1489,15 +1491,33 @@ class FacturacionCartController extends Controller
                 ->findOrFail((int) $validated['concepto_facturacion_id']);
 
             $cantidad = max(1, (int) ($validated['cantidad'] ?? 1));
-            $cart = $service->addConceptoFacturacion($user, $concepto, $cantidad);
-            $montoBase = round((float) ($concepto->precio_base ?? 0), 2);
+            $precioUnitario = array_key_exists('precio', $validated)
+                ? round(max(0, (float) $validated['precio']), 2)
+                : null;
+            $descripcionServicio = array_key_exists('descripcion_servicio', $validated)
+                ? trim((string) $validated['descripcion_servicio'])
+                : '';
+            $cart = $service->addConceptoFacturacion(
+                $user,
+                $concepto,
+                $cantidad,
+                $precioUnitario,
+                $descripcionServicio !== '' ? $descripcionServicio : null
+            );
+            $montoBase = $precioUnitario !== null
+                ? $precioUnitario
+                : round((float) ($concepto->precio_base ?? 0), 2);
             $detalleCantidad = $cantidad > 1 ? ' Cantidad agregada: x' . $cantidad . '.' : '';
+            $detalleTotal = ' Total aplicado: Bs ' . number_format($montoBase * $cantidad, 2) . '.';
+            $detalleDescripcion = $descripcionServicio !== ''
+                ? ' Descripcion personalizada aplicada.'
+                : '';
 
             $feedback = [
                 'type' => 'success',
                 'title' => 'Cobro agregado al carrito',
                 'message' => trim((string) $concepto->nombre) . ' agregado correctamente.',
-                'detail' => 'Precio base aplicado: Bs ' . number_format($montoBase, 2) . '.' . $detalleCantidad . ' Si hace falta, puedes editarlo dentro del carrito.',
+                'detail' => 'Precio unitario aplicado: Bs ' . number_format($montoBase, 2) . '.' . $detalleCantidad . $detalleTotal . $detalleDescripcion . ' Si hace falta, puedes editarlo dentro del carrito.',
                 'action' => 'concepto_add',
             ];
 
@@ -1505,6 +1525,8 @@ class FacturacionCartController extends Controller
                 'user_id' => $user?->id,
                 'concepto_id' => $concepto->id,
                 'cantidad' => $cantidad,
+                'precio_unitario' => $montoBase,
+                'descripcion_servicio' => $descripcionServicio !== '' ? $descripcionServicio : null,
                 'cart_id' => $cart->id ?? null,
                 'expects_json' => $expectsJson,
             ]);

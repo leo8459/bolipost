@@ -764,7 +764,6 @@
                             data-processing-text="Estamos agregando el cobro adicional al carrito, espera un momento..."
                         >
                             @csrf
-                            <input type="hidden" name="concepto_facturacion_id" id="facturacionConceptoHidden" value="">
                             <div class="facturacion-concepto-picker">
                                 <div class="global-shortcut-field global-shortcut-field--full facturacion-concepto-picker__select">
                                     <select
@@ -773,32 +772,24 @@
                                     >
                                         <option value="">Selecciona un concepto facturable</option>
                                         @foreach ($facturacionConceptos as $conceptoFacturable)
-                                            <option value="{{ $conceptoFacturable->id }}">
+                                            <option
+                                                value="{{ $conceptoFacturable->id }}"
+                                                data-precio-base="{{ number_format((float) $conceptoFacturable->precio_base, 2, '.', '') }}"
+                                                data-concepto-nombre="{{ $conceptoFacturable->nombre }}"
+                                                data-concepto-codigo="{{ $conceptoFacturable->codigo }}"
+                                                data-concepto-descripcion="{{ $conceptoFacturable->descripcion_servicio ?? $conceptoFacturable->nombre }}"
+                                            >
                                                 {{ $conceptoFacturable->nombre }} | {{ $conceptoFacturable->codigo }} | Bs {{ number_format((float) $conceptoFacturable->precio_base, 2) }}
                                             </option>
                                         @endforeach
                                     </select>
                                 </div>
-                                <div class="facturacion-concepto-picker__controls">
-                                    <label for="facturacionConceptoCantidad" class="facturacion-concepto-picker__qty-label">Cantidad</label>
-                                    <input
-                                        type="number"
-                                        name="cantidad"
-                                        id="facturacionConceptoCantidad"
-                                        class="facturacion-concepto-picker__qty-input"
-                                        value="1"
-                                        min="1"
-                                        max="999"
-                                        step="1"
-                                        placeholder="1"
-                                        inputmode="numeric"
-                                        @disabled(!$isCajaAbierta)
-                                    >
-                                    <button type="submit" class="global-shortcut-secondary-btn facturacion-concepto-picker__submit" @disabled(!$isCajaAbierta)>
+                                <div class="facturacion-concepto-picker__actions">
+                                    <button type="button" id="facturacionConceptoOpenModal" class="global-shortcut-secondary-btn facturacion-concepto-picker__submit" @disabled(!$isCajaAbierta)>
                                         Agregar cobro
                                     </button>
                                 </div>
-                                <p class="facturacion-concepto-picker__hint">Puedes cargar varias unidades del mismo cobro en un solo paso.</p>
+                                <p class="facturacion-concepto-picker__hint">Al continuar se abrira un modal para definir cantidad, precio unitario y descripcion antes de agregar el cobro al carrito.</p>
                             </div>
                             <div class="global-shortcut-scan-form__row global-shortcut-scan-form__row--select facturacion-concepto-picker__legacy-submit" hidden>
                                 <button type="submit" class="global-shortcut-secondary-btn" @disabled(!$isCajaAbierta)>
@@ -1085,6 +1076,75 @@
                     </button>
                     <button type="submit" class="global-shortcut-confirm__btn global-shortcut-confirm__btn--primary" id="facturacionItemEditSubmit">
                         Guardar item
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div
+        class="global-shortcut-confirm"
+        id="facturacionConceptoModal"
+        aria-hidden="true"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="facturacionConceptoModalTitle"
+    >
+        <div class="global-shortcut-confirm__backdrop" data-close-facturacion-concepto="true"></div>
+        <div class="global-shortcut-confirm__panel global-shortcut-confirm__panel--wide" role="document">
+            <div class="global-shortcut-confirm__header">
+                <div class="global-shortcut-confirm__icon">
+                    <i class="fas fa-receipt"></i>
+                </div>
+                <div class="global-shortcut-confirm__eyebrow">Nuevo cobro</div>
+            </div>
+            <h4 id="facturacionConceptoModalTitle" class="global-shortcut-confirm__title">Configurar cobro antes de agregar</h4>
+            <p class="global-shortcut-confirm__message" id="facturacionConceptoModalMessage">
+                Aqui defines la cantidad, el precio unitario y la descripcion que se usaran para agregar este cobro extra al carrito.
+            </p>
+            <form
+                method="POST"
+                action="{{ route('facturacion.cart.conceptos.store') }}"
+                id="facturacionConceptoModalForm"
+                class="global-shortcut-item-edit-form"
+            >
+                @csrf
+                <input type="hidden" name="concepto_facturacion_id" id="facturacionConceptoModalConceptId" value="">
+                <div class="global-shortcut-item-edit-summary">
+                    <div class="global-shortcut-item-edit-summary__row">
+                        <span>Concepto</span>
+                        <strong id="facturacionConceptoModalResumenNombre">-</strong>
+                    </div>
+                    <div class="global-shortcut-item-edit-summary__row">
+                        <span>Codigo</span>
+                        <strong id="facturacionConceptoModalResumenCodigo">-</strong>
+                    </div>
+                    <div class="global-shortcut-item-edit-summary__row">
+                        <span>Precio base</span>
+                        <strong id="facturacionConceptoModalResumenPrecio">Bs 0.00</strong>
+                    </div>
+                </div>
+                <div class="global-shortcut-item-edit-grid">
+                    <div class="global-shortcut-field">
+                        <label for="facturacionConceptoCantidad">Cantidad</label>
+                        <input type="number" name="cantidad" id="facturacionConceptoCantidad" value="1" min="1" max="999" step="1" placeholder="1" inputmode="numeric">
+                    </div>
+                    <div class="global-shortcut-field">
+                        <label for="facturacionConceptoPrecio">Precio unitario</label>
+                        <input type="number" name="precio" id="facturacionConceptoPrecio" value="" min="0" step="0.01" placeholder="0.00" inputmode="decimal">
+                    </div>
+                    <div class="global-shortcut-field global-shortcut-field--full">
+                        <label for="facturacionConceptoDescripcion">Descripcion</label>
+                        <textarea id="facturacionConceptoDescripcion" name="descripcion_servicio" rows="3" maxlength="255" placeholder="Escribe el detalle que identificara este cobro dentro del carrito"></textarea>
+                        <small class="global-shortcut-field__hint">Si dejas este campo vacio, usaremos la descripcion base del concepto seleccionado.</small>
+                    </div>
+                </div>
+                <div class="global-shortcut-confirm__actions">
+                    <button type="button" class="global-shortcut-confirm__btn global-shortcut-confirm__btn--ghost" id="facturacionConceptoModalCancel">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="global-shortcut-confirm__btn global-shortcut-confirm__btn--primary" id="facturacionConceptoModalSubmit">
+                        Agregar cobro al carrito
                     </button>
                 </div>
             </form>
@@ -2773,11 +2833,9 @@
         .facturacion-concepto-picker__select {
             margin-bottom: 0 !important;
         }
-        .facturacion-concepto-picker__controls {
-            display: grid;
-            grid-template-columns: auto 88px minmax(150px, 1fr);
-            align-items: center;
-            gap: 10px;
+        .facturacion-concepto-picker__actions {
+            display: flex;
+            justify-content: flex-end;
         }
         .facturacion-concepto-picker__qty-label {
             color: #4f627e;
@@ -3809,12 +3867,8 @@
             .global-shortcut-scan-form__row {
                 grid-template-columns: 1fr;
             }
-            .facturacion-concepto-picker__controls {
-                grid-template-columns: 1fr;
-                align-items: stretch;
-            }
-            .facturacion-concepto-picker__qty-label {
-                margin-bottom: -2px;
+            .facturacion-concepto-picker__actions {
+                justify-content: stretch;
             }
             .global-shortcut-field--full {
                 grid-column: auto;
@@ -4271,8 +4325,18 @@
                 : null;
             let facturacionConceptoForm = document.getElementById('facturacionConceptoForm');
             let facturacionConceptoSelect = document.getElementById('facturacionConceptoSelect');
-            let facturacionConceptoHidden = document.getElementById('facturacionConceptoHidden');
+            let facturacionConceptoOpenModalButton = document.getElementById('facturacionConceptoOpenModal');
+            const facturacionConceptoModal = document.getElementById('facturacionConceptoModal');
+            const facturacionConceptoModalForm = document.getElementById('facturacionConceptoModalForm');
+            const facturacionConceptoModalCancel = document.getElementById('facturacionConceptoModalCancel');
+            const facturacionConceptoModalSubmit = document.getElementById('facturacionConceptoModalSubmit');
+            const facturacionConceptoModalConceptId = document.getElementById('facturacionConceptoModalConceptId');
+            const facturacionConceptoModalResumenNombre = document.getElementById('facturacionConceptoModalResumenNombre');
+            const facturacionConceptoModalResumenCodigo = document.getElementById('facturacionConceptoModalResumenCodigo');
+            const facturacionConceptoModalResumenPrecio = document.getElementById('facturacionConceptoModalResumenPrecio');
             let facturacionConceptoCantidad = document.getElementById('facturacionConceptoCantidad');
+            let facturacionConceptoPrecio = document.getElementById('facturacionConceptoPrecio');
+            let facturacionConceptoDescripcion = document.getElementById('facturacionConceptoDescripcion');
             const FACTURACION_DESCRIPTION_LOCK_SEPARATOR = ' - ';
 
             if (facturacionActionConfirmEyebrow) {
@@ -4996,8 +5060,98 @@
                     : null;
                 facturacionConceptoForm = document.getElementById('facturacionConceptoForm');
                 facturacionConceptoSelect = document.getElementById('facturacionConceptoSelect');
-                facturacionConceptoHidden = document.getElementById('facturacionConceptoHidden');
+                facturacionConceptoOpenModalButton = document.getElementById('facturacionConceptoOpenModal');
                 facturacionConceptoCantidad = document.getElementById('facturacionConceptoCantidad');
+                facturacionConceptoPrecio = document.getElementById('facturacionConceptoPrecio');
+                facturacionConceptoDescripcion = document.getElementById('facturacionConceptoDescripcion');
+            };
+
+            const selectedFacturacionConceptoOption = () => {
+                if (!(facturacionConceptoSelect instanceof HTMLSelectElement)) {
+                    return null;
+                }
+
+                const selected = facturacionConceptoSelect.selectedOptions[0];
+                return selected instanceof HTMLOptionElement && selected.value ? selected : null;
+            };
+
+            const closeFacturacionConceptoModal = () => {
+                if (!(facturacionConceptoModal instanceof HTMLElement)) {
+                    return;
+                }
+
+                if (facturacionConceptoModalForm instanceof HTMLFormElement) {
+                    facturacionConceptoModalForm.reset();
+                }
+                if (facturacionConceptoModalConceptId instanceof HTMLInputElement) {
+                    facturacionConceptoModalConceptId.value = '';
+                }
+                if (facturacionConceptoModalResumenNombre instanceof HTMLElement) {
+                    facturacionConceptoModalResumenNombre.textContent = '-';
+                }
+                if (facturacionConceptoModalResumenCodigo instanceof HTMLElement) {
+                    facturacionConceptoModalResumenCodigo.textContent = '-';
+                }
+                if (facturacionConceptoModalResumenPrecio instanceof HTMLElement) {
+                    facturacionConceptoModalResumenPrecio.textContent = 'Bs 0.00';
+                }
+
+                facturacionConceptoModal.classList.remove('is-open');
+                facturacionConceptoModal.setAttribute('aria-hidden', 'true');
+            };
+
+            const openFacturacionConceptoModal = () => {
+                const selected = selectedFacturacionConceptoOption();
+                if (!selected) {
+                    renderFacturacionShortcutFeedback({
+                        type: 'warning',
+                        title: 'Selecciona un concepto',
+                        message: 'Debes elegir un concepto facturable antes de continuar.',
+                        detail: 'Luego podras definir cantidad, precio y descripcion en el siguiente paso.',
+                        action: 'concepto_add',
+                    });
+                    return;
+                }
+
+                const basePrice = String(selected.dataset.precioBase || '').trim() || '0.00';
+                const nombre = String(selected.dataset.conceptoNombre || selected.textContent || '').trim();
+                const codigo = String(selected.dataset.conceptoCodigo || '').trim();
+                const descripcionBase = String(selected.dataset.conceptoDescripcion || '').trim();
+
+                if (facturacionConceptoModalConceptId instanceof HTMLInputElement) {
+                    facturacionConceptoModalConceptId.value = selected.value;
+                }
+                if (facturacionConceptoCantidad instanceof HTMLInputElement) {
+                    facturacionConceptoCantidad.value = '1';
+                }
+                if (facturacionConceptoPrecio instanceof HTMLInputElement) {
+                    facturacionConceptoPrecio.value = basePrice;
+                }
+                if (facturacionConceptoDescripcion instanceof HTMLTextAreaElement) {
+                    facturacionConceptoDescripcion.value = '';
+                    facturacionConceptoDescripcion.placeholder = descripcionBase !== ''
+                        ? 'Base: ' + descripcionBase + '. Agrega aqui el detalle adicional si lo necesitas.'
+                        : 'Escribe el detalle que identificara este cobro dentro del carrito';
+                }
+                if (facturacionConceptoModalResumenNombre instanceof HTMLElement) {
+                    facturacionConceptoModalResumenNombre.textContent = nombre || '-';
+                }
+                if (facturacionConceptoModalResumenCodigo instanceof HTMLElement) {
+                    facturacionConceptoModalResumenCodigo.textContent = codigo || '-';
+                }
+                if (facturacionConceptoModalResumenPrecio instanceof HTMLElement) {
+                    facturacionConceptoModalResumenPrecio.textContent = 'Bs ' + Number(basePrice || 0).toFixed(2);
+                }
+                if (facturacionConceptoModal instanceof HTMLElement) {
+                    facturacionConceptoModal.classList.add('is-open');
+                    facturacionConceptoModal.setAttribute('aria-hidden', 'false');
+                }
+                if (facturacionConceptoCantidad instanceof HTMLInputElement) {
+                    window.setTimeout(() => {
+                        facturacionConceptoCantidad.focus();
+                        facturacionConceptoCantidad.select();
+                    }, 40);
+                }
             };
 
             const submitFacturacionScanForm = async (form, options = {}) => {
@@ -5127,14 +5281,17 @@
 
                 facturacionConceptoForm.dataset.facturacionBound = 'true';
 
-                if (facturacionConceptoSelect instanceof HTMLSelectElement && facturacionConceptoHidden instanceof HTMLInputElement) {
-                    facturacionConceptoHidden.value = facturacionConceptoSelect.value || '';
+                if (facturacionConceptoSelect instanceof HTMLSelectElement && facturacionConceptoSelect.dataset.facturacionBound !== 'true') {
+                    facturacionConceptoSelect.dataset.facturacionBound = 'true';
                     facturacionConceptoSelect.addEventListener('change', function () {
-                        facturacionConceptoHidden.value = facturacionConceptoSelect.value || '';
+                        if (facturacionConceptoOpenModalButton instanceof HTMLButtonElement) {
+                            facturacionConceptoOpenModalButton.disabled = !selectedFacturacionConceptoOption();
+                        }
                     });
                 }
 
-                if (facturacionConceptoCantidad instanceof HTMLInputElement) {
+                if (facturacionConceptoCantidad instanceof HTMLInputElement && facturacionConceptoCantidad.dataset.facturacionBound !== 'true') {
+                    facturacionConceptoCantidad.dataset.facturacionBound = 'true';
                     facturacionConceptoCantidad.addEventListener('input', function () {
                         const numericValue = Number.parseInt(facturacionConceptoCantidad.value || '1', 10);
                         if (!Number.isFinite(numericValue) || numericValue < 1) {
@@ -5147,21 +5304,37 @@
                     });
                 }
 
-                facturacionConceptoForm.addEventListener('submit', async function (event) {
+                if (facturacionConceptoPrecio instanceof HTMLInputElement && facturacionConceptoPrecio.dataset.facturacionBound !== 'true') {
+                    facturacionConceptoPrecio.dataset.facturacionBound = 'true';
+                    preventNumberInputWheelChange(facturacionConceptoPrecio);
+                    facturacionConceptoPrecio.addEventListener('input', function () {
+                        const numericValue = Number.parseFloat(facturacionConceptoPrecio.value || '0');
+                        if (!Number.isFinite(numericValue)) {
+                            return;
+                        }
+
+                        if (numericValue < 0) {
+                            facturacionConceptoPrecio.value = '0.00';
+                        }
+                    });
+                }
+
+                if (facturacionConceptoOpenModalButton instanceof HTMLButtonElement) {
+                    facturacionConceptoOpenModalButton.disabled = !selectedFacturacionConceptoOption() || facturacionConceptoOpenModalButton.disabled;
+                    facturacionConceptoOpenModalButton.addEventListener('click', function () {
+                        openFacturacionConceptoModal();
+                    });
+                }
+
+                if (!(facturacionConceptoModalForm instanceof HTMLFormElement) || facturacionConceptoModalForm.dataset.facturacionBound === 'true') {
+                    return;
+                }
+
+                facturacionConceptoModalForm.dataset.facturacionBound = 'true';
+                facturacionConceptoModalForm.addEventListener('submit', async function (event) {
                     event.preventDefault();
 
                     if (isFacturacionSubmitting) {
-                        return;
-                    }
-
-                    if (!(facturacionConceptoSelect instanceof HTMLSelectElement) || !facturacionConceptoSelect.value) {
-                        renderFacturacionShortcutFeedback({
-                            type: 'warning',
-                            title: 'Selecciona un concepto',
-                            message: 'Debes elegir un concepto facturable antes de agregarlo.',
-                            detail: 'Elige el cobro extra que corresponde a esta venta.',
-                            action: 'concepto_add',
-                        });
                         return;
                     }
 
@@ -5170,6 +5343,28 @@
                             type: 'warning',
                             title: 'Cantidad no disponible',
                             message: 'No se encontro el campo de cantidad para este cobro.',
+                            detail: 'Actualiza la interfaz e intentalo nuevamente.',
+                            action: 'concepto_add',
+                        });
+                        return;
+                    }
+
+                    if (!(facturacionConceptoModalConceptId instanceof HTMLInputElement) || !facturacionConceptoModalConceptId.value) {
+                        renderFacturacionShortcutFeedback({
+                            type: 'warning',
+                            title: 'Concepto no disponible',
+                            message: 'No encontramos el concepto que querias agregar.',
+                            detail: 'Vuelve a seleccionarlo y abre de nuevo el modal.',
+                            action: 'concepto_add',
+                        });
+                        return;
+                    }
+
+                    if (!(facturacionConceptoPrecio instanceof HTMLInputElement)) {
+                        renderFacturacionShortcutFeedback({
+                            type: 'warning',
+                            title: 'Precio no disponible',
+                            message: 'No se encontro el campo de precio para este cobro.',
                             detail: 'Actualiza la interfaz e intentalo nuevamente.',
                             action: 'concepto_add',
                         });
@@ -5190,26 +5385,41 @@
                         return;
                     }
 
-                    setFacturacionSubmittingState(facturacionConceptoForm, true);
+                    const precioSolicitado = Number.parseFloat(facturacionConceptoPrecio.value || '0');
+                    if (!Number.isFinite(precioSolicitado) || precioSolicitado < 0) {
+                        renderFacturacionShortcutFeedback({
+                            type: 'warning',
+                            title: 'Precio invalido',
+                            message: 'Debes indicar un precio valido antes de agregar el cobro.',
+                            detail: 'Ingresa un monto mayor o igual a 0.',
+                            action: 'concepto_add',
+                        });
+                        facturacionConceptoPrecio.focus();
+                        facturacionConceptoPrecio.select();
+                        return;
+                    }
+
+                    setFacturacionSubmittingState(facturacionConceptoModalForm, true);
 
                     const tokenMeta = document.querySelector('meta[name="csrf-token"]');
                     const csrfToken = tokenMeta instanceof HTMLMetaElement ? tokenMeta.content : '';
-                    if (facturacionConceptoHidden instanceof HTMLInputElement && facturacionConceptoSelect instanceof HTMLSelectElement) {
-                        facturacionConceptoHidden.value = facturacionConceptoSelect.value || '';
-                    }
                     facturacionConceptoCantidad.value = String(Math.min(999, Math.max(1, cantidadSolicitada)));
-                    const formData = new FormData(facturacionConceptoForm);
-                    const conceptoSubmitButton = facturacionConceptoForm.querySelector('button[type="submit"]');
-                    if (conceptoSubmitButton instanceof HTMLButtonElement) {
-                        conceptoSubmitButton.dataset.originalText = conceptoSubmitButton.dataset.originalText || conceptoSubmitButton.textContent.trim();
-                        conceptoSubmitButton.disabled = true;
-                        conceptoSubmitButton.textContent = 'Agregando...';
+                    facturacionConceptoPrecio.value = Number(Math.max(0, precioSolicitado)).toFixed(2);
+                    const formData = new FormData(facturacionConceptoModalForm);
+                    if (facturacionConceptoModalSubmit instanceof HTMLButtonElement) {
+                        facturacionConceptoModalSubmit.dataset.originalText = facturacionConceptoModalSubmit.dataset.originalText || facturacionConceptoModalSubmit.textContent.trim();
+                        facturacionConceptoModalSubmit.disabled = true;
+                        facturacionConceptoModalSubmit.textContent = 'Agregando...';
                     }
                     facturacionConceptoSelect.disabled = true;
                     facturacionConceptoCantidad.disabled = true;
+                    facturacionConceptoPrecio.disabled = true;
+                    if (facturacionConceptoDescripcion instanceof HTMLTextAreaElement) {
+                        facturacionConceptoDescripcion.disabled = true;
+                    }
 
                     try {
-                        const response = await fetch(facturacionConceptoForm.action, {
+                        const response = await fetch(facturacionConceptoModalForm.action, {
                             method: 'POST',
                             headers: {
                                 'X-Requested-With': 'XMLHttpRequest',
@@ -5256,8 +5466,7 @@
                             setAutosaveState('is-saved', 'Cobro agregado. Puedes editar el precio en el carrito.');
                         }
 
-                        facturacionConceptoForm.reset();
-                        facturacionConceptoCantidad.value = '1';
+                        closeFacturacionConceptoModal();
                     } catch (error) {
                         renderFacturacionShortcutFeedback({
                             type: 'warning',
@@ -5268,15 +5477,21 @@
                         });
                     } finally {
                         setFacturacionSubmittingState(null, false);
-                        if (conceptoSubmitButton instanceof HTMLButtonElement) {
-                            conceptoSubmitButton.disabled = false;
-                            conceptoSubmitButton.textContent = conceptoSubmitButton.dataset.originalText || 'Agregar cobro';
+                        if (facturacionConceptoModalSubmit instanceof HTMLButtonElement) {
+                            facturacionConceptoModalSubmit.disabled = false;
+                            facturacionConceptoModalSubmit.textContent = facturacionConceptoModalSubmit.dataset.originalText || 'Agregar cobro al carrito';
                         }
                         if (facturacionConceptoSelect instanceof HTMLSelectElement) {
                             facturacionConceptoSelect.disabled = false;
                         }
                         if (facturacionConceptoCantidad instanceof HTMLInputElement) {
                             facturacionConceptoCantidad.disabled = false;
+                        }
+                        if (facturacionConceptoPrecio instanceof HTMLInputElement) {
+                            facturacionConceptoPrecio.disabled = false;
+                        }
+                        if (facturacionConceptoDescripcion instanceof HTMLTextAreaElement) {
+                            facturacionConceptoDescripcion.disabled = false;
                         }
                     }
                 });
@@ -6951,11 +7166,15 @@
                             </div>
                             <div class="global-shortcut-field global-shortcut-field--description">
                                 <label>Descripcion</label>
-                                <input type="hidden" name="entries[${index}][descripcion_servicio]">
-                                <textarea rows="2" maxlength="255" data-description-editable="true"></textarea>
-                                <small class="global-shortcut-field__hint is-hidden" data-description-locked data-description-lock-container></small>
+                                <textarea
+                                    rows="2"
+                                    maxlength="255"
+                                    name="entries[${index}][descripcion_servicio]"
+                                    data-description-editable="true"
+                                    placeholder="Detalle opcional para esta unidad"
+                                ></textarea>
                             </div>
-                            <p class="facturacion-item-edit-batch__help">El sistema solo mantiene agrupadas las unidades que conserven el mismo codigo, precio y detalle. Si cambias alguno de esos datos, se individualizaran automaticamente.</p>
+                            <p class="facturacion-item-edit-batch__help">Las unidades se mantienen agrupadas mientras conserven el mismo codigo y precio. La descripcion puede variar sin separar la linea.</p>
                         </div>
                     `;
                     facturacionItemEditBatch.appendChild(card);
@@ -6964,9 +7183,7 @@
                 facturacionItemEditBatch.querySelectorAll('.facturacion-item-edit-batch__card').forEach((card) => {
                     const priceInput = card.querySelector('input[name$="[precio]"]');
                     const codeInput = card.querySelector('input[name$="[codigo]"]');
-                    const descriptionHiddenInput = card.querySelector('input[name$="[descripcion_servicio]"]');
                     const descriptionInput = card.querySelector('textarea[data-description-editable="true"]');
-                    const descriptionLockedNode = card.querySelector('[data-description-locked]');
 
                     if (!(priceInput instanceof HTMLInputElement) || !(codeInput instanceof HTMLInputElement)) {
                         return;
@@ -6974,13 +7191,9 @@
 
                     preventNumberInputWheelChange(priceInput);
 
-                    applyLockedDescriptionField(descriptionHiddenInput, descriptionInput, descriptionLockedNode, baseDescription);
                     if (descriptionInput instanceof HTMLTextAreaElement) {
-                        descriptionInput.addEventListener('input', () => {
-                            syncLockedDescriptionField(descriptionHiddenInput, descriptionInput);
-                        });
+                        descriptionInput.value = baseDescription;
                     }
-                    syncLockedDescriptionField(descriptionHiddenInput, descriptionInput);
                 });
             };
 
@@ -7496,6 +7709,19 @@
                         closeFacturacionItemEditModal();
                     }
                 });
+            }
+
+            if (facturacionConceptoModal) {
+                facturacionConceptoModal.addEventListener('click', function (event) {
+                    const target = event.target;
+                    if (target instanceof HTMLElement && target.dataset.closeFacturacionConcepto === 'true') {
+                        closeFacturacionConceptoModal();
+                    }
+                });
+            }
+
+            if (facturacionConceptoModalCancel) {
+                facturacionConceptoModalCancel.addEventListener('click', closeFacturacionConceptoModal);
             }
 
             if (facturacionScanSelectionCancel) {
@@ -8260,6 +8486,11 @@
 
                 if (event.key === 'Escape' && facturacionItemEditModal && facturacionItemEditModal.classList.contains('is-open')) {
                     closeFacturacionItemEditModal();
+                    return;
+                }
+
+                if (event.key === 'Escape' && facturacionConceptoModal && facturacionConceptoModal.classList.contains('is-open')) {
+                    closeFacturacionConceptoModal();
                     return;
                 }
 

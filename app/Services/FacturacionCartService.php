@@ -702,11 +702,13 @@ class FacturacionCartService
         return $cart;
     }
 
-    public function addConceptoFacturacion(User $user, ConceptoFacturacion $concepto, int $cantidad = 1, ?float $precioUnitario = null): object
+    public function addConceptoFacturacion(User $user, ConceptoFacturacion $concepto, int $cantidad = 1, ?float $precioUnitario = null, ?string $descripcionServicio = null): object
     {
         $this->assertFacturacionPermission($user);
         $cantidad = max(1, $cantidad);
         $precioUnitario = $precioUnitario !== null ? round(max(0, $precioUnitario), 2) : null;
+        $descripcionServicio = $descripcionServicio !== null ? trim($descripcionServicio) : null;
+        $descripcionServicio = $descripcionServicio !== '' ? $descripcionServicio : null;
 
         $ctx = $this->getRemoteContextForUser($user);
         $draft = $ctx['draft'] ?? null;
@@ -719,18 +721,23 @@ class FacturacionCartService
                 : round((float) data_get($existingItem, 'monto_base', $concepto->precio_base ?? 0), 2);
             $montoExtras = round((float) data_get($existingItem, 'monto_extras', 0), 2);
             $nuevaCantidad = $cantidadActual + $cantidad;
+            $overrides = [
+                'cantidad' => $nuevaCantidad,
+                'monto_base' => $montoBase,
+                'monto_extras' => $montoExtras,
+                'total_linea' => round(($montoBase + $montoExtras) * $nuevaCantidad, 2),
+            ];
+
+            if ($descripcionServicio !== null && trim((string) data_get($existingItem, 'resumen_origen.descripcion_servicio', '')) === '') {
+                $overrides['descripcion_servicio'] = $descripcionServicio;
+            }
 
             $cart = $this->updateDraftItem(
                 $user,
                 (int) data_get($existingItem, 'id'),
                 $this->buildDraftItemUpdatePayload(
                     $existingItem,
-                    [
-                        'cantidad' => $nuevaCantidad,
-                        'monto_base' => $montoBase,
-                        'monto_extras' => $montoExtras,
-                        'total_linea' => round(($montoBase + $montoExtras) * $nuevaCantidad, 2),
-                    ]
+                    $overrides
                 )
             );
 
@@ -744,7 +751,9 @@ class FacturacionCartService
                 $concepto,
                 $this->resolveConceptoDraftOriginId($draft, $concepto),
                 $cantidad,
-                $precioUnitario
+                $precioUnitario,
+                null,
+                $descripcionServicio
             )
         ));
 
@@ -2418,7 +2427,7 @@ class FacturacionCartService
         return (object) $data;
     }
 
-    private function buildConceptoDraftPayload(ConceptoFacturacion $concepto, ?int $originId = null, int $cantidad = 1, ?float $precioUnitario = null, ?string $draftCode = null): array
+    private function buildConceptoDraftPayload(ConceptoFacturacion $concepto, ?int $originId = null, int $cantidad = 1, ?float $precioUnitario = null, ?string $draftCode = null, ?string $descripcionServicio = null): array
     {
         $montoBase = $precioUnitario !== null
             ? round(max(0, $precioUnitario), 2)
@@ -2429,6 +2438,9 @@ class FacturacionCartService
         $cantidad = max(1, $cantidad);
         $resolvedCode = trim((string) ($draftCode ?? $concepto->codigo ?? ''));
         $conceptoNormalizado = $this->normalizeConceptoFacturacionFiscalData($concepto, $resolvedCode);
+        $resolvedDescripcionServicio = $descripcionServicio !== null && trim($descripcionServicio) !== ''
+            ? trim($descripcionServicio)
+            : $conceptoNormalizado['descripcion_servicio'];
 
         return [
             'origen_tipo' => ConceptoFacturacion::class,
@@ -2448,7 +2460,7 @@ class FacturacionCartService
                 'actividad_economica' => (string) ($concepto->actividad_economica ?? ''),
                 'codigo_sin' => (string) ($concepto->codigo_sin ?? ''),
                 'codigo_producto' => $resolvedCode,
-                'descripcion_servicio' => $conceptoNormalizado['descripcion_servicio'],
+                'descripcion_servicio' => $resolvedDescripcionServicio,
                 'unidad_medida' => (int) ($concepto->unidad_medida ?? 58),
                 'concepto_facturacion_id' => (int) $concepto->id,
                 'codigo_paquete' => $resolvedCode,
@@ -3642,7 +3654,6 @@ class FacturacionCartService
                 return implode('|', [
                     mb_strtolower($this->extractDraftItemCodeFamily($codigo)),
                     number_format(round((float) ($entry['precio'] ?? 0), 2), 2, '.', ''),
-                    trim((string) ($entry['descripcion_servicio'] ?? '')),
                 ]);
             })
             ->map(function (\Illuminate\Support\Collection $group) {
@@ -3670,8 +3681,7 @@ class FacturacionCartService
                     return ltrim((string) data_get($item, 'origen_tipo', ''), '\\') === ltrim(ConceptoFacturacion::class, '\\')
                         && $this->resolveDraftConceptoFacturacionId($item) === $conceptoId
                         && mb_strtolower($this->extractDraftItemCodeFamily($itemCode)) === mb_strtolower($this->extractDraftItemCodeFamily($expectedCode))
-                        && round((float) data_get($item, 'monto_base', data_get($item, 'precio', 0)), 2) === round((float) ($expectedGroup['precio'] ?? 0), 2)
-                        && trim((string) data_get($item, 'resumen_origen.descripcion_servicio', '')) === (string) ($expectedGroup['descripcion_servicio'] ?? '');
+                        && round((float) data_get($item, 'monto_base', data_get($item, 'precio', 0)), 2) === round((float) ($expectedGroup['precio'] ?? 0), 2);
                 })
                 ->sortBy(fn ($item) => (int) data_get($item, 'id', 0))
                 ->values();
