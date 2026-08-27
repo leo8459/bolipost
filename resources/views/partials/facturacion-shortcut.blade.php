@@ -6890,6 +6890,22 @@
                 }
             };
 
+            const preventNumberInputWheelChange = (input) => {
+                if (!(input instanceof HTMLInputElement) || input.dataset.wheelGuardAttached === 'true') {
+                    return;
+                }
+
+                input.addEventListener('wheel', (event) => {
+                    if (document.activeElement === input) {
+                        event.preventDefault();
+                    }
+                }, { passive: false });
+
+                input.dataset.wheelGuardAttached = 'true';
+            };
+
+            preventNumberInputWheelChange(document.getElementById('facturacionEditItemPrecio'));
+
             const buildSuggestedGroupedCode = (baseCode, index) => {
                 const cleanBase = String(baseCode || '').trim();
                 if (cleanBase === '') {
@@ -6955,6 +6971,8 @@
                     if (!(priceInput instanceof HTMLInputElement) || !(codeInput instanceof HTMLInputElement)) {
                         return;
                     }
+
+                    preventNumberInputWheelChange(priceInput);
 
                     applyLockedDescriptionField(descriptionHiddenInput, descriptionInput, descriptionLockedNode, baseDescription);
                     if (descriptionInput instanceof HTMLTextAreaElement) {
