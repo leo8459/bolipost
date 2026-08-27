@@ -963,7 +963,9 @@ class RecojoController extends Controller
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
-        }, 'contrato-'.$contrato->codigo.'-'.$generatedAt->format('Ymd-His').'.pdf');
+        }, 'contrato-'.$contrato->codigo.'-'.$generatedAt->format('Ymd-His').'.pdf', [
+            'Content-Type' => 'application/pdf',
+        ]);
     }
 
     public function reporteHoy()

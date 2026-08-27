@@ -89,6 +89,33 @@
             .header-search-form > .btn,
             .header-action-row > .btn,
             .header-action-row > a{ width:100%; justify-content:center; }
+
+            .print-copy-dropdown{
+                width:100%;
+            }
+            .print-copy-dropdown > .dropdown-toggle{
+                display:none !important;
+            }
+            .print-copy-dropdown > .dropdown-menu{
+                position:static !important;
+                inset:auto !important;
+                transform:none !important;
+                display:grid !important;
+                float:none !important;
+                width:100%;
+                min-width:0;
+                margin:0;
+                gap:6px;
+                box-shadow:none;
+            }
+            .print-copy-dropdown .dropdown-item{
+                display:flex;
+                min-height:42px;
+                align-items:center;
+                justify-content:center;
+                border:1px solid rgba(52,68,124,.22);
+                text-align:center;
+            }
         }
     </style>
 
