@@ -3889,6 +3889,20 @@
                     </div>
                 </div>
                 <div class="modal-footer">
+                    @if ($this->isEnTransitoEms && $canEmsReprintCn33 && count($codEspecialDetalleRows) > 0)
+                        <button
+                            type="button"
+                            class="btn btn-primary"
+                            wire:click="reimprimircn33detalle"
+                            wire:loading.attr="disabled"
+                            wire:target="reimprimircn33detalle"
+                        >
+                            <span wire:loading.remove wire:target="reimprimircn33detalle">
+                                <i class="fas fa-print mr-1"></i> Reimprimir CN-33
+                            </span>
+                            <span wire:loading wire:target="reimprimircn33detalle">Generando...</span>
+                        </button>
+                    @endif
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
                 </div>
             </div>

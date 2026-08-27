@@ -16,6 +16,7 @@ class AlertaEmpresaService
 
         return AlertaEmpresa::query()
             ->whereHas('empresas', fn ($query) => $query->whereKey($user->empresa_id))
+            ->whereNotNull('aprobada_at')
             ->where('publicada_at', '<=', now())
             ->where(fn ($query) => $query->whereNull('vence_at')->orWhere('vence_at', '>=', now()))
             ->whereDoesntHave('lectores', fn ($query) => $query->whereKey($user->id))

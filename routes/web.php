@@ -24,6 +24,7 @@ use App\Http\Controllers\EmpresaController;
 use App\Http\Controllers\EstadoController;
 use App\Http\Controllers\EventoController;
 use App\Http\Controllers\EventosAuditoriaController;
+use App\Http\Controllers\EventosIpsController;
 use App\Http\Controllers\ExternalApiTokenController;
 use App\Http\Controllers\FacturacionCartController;
 use App\Http\Controllers\FacturacionQrMonitorController;
@@ -500,6 +501,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/importar/paquets/plantilla-excel', [ImportController::class, 'downloadPaquetsTemplateExcel'])->name('importar.paquets.template-excel');
     Route::get('/todos-paquetes', [TodosPaquetesController::class, 'index'])->name('todos-paquetes.index');
     Route::get('/paquetes-ips', [PaquetesIpsController::class, 'index'])->name('paquetes-ips.index');
+    Route::get('/eventos-ips', [EventosIpsController::class, 'index'])->name('eventos-ips.index');
     Route::get('/todos-paquetes/export/excel', [TodosPaquetesController::class, 'exportExcel'])->name('todos-paquetes.export.excel');
     Route::post('/todos-paquetes', [TodosPaquetesController::class, 'store'])->name('todos-paquetes.store');
     Route::get('/todos-paquetes/{type}/{id}/guia', [TodosPaquetesController::class, 'reimprimirGuia'])->name('todos-paquetes.guia');
@@ -560,6 +562,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/empresas/pdf', [EmpresaController::class, 'downloadPdf'])->name('empresas.pdf');
     Route::get('/alertas-empresa', [AlertaEmpresaController::class, 'index'])->name('alertas-empresa.index');
     Route::post('/alertas-empresa', [AlertaEmpresaController::class, 'store'])->name('alertas-empresa.store');
+    Route::patch('/alertas-empresa/{alertaEmpresa}/aprobar', [AlertaEmpresaController::class, 'approve'])->name('alertas-empresa.approve');
     Route::delete('/alertas-empresa/{alertaEmpresa}', [AlertaEmpresaController::class, 'destroy'])->name('alertas-empresa.destroy');
     Route::get('/codigo-empresa', [CodigoEmpresaController::class, 'index'])->name('codigo-empresa.index');
     Route::get('/paquetes-contrato', [RecojoController::class, 'index'])->name('paquetes-contrato.index');

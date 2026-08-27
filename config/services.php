@@ -38,6 +38,7 @@ return [
     'tracking_sqlserver' => [
         'base_url' => env('TRACKING_SQLSERVER_BASE_URL', env('TRACKING_API_URL')),
         'paquetes_url' => env('TRACKING_SQLSERVER_PAQUETES_URL', 'http://172.65.10.55:8103/api/tracking/paquetes'),
+        'eventos_todos_url' => env('TRACKING_SQLSERVER_EVENTOS_TODOS_URL', 'http://172.65.10.55:8103/api/tracking/eventos-todos'),
         'token' => env('TRACKING_SQLSERVER_TOKEN', env('TRACKING_API_TOKEN')),
         'fallback_base_url' => env('TRACKING_API_URL'),
         'fallback_token' => env('TRACKING_API_TOKEN'),

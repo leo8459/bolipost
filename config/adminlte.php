@@ -641,7 +641,7 @@ return [
                     ],
                 ],
                 [
-                    'text' => 'Mandar alertas',
+                    'text' => 'Alertas',
                     'url' => 'alertas-empresa',
                     'icon' => 'fas fa-bell',
                     'can' => 'alertas-empresa.index',
@@ -1091,6 +1091,11 @@ return [
                     'text' => 'Eventos Contratos',
                     'url' => 'eventos-contrato',
                     'icon' => 'fas fa-file-contract',
+                ],
+                [
+                    'text' => 'EVENTOS IPS',
+                    'url' => 'eventos-ips',
+                    'icon' => 'fas fa-satellite-dish',
                 ],
                 [
                     'text' => 'Eventos Delivery Express',

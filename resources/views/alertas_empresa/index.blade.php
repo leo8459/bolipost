@@ -6,7 +6,7 @@
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center">
         <div>
             <h1 class="mb-1">Alertas para empresas</h1>
-            <p class="text-muted mb-0">Publica comunicados que aparecerán como modal en los perfiles seleccionados.</p>
+            <p class="text-muted mb-0">Prepara comunicados, revísalos y apruébalos antes de mostrarlos a las empresas.</p>
         </div>
         @aclcan('create', null, 'alertas-empresa')
             <button class="btn btn-primary mt-3 mt-md-0" type="button" data-toggle="modal" data-target="#createCompanyAlertModal">
@@ -26,13 +26,13 @@
 
     <div class="card shadow-sm border-0">
         <div class="card-header bg-white">
-            <h3 class="card-title font-weight-bold"><i class="fas fa-bell text-warning mr-2"></i>Alertas enviadas</h3>
+            <h3 class="card-title font-weight-bold"><i class="fas fa-bell text-warning mr-2"></i>Noticias y alertas</h3>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-hover mb-0">
                     <thead class="thead-light">
-                        <tr><th>Portada</th><th>Comunicado</th><th>Empresas</th><th>Vistas</th><th>Enviada</th><th class="text-right">Acciones</th></tr>
+                        <tr><th>Portada</th><th>Comunicado</th><th>Empresas</th><th>Estado</th><th>Vistas</th><th>Publicación</th><th class="text-right">Acciones</th></tr>
                     </thead>
                     <tbody>
                         @forelse($alertas as $alerta)
@@ -48,9 +48,37 @@
                                     @endforeach
                                     @if($alerta->empresas->count() > 3)<span class="badge badge-secondary">+{{ $alerta->empresas->count() - 3 }}</span>@endif
                                 </td>
-                                <td><span class="badge badge-success">{{ $alerta->lectores_count }}</span></td>
-                                <td><span class="d-block">{{ optional($alerta->publicada_at)->format('d/m/Y H:i') }}</span><small class="text-muted">{{ $alerta->creador?->name }}</small></td>
+                                <td>
+                                    @if($alerta->aprobada_at)
+                                        <span class="badge badge-success"><i class="fas fa-check-circle mr-1"></i>Publicada</span>
+                                    @else
+                                        <span class="badge badge-warning"><i class="fas fa-clock mr-1"></i>Pendiente de aprobación</span>
+                                    @endif
+                                </td>
+                                <td>
+                                    @aclcan('readers', null, 'alertas-empresa')
+                                        <button class="btn btn-sm btn-outline-success" type="button" data-toggle="modal" data-target="#readersModal{{ $alerta->id }}" title="Ver usuarios que marcaron visto">
+                                            <i class="fas fa-eye mr-1"></i>{{ $alerta->lectores_count }}
+                                        </button>
+                                    @endaclcan
+                                </td>
+                                <td>
+                                    @if($alerta->aprobada_at)
+                                        <span class="d-block">{{ $alerta->publicada_at?->format('d/m/Y H:i') }}</span>
+                                        <small class="text-muted">Aprobó: {{ $alerta->aprobador?->name ?: 'Usuario eliminado' }}</small>
+                                    @else
+                                        <span class="text-muted">Aún no visible</span>
+                                        <small class="d-block text-muted">Creó: {{ $alerta->creador?->name }}</small>
+                                    @endif
+                                </td>
                                 <td class="text-right text-nowrap">
+                                    @aclcan('approve', null, 'alertas-empresa')
+                                        @if(!$alerta->aprobada_at)
+                                            <button class="btn btn-sm btn-success" type="button" data-toggle="modal" data-target="#approveAlertModal{{ $alerta->id }}" title="Corregir y aprobar publicación">
+                                                <i class="fas fa-check mr-1"></i>Aprobar
+                                            </button>
+                                        @endif
+                                    @endaclcan
                                     @aclcan('export', null, 'alertas-empresa')
                                         @if($alerta->pdf_path)
                                             <a class="btn btn-sm btn-outline-danger" href="{{ route('alertas-empresa.pdf', $alerta, false) }}" target="_blank" title="Ver PDF"><i class="fas fa-file-pdf"></i></a>
@@ -65,7 +93,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="6" class="text-center text-muted py-5">Todavía no se enviaron alertas.</td></tr>
+                            <tr><td colspan="7" class="text-center text-muted py-5">Todavía no se enviaron alertas.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -74,6 +102,90 @@
         @if($alertas->hasPages())<div class="card-footer bg-white">{{ $alertas->links() }}</div>@endif
     </div>
 
+    @foreach($alertas as $alerta)
+        @aclcan('readers', null, 'alertas-empresa')
+        <div class="modal fade" id="readersModal{{ $alerta->id }}" tabindex="-1" role="dialog" aria-labelledby="readersModalTitle{{ $alerta->id }}" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+                <div class="modal-content border-0 shadow">
+                    <div class="modal-header">
+                        <div>
+                            <h5 class="modal-title font-weight-bold" id="readersModalTitle{{ $alerta->id }}">Usuarios que marcaron visto</h5>
+                            <small class="text-muted">{{ $alerta->titulo }}</small>
+                        </div>
+                        <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+                    </div>
+                    <div class="modal-body p-0">
+                        @if($alerta->lectores->isEmpty())
+                            <div class="text-center text-muted py-5"><i class="far fa-eye-slash fa-2x mb-2 d-block"></i>Ningún usuario marcó esta noticia como vista.</div>
+                        @else
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead class="thead-light"><tr><th>Usuario</th><th>Empresa</th><th>Fecha y hora</th></tr></thead>
+                                    <tbody>
+                                        @foreach($alerta->lectores->sortByDesc(fn ($lector) => $lector->pivot->leida_at) as $lector)
+                                            <tr>
+                                                <td>{{ $lector->name }}</td>
+                                                <td>{{ $lector->empresa?->sigla ?: ($lector->empresa?->nombre ?: 'Sin empresa') }}</td>
+                                                <td>{{ \Illuminate\Support\Carbon::parse($lector->pivot->leida_at)->format('d/m/Y H:i') }}</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
+                    </div>
+                    <div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button></div>
+                </div>
+            </div>
+        </div>
+        @endaclcan
+
+        @aclcan('approve', null, 'alertas-empresa')
+        @if(!$alerta->aprobada_at)
+            <div class="modal fade" id="approveAlertModal{{ $alerta->id }}" tabindex="-1" role="dialog" aria-labelledby="approveAlertTitle{{ $alerta->id }}" aria-hidden="true">
+                <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+                    <div class="modal-content border-0 shadow">
+                        <form method="POST" action="{{ route('alertas-empresa.approve', $alerta, false) }}">
+                            @csrf
+                            @method('PATCH')
+                            <input type="hidden" name="_approval_alert_id" value="{{ $alerta->id }}">
+                            <div class="modal-header bg-success text-white">
+                                <div><h5 class="modal-title font-weight-bold" id="approveAlertTitle{{ $alerta->id }}">Revisar y aprobar noticia</h5><small>Corrige el texto antes de hacerlo visible para las empresas.</small></div>
+                                <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
+                            </div>
+                            <div class="modal-body">
+                                @if((string) old('_approval_alert_id') === (string) $alerta->id && $errors->approveAlert->any())
+                                    <div class="alert alert-danger"><strong>Revisa los datos:</strong><ul class="mb-0 mt-1">@foreach($errors->approveAlert->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>
+                                @endif
+                                <div class="row">
+                                    <div class="col-md-4 mb-3 mb-md-0">
+                                        <img src="{{ route('alertas-empresa.portada', $alerta, false) }}" alt="Portada de {{ $alerta->titulo }}" class="img-fluid rounded border">
+                                        <small class="text-muted d-block mt-2">La noticia todavía no es visible para las empresas.</small>
+                                    </div>
+                                    <div class="col-md-8">
+                                        <div class="form-group">
+                                            <label for="approveTitle{{ $alerta->id }}">Título <span class="text-danger">*</span></label>
+                                            <input class="form-control" id="approveTitle{{ $alerta->id }}" name="titulo" maxlength="150" required value="{{ (string) old('_approval_alert_id') === (string) $alerta->id ? old('titulo', $alerta->titulo) : $alerta->titulo }}">
+                                        </div>
+                                        <div class="form-group mb-0">
+                                            <label for="approveMessage{{ $alerta->id }}">Texto del comunicado</label>
+                                            <textarea class="form-control" id="approveMessage{{ $alerta->id }}" name="mensaje" rows="8" maxlength="10000">{{ (string) old('_approval_alert_id') === (string) $alerta->id ? old('mensaje', $alerta->mensaje) : $alerta->mensaje }}</textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-dismiss="modal">Seguir pendiente</button>
+                                <button type="submit" class="btn btn-success" onclick="return confirm('¿Confirmas que la noticia está corregida y lista para las empresas?')"><i class="fas fa-check-circle mr-1"></i>Confirmar y publicar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        @endif
+        @endaclcan
+    @endforeach
+
     @aclcan('create', null, 'alertas-empresa')
     <div class="modal fade" id="createCompanyAlertModal" tabindex="-1" role="dialog" aria-labelledby="createCompanyAlertTitle" aria-hidden="true">
         <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
@@ -81,12 +193,12 @@
                 <form method="POST" action="{{ route('alertas-empresa.store', [], false) }}" enctype="multipart/form-data">
                     @csrf
                     <div class="modal-header bg-primary text-white">
-                        <div><h5 class="modal-title font-weight-bold" id="createCompanyAlertTitle">Nueva alerta</h5><small>La portada es obligatoria; el texto y el PDF son opcionales.</small></div>
+                        <div><h5 class="modal-title font-weight-bold" id="createCompanyAlertTitle">Nueva alerta</h5><small>Se guardará pendiente hasta que sea revisada y aprobada.</small></div>
                         <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
                     </div>
                     <div class="modal-body">
-                        @if($errors->any())
-                            <div class="alert alert-danger"><strong>Revisa los datos:</strong><ul class="mb-0 mt-1">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>
+                        @if($errors->createAlert->any())
+                            <div class="alert alert-danger"><strong>Revisa los datos:</strong><ul class="mb-0 mt-1">@foreach($errors->createAlert->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>
                         @endif
                         <div class="row">
                             <div class="col-lg-7">
@@ -137,7 +249,7 @@
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane mr-1"></i> Enviar alerta</button>
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-save mr-1"></i> Guardar para revisión</button>
                     </div>
                 </form>
             </div>
@@ -168,7 +280,11 @@
                 this.textContent = select ? 'Quitar selección' : 'Seleccionar todas';
                 updateCount();
             });
-            @if($errors->any()) $('#createCompanyAlertModal').modal('show'); @endif
+            @if($errors->createAlert->any()) $('#createCompanyAlertModal').modal('show'); @endif
+            @if($errors->approveAlert->any() && old('_approval_alert_id'))
+                const approvalAlertId = @json((string) old('_approval_alert_id'));
+                if (/^\d+$/.test(approvalAlertId)) $('#approveAlertModal' + approvalAlertId).modal('show');
+            @endif
         });
     </script>
 @endpush

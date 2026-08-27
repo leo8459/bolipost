@@ -98,6 +98,7 @@ class PaquetesEms extends Component
     private const ALMACEN_EMS_SEND_VENTANILLA_PERMISSION = 'feature.paquetes-ems.almacen.sendventanilla';
     private const ALMACEN_EMS_SEND_REGIONAL_PERMISSION = 'feature.paquetes-ems.almacen.sendregional';
     private const ALMACEN_EMS_REPRINT_CN33_PERMISSION = 'feature.paquetes-ems.almacen.reprintcn33';
+    private const EN_TRANSITO_EMS_REPRINT_CN33_PERMISSION = 'feature.paquetes-ems.en-transito.reprintcn33';
     private const ALMACEN_ADMISIONES_ROUTE_PERMISSION = 'paquetes-ems.almacen-admisiones';
 
     public $mode = 'admision';
@@ -2325,9 +2326,9 @@ class PaquetesEms extends Component
 
     public function reimprimirCn33()
     {
-        $this->authorizePermission(self::ALMACEN_EMS_REPRINT_CN33_PERMISSION);
+        $this->authorizePermission($this->cn33ReprintPermission());
 
-        if (!$this->isAlmacenEms) {
+        if (!$this->isAlmacenEms && !$this->isEnTransitoEms) {
             return;
         }
 
@@ -2484,6 +2485,17 @@ class PaquetesEms extends Component
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
         }, 'cn33-' . $despacho . '-reimpresion.pdf');
+    }
+
+    public function reimprimirCn33Detalle()
+    {
+        if (!$this->isEnTransitoEms) {
+            return;
+        }
+
+        $this->cn33Despacho = strtoupper(trim((string) $this->codEspecialDetalle));
+
+        return $this->reimprimirCn33();
     }
 
     public function openCn38PrintOptionsModal(): void
@@ -5882,7 +5894,7 @@ class PaquetesEms extends Component
             'canEmsWeighTiktoker' => $this->userCan(self::ALMACEN_EMS_WEIGH_TIKTOKER_PERMISSION),
             'canEmsSendVentanilla' => $this->userCan(self::ALMACEN_EMS_SEND_VENTANILLA_PERMISSION),
             'canEmsSendRegional' => $this->userCan(self::ALMACEN_EMS_SEND_REGIONAL_PERMISSION),
-            'canEmsReprintCn33' => $this->userCan(self::ALMACEN_EMS_REPRINT_CN33_PERMISSION),
+            'canEmsReprintCn33' => $this->userCan($this->cn33ReprintPermission()),
             'canEmsAlmacenAdmisiones' => $this->userCan(self::ALMACEN_ADMISIONES_ROUTE_PERMISSION),
             'canContratoAlmacenPrint' => $this->userCan('feature.paquetes-contrato.almacen.print'),
             'paquetesIntAdmision' => $paquetesIntAdmision,
@@ -6646,6 +6658,13 @@ class PaquetesEms extends Component
         $routePermission = self::MODE_ROUTE_PERMISSIONS[$modeKey] ?? self::MODE_ROUTE_PERMISSIONS['admision'];
 
         return 'feature.'.$routePermission.'.'.$action;
+    }
+
+    private function cn33ReprintPermission(): string
+    {
+        return $this->isEnTransitoEms
+            ? self::EN_TRANSITO_EMS_REPRINT_CN33_PERMISSION
+            : self::ALMACEN_EMS_REPRINT_CN33_PERMISSION;
     }
 
     private function userCan(string $permission): bool

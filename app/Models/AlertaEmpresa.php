@@ -20,11 +20,14 @@ class AlertaEmpresa extends Model
         'pdf_path',
         'creado_por',
         'publicada_at',
+        'aprobada_at',
+        'aprobada_por',
         'vence_at',
     ];
 
     protected $casts = [
         'publicada_at' => 'datetime',
+        'aprobada_at' => 'datetime',
         'vence_at' => 'datetime',
     ];
 
@@ -36,6 +39,11 @@ class AlertaEmpresa extends Model
     public function creador(): BelongsTo
     {
         return $this->belongsTo(User::class, 'creado_por');
+    }
+
+    public function aprobador(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'aprobada_por');
     }
 
     public function lectores(): BelongsToMany

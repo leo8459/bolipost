@@ -34,7 +34,29 @@
         }
 
         .contract-alert-toast {
+            position: relative;
+            padding-right: 2.75rem;
             transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+
+        .contract-alert-toast .contract-alert-close {
+            position: absolute;
+            top: 0.35rem;
+            right: 0.65rem;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: #212529;
+            font-size: 1.5rem;
+            font-weight: 700;
+            line-height: 1;
+            opacity: 0.65;
+            cursor: pointer;
+        }
+
+        .contract-alert-toast .contract-alert-close:hover,
+        .contract-alert-toast .contract-alert-close:focus {
+            opacity: 1;
         }
 
         .contract-alert-toast.is-hiding {
@@ -140,6 +162,9 @@
                 <div class="position-fixed" style="top: 72px; right: 18px; z-index: 1055; width: min(460px, calc(100vw - 24px));">
                     @foreach(collect($empresaContractAlerts)->take(5) as $contractAlert)
                         <div class="alert alert-warning shadow-sm border mb-2 contract-alert-toast" data-contract-alert>
+                            <button type="button" class="contract-alert-close" data-contract-alert-close aria-label="Cerrar alerta" title="Cerrar alerta">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
                             <div class="font-weight-bold">Alerta de contrato</div>
                             <div>{{ $contractAlert['message'] ?? '' }}</div>
                         </div>
@@ -210,13 +235,31 @@
                 return;
             }
 
+            const closeAlert = function (alertBox) {
+                if (!alertBox || alertBox.classList.contains('is-hiding')) {
+                    return;
+                }
+
+                alertBox.classList.add('is-hiding');
+
+                window.setTimeout(function () {
+                    alertBox.remove();
+                }, 600);
+            };
+
+            alerts.forEach(function (alertBox) {
+                const closeButton = alertBox.querySelector('[data-contract-alert-close]');
+
+                if (closeButton) {
+                    closeButton.addEventListener('click', function () {
+                        closeAlert(alertBox);
+                    });
+                }
+            });
+
             window.setTimeout(function () {
                 alerts.forEach(function (alertBox) {
-                    alertBox.classList.add('is-hiding');
-
-                    window.setTimeout(function () {
-                        alertBox.remove();
-                    }, 600);
+                    closeAlert(alertBox);
                 });
             }, 10000);
         })();
