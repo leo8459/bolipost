@@ -1,0 +1,24 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bolipost_app
+    environment:
+      - EVENTOS_SIOP_API_TOKEN=93a806362c86e7485299577d59abe7283a3df70213bc5a93
+    ports:
+      - "18100:8000"
+    volumes:
+      - composer_cache:/tmp/composer-cache
+      - /home/agbc/bolipost/storage:/var/www/html/storage
+      - /tmp/bolipost-start.sh:/usr/local/bin/start.sh
+      - /tmp/bolipost.env:/var/www/html/.env
+      - /home/agbc/bolipost/docker/nginx.conf:/etc/nginx/conf.d/default.conf
+      - /home/agbc/bolipost/docker/www.conf:/usr/local/etc/php-fpm.d/www.conf
+      - /home/agbc/bolipost/docker/supervisord.conf:/etc/supervisor/conf.d/supervisord.conf
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  composer_cache:

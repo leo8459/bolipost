@@ -1,0 +1,19 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bolipost_app
+    ports:
+      - "18100:8000"
+    volumes:
+      - composer_cache:/tmp/composer-cache
+      - /home/agbc/bolipost/storage:/var/www/html/storage
+      - /tmp/bolipost-start.sh:/usr/local/bin/start.sh
+      - /tmp/bolipost.env:/var/www/html/.env
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  composer_cache:

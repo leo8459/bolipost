@@ -1,0 +1,43 @@
+FROM php:8.2-cli
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        postgresql-client \
+        git \
+        curl \
+        unzip \
+        libzip-dev \
+        libpq-dev \
+        libpng-dev \
+        libjpeg62-turbo-dev \
+        libfreetype6-dev \
+        libonig-dev \
+        libxml2-dev \
+        nodejs \
+        npm \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j"$(nproc)" \
+        bcmath \
+        exif \
+        gd \
+        mbstring \
+        pcntl \
+        pdo_pgsql \
+        pgsql \
+        zip \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+WORKDIR /var/www/html
+
+COPY . .
+
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts \
+    && composer dump-autoload --no-scripts \
+    && npm ci \
+    && npm run build \
+    && rm -rf node_modules
+
+EXPOSE 8000
+
+CMD ["start.sh"]

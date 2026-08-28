@@ -1,0 +1,19 @@
+FROM php:8.2-fpm
+
+RUN apt-get update && apt-get install -y --no-install-recommends         postgresql-client         git         curl         unzip         libzip-dev         libpq-dev         libpng-dev         libjpeg62-turbo-dev         libfreetype6-dev         libonig-dev         libxml2-dev         nodejs         npm         nginx         supervisor     && docker-php-ext-configure gd --with-freetype --with-jpeg     && docker-php-ext-install -j"$(nproc)"         bcmath         exif         gd         mbstring         pcntl         pdo_pgsql         pgsql         zip     && rm -rf /var/lib/apt/lists/*     && rm -f /etc/nginx/sites-enabled/default
+
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+WORKDIR /var/www/html
+
+COPY . .
+
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts     && composer dump-autoload --no-scripts     && npm ci     && npm run build     && rm -rf node_modules
+
+COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker/www.conf /usr/local/etc/php-fpm.d/www.conf
+COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+EXPOSE 8000
+
+CMD ["start.sh"]
