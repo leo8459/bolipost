@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
@@ -55,6 +56,8 @@ class ConciliacionEmpresaTest extends TestCase
             $table->unsignedTinyInteger('facturado_mes')->nullable();
             $table->timestamp('por_cobrar_at')->nullable();
             $table->unsignedBigInteger('por_cobrar_por')->nullable();
+            $table->string('formato_nota_cobranza')->nullable();
+            $table->string('nombre_empresa_cobranza')->nullable();
             $table->string('factura_cuf')->nullable();
             $table->string('factura_numero')->nullable();
             $table->string('factura_pdf_path')->nullable();
@@ -246,6 +249,9 @@ class ConciliacionEmpresaTest extends TestCase
             'facturado_anio' => 2026,
             'facturado_mes' => 8,
             'factura_venta_id' => 'cart-100',
+            'formato_nota_cobranza' => 'cuenta_personal',
+            'nombre_empresa_cobranza' => 'EMPRESA DE PRUEBA S.A.',
+            'origen' => 'conciliaciones',
         ]));
 
         $registro = ConciliacionEmpresa::query()->firstOrFail();
@@ -257,8 +263,55 @@ class ConciliacionEmpresaTest extends TestCase
         $this->assertSame('EMPRESA DE PRUEBA', $registro->factura_razon_social);
         $this->assertSame('CLI-100', $registro->factura_codigo_cliente);
         $this->assertSame('1234567', $registro->factura_numero_documento);
+        $this->assertSame('cuenta_personal', $registro->formato_nota_cobranza);
+        $this->assertSame('EMPRESA DE PRUEBA S.A.', $registro->nombre_empresa_cobranza);
         Storage::disk('public')->assertExists($registro->factura_pdf_path);
         $this->assertNotNull($registro->por_cobrar_at);
+    }
+
+    public function test_exige_formato_y_nombre_de_empresa_en_el_paso_por_cobrar(): void
+    {
+        try {
+            app(ConciliacionEmpresaController::class)->asociarPorCobrar(Request::create('/por-cobrar', 'POST', [
+                'empresa_id' => 1,
+                'anio' => 2026,
+                'mes' => 7,
+                'facturado_anio' => 2026,
+                'facturado_mes' => 8,
+                'factura_venta_id' => 'cart-100',
+                'origen' => 'conciliaciones',
+            ]));
+
+            $this->fail('La solicitud debía exigir los datos de la nota de cobranza.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('formato_nota_cobranza', $exception->errors());
+            $this->assertArrayHasKey('nombre_empresa_cobranza', $exception->errors());
+        }
+    }
+
+    public function test_descarga_la_nota_de_cobranza_en_pdf_segun_el_formato_elegido(): void
+    {
+        $registro = ConciliacionEmpresa::query()->create([
+            'empresa_id' => 1,
+            'anio' => 2026,
+            'mes' => 7,
+            'factura_venta_id' => 'cart-nota-1',
+            'factura_descripcion' => 'Servicio Contratos - MES DE JULIO',
+            'factura_monto' => 1032,
+            'por_cobrar_at' => now(),
+            'formato_nota_cobranza' => 'libreta',
+            'nombre_empresa_cobranza' => 'SAFI UNION S.A.',
+        ]);
+
+        $response = app(ConciliacionEmpresaController::class)->descargarNotaCobranza(
+            Request::create('/nota-cobranza', 'GET'),
+            $registro
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame('application/pdf', $response->headers->get('content-type'));
+        $this->assertStringContainsString('nota-cobranza-safi-union-sa-07-2026.pdf', (string) $response->headers->get('content-disposition'));
+        $this->assertStringStartsWith('%PDF-', $response->getContent());
     }
 
     public function test_registra_el_pago_recibido_despues_de_asociar_la_factura(): void

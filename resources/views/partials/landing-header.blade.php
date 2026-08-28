@@ -54,7 +54,7 @@
             <li><a href="https://www.correos.gob.bo/noticias" target="_blank" rel="noopener noreferrer">Noticias</a></li>
             <li><a href="https://institucional.correos.gob.bo:8007/" target="_blank" rel="noopener noreferrer">Institucional</a></li>
             <li class="menu-shipping-access-item">
-                <a href="{{ route('preregistros.public.create') }}" class="menu-shipping-access" data-open-preregistro>
+                <a href="{{ route('preregistros.public.create') }}" class="menu-shipping-access" target="_blank" rel="noopener noreferrer">
                     <span class="menu-shipping-access-label">Generar preenv&iacute;o EMS</span>
                 </a>
             </li>
@@ -82,7 +82,7 @@
                     <span class="btn-client-login-cta__label">Iniciar sesi&oacute;n</span>
                 </a>
             @endif
-            <a class="btn btn-home-shipping" href="{{ route('preregistros.public.create') }}" data-open-preregistro>
+            <a class="btn btn-home-shipping" href="{{ route('preregistros.public.create') }}" target="_blank" rel="noopener noreferrer">
                 <span class="btn-home-shipping__eyebrow">Preenv&iacute;o</span>
                 <span class="btn-home-shipping__label">Generar envío</span>
             </a>

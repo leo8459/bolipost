@@ -164,7 +164,9 @@
                                                 <button type="button" class="btn btn-sm {{ $item?->factura_venta_id ? 'btn-warning' : 'btn-outline-warning' }} cobrar-trigger"
                                                     data-toggle="modal" data-target="#porCobrarModal"
                                                     data-empresa-id="{{ $empresa->id }}" data-empresa="{{ $empresa->nombre }}"
-                                                    data-factura="{{ $item?->factura_venta_id }}">
+                                                    data-factura="{{ $item?->factura_venta_id }}"
+                                                    data-formato-cobranza="{{ $item?->formato_nota_cobranza }}"
+                                                    data-nombre-cobranza="{{ $item?->nombre_empresa_cobranza }}">
                                                     <strong class="mr-1">3</strong> Por cobrar @if($item?->factura_venta_id)<i class="fas fa-check ml-1"></i>@endif
                                                 </button>
                                             @else
@@ -223,6 +225,16 @@
                                                 <small class="d-block"><strong>Código cliente:</strong> {{ $item->factura_codigo_cliente ?: '-' }}</small>
                                                 <small class="d-block"><strong>NIT/CI/CEX:</strong> {{ $item->factura_numero_documento ?: '-' }}</small>
                                             @endif
+                                            @if(filled($item?->formato_nota_cobranza))
+                                                <small class="d-block mt-2">
+                                                    <strong>Formato:</strong>
+                                                    {{ $item->formato_nota_cobranza === 'cuenta_personal' ? 'Depósito por cuenta personal' : 'Depósito por libreta' }}
+                                                </small>
+                                                <small class="d-block"><strong>Empresa en la nota:</strong> {{ $item->nombre_empresa_cobranza }}</small>
+                                                <a href="{{ route('dashboard.conciliacion.conciliaciones.nota-cobranza', $item) }}" class="btn btn-xs btn-outline-primary mt-2">
+                                                    <i class="fas fa-file-download mr-1"></i> Descargar nota de cobranza
+                                                </a>
+                                            @endif
                                             <a href="{{ route('dashboard.conciliacion.conciliaciones.factura-pdf', $item) }}" class="btn btn-xs btn-outline-danger mt-2">
                                                 <i class="fas fa-file-pdf mr-1"></i> Descargar PDF
                                             </a>
@@ -255,6 +267,8 @@
                                                 data-tiene-conciliado="{{ $item?->conciliado_at ? 1 : 0 }}"
                                                 data-factura="{{ $item?->factura_venta_id }}"
                                                 data-factura-label="{{ $item?->factura_codigo_orden ?: $item?->factura_venta_id }}"
+                                                data-formato-cobranza="{{ $item?->formato_nota_cobranza }}"
+                                                data-nombre-cobranza="{{ $item?->nombre_empresa_cobranza }}"
                                                 data-monto="{{ number_format((float) ($item?->factura_monto ?? 0), 2) }}"
                                                 data-tiene-pago="{{ $item?->pago_comprobante_path ? 1 : 0 }}"
                                                 data-pago-action="{{ $item ? route('dashboard.conciliacion.conciliaciones.pago-recibido', $item) : '' }}">
@@ -308,6 +322,32 @@
                 </div>
                 <div class="modal-body">
                     <p>Empresa: <strong id="cobrarEmpresa"></strong></p>
+                    <div class="form-group">
+                        <label>Formato de la nota de cobranza <span class="text-danger">*</span></label>
+                        <div class="cobranza-format-grid">
+                            <label class="cobranza-format-option" for="formatoCuentaPersonal">
+                                <input id="formatoCuentaPersonal" type="radio" name="formato_nota_cobranza" value="cuenta_personal" required>
+                                <span class="cobranza-format-icon bg-primary"><i class="fas fa-university"></i></span>
+                                <span>
+                                    <strong>Depósito por cuenta personal</strong>
+                                    <small>Banco Unión S.A. · Cuenta personal autorizada</small>
+                                </span>
+                            </label>
+                            <label class="cobranza-format-option" for="formatoLibreta">
+                                <input id="formatoLibreta" type="radio" name="formato_nota_cobranza" value="libreta" required>
+                                <span class="cobranza-format-icon bg-success"><i class="fas fa-book"></i></span>
+                                <span>
+                                    <strong>Depósito por libreta</strong>
+                                    <small>Cuenta Única del Tesoro (CUT) · Libreta</small>
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="cobrarNombreEmpresa">Nombre de la empresa que aparecerá <span class="text-danger">*</span></label>
+                        <input id="cobrarNombreEmpresa" name="nombre_empresa_cobranza" type="text" maxlength="255" class="form-control" required>
+                        <small class="form-text text-muted">Puedes corregir la razón social antes de guardar.</small>
+                    </div>
                     <div class="row align-items-end">
                         <div class="col-md-4 form-group">
                             <label for="cobrarFacturadoMes">Mes facturado</label>
@@ -470,8 +510,17 @@
         .empresas-card thead th { background: #edf2f9; color: #20539a; border: 0; font-size: .76rem; letter-spacing: .3px; text-transform: uppercase; white-space: nowrap; }
         .empresas-card tbody td { vertical-align: middle; }.empresa-cell { min-width: 220px; }.status-badge { border-radius: 999px; padding: .48rem .7rem; white-space: nowrap; }
         .document-cell { min-width: 220px; max-width: 300px; }.document-link { display: flex; align-items: center; font-weight: 600; }.document-link span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cobranza-format-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .75rem; }
+        .cobranza-format-option { position: relative; display: flex; align-items: center; gap: .75rem; min-height: 86px; margin: 0; padding: .9rem; border: 2px solid #dce4ef; border-radius: 10px; cursor: pointer; transition: .15s ease; }
+        .cobranza-format-option:hover { border-color: #7fa5d9; background: #f8fbff; }
+        .cobranza-format-option:focus-within { border-color: #20539a; box-shadow: 0 0 0 3px rgba(32,83,154,.16); }
+        .cobranza-format-option:has(input:checked) { border-color: #20539a; background: #edf4ff; box-shadow: 0 0 0 2px rgba(32,83,154,.08); }
+        .cobranza-format-option input { position: absolute; opacity: 0; pointer-events: none; }
+        .cobranza-format-icon { display: inline-flex; flex: 0 0 38px; width: 38px; height: 38px; align-items: center; justify-content: center; border-radius: 50%; color: #fff; }
+        .cobranza-format-option strong, .cobranza-format-option small { display: block; }
+        .cobranza-format-option small { margin-top: .2rem; color: #6c757d; font-weight: 400; }
         @media (max-width: 1199.98px) { .months-grid { grid-template-columns: repeat(4,1fr); } }
-        @media (max-width: 767.98px) { .months-grid { grid-template-columns: repeat(2,1fr); }.search-box { width: 100%; max-width: none; } }
+        @media (max-width: 767.98px) { .months-grid { grid-template-columns: repeat(2,1fr); }.search-box { width: 100%; max-width: none; }.cobranza-format-grid { grid-template-columns: 1fr; } }
     </style>
 @endsection
 
@@ -501,6 +550,13 @@
             const cobrarEstado = document.getElementById('cobrarEstado');
             let empresaCobroId = '';
             let facturaActual = '';
+
+            function prepararDatosCobranza(empresa, formato, nombre) {
+                document.getElementById('cobrarNombreEmpresa').value = nombre || empresa;
+                document.querySelectorAll('[name="formato_nota_cobranza"]').forEach(function (option) {
+                    option.checked = option.value === formato;
+                });
+            }
 
             async function cargarFacturas() {
                 const mes = document.getElementById('cobrarFacturadoMes').value;
@@ -549,6 +605,7 @@
                     facturaActual = this.dataset.factura || '';
                     document.getElementById('cobrarEmpresaId').value = empresaCobroId;
                     document.getElementById('cobrarEmpresa').textContent = this.dataset.empresa;
+                    prepararDatosCobranza(this.dataset.empresa, this.dataset.formatoCobranza, this.dataset.nombreCobranza);
                     cargarFacturas();
                 });
             });
@@ -616,6 +673,7 @@
                     facturaActual = edicionActual.factura || '';
                     document.getElementById('cobrarEmpresaId').value = empresaCobroId;
                     document.getElementById('cobrarEmpresa').textContent = edicionActual.empresa;
+                    prepararDatosCobranza(edicionActual.empresa, edicionActual.formatoCobranza, edicionActual.nombreCobranza);
                     cargarFacturas();
                 });
             });

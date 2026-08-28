@@ -34,6 +34,8 @@ class ConciliacionEmpresa extends Model
         'facturado_mes',
         'por_cobrar_at',
         'por_cobrar_por',
+        'formato_nota_cobranza',
+        'nombre_empresa_cobranza',
         'factura_cuf',
         'factura_numero',
         'factura_pdf_path',

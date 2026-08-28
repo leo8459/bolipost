@@ -546,6 +546,10 @@ class AclPermissionRegistry
             'dashboard.conciliacion.conciliaciones',
             'dashboard.conciliacion.facturado',
         ],
+        'dashboard.conciliacion.conciliaciones.nota-cobranza' => [
+            'dashboard.conciliacion.conciliaciones',
+            'dashboard.conciliacion.facturado',
+        ],
         'dashboard.conciliacion.conciliaciones.pago-recibido' => [
             'feature.conciliacion.conciliaciones.pago-recibido',
             'feature.conciliacion.conciliaciones.editar',

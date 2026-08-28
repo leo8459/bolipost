@@ -228,6 +228,7 @@ Route::prefix('conciliacion/conciliaciones')
         Route::post('/por-cobrar', 'asociarPorCobrar')->name('.por-cobrar');
         Route::get('/facturas-disponibles', 'facturasDisponibles')->name('.facturas-disponibles');
         Route::get('/factura/{conciliacion}/pdf', 'descargarFacturaPdf')->name('.factura-pdf');
+        Route::get('/{conciliacion}/nota-cobranza', 'descargarNotaCobranza')->name('.nota-cobranza');
         Route::post('/{conciliacion}/pago-recibido', 'marcarPagoRecibido')->name('.pago-recibido');
         Route::get('/{conciliacion}/comprobante-pago', 'descargarComprobantePago')->name('.comprobante-pago');
         Route::post('/{conciliacion}/confirmacion-pago', 'confirmarPago')->name('.confirmacion-pago');

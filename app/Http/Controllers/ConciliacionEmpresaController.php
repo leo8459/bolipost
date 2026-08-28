@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ConciliacionEmpresa;
 use App\Models\Empresa;
 use App\Services\FacturacionReportService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
@@ -169,7 +170,14 @@ class ConciliacionEmpresaController extends Controller
             'facturado_anio' => ['required', 'integer', 'between:2000,'.(now()->year + 1)],
             'facturado_mes' => ['required', 'integer', 'between:1,12'],
             'factura_venta_id' => ['required', 'string', 'max:100'],
+            'formato_nota_cobranza' => ['nullable', 'required_if:origen,conciliaciones', 'in:cuenta_personal,libreta'],
+            'nombre_empresa_cobranza' => ['nullable', 'required_if:origen,conciliaciones', 'string', 'max:255'],
             'origen' => ['nullable', 'in:conciliaciones,facturado'],
+        ], [
+            'formato_nota_cobranza.required' => 'Selecciona el formato de la nota de cobranza.',
+            'formato_nota_cobranza.in' => 'El formato de la nota de cobranza no es válido.',
+            'nombre_empresa_cobranza.required' => 'Escribe el nombre de la empresa que aparecerá en la nota de cobranza.',
+            'nombre_empresa_cobranza.max' => 'El nombre de la empresa no puede superar los 255 caracteres.',
         ]);
 
         $empresa = Empresa::query()->findOrFail((int) $data['empresa_id']);
@@ -241,6 +249,10 @@ class ConciliacionEmpresaController extends Controller
             'facturado_mes' => (int) $data['facturado_mes'],
             'por_cobrar_at' => now(),
             'por_cobrar_por' => $request->user()?->id,
+            'formato_nota_cobranza' => $data['formato_nota_cobranza'] ?? $conciliacion->formato_nota_cobranza,
+            'nombre_empresa_cobranza' => array_key_exists('nombre_empresa_cobranza', $data)
+                ? trim((string) $data['nombre_empresa_cobranza'])
+                : $conciliacion->nombre_empresa_cobranza,
             'factura_cuf' => $pdf['cuf'],
             'factura_numero' => $pdf['numero'],
             'factura_pdf_path' => $pdfPath,
@@ -363,6 +375,32 @@ class ConciliacionEmpresaController extends Controller
         return Storage::disk('public')->download($conciliacion->factura_pdf_path, $filename, [
             'Content-Type' => 'application/pdf',
         ]);
+    }
+
+    public function descargarNotaCobranza(Request $request, ConciliacionEmpresa $conciliacion)
+    {
+        $this->autorizarConciliacion($request, $conciliacion);
+        abort_unless(
+            $conciliacion->factura_venta_id
+                && in_array($conciliacion->formato_nota_cobranza, ['cuenta_personal', 'libreta'], true)
+                && filled($conciliacion->nombre_empresa_cobranza),
+            404,
+            'La nota de cobranza todavía no está configurada.'
+        );
+
+        $fecha = ($conciliacion->por_cobrar_at ?? now())->copy()->locale('es');
+        $monto = (float) ($conciliacion->factura_monto ?? 0);
+        $nombreArchivo = 'nota-cobranza-'.Str::slug($conciliacion->nombre_empresa_cobranza)
+            .'-'.str_pad((string) $conciliacion->mes, 2, '0', STR_PAD_LEFT)
+            .'-'.$conciliacion->anio.'.pdf';
+
+        return Pdf::loadView('conciliacion.nota-cobranza-pdf', [
+            'conciliacion' => $conciliacion,
+            'fecha' => $fecha,
+            'mesNombre' => self::MESES[$conciliacion->mes] ?? (string) $conciliacion->mes,
+            'monto' => $monto,
+            'montoLiteral' => $this->montoLiteral($monto),
+        ])->setPaper('letter')->download($nombreArchivo);
     }
 
     public function marcarPagoRecibido(Request $request, ConciliacionEmpresa $conciliacion)
@@ -550,6 +588,68 @@ class ConciliacionEmpresaController extends Controller
     private function normalizarCodigoCliente(mixed $codigo): string
     {
         return mb_strtoupper((string) preg_replace('/\s+/u', '', trim((string) $codigo)));
+    }
+
+    private function montoLiteral(float $monto): string
+    {
+        $entero = (int) floor(abs($monto));
+        $centavos = (int) round((abs($monto) - $entero) * 100);
+        if ($centavos === 100) {
+            $entero++;
+            $centavos = 0;
+        }
+
+        return ucfirst($this->numeroEnLetras($entero))
+            .' '.str_pad((string) $centavos, 2, '0', STR_PAD_LEFT).'/100 bolivianos';
+    }
+
+    private function numeroEnLetras(int $numero): string
+    {
+        $basicos = [
+            0 => 'cero', 1 => 'uno', 2 => 'dos', 3 => 'tres', 4 => 'cuatro', 5 => 'cinco',
+            6 => 'seis', 7 => 'siete', 8 => 'ocho', 9 => 'nueve', 10 => 'diez',
+            11 => 'once', 12 => 'doce', 13 => 'trece', 14 => 'catorce', 15 => 'quince',
+            16 => 'dieciséis', 17 => 'diecisiete', 18 => 'dieciocho', 19 => 'diecinueve',
+            20 => 'veinte', 21 => 'veintiuno', 22 => 'veintidós', 23 => 'veintitrés',
+            24 => 'veinticuatro', 25 => 'veinticinco', 26 => 'veintiséis', 27 => 'veintisiete',
+            28 => 'veintiocho', 29 => 'veintinueve',
+        ];
+        if ($numero < 30) {
+            return $basicos[$numero];
+        }
+        if ($numero < 100) {
+            $decenas = [30 => 'treinta', 40 => 'cuarenta', 50 => 'cincuenta', 60 => 'sesenta', 70 => 'setenta', 80 => 'ochenta', 90 => 'noventa'];
+            $base = intdiv($numero, 10) * 10;
+
+            return $decenas[$base].($numero % 10 ? ' y '.$basicos[$numero % 10] : '');
+        }
+        if ($numero < 1000) {
+            if ($numero === 100) {
+                return 'cien';
+            }
+            $centenas = [1 => 'ciento', 2 => 'doscientos', 3 => 'trescientos', 4 => 'cuatrocientos', 5 => 'quinientos', 6 => 'seiscientos', 7 => 'setecientos', 8 => 'ochocientos', 9 => 'novecientos'];
+            $resto = $numero % 100;
+
+            return $centenas[intdiv($numero, 100)].($resto ? ' '.$this->numeroEnLetras($resto) : '');
+        }
+        if ($numero < 1000000) {
+            $miles = intdiv($numero, 1000);
+            $prefijo = $miles === 1 ? 'mil' : $this->apocoparUno($this->numeroEnLetras($miles)).' mil';
+            $resto = $numero % 1000;
+
+            return $prefijo.($resto ? ' '.$this->numeroEnLetras($resto) : '');
+        }
+
+        $millones = intdiv($numero, 1000000);
+        $prefijo = $millones === 1 ? 'un millón' : $this->apocoparUno($this->numeroEnLetras($millones)).' millones';
+        $resto = $numero % 1000000;
+
+        return $prefijo.($resto ? ' '.$this->numeroEnLetras($resto) : '');
+    }
+
+    private function apocoparUno(string $texto): string
+    {
+        return preg_replace(['/veintiuno$/u', '/ y uno$/u', '/uno$/u'], ['veintiún', ' y un', 'un'], $texto);
     }
 
     private function validarPeriodo(Request $request): array
