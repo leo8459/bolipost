@@ -1135,8 +1135,20 @@
                     </div>
                     <div class="global-shortcut-field global-shortcut-field--full">
                         <label for="facturacionConceptoDescripcion">Descripcion</label>
-                        <textarea id="facturacionConceptoDescripcion" name="descripcion_servicio" rows="3" maxlength="255" placeholder="Escribe el detalle que identificara este cobro dentro del carrito"></textarea>
-                        <small class="global-shortcut-field__hint">Si dejas este campo vacio, usaremos la descripcion base del concepto seleccionado.</small>
+                        <input type="hidden" id="facturacionConceptoDescripcionValor" name="descripcion_servicio">
+                        <div
+                            id="facturacionConceptoDescripcionBaseBox"
+                            data-description-lock-container
+                            class="global-shortcut-description-lock is-hidden"
+                        >
+                            <span class="global-shortcut-description-lock__label">Servicio base</span>
+                            <strong
+                                id="facturacionConceptoDescripcionBase"
+                                class="global-shortcut-description-lock__value"
+                            ></strong>
+                        </div>
+                        <textarea id="facturacionConceptoDescripcion" rows="3" maxlength="255" placeholder="Agrega el detalle adicional que ira despues de la descripcion base"></textarea>
+                        <small class="global-shortcut-field__hint">La descripcion base se mantiene. Aqui solo agregas el detalle adicional.</small>
                     </div>
                 </div>
                 <div class="global-shortcut-confirm__actions">
@@ -4334,6 +4346,8 @@
             const facturacionConceptoModalResumenNombre = document.getElementById('facturacionConceptoModalResumenNombre');
             const facturacionConceptoModalResumenCodigo = document.getElementById('facturacionConceptoModalResumenCodigo');
             const facturacionConceptoModalResumenPrecio = document.getElementById('facturacionConceptoModalResumenPrecio');
+            const facturacionConceptoDescripcionInput = document.getElementById('facturacionConceptoDescripcionValor');
+            const facturacionConceptoDescripcionBase = document.getElementById('facturacionConceptoDescripcionBase');
             let facturacionConceptoCantidad = document.getElementById('facturacionConceptoCantidad');
             let facturacionConceptoPrecio = document.getElementById('facturacionConceptoPrecio');
             let facturacionConceptoDescripcion = document.getElementById('facturacionConceptoDescripcion');
@@ -5095,6 +5109,12 @@
                 if (facturacionConceptoModalResumenPrecio instanceof HTMLElement) {
                     facturacionConceptoModalResumenPrecio.textContent = 'Bs 0.00';
                 }
+                applyLockedDescriptionField(
+                    facturacionConceptoDescripcionInput,
+                    facturacionConceptoDescripcion,
+                    facturacionConceptoDescripcionBase,
+                    ''
+                );
 
                 facturacionConceptoModal.classList.remove('is-open');
                 facturacionConceptoModal.setAttribute('aria-hidden', 'true');
@@ -5127,10 +5147,15 @@
                 if (facturacionConceptoPrecio instanceof HTMLInputElement) {
                     facturacionConceptoPrecio.value = basePrice;
                 }
+                applyLockedDescriptionField(
+                    facturacionConceptoDescripcionInput,
+                    facturacionConceptoDescripcion,
+                    facturacionConceptoDescripcionBase,
+                    descripcionBase
+                );
                 if (facturacionConceptoDescripcion instanceof HTMLTextAreaElement) {
-                    facturacionConceptoDescripcion.value = '';
                     facturacionConceptoDescripcion.placeholder = descripcionBase !== ''
-                        ? 'Base: ' + descripcionBase + '. Agrega aqui el detalle adicional si lo necesitas.'
+                        ? 'Agrega el detalle adicional que ira despues de la base.'
                         : 'Escribe el detalle que identificara este cobro dentro del carrito';
                 }
                 if (facturacionConceptoModalResumenNombre instanceof HTMLElement) {
@@ -5319,6 +5344,16 @@
                     });
                 }
 
+                if (facturacionConceptoDescripcion instanceof HTMLTextAreaElement && facturacionConceptoDescripcion.dataset.facturacionBound !== 'true') {
+                    facturacionConceptoDescripcion.dataset.facturacionBound = 'true';
+                    facturacionConceptoDescripcion.addEventListener('input', function () {
+                        syncLockedDescriptionField(
+                            facturacionConceptoDescripcionInput,
+                            facturacionConceptoDescripcion
+                        );
+                    });
+                }
+
                 if (facturacionConceptoOpenModalButton instanceof HTMLButtonElement) {
                     facturacionConceptoOpenModalButton.disabled = !selectedFacturacionConceptoOption() || facturacionConceptoOpenModalButton.disabled;
                     facturacionConceptoOpenModalButton.addEventListener('click', function () {
@@ -5405,6 +5440,10 @@
                     const csrfToken = tokenMeta instanceof HTMLMetaElement ? tokenMeta.content : '';
                     facturacionConceptoCantidad.value = String(Math.min(999, Math.max(1, cantidadSolicitada)));
                     facturacionConceptoPrecio.value = Number(Math.max(0, precioSolicitado)).toFixed(2);
+                    syncLockedDescriptionField(
+                        facturacionConceptoDescripcionInput,
+                        facturacionConceptoDescripcion
+                    );
                     const formData = new FormData(facturacionConceptoModalForm);
                     if (facturacionConceptoModalSubmit instanceof HTMLButtonElement) {
                         facturacionConceptoModalSubmit.dataset.originalText = facturacionConceptoModalSubmit.dataset.originalText || facturacionConceptoModalSubmit.textContent.trim();

@@ -709,6 +709,10 @@ class FacturacionCartService
         $precioUnitario = $precioUnitario !== null ? round(max(0, $precioUnitario), 2) : null;
         $descripcionServicio = $descripcionServicio !== null ? trim($descripcionServicio) : null;
         $descripcionServicio = $descripcionServicio !== '' ? $descripcionServicio : null;
+        $descripcionServicio = $this->composeConceptoFacturacionDescription(
+            $this->normalizeConceptoFacturacionFiscalData($concepto)['descripcion_servicio'] ?? '',
+            $descripcionServicio
+        );
 
         $ctx = $this->getRemoteContextForUser($user);
         $draft = $ctx['draft'] ?? null;
@@ -2438,9 +2442,10 @@ class FacturacionCartService
         $cantidad = max(1, $cantidad);
         $resolvedCode = trim((string) ($draftCode ?? $concepto->codigo ?? ''));
         $conceptoNormalizado = $this->normalizeConceptoFacturacionFiscalData($concepto, $resolvedCode);
-        $resolvedDescripcionServicio = $descripcionServicio !== null && trim($descripcionServicio) !== ''
-            ? trim($descripcionServicio)
-            : $conceptoNormalizado['descripcion_servicio'];
+        $resolvedDescripcionServicio = $this->composeConceptoFacturacionDescription(
+            (string) ($conceptoNormalizado['descripcion_servicio'] ?? ''),
+            $descripcionServicio
+        );
 
         return [
             'origen_tipo' => ConceptoFacturacion::class,
@@ -3836,6 +3841,26 @@ class FacturacionCartService
             'nombre_servicio' => $nombre !== '' ? $nombre : 'Cobro adicional',
             'descripcion_servicio' => $descripcion !== '' ? $descripcion : ($nombre !== '' ? $nombre : 'Cobro adicional'),
         ];
+    }
+
+    private function composeConceptoFacturacionDescription(?string $baseDescription, ?string $customDescription): string
+    {
+        $base = trim((string) ($baseDescription ?? ''));
+        $custom = trim((string) ($customDescription ?? ''));
+
+        if ($base === '') {
+            return $custom;
+        }
+
+        if ($custom === '') {
+            return $base;
+        }
+
+        if ($custom === $base || str_starts_with($custom, $base . ' - ')) {
+            return $custom;
+        }
+
+        return $base . ' - ' . $custom;
     }
 
     private function assertFacturacionPermission(User $user): void
