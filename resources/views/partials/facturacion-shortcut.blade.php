@@ -7166,13 +7166,24 @@
                             </div>
                             <div class="global-shortcut-field global-shortcut-field--description">
                                 <label>Descripcion</label>
+                                <input type="hidden" name="entries[${index}][descripcion_servicio]">
+                                <div
+                                    class="global-shortcut-description-lock is-hidden"
+                                    data-description-lock-container
+                                >
+                                    <span class="global-shortcut-description-lock__label">Servicio base</span>
+                                    <strong
+                                        class="global-shortcut-description-lock__value"
+                                        data-description-locked
+                                    ></strong>
+                                </div>
                                 <textarea
                                     rows="2"
                                     maxlength="255"
-                                    name="entries[${index}][descripcion_servicio]"
                                     data-description-editable="true"
-                                    placeholder="Detalle opcional para esta unidad"
+                                    placeholder="Agrega el detalle adicional para esta unidad"
                                 ></textarea>
+                                <small class="global-shortcut-field__hint">La base se conserva. Aqui solo agregas o ajustas el detalle adicional.</small>
                             </div>
                             <p class="facturacion-item-edit-batch__help">Las unidades se mantienen agrupadas mientras conserven el mismo codigo y precio. La descripcion puede variar sin separar la linea.</p>
                         </div>
@@ -7183,7 +7194,9 @@
                 facturacionItemEditBatch.querySelectorAll('.facturacion-item-edit-batch__card').forEach((card) => {
                     const priceInput = card.querySelector('input[name$="[precio]"]');
                     const codeInput = card.querySelector('input[name$="[codigo]"]');
+                    const descriptionHiddenInput = card.querySelector('input[name$="[descripcion_servicio]"]');
                     const descriptionInput = card.querySelector('textarea[data-description-editable="true"]');
+                    const descriptionLockedNode = card.querySelector('[data-description-locked]');
 
                     if (!(priceInput instanceof HTMLInputElement) || !(codeInput instanceof HTMLInputElement)) {
                         return;
@@ -7191,9 +7204,13 @@
 
                     preventNumberInputWheelChange(priceInput);
 
+                    applyLockedDescriptionField(descriptionHiddenInput, descriptionInput, descriptionLockedNode, baseDescription);
                     if (descriptionInput instanceof HTMLTextAreaElement) {
-                        descriptionInput.value = baseDescription;
+                        descriptionInput.addEventListener('input', () => {
+                            syncLockedDescriptionField(descriptionHiddenInput, descriptionInput);
+                        });
                     }
+                    syncLockedDescriptionField(descriptionHiddenInput, descriptionInput);
                 });
             };
 
