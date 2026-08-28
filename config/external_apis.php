@@ -2,6 +2,35 @@
 
 return [
     'catalog' => [
+        'siop:login' => [
+            'name' => 'INICIO SESION SIOP',
+            'description' => 'Valida el alias y la contrasena de un usuario de SIOP y devuelve un Bearer Token personal para la aplicacion.',
+            'access' => 'Autenticacion',
+            'icon' => 'fas fa-sign-in-alt',
+            'color' => 'primary',
+            'endpoints' => [
+                [
+                    'method' => 'POST',
+                    'path' => '/api/integraciones/siop/login',
+                    'example' => '',
+                    'body' => [
+                        'alias' => 'usuario.siop',
+                        'password' => 'ClaveSegura123',
+                        'device_name' => 'Aplicacion SIOP',
+                    ],
+                    'response' => [
+                        'message' => 'Inicio de sesion SIOP correcto.',
+                        'token_type' => 'Bearer',
+                        'access_token' => 'TOKEN_PERSONAL_DEL_USUARIO_SIOP',
+                        'user' => [
+                            'id' => 1,
+                            'name' => 'Usuario SIOP',
+                            'alias' => 'usuario.siop',
+                        ],
+                    ],
+                ],
+            ],
+        ],
         'clientes:create' => [
             'name' => 'Crear usuario Delivery Express',
             'description' => 'Registra un nuevo cliente y devuelve su Bearer Token personal para utilizar las APIs de Delivery Express.',

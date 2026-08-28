@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\MobileSnapshotController;
 use App\Http\Controllers\Api\MobileUtilityController;
 use App\Http\Controllers\Api\PaqueteContactoApiController;
 use App\Http\Controllers\Api\QrDecoderApiController;
+use App\Http\Controllers\Api\SiopAuthApiController;
 use App\Http\Controllers\Api\VehicleLogApiController;
 use App\Http\Controllers\AppConfigController;
 use App\Http\Controllers\BusquedaController;
@@ -69,7 +70,15 @@ Route::get('/siop/eventos', [EventosSiopApiController::class, 'index'])
     ->middleware(['siop.api.token', 'throttle:20,1'])
     ->name('api.siop.eventos.index');
 
+Route::prefix('siop')->middleware(['auth:sanctum', 'abilities:siop'])->group(function () {
+    Route::get('/me', [SiopAuthApiController::class, 'me'])->name('api.siop.me');
+    Route::post('/logout', [SiopAuthApiController::class, 'logout'])->name('api.siop.logout');
+});
+
 Route::middleware(['force.json', 'external.api.jwt', 'throttle:120,1'])->group(function () {
+    Route::post('/integraciones/siop/login', [SiopAuthApiController::class, 'login'])
+        ->middleware(['external.api.ability:siop:login', 'throttle:10,1'])
+        ->name('api.integraciones.siop.login');
     Route::get('/integraciones/solicitudes-clientes', [ExternalClienteSolicitudApiController::class, 'globalIndex'])
         ->middleware('external.api.ability:solicitudes-clientes:read')
         ->name('api.integraciones.solicitudes-clientes.index');
