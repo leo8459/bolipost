@@ -59,7 +59,7 @@
                 </a>
             </li>
             <li class="menu-client-access-item">
-                <a href="https://trackingbo.correos.gob.bo:8100/clientes/login" class="menu-client-access" target="_blank" rel="noopener noreferrer">
+                <a href="{{ route('clientes.login', absolute: false) }}" class="menu-client-access">
                     <span class="menu-client-access-label">Ingreso clientes</span>
                 </a>
             </li>
@@ -77,7 +77,7 @@
                     </button>
                 </form>
             @else
-                <a class="btn btn-client-login-cta" href="https://trackingbo.correos.gob.bo:8100/clientes/login" target="_blank" rel="noopener noreferrer">
+                <a class="btn btn-client-login-cta" href="{{ route('clientes.login', absolute: false) }}">
                     <span class="btn-client-login-cta__eyebrow">Clientes</span>
                     <span class="btn-client-login-cta__label">Iniciar sesi&oacute;n</span>
                 </a>

@@ -19,7 +19,11 @@ class EnsureEmpresaContractUsersActive
 
     public function handle(Request $request, Closure $next): Response
     {
-        $user = $request->user();
+        // This middleware is global, but empresa contracts and alerts belong only
+        // to users from the internal "web" guard. Client routes switch Laravel's
+        // default guard to "cliente", so Request::user() can return a Cliente and
+        // cause the strictly typed AlertaEmpresaService to throw a TypeError.
+        $user = Auth::guard('web')->user();
 
         if ($user && ! $this->syncService->ensureAuthenticatedUserIsActive($user)) {
             Auth::guard('web')->logout();
