@@ -26,9 +26,6 @@
 <body>
     @php
         $ultimoNombre = $ultimoEvento->nombre_evento ?? ('Evento #' . ($ultimoEvento->evento_id ?? '-'));
-        $ultimoEventoTexto = mb_strtolower((string) ($ultimoEvento->nombre_evento ?? ''));
-        $eventoTextos = $eventos->map(fn($item) => mb_strtolower((string) ($item->nombre_evento ?? '')))->implode(' | ');
-        $tieneIncidencia = str_contains($eventoTextos, 'fall') || str_contains($eventoTextos, 'incid') || str_contains($eventoTextos, 'devuelt');
         $fechaUltima = \Illuminate\Support\Carbon::parse($ultimoEvento->created_at);
         $servicioActual = strtoupper((string) ($ultimoEvento->servicio ?? 'EMS'));
         $origenLabel = 'Correos de Bolivia';
@@ -38,85 +35,11 @@
         $esCodigoBoliviano = $esCodigoS10 && str_ends_with($codigoS10, 'BO');
         $esTrackingInternacionalExterno = in_array(($fuenteTracking ?? null), ['api', 'mixta'], true) && !$esCodigoBoliviano;
 
-        $primerPaso = in_array($servicioActual, ['ORDI', 'CERTI'], true) ? 'Clasificacion' : 'Admision';
-        $incluyeCartero = str_contains($eventoTextos, 'cartero')
-            || str_contains($eventoTextos, 'distrib')
-            || str_contains($eventoTextos, 'domicilio')
-            || str_contains($eventoTextos, 'intento');
-
-        $pasos = [$primerPaso, 'Despacho', 'Expedicion', 'Ventanilla'];
-        if ($incluyeCartero) {
-            $pasos[] = 'Cartero';
-        }
-        $pasos[] = 'Entregado';
-
-        $idxEntregado = $incluyeCartero ? 5 : 4;
-        $pasoActual = 0;
-        $textoIndicaDespacho = str_contains($ultimoEventoTexto, 'despach');
-        $textoIndicaExpedicion = str_contains($ultimoEventoTexto, 'exped')
-            || str_contains($ultimoEventoTexto, 'saca')
-            || str_contains($ultimoEventoTexto, 'transit')
-            || str_contains($ultimoEventoTexto, 'extranj');
-        $textoIndicaVentanilla = str_contains($ultimoEventoTexto, 'ventanilla')
-            || str_contains($ultimoEventoTexto, 'listo para entregar')
-            || str_contains($ultimoEventoTexto, 'oficina de entrega');
-
-        if ($primerPaso === 'Clasificacion') {
-            if (str_contains($ultimoEventoTexto, 'clasific') || str_contains($ultimoEventoTexto, 'recibid') || str_contains($ultimoEventoTexto, 'registr')) $pasoActual = max($pasoActual, 0);
-        } else {
-            if (str_contains($ultimoEventoTexto, 'admi') || str_contains($ultimoEventoTexto, 'recibid') || str_contains($ultimoEventoTexto, 'registr')) $pasoActual = max($pasoActual, 0);
-        }
-        if ($textoIndicaDespacho) $pasoActual = max($pasoActual, 1);
-        if ($textoIndicaExpedicion) $pasoActual = max($pasoActual, 2);
-        if ($textoIndicaVentanilla) $pasoActual = max($pasoActual, 3);
-        if ($incluyeCartero && (str_contains($ultimoEventoTexto, 'cartero') || str_contains($ultimoEventoTexto, 'distrib') || str_contains($ultimoEventoTexto, 'domicilio') || str_contains($ultimoEventoTexto, 'intento'))) {
-            $pasoActual = max($pasoActual, 4);
-        }
-
-        $entregaConfirmada = (function () use ($ultimoEventoTexto) {
-            $texto = $ultimoEventoTexto;
-            if ($texto === '') {
-                return false;
-            }
-
-            $exclusiones = [
-                'listo para entregar',
-                'oficina de entrega',
-                'intento fallido',
-                'no entregado',
-                'pendiente de entrega',
-            ];
-
-            foreach ($exclusiones as $palabra) {
-                if (str_contains($texto, $palabra)) {
-                    return false;
-                }
-            }
-
-            $confirmaciones = [
-                'entregado exitosamente',
-                'entregado al cliente',
-                'entregado al destinatario',
-                'entrega realizada',
-                'envio entregado',
-                'paquete entregado',
-                'recepcionado por destinatario',
-                'recibido por destinatario',
-            ];
-
-            foreach ($confirmaciones as $palabra) {
-                if (str_contains($texto, $palabra)) {
-                    return true;
-                }
-            }
-
-            return false;
-        })();
-
-        if ($entregaConfirmada) $pasoActual = max($pasoActual, $idxEntregado);
-
-        $estadoGlobal = $pasoActual === $idxEntregado ? 'Entregado' : 'En transito';
-        if ($tieneIncidencia && $pasoActual < $idxEntregado) $estadoGlobal = 'En transito con incidencia';
+        $pasos = $trackingProgress['steps'];
+        $pasoActual = $trackingProgress['current_index'];
+        $idxEntregado = count($pasos) - 1;
+        $estadoGlobal = $trackingProgress['status'];
+        $entregaConfirmada = $estadoGlobal === 'Entregado';
 
         $normalizarIso2 = function (?string $valor): ?string {
             $iso = strtoupper(trim((string) $valor));

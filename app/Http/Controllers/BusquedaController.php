@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Destino;
 use App\Models\TrackingSubscription;
 use App\Services\TrackingLocalEventRuleService;
+use App\Services\TrackingProgressService;
 use App\Support\CodigoContinuacionEvent;
 use App\Support\CarteroEvent;
 use App\Support\EncargadoEvent;
@@ -193,11 +194,17 @@ class BusquedaController extends Controller
                 ->with('tracking_error', 'Paquete no encontrado');
         }
 
+        $progress = app(TrackingProgressService::class)->resolve(
+            $eventos,
+            (string) ($eventos->first()->servicio ?? 'EMS')
+        );
+
         return view('tracking-demo', [
             'codigo' => strtoupper($codigo),
             'eventos' => $eventos,
             'ultimoEvento' => $eventos->first(),
             'fuenteTracking' => $resultado['fuente'],
+            'trackingProgress' => $progress,
             'landingAnnouncement' => $this->landingAnnouncement(),
             'landingNewsTicker' => $this->landingNewsTicker(),
             'preregistroDestinos' => $this->cachedPreregistroDestinos(),
@@ -781,12 +788,16 @@ class BusquedaController extends Controller
             'id' => $evento['id'] ?? null,
             'codigo' => $this->obtenerCodigoEvento($evento, $payload, $codigo),
             'evento_id' => $evento['evento_id'] ?? $evento['id_evento'] ?? null,
+            'codigo_evento' => $evento['codigo_evento']
+                ?? $evento['eventCode']
+                ?? $evento['event_type_cd']
+                ?? null,
             'user_id' => $evento['user_id'] ?? null,
             'created_at' => $createdAt,
             'updated_at' => $evento['updated_at'] ?? $createdAt,
             'nombre_evento' => $nombreEvento,
             'servicio' => $this->determinarServicio($evento, $payload, $codigo),
-            'tabla_origen' => $evento['tabla_origen'] ?? 'api_sqlserver',
+            'tabla_origen' => $evento['tabla_origen'] ?? $evento['origen_evento'] ?? 'api_sqlserver',
             'office' => $office,
             'next_office' => $nextOffice,
             'descripcion' => $detail !== '' ? $detail : null,
