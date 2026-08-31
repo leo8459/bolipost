@@ -49,7 +49,11 @@ class ChasquiAuthApiController extends Controller
         }
 
         $user->tokens()->where('name', $deviceName)->delete();
-        $accessToken = $user->createToken($deviceName, ['chasqui'])->plainTextToken;
+        $abilities = array_values(array_unique([
+            'chasqui',
+            ...ChasquiCartero::tokenAbilities($user),
+        ]));
+        $accessToken = $user->createToken($deviceName, $abilities)->plainTextToken;
         $primaryRole = $user->roles()->orderBy('roles.id')->first(['roles.id', 'roles.name']);
 
         return response()->json([
@@ -65,6 +69,7 @@ class ChasquiAuthApiController extends Controller
                 'role_id' => $primaryRole ? (int) $primaryRole->id : null,
                 'role' => $primaryRole ? (string) $primaryRole->name : null,
                 'roles' => $user->getRoleNames()->values()->all(),
+                'abilities' => $abilities,
             ],
         ]);
     }

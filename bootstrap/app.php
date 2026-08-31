@@ -27,6 +27,7 @@ use Illuminate\Http\Request;
 use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Http\Middleware\CheckAbilities;
+use Laravel\Sanctum\Http\Middleware\CheckForAnyAbility;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -54,6 +55,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'chasqui.cartero' => EnsureChasquiCartero::class,
             'force.json' => ForceJsonResponse::class,
             'abilities' => CheckAbilities::class,
+            'ability' => CheckForAnyAbility::class,
         ]);
 
         $middleware->web(append: [

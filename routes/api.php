@@ -24,6 +24,7 @@ use App\Http\Controllers\BusquedaController;
 use App\Http\Controllers\CarterosController;
 use App\Http\Controllers\PreregistroController;
 use App\Http\Controllers\RecojoController;
+use App\Support\ChasquiCartero;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('clientes')->group(function () {
@@ -143,7 +144,7 @@ Route::prefix('chasqui')->middleware([
     'force.json',
     'external.api.jwt',
     'auth:sanctum',
-    'abilities:chasqui',
+    ChasquiCartero::abilityMiddleware(),
     'chasqui.cartero',
     'throttle:120,1',
 ])->group(function () {

@@ -125,7 +125,17 @@ class SiopAuthApiTest extends TestCase
             ->assertJsonPath('user.id', $user->id)
             ->assertJsonPath('user.role', 'cartero_ems');
 
-        $this->withToken($userToken)
+        $this->withHeaders([
+            'Authorization' => 'Bearer '.$userToken,
+            'X-API-Token' => $this->externalToken(['chasqui:paquetes:assign']),
+        ])->postJson('/api/chasqui/paquetes/asignar', [])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('items');
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer '.$userToken,
+            'X-API-Token' => '',
+        ])
             ->postJson('/api/siop/logout')
             ->assertOk()
             ->assertJsonPath('message', 'Sesion SIOP cerrada correctamente.');

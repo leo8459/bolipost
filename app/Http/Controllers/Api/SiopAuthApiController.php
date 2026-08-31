@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\EmpresaContractUserSyncService;
+use App\Support\ChasquiCartero;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -42,7 +43,11 @@ class SiopAuthApiController extends Controller
         }
 
         $user->tokens()->where('name', $deviceName)->delete();
-        $accessToken = $user->createToken($deviceName, ['siop'])->plainTextToken;
+        $abilities = array_values(array_unique([
+            'siop',
+            ...ChasquiCartero::tokenAbilities($user),
+        ]));
+        $accessToken = $user->createToken($deviceName, $abilities)->plainTextToken;
 
         return response()->json([
             'message' => 'Inicio de sesion SIOP correcto.',
