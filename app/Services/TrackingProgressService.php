@@ -72,6 +72,7 @@ class TrackingProgressService
     {
         $events = collect($events);
         $firstStep = in_array(strtoupper($service), ['ORDI', 'CERTI'], true) ? 'Clasificacion' : 'Admision';
+        $isCancelled = $events->isNotEmpty() && $this->isCancelledText($this->eventText((object) $events->first()));
         $highestStage = self::STAGE_ADMISSION;
         $hasCourierEvent = false;
         $hasIncident = false;
@@ -92,11 +93,24 @@ class TrackingProgressService
         }
         $steps[] = 'Entregado';
 
+        if ($isCancelled) {
+            $steps[1] = 'Cancelado';
+
+            return [
+                'steps' => $steps,
+                'current_index' => 1,
+                'has_incident' => true,
+                'is_cancelled' => true,
+                'status' => 'Envio cancelado',
+            ];
+        }
+
         $currentIndex = $this->stepIndex($highestStage, $hasCourierEvent || $highestStage >= self::STAGE_COURIER);
         return [
             'steps' => $steps,
             'current_index' => $currentIndex,
             'has_incident' => $hasIncident,
+            'is_cancelled' => false,
             'status' => $highestStage === self::STAGE_DELIVERED
                 ? 'Entregado'
                 : ($hasIncident ? 'En transito con incidencia' : 'En transito'),
@@ -167,6 +181,11 @@ class TrackingProgressService
             'fallido', 'incidencia', 'devuelto', 'devolucion', 'retorno', 'retenido', 'retener', 'detenida',
             'detenido', 'aduana', 'cancelado', 'cancelada', 'eliminado', 'eliminada',
         ]);
+    }
+
+    private function isCancelledText(string $text): bool
+    {
+        return $this->containsAny($text, ['envio cancelado', 'paquete cancelado']);
     }
 
     private function isDeliveredText(string $text): bool

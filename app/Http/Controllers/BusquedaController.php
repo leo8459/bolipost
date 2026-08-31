@@ -984,10 +984,13 @@ class BusquedaController extends Controller
                     $nombreEventoBase,
                     $item->codigo_relacionado ?? null
                 );
-                $nombreEventoBase = EncargadoEvent::nombreMostrado(
-                    $nombreEventoBase,
-                    $item->detalle_evento ?? null
-                );
+                // Public tracking must describe the shipment state without exposing the operator name.
+                $nombreEventoBase = trim($nombreEventoBase) === EncargadoEvent::CANCELADO
+                    ? 'Envio cancelado.'
+                    : EncargadoEvent::nombreMostrado(
+                        $nombreEventoBase,
+                        $item->detalle_evento ?? null
+                    );
                 $nombreEventoBase = CarteroEvent::nombreMostrado(
                     $nombreEventoBase,
                     $item->detalle_evento ?? null

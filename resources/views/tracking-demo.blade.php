@@ -39,6 +39,7 @@
         $pasoActual = $trackingProgress['current_index'];
         $idxEntregado = count($pasos) - 1;
         $estadoGlobal = $trackingProgress['status'];
+        $envioCancelado = $trackingProgress['is_cancelled'];
         $entregaConfirmada = $estadoGlobal === 'Entregado';
 
         $normalizarIso2 = function (?string $valor): ?string {
@@ -726,9 +727,10 @@
                             @php
                                 $done = $index < $pasoActual;
                                 $current = $index === $pasoActual;
+                                $cancelledCurrent = $envioCancelado && $current;
                             @endphp
-                            <li class="{{ $done ? 'is-done' : '' }} {{ $current ? 'is-current' : '' }}" style="--step-index: {{ $index }};">
-                                <div class="step-dot">{!! $done ? '&#10003;' : ($current ? '&#9679;' : '&#9675;') !!}</div>
+                            <li class="{{ $done ? 'is-done' : '' }} {{ $current ? 'is-current' : '' }} {{ $cancelledCurrent ? 'is-cancelled' : '' }}" style="--step-index: {{ $index }};">
+                                <div class="step-dot">{!! $done ? '&#10003;' : ($cancelledCurrent ? '!' : ($current ? '&#9679;' : '&#9675;')) !!}</div>
                                 <span>{{ $paso }}</span>
                             </li>
                         @endforeach

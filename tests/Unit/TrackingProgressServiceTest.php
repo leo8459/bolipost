@@ -56,14 +56,16 @@ class TrackingProgressServiceTest extends TestCase
         $this->assertSame('Expedicion', $progress['steps'][$progress['current_index']]);
     }
 
-    public function test_national_cancellation_is_an_incident_without_advancing_the_progress(): void
+    public function test_national_cancellation_replaces_dispatch_with_a_terminal_red_step(): void
     {
         $progress = app(TrackingProgressService::class)->resolve([
-            (object) ['evento_id' => 2239, 'nombre_evento' => 'Delivery Express registrado.'],
             (object) ['evento_id' => 4470, 'nombre_evento' => 'Envio cancelado desde encargado.'],
+            (object) ['evento_id' => 2239, 'nombre_evento' => 'Delivery Express registrado.'],
         ], 'EMS');
 
-        $this->assertSame(0, $progress['current_index']);
-        $this->assertSame('En transito con incidencia', $progress['status']);
+        $this->assertSame('Cancelado', $progress['steps'][1]);
+        $this->assertSame(1, $progress['current_index']);
+        $this->assertTrue($progress['is_cancelled']);
+        $this->assertSame('Envio cancelado', $progress['status']);
     }
 }

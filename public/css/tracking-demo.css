@@ -538,6 +538,18 @@ body {
   animation: currentPulse 1.5s ease-in-out infinite;
 }
 
+.progress-track li.is-cancelled .step-dot {
+  border-color: #c93434;
+  background: #c93434;
+  color: #fff;
+  box-shadow: 0 0 0 8px rgba(201, 52, 52, 0.16);
+  animation: none;
+}
+
+.progress-track li.is-cancelled span {
+  color: #a92b2b;
+}
+
 .progress-mobile-hint {
   display: none;
 }
