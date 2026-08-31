@@ -70,12 +70,19 @@ class SiopAuthApiController extends Controller
 
     private function userPayload(?User $user): array
     {
+        $primaryRole = $user?->roles()
+            ->orderBy('roles.id')
+            ->first(['roles.id', 'roles.name']);
+
         return [
             'id' => $user?->id,
             'name' => $user?->name,
             'alias' => $user?->alias,
             'email' => $user?->email,
             'ciudad' => $user?->ciudad,
+            'role_id' => $primaryRole ? (int) $primaryRole->id : null,
+            'role' => $primaryRole ? (string) $primaryRole->name : null,
+            'roles' => $user?->getRoleNames()->values()->all() ?? [],
         ];
     }
 }

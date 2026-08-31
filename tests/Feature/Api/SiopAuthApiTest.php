@@ -8,6 +8,8 @@ use App\Support\ExternalApiJwt;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class SiopAuthApiTest extends TestCase
@@ -48,6 +50,21 @@ class SiopAuthApiTest extends TestCase
             $table->timestamps();
         });
 
+        Schema::create('roles', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
+            $table->string('guard_name');
+            $table->timestamps();
+            $table->unique(['name', 'guard_name']);
+        });
+
+        Schema::create('model_has_roles', function (Blueprint $table): void {
+            $table->unsignedBigInteger('role_id');
+            $table->string('model_type');
+            $table->unsignedBigInteger('model_id');
+            $table->primary(['role_id', 'model_id', 'model_type']);
+        });
+
         Schema::create('external_api_tokens', function (Blueprint $table): void {
             $table->id();
             $table->unsignedBigInteger('user_id')->nullable();
@@ -63,6 +80,8 @@ class SiopAuthApiTest extends TestCase
             $table->timestamp('revoked_at')->nullable();
             $table->timestamps();
         });
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 
     public function test_una_integracion_autorizada_puede_iniciar_sesion_en_siop(): void
@@ -71,6 +90,8 @@ class SiopAuthApiTest extends TestCase
             'alias' => 'operador.siop',
             'password' => 'ClaveSegura123',
         ]);
+        $role = Role::create(['name' => 'cartero_ems', 'guard_name' => 'web']);
+        $user->assignRole($role);
         $integrationToken = $this->externalToken(['siop:login']);
 
         $response = $this->withToken($integrationToken)
@@ -86,6 +107,9 @@ class SiopAuthApiTest extends TestCase
             ->assertJsonPath('token_type', 'Bearer')
             ->assertJsonPath('user.id', $user->id)
             ->assertJsonPath('user.alias', 'operador.siop')
+            ->assertJsonPath('user.role_id', $role->id)
+            ->assertJsonPath('user.role', 'cartero_ems')
+            ->assertJsonPath('user.roles.0', 'cartero_ems')
             ->assertJsonStructure(['access_token']);
 
         $this->assertDatabaseHas('personal_access_tokens', [
@@ -98,7 +122,8 @@ class SiopAuthApiTest extends TestCase
         $this->withToken($userToken)
             ->getJson('/api/siop/me')
             ->assertOk()
-            ->assertJsonPath('user.id', $user->id);
+            ->assertJsonPath('user.id', $user->id)
+            ->assertJsonPath('user.role', 'cartero_ems');
 
         $this->withToken($userToken)
             ->postJson('/api/siop/logout')
