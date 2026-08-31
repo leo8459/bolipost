@@ -50,6 +50,7 @@ class ChasquiAuthApiController extends Controller
 
         $user->tokens()->where('name', $deviceName)->delete();
         $accessToken = $user->createToken($deviceName, ['chasqui'])->plainTextToken;
+        $primaryRole = $user->roles()->orderBy('roles.id')->first(['roles.id', 'roles.name']);
 
         return response()->json([
             'message' => 'Inicio de sesion ChasquiApp correcto.',
@@ -61,6 +62,8 @@ class ChasquiAuthApiController extends Controller
                 'alias' => (string) $user->alias,
                 'email' => (string) $user->email,
                 'ciudad' => (string) $user->ciudad,
+                'role_id' => $primaryRole ? (int) $primaryRole->id : null,
+                'role' => $primaryRole ? (string) $primaryRole->name : null,
                 'roles' => $user->getRoleNames()->values()->all(),
             ],
         ]);

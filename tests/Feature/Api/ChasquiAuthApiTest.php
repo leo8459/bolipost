@@ -105,6 +105,9 @@ class ChasquiAuthApiTest extends TestCase
             ->assertJsonPath('message', 'Inicio de sesion ChasquiApp correcto.')
             ->assertJsonPath('user.id', $user->id)
             ->assertJsonPath('user.alias', 'cartero.chasqui')
+            ->assertJsonPath('user.role', 'cartero_ems')
+            ->assertJsonPath('user.roles.0', 'cartero_ems')
+            ->assertJsonPath('user.role_id', fn ($roleId): bool => is_int($roleId) && $roleId > 0)
             ->assertJsonStructure(['access_token']);
 
         $this->assertDatabaseHas('personal_access_tokens', [
