@@ -2,6 +2,95 @@
 
 return [
     'catalog' => [
+        'chasqui:login' => [
+            'name' => 'INICIO SESION CHASQUIAPP',
+            'description' => 'Valida el alias y la contrasena de un cartero habilitado y devuelve su Bearer Token personal.',
+            'access' => 'Autenticacion',
+            'icon' => 'fas fa-sign-in-alt',
+            'color' => 'primary',
+            'endpoints' => [
+                [
+                    'method' => 'POST',
+                    'path' => '/api/integraciones/chasqui/login',
+                    'example' => '',
+                    'body' => [
+                        'alias' => 'cartero.chasqui',
+                        'password' => 'ClaveSegura123',
+                        'device_name' => 'ChasquiApp Android',
+                    ],
+                    'response' => [
+                        'message' => 'Inicio de sesion ChasquiApp correcto.',
+                        'token_type' => 'Bearer',
+                        'access_token' => 'TOKEN_PERSONAL_DEL_CARTERO',
+                        'user' => [
+                            'id' => 1,
+                            'name' => 'Cartero Chasqui',
+                            'alias' => 'cartero.chasqui',
+                            'ciudad' => 'LA PAZ',
+                        ],
+                    ],
+                ],
+            ],
+        ],
+        'chasqui:paquetes:read' => [
+            'name' => 'CHASQUIAPP - Paquetes asignados al cartero',
+            'description' => 'Lista solamente los paquetes activos asignados al cartero autenticado. Requiere Authorization Bearer con el token personal y X-API-Token con la credencial de integracion.',
+            'access' => 'Solo lectura',
+            'icon' => 'fas fa-boxes',
+            'color' => 'success',
+            'endpoints' => [
+                [
+                    'method' => 'GET',
+                    'path' => '/api/chasqui/paquetes-asignados',
+                    'example' => '?per_page=25&page=1&search=EE123',
+                    'response' => [
+                        'data' => [
+                            [
+                                'id' => 1,
+                                'tipo_paquete' => 'EMS',
+                                'codigo' => 'EE123456789BO',
+                                'destinatario' => 'Destinatario Demo',
+                                'estado' => 'CARTERO',
+                            ],
+                        ],
+                        'meta' => [
+                            'page' => 1,
+                            'per_page' => 25,
+                            'total' => 1,
+                            'last_page' => 1,
+                        ],
+                    ],
+                ],
+            ],
+        ],
+        'chasqui:paquetes:assign' => [
+            'name' => 'CHASQUIAPP - Asignar paquetes al cartero',
+            'description' => 'Asigna al cartero autenticado los paquetes indicados, respetando estado, regional, conflictos y eventos de distribucion. Requiere Authorization Bearer y X-API-Token.',
+            'access' => 'Escritura',
+            'icon' => 'fas fa-user-check',
+            'color' => 'primary',
+            'endpoints' => [
+                [
+                    'method' => 'POST',
+                    'path' => '/api/chasqui/paquetes/asignar',
+                    'example' => '',
+                    'body' => [
+                        'items' => [
+                            ['id' => 15, 'tipo_paquete' => 'EMS'],
+                            ['id' => 28, 'tipo_paquete' => 'CONTRATO'],
+                        ],
+                    ],
+                    'response' => [
+                        'message' => 'Paquetes asignados correctamente en estado CARTERO.',
+                        'updated' => [
+                            'ems' => 1,
+                            'contrato' => 1,
+                            'total' => 2,
+                        ],
+                    ],
+                ],
+            ],
+        ],
         'siop:login' => [
             'name' => 'INICIO SESION SIOP',
             'description' => 'Valida el alias y la contrasena de un usuario de SIOP y devuelve un Bearer Token personal para la aplicacion.',

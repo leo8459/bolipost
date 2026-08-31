@@ -409,6 +409,16 @@ class CarterosController extends Controller
         );
     }
 
+    public function chasquiAssignedData(Request $request): JsonResponse
+    {
+        return $this->combinedDataResponse(
+            $request,
+            $this->resolveEstadoCarteroId(),
+            (int) $request->user()->id,
+            true
+        );
+    }
+
     public function provinciaData(Request $request): JsonResponse
     {
         $this->authorizeRoutePermission('carteros.cartero');
@@ -456,6 +466,21 @@ class CarterosController extends Controller
     {
         $this->authorizeRoutePermission('carteros.distribucion');
 
+        return $this->performAssignment($request);
+    }
+
+    public function assignChasqui(Request $request): JsonResponse
+    {
+        $request->merge([
+            'assignment_mode' => 'auto',
+            'user_id' => null,
+        ]);
+
+        return $this->performAssignment($request, true);
+    }
+
+    private function performAssignment(Request $request, bool $fromChasqui = false): JsonResponse
+    {
         $validated = $request->validate([
             'assignment_mode' => ['required', 'in:auto,user'],
             'user_id' => ['nullable', 'integer', 'exists:users,id'],
@@ -464,12 +489,12 @@ class CarterosController extends Controller
             'items.*.tipo_paquete' => ['required', 'in:EMS,CERTI,CONTRATO,ORDI,SOLICITUD'],
         ]);
 
-        if ($validated['assignment_mode'] === 'auto') {
+        if (! $fromChasqui && $validated['assignment_mode'] === 'auto') {
             $this->authorizeAnyFeaturePermission([
                 'feature.carteros.distribucion.assign',
                 'feature.carteros.distribucion.selfassign',
             ]);
-        } else {
+        } elseif (! $fromChasqui) {
             $this->authorizeFeaturePermission('feature.carteros.distribucion.assign');
         }
 

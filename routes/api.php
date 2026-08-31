@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AlertReadApiController;
 use App\Http\Controllers\Api\AuthTokenController;
+use App\Http\Controllers\Api\ChasquiAuthApiController;
 use App\Http\Controllers\Api\ClienteAuthApiController;
 use App\Http\Controllers\Api\ClienteSolicitudApiController;
 use App\Http\Controllers\Api\DireccionDestinoApiController;
@@ -20,6 +21,7 @@ use App\Http\Controllers\Api\SiopAuthApiController;
 use App\Http\Controllers\Api\VehicleLogApiController;
 use App\Http\Controllers\AppConfigController;
 use App\Http\Controllers\BusquedaController;
+use App\Http\Controllers\CarterosController;
 use App\Http\Controllers\PreregistroController;
 use App\Http\Controllers\RecojoController;
 use Illuminate\Support\Facades\Route;
@@ -79,6 +81,9 @@ Route::middleware(['force.json', 'external.api.jwt', 'throttle:120,1'])->group(f
     Route::post('/integraciones/siop/login', [SiopAuthApiController::class, 'login'])
         ->middleware(['external.api.ability:siop:login', 'throttle:10,1'])
         ->name('api.integraciones.siop.login');
+    Route::post('/integraciones/chasqui/login', [ChasquiAuthApiController::class, 'login'])
+        ->middleware(['external.api.ability:chasqui:login', 'throttle:10,1'])
+        ->name('api.integraciones.chasqui.login');
     Route::get('/integraciones/solicitudes-clientes', [ExternalClienteSolicitudApiController::class, 'globalIndex'])
         ->middleware('external.api.ability:solicitudes-clientes:read')
         ->name('api.integraciones.solicitudes-clientes.index');
@@ -132,6 +137,22 @@ Route::middleware(['force.json', 'external.api.jwt', 'throttle:120,1'])->group(f
         ->middleware('external.api.ability:direcciones-destino:update')
         ->whereNumber('id')
         ->name('api.direcciones-destino.update');
+});
+
+Route::prefix('chasqui')->middleware([
+    'force.json',
+    'external.api.jwt',
+    'auth:sanctum',
+    'abilities:chasqui',
+    'chasqui.cartero',
+    'throttle:120,1',
+])->group(function () {
+    Route::get('/paquetes-asignados', [CarterosController::class, 'chasquiAssignedData'])
+        ->middleware('external.api.ability:chasqui:paquetes:read')
+        ->name('api.chasqui.paquetes-asignados');
+    Route::post('/paquetes/asignar', [CarterosController::class, 'assignChasqui'])
+        ->middleware('external.api.ability:chasqui:paquetes:assign')
+        ->name('api.chasqui.paquetes.asignar');
 });
 
 Route::middleware('web')->group(function () {

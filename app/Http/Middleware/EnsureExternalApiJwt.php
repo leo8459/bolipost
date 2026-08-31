@@ -12,10 +12,11 @@ class EnsureExternalApiJwt
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $jwt = trim((string) $request->bearerToken());
+        // Chasqui reserva Authorization para el token personal del cartero.
+        $jwt = trim((string) $request->header('X-API-Token', ''));
 
         if ($jwt === '') {
-            $jwt = trim((string) $request->header('X-API-Token', ''));
+            $jwt = trim((string) $request->bearerToken());
         }
 
         $payload = $jwt !== '' ? ExternalApiJwt::decode($jwt) : null;

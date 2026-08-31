@@ -5,6 +5,7 @@ use App\Http\Middleware\EnsureAclPermissionsSynced;
 use App\Http\Middleware\EnsureClienteAclPermissionsSynced;
 use App\Http\Middleware\EnsureClienteProfileComplete;
 use App\Http\Middleware\EnsureClienteRoutePermission;
+use App\Http\Middleware\EnsureChasquiCartero;
 use App\Http\Middleware\EnsureEmpresaContractUsersActive;
 use App\Http\Middleware\EnsureExternalApiAbility;
 use App\Http\Middleware\EnsureExternalApiJwt;
@@ -50,6 +51,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'siop.api.token' => EnsureSiopApiToken::class,
             'external.api.jwt' => EnsureExternalApiJwt::class,
             'external.api.ability' => EnsureExternalApiAbility::class,
+            'chasqui.cartero' => EnsureChasquiCartero::class,
             'force.json' => ForceJsonResponse::class,
             'abilities' => CheckAbilities::class,
         ]);
