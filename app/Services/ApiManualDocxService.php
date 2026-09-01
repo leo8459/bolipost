@@ -68,11 +68,21 @@ class ApiManualDocxService
                 $body .= $this->paragraph('URL para Postman');
                 $body .= $this->codeParagraph($url);
                 $body .= $this->paragraph('Cabeceras');
-                $body .= $this->codeParagraph("Authorization: Bearer TOKEN_JWT_DE_LA_INTEGRACION\nAccept: application/json\nContent-Type: application/json");
+                $headers = (array) ($endpoint['headers'] ?? [
+                    'Authorization' => 'Bearer TOKEN_JWT_DE_LA_INTEGRACION',
+                    'Accept' => 'application/json',
+                    'Content-Type' => 'application/json',
+                ]);
+                $body .= $this->codeParagraph(collect($headers)
+                    ->map(fn ($value, $name): string => $name.': '.$value)
+                    ->implode("\n"));
 
                 if (! empty($endpoint['body'])) {
-                    $body .= $this->paragraph('Body > raw > JSON', 'Heading3');
-                    $body .= $this->codeParagraph($this->json($endpoint['body']));
+                    $isFormData = ($endpoint['body_type'] ?? 'json') === 'form-data';
+                    $body .= $this->paragraph($isFormData ? 'Body > form-data' : 'Body > raw > JSON', 'Heading3');
+                    $body .= $this->codeParagraph($isFormData
+                        ? collect($endpoint['body'])->map(fn ($value, $name): string => $name.': '.$value)->implode("\n")
+                        : $this->json($endpoint['body']));
                 } else {
                     $body .= $this->paragraph('Esta solicitud no requiere cuerpo JSON.', 'Metadata');
                 }

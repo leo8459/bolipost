@@ -159,6 +159,27 @@ class ChasquiAuthApiTest extends TestCase
             ->assertUnauthorized();
     }
 
+    public function test_entrega_exige_credencial_con_permiso_y_token_personal_del_cartero(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole(Role::create(['name' => 'cartero_ems', 'guard_name' => 'web']));
+        $personalToken = $user->createToken('Chasqui Android', ['chasqui'])->plainTextToken;
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer '.$personalToken,
+            'X-API-Token' => $this->externalToken(['chasqui:paquetes:deliver']),
+        ])->postJson('/api/chasqui/paquetes/entregar', [])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['tipo_paquete', 'foto']);
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer '.$personalToken,
+            'X-API-Token' => $this->externalToken(['chasqui:paquetes:read']),
+        ])->postJson('/api/chasqui/paquetes/entregar', [])
+            ->assertForbidden()
+            ->assertJsonPath('permiso_requerido', 'chasqui:paquetes:deliver');
+    }
+
     /** @param array<int, string> $abilities */
     private function externalToken(array $abilities): string
     {

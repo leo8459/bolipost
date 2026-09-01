@@ -94,6 +94,46 @@ return [
                 ],
             ],
         ],
+        'chasqui:paquetes:deliver' => [
+            'name' => 'ENTREGA CARTEROS',
+            'description' => 'Permite al cartero autenticado confirmar la entrega de uno de sus paquetes asignados, registrando receptor, fecha, observacion, evento de seguimiento y fotografia obligatoria.',
+            'access' => 'Escritura con foto',
+            'icon' => 'fas fa-camera-retro',
+            'color' => 'success',
+            'endpoints' => [
+                [
+                    'method' => 'POST',
+                    'path' => '/api/chasqui/paquetes/entregar',
+                    'example' => '',
+                    'body_type' => 'form-data',
+                    'headers' => [
+                        'Authorization' => 'Bearer TOKEN_PERSONAL_DEL_CARTERO',
+                        'X-API-Token' => 'TOKEN_JWT_DE_LA_INTEGRACION',
+                        'Accept' => 'application/json',
+                    ],
+                    'body' => [
+                        'tipo_paquete' => 'EMS',
+                        'id' => 15,
+                        'recibido_por' => 'Maria Perez',
+                        'fecha_entrega' => '2026-09-01T14:30',
+                        'descripcion' => 'Entregado personalmente en domicilio.',
+                        'foto' => '@foto_entrega.jpg (tipo File)',
+                    ],
+                    'response' => [
+                        'message' => 'Correspondencia entregada correctamente.',
+                        'data' => [
+                            'id' => 15,
+                            'tipo_paquete' => 'EMS',
+                            'codigo' => 'EE123456789BO',
+                            'estado' => 'ENTREGADO',
+                            'recibido_por' => 'Maria Perez',
+                            'fecha_entrega' => '2026-09-01T14:30:00-04:00',
+                            'foto_guardada' => true,
+                        ],
+                    ],
+                ],
+            ],
+        ],
         'siop:login' => [
             'name' => 'INICIO SESION SIOP',
             'description' => 'Valida el alias y la contrasena de un usuario de SIOP y devuelve un Bearer Token personal para la aplicacion.',

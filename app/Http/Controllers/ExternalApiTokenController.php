@@ -106,6 +106,8 @@ class ExternalApiTokenController extends Controller
                     'selectable' => true,
                     'query' => (string) ($endpoint['example'] ?? ''),
                     'body' => $endpoint['body'] ?? null,
+                    'body_type' => (string) ($endpoint['body_type'] ?? 'json'),
+                    'headers' => $endpoint['headers'] ?? null,
                     'response' => $endpoint['response'] ?? null,
                 ]);
             }

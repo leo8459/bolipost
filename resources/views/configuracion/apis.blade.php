@@ -440,12 +440,13 @@
                                                             'name' => $apiRoute['name'],
                                                             'method' => $apiRoute['method'],
                                                             'url' => rtrim(request()->getSchemeAndHttpHost(), '/').$apiRoute['uri'].$apiRoute['query'],
-                                                            'headers' => [
+                                                            'headers' => $apiRoute['headers'] ?? [
                                                                 'Authorization' => 'Bearer TOKEN_JWT_DE_LA_INTEGRACION',
                                                                 'Accept' => 'application/json',
                                                                 'Content-Type' => 'application/json',
                                                             ],
                                                             'body' => $apiRoute['body'],
+                                                            'body_type' => $apiRoute['body_type'] ?? 'json',
                                                             'response' => $apiRoute['response'],
                                                         ];
                                                     @endphp
@@ -502,7 +503,7 @@
                                     <textarea class="form-control api-token-value" id="apiExampleHeaders" rows="7" readonly></textarea>
                                 </div>
                                 <div class="col-lg-6">
-                                    <label>Body &gt; raw &gt; JSON</label>
+                                    <label id="apiExampleBodyLabel">Body &gt; raw &gt; JSON</label>
                                     <textarea class="form-control api-token-value" id="apiExampleBody" rows="7" readonly></textarea>
                                 </div>
                             </div>
@@ -740,8 +741,14 @@
                     document.getElementById('apiExampleHeaders').value = Object.entries(example.headers)
                         .map(([name, value]) => `${name}: ${value}`)
                         .join('\n');
+                    const isFormData = example.body_type === 'form-data';
+                    document.getElementById('apiExampleBodyLabel').textContent = isFormData
+                        ? 'Body > form-data (foto como File)'
+                        : 'Body > raw > JSON';
                     document.getElementById('apiExampleBody').value = example.body
-                        ? JSON.stringify(example.body, null, 2)
+                        ? (isFormData
+                            ? Object.entries(example.body).map(([name, value]) => `${name}: ${value}`).join('\n')
+                            : JSON.stringify(example.body, null, 2))
                         : 'Esta solicitud no requiere Body.';
                     document.getElementById('apiExampleResponse').value = example.response
                         ? JSON.stringify(example.response, null, 2)

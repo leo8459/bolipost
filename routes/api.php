@@ -154,6 +154,9 @@ Route::prefix('chasqui')->middleware([
     Route::post('/paquetes/asignar', [CarterosController::class, 'assignChasqui'])
         ->middleware('external.api.ability:chasqui:paquetes:assign')
         ->name('api.chasqui.paquetes.asignar');
+    Route::post('/paquetes/entregar', [CarterosController::class, 'deliverChasquiPackage'])
+        ->middleware('external.api.ability:chasqui:paquetes:deliver')
+        ->name('api.chasqui.paquetes.entregar');
 });
 
 Route::middleware('web')->group(function () {
