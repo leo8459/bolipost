@@ -139,7 +139,7 @@ class CarteroDeliveryApiTest extends TestCase
     {
         DB::table('app_settings')->insert([
             ['key' => 'chasqui.notifications.enabled', 'value' => '1'],
-            ['key' => 'chasqui.notifications.interval_minutes', 'value' => '30'],
+            ['key' => 'chasqui.notifications.interval_minutes', 'value' => '1'],
             ['key' => 'chasqui.notifications.title', 'value' => 'ChasquiApp'],
             ['key' => 'chasqui.notifications.message', 'value' => 'Tienes paquetes pendientes'],
         ]);
@@ -170,8 +170,8 @@ class CarteroDeliveryApiTest extends TestCase
             ->assertJsonPath('pending_packages', 1)
             ->assertJsonPath('pending_by_type.EMS', 1)
             ->assertJsonPath('notification.message', 'Tienes paquetes pendientes')
-            ->assertJsonPath('notification.interval_minutes', 30)
-            ->assertJsonPath('notification.interval_seconds', 1800);
+            ->assertJsonPath('notification.interval_minutes', 1)
+            ->assertJsonPath('notification.interval_seconds', 60);
     }
 
     private function createTables(): void
