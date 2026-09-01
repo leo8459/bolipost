@@ -546,9 +546,8 @@ body {
   top: calc(2.7rem + 33px);
   left: 7%;
   right: 7%;
-  height: 4px;
-  border-radius: 999px;
-  background: #e1edf9;
+  height: 0;
+  border-top: 2px dashed #d4e2f1;
 }
 
 .progress-track li {
@@ -708,7 +707,7 @@ body {
 }
 
 .progress-track li.is-done::after {
-  border-top-style: solid;
+  border-top-style: dashed;
   border-top-color: var(--green);
 }
 
