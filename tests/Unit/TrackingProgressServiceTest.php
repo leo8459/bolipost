@@ -68,4 +68,29 @@ class TrackingProgressServiceTest extends TestCase
         $this->assertTrue($progress['is_cancelled']);
         $this->assertSame('Envio cancelado', $progress['status']);
     }
+
+    public function test_latest_customs_event_adds_a_blue_customs_step_after_expedition(): void
+    {
+        $progress = app(TrackingProgressService::class)->resolve([
+            (object) ['codigo_evento' => 34, 'nombre_evento' => 'Registrar informacion de aduanas sobre el envio'],
+            (object) ['codigo_evento' => 30, 'nombre_evento' => 'Paquete recibido en oficina de transito'],
+        ], 'EMS');
+
+        $this->assertSame(['Admision', 'Despacho', 'Expedicion', 'Aduana', 'Ventanilla', 'Entregado'], $progress['steps']);
+        $this->assertSame(3, $progress['current_index']);
+        $this->assertTrue($progress['is_customs']);
+    }
+
+    public function test_customs_step_stays_completed_after_the_package_reaches_the_counter(): void
+    {
+        $progress = app(TrackingProgressService::class)->resolve([
+            (object) ['codigo_evento' => 32, 'nombre_evento' => 'Paquete listo para entregar en oficina'],
+            (object) ['codigo_evento' => 34, 'nombre_evento' => 'Registrar informacion de aduanas sobre el envio'],
+            (object) ['codigo_evento' => 30, 'nombre_evento' => 'Paquete recibido en oficina de transito'],
+        ], 'EMS');
+
+        $this->assertSame(['Admision', 'Despacho', 'Expedicion', 'Aduana', 'Ventanilla', 'Entregado'], $progress['steps']);
+        $this->assertSame(4, $progress['current_index']);
+        $this->assertFalse($progress['is_customs']);
+    }
 }

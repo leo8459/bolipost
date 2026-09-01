@@ -41,6 +41,26 @@
         $estadoGlobal = $trackingProgress['status'];
         $envioCancelado = $trackingProgress['is_cancelled'];
         $envioEnAduana = $trackingProgress['is_customs'] ?? false;
+        $imagenesPasos = [
+            'Admision' => 'admision',
+            'Clasificacion' => 'admision',
+            'Despacho' => 'despacho',
+            'Expedicion' => 'expedision',
+            'Aduana' => 'aduana',
+            'Ventanilla' => 'ventanilla',
+            'Cartero' => 'cartero',
+            'Entregado' => 'entregado',
+        ];
+        $ayudasPasos = [
+            'Admision' => 'Tu envio fue recibido y registrado.',
+            'Clasificacion' => 'Tu envio fue recibido y clasificado.',
+            'Despacho' => 'Fue preparado para su traslado.',
+            'Expedicion' => 'Esta en movimiento dentro de la red postal.',
+            'Aduana' => 'Esta en control aduanero.',
+            'Ventanilla' => 'Esta disponible para su recojo en oficina.',
+            'Cartero' => 'Esta con el cartero para su entrega.',
+            'Entregado' => 'La entrega fue confirmada.',
+        ];
         $entregaConfirmada = $estadoGlobal === 'Entregado';
 
         $normalizarIso2 = function (?string $valor): ?string {
@@ -739,9 +759,21 @@
                                 $current = $index === $pasoActual;
                                 $cancelledCurrent = $envioCancelado && $current;
                                 $customsCurrent = $envioEnAduana && $current;
+                                $imagenPaso = $imagenesPasos[$paso] ?? null;
+                                $imagenPendiente = $imagenPaso && !$done && !$current
+                                    ? $imagenPaso . '-blanco'
+                                    : $imagenPaso;
+                                $ayudaPaso = $ayudasPasos[$paso] ?? $paso;
                             @endphp
                             <li class="{{ $done ? 'is-done' : '' }} {{ $current ? 'is-current' : '' }} {{ $cancelledCurrent ? 'is-cancelled' : '' }} {{ $customsCurrent ? 'is-customs' : '' }}" style="--step-index: {{ $index }};">
-                                <div class="step-dot">{!! $done ? '&#10003;' : ($cancelledCurrent ? '!' : ($current ? '&#9679;' : '&#9675;')) !!}</div>
+                                <span class="step-tooltip" role="tooltip">{{ $ayudaPaso }}</span>
+                                <div class="step-dot">
+                                    @if ($imagenPendiente)
+                                        <img src="{{ asset('images/eventos/' . $imagenPendiente . '.png') }}" alt="" aria-hidden="true">
+                                    @else
+                                        {!! $cancelledCurrent ? '!' : '&#9675;' !!}
+                                    @endif
+                                </div>
                                 <span>{{ $paso }}</span>
                             </li>
                         @endforeach

@@ -74,6 +74,7 @@ class TrackingProgressService
         $firstStep = in_array(strtoupper($service), ['ORDI', 'CERTI'], true) ? 'Clasificacion' : 'Admision';
         $isCancelled = $events->isNotEmpty() && $this->isCancelledText($this->eventText((object) $events->first()));
         $isInCustoms = $events->isNotEmpty() && $this->isCustomsEvent((object) $events->first());
+        $hasCustomsStep = $events->contains(fn ($event) => $this->isCustomsEvent((object) $event));
         $highestStage = self::STAGE_ADMISSION;
         $hasCourierEvent = false;
         $hasIncident = false;
@@ -88,18 +89,8 @@ class TrackingProgressService
             $hasIncident = $hasIncident || $this->isIncident($event);
         }
 
-        $steps = [$firstStep, 'Despacho', 'Expedicion'];
-        if ($isInCustoms) {
-            $steps[] = 'Aduana';
-        }
-        $steps[] = 'Ventanilla';
-        if ($hasCourierEvent || $highestStage >= self::STAGE_COURIER) {
-            $steps[] = 'Cartero';
-        }
-        $steps[] = 'Entregado';
-
         if ($isCancelled) {
-            $steps[1] = 'Cancelado';
+            $steps = [$firstStep, 'Cancelado', 'Expedicion', 'Ventanilla', 'Entregado'];
 
             return [
                 'steps' => $steps,
@@ -111,9 +102,23 @@ class TrackingProgressService
             ];
         }
 
+        $steps = [$firstStep, 'Despacho', 'Expedicion'];
+        if ($hasCustomsStep) {
+            $steps[] = 'Aduana';
+        }
+        $steps[] = 'Ventanilla';
+        if ($hasCourierEvent || $highestStage >= self::STAGE_COURIER) {
+            $steps[] = 'Cartero';
+        }
+        $steps[] = 'Entregado';
+
         $currentIndex = $isInCustoms
             ? 3
-            : $this->stepIndex($highestStage, $hasCourierEvent || $highestStage >= self::STAGE_COURIER);
+            : $this->stepIndex(
+                $highestStage,
+                $hasCourierEvent || $highestStage >= self::STAGE_COURIER,
+                $hasCustomsStep
+            );
         return [
             'steps' => $steps,
             'current_index' => $currentIndex,
@@ -171,17 +176,19 @@ class TrackingProgressService
         return null;
     }
 
-    private function stepIndex(int $stage, bool $hasCourierStep): int
+    private function stepIndex(int $stage, bool $hasCourierStep, bool $hasCustomsStep): int
     {
+        $customsOffset = $hasCustomsStep && $stage >= self::STAGE_COUNTER ? 1 : 0;
+
         if ($stage === self::STAGE_DELIVERED) {
-            return $hasCourierStep ? 5 : 4;
+            return ($hasCourierStep ? 5 : 4) + $customsOffset;
         }
 
         if ($stage === self::STAGE_COURIER) {
-            return 4;
+            return 4 + $customsOffset;
         }
 
-        return $stage;
+        return $stage + $customsOffset;
     }
 
     private function isIncident(mixed $event): bool
@@ -199,12 +206,14 @@ class TrackingProgressService
 
     private function isCustomsEvent(object $event): bool
     {
-        if ($this->numericValue($event->codigo_evento ?? null) === 31) {
+        // UPU inbound customs lifecycle: send to customs, record customs data, or stop import.
+        if (in_array($this->numericValue($event->codigo_evento ?? null), [31, 34, 76], true)) {
             return true;
         }
 
         return $this->containsAny($this->eventText($event), [
-            'send item to customs', 'enviado a control aduanero', 'enviado a aduana',
+            'send item to customs', 'record item customs information', 'stop item import',
+            'enviado a control aduanero', 'enviado a aduana', 'registrar informacion de aduanas',
         ]);
     }
 
