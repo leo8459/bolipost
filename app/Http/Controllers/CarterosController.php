@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Mail\PaqueteEmsDistribucionMail;
+use App\Models\AppSetting;
 use App\Models\Cartero;
 use App\Models\CarteroAssignmentReport;
 use App\Models\Estado;
@@ -587,6 +588,34 @@ class CarterosController extends Controller
                 'foto_guardada' => ! empty($imagenPath),
             ],
             'warning' => $syncWarning,
+        ]);
+    }
+
+    public function chasquiPendingNotification(Request $request): JsonResponse
+    {
+        $intervalMinutes = min(1440, max(
+            15,
+            (int) AppSetting::getValue('chasqui.notifications.interval_minutes', '15')
+        ));
+        $enabled = AppSetting::getValue('chasqui.notifications.enabled', '1') === '1';
+        $pendingByType = $this->pendingPackageCountsForUser((int) $request->user()->id);
+        $pendingTotal = array_sum($pendingByType);
+
+        return response()->json([
+            'should_notify' => $enabled && $pendingTotal > 0,
+            'pending_packages' => $pendingTotal,
+            'notification' => [
+                'enabled' => $enabled,
+                'channel_id' => 'chasqui_paquetes_pendientes',
+                'notification_id' => 2401,
+                'title' => AppSetting::getValue('chasqui.notifications.title', 'ChasquiApp'),
+                'message' => AppSetting::getValue('chasqui.notifications.message', 'Tienes paquetes pendientes'),
+                'interval_minutes' => $intervalMinutes,
+                'interval_seconds' => $intervalMinutes * 60,
+            ],
+            'pending_by_type' => $pendingByType,
+            'checked_at' => now()->toIso8601String(),
+            'next_check_at' => now()->addMinutes($intervalMinutes)->toIso8601String(),
         ]);
     }
 
@@ -3066,6 +3095,38 @@ class CarterosController extends Controller
 
             return $row;
         })->values();
+    }
+
+    /** @return array<string, int> */
+    private function pendingPackageCountsForUser(int $userId): array
+    {
+        $pendingStateIds = [
+            $this->resolveEstadoCarteroId(),
+            $this->resolveEstadoProvinciaId(),
+        ];
+        $types = [
+            'EMS' => ['table' => 'paquetes_ems', 'foreign_key' => 'id_paquetes_ems', 'state_column' => 'estado_id'],
+            'CERTI' => ['table' => 'paquetes_certi', 'foreign_key' => 'id_paquetes_certi', 'state_column' => 'fk_estado'],
+            'ORDI' => ['table' => 'paquetes_ordi', 'foreign_key' => 'id_paquetes_ordi', 'state_column' => 'fk_estado'],
+            'CONTRATO' => ['table' => 'paquetes_contrato', 'foreign_key' => 'id_paquetes_contrato', 'state_column' => 'estados_id'],
+            'SOLICITUD' => ['table' => 'solicitud_clientes', 'foreign_key' => 'id_solicitud_cliente', 'state_column' => 'estado_id'],
+        ];
+
+        return collect($types)->mapWithKeys(function (array $definition, string $type) use ($userId, $pendingStateIds): array {
+            if (! Schema::hasTable($definition['table'])) {
+                return [$type => 0];
+            }
+
+            $count = DB::table('cartero as c')
+                ->join($definition['table'].' as p', 'p.id', '=', 'c.'.$definition['foreign_key'])
+                ->where('c.id_user', $userId)
+                ->whereIn('c.id_estados', $pendingStateIds)
+                ->whereIn('p.'.$definition['state_column'], $pendingStateIds)
+                ->distinct()
+                ->count('p.id');
+
+            return [$type => $count];
+        })->all();
     }
 
     private function storeDeliveryPhoto(Request $request, ?string $currentPath = null): ?string

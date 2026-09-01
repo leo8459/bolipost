@@ -41,7 +41,7 @@ class CarteroDeliveryApiTest extends TestCase
 
     protected function tearDown(): void
     {
-        foreach (['eventos_ems', 'cartero', 'paquetes_ems', 'eventos', 'estados', 'users'] as $table) {
+        foreach (['app_settings', 'eventos_ems', 'cartero', 'paquetes_ems', 'eventos', 'estados', 'users'] as $table) {
             Schema::dropIfExists($table);
         }
 
@@ -135,6 +135,45 @@ class CarteroDeliveryApiTest extends TestCase
             ->assertJsonValidationErrors('foto');
     }
 
+    public function test_api_indica_intervalo_y_paquetes_pendientes_del_cartero(): void
+    {
+        DB::table('app_settings')->insert([
+            ['key' => 'chasqui.notifications.enabled', 'value' => '1'],
+            ['key' => 'chasqui.notifications.interval_minutes', 'value' => '30'],
+            ['key' => 'chasqui.notifications.title', 'value' => 'ChasquiApp'],
+            ['key' => 'chasqui.notifications.message', 'value' => 'Tienes paquetes pendientes'],
+        ]);
+        DB::table('paquetes_ems')->insert([
+            'id' => 16,
+            'codigo' => 'EE987654321BO',
+            'nombre_destinatario' => 'Destinatario pendiente',
+            'ciudad' => 'LA PAZ',
+            'estado_id' => 13,
+            'imagen' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('cartero')->insert([
+            'id' => 91,
+            'id_paquetes_ems' => 16,
+            'id_estados' => 13,
+            'id_user' => 38,
+            'intento' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs(User::query()->findOrFail(38))
+            ->getJson('/api/chasqui/notificaciones/pendientes')
+            ->assertOk()
+            ->assertJsonPath('should_notify', true)
+            ->assertJsonPath('pending_packages', 1)
+            ->assertJsonPath('pending_by_type.EMS', 1)
+            ->assertJsonPath('notification.message', 'Tienes paquetes pendientes')
+            ->assertJsonPath('notification.interval_minutes', 30)
+            ->assertJsonPath('notification.interval_seconds', 1800);
+    }
+
     private function createTables(): void
     {
         Schema::create('users', function (Blueprint $table): void {
@@ -185,6 +224,12 @@ class CarteroDeliveryApiTest extends TestCase
             $table->string('codigo');
             $table->unsignedBigInteger('evento_id');
             $table->unsignedBigInteger('user_id');
+            $table->timestamps();
+        });
+        Schema::create('app_settings', function (Blueprint $table): void {
+            $table->id();
+            $table->string('key')->unique();
+            $table->text('value')->nullable();
             $table->timestamps();
         });
     }

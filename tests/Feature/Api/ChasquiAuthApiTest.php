@@ -180,6 +180,20 @@ class ChasquiAuthApiTest extends TestCase
             ->assertJsonPath('permiso_requerido', 'chasqui:paquetes:deliver');
     }
 
+    public function test_notificaciones_exigen_su_permiso_de_integracion(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole(Role::create(['name' => 'cartero_ems', 'guard_name' => 'web']));
+        $personalToken = $user->createToken('Chasqui Android', ['chasqui'])->plainTextToken;
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer '.$personalToken,
+            'X-API-Token' => $this->externalToken(['chasqui:paquetes:read']),
+        ])->getJson('/api/chasqui/notificaciones/pendientes')
+            ->assertForbidden()
+            ->assertJsonPath('permiso_requerido', 'chasqui:notificaciones:read');
+    }
+
     /** @param array<int, string> $abilities */
     private function externalToken(array $abilities): string
     {

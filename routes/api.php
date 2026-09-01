@@ -157,6 +157,9 @@ Route::prefix('chasqui')->middleware([
     Route::post('/paquetes/entregar', [CarterosController::class, 'deliverChasquiPackage'])
         ->middleware('external.api.ability:chasqui:paquetes:deliver')
         ->name('api.chasqui.paquetes.entregar');
+    Route::get('/notificaciones/pendientes', [CarterosController::class, 'chasquiPendingNotification'])
+        ->middleware('external.api.ability:chasqui:notificaciones:read')
+        ->name('api.chasqui.notificaciones.pendientes');
 });
 
 Route::middleware('web')->group(function () {
