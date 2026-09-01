@@ -446,6 +446,9 @@ body {
 
 .progress-card {
   overflow: hidden;
+  border: 1px solid #c8d9ed;
+  background: #fff;
+  box-shadow: 0 14px 30px rgba(21, 64, 111, 0.1);
 }
 
 .progress-card::after {
@@ -457,12 +460,40 @@ body {
   display: none;
 }
 
+.progress-card .card-head {
+  padding: 1rem 1.3rem 0.9rem;
+  border-bottom: 1px solid rgba(182, 204, 230, 0.7);
+}
+
+.progress-card .card-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.58rem;
+}
+
+.progress-card .card-head h2::before {
+  content: "";
+  width: 0.42rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffd237, #f1ae12);
+  box-shadow: 0 3px 8px rgba(241, 174, 18, 0.26);
+}
+
+.progress-card .card-head span {
+  padding: 0.42rem 0.7rem;
+  border: 1px solid #d5e3f2;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  font-size: 0.78rem;
+}
+
 .progress-track {
   list-style: none;
   display: grid;
   grid-template-columns: repeat(var(--steps-count, 6), minmax(0, 1fr));
-  gap: 0.45rem;
-  padding: 0.18rem 0.9rem 1rem;
+  gap: 0;
+  padding: 1.25rem 1.25rem 1.35rem;
 }
 
 .progress-track li {
@@ -474,6 +505,44 @@ body {
   transition-delay: calc(var(--step-index, 0) * 70ms);
 }
 
+.step-tooltip {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  bottom: calc(100% - 0.4rem);
+  width: max-content;
+  max-width: 13rem;
+  padding: 0.46rem 0.62rem;
+  border-radius: 0.65rem;
+  background: #123c6b;
+  box-shadow: 0 8px 18px rgba(12, 49, 88, 0.2);
+  color: #fff !important;
+  font-size: 0.69rem !important;
+  font-weight: 650 !important;
+  line-height: 1.25;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 0.45rem) scale(0.96);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.step-tooltip::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -0.32rem;
+  width: 0.62rem;
+  height: 0.62rem;
+  background: #123c6b;
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.progress-track li:hover .step-tooltip,
+.progress-track li:focus-within .step-tooltip {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+
 .progress-track li.is-animated {
   opacity: 1;
   transform: translateY(0);
@@ -482,10 +551,10 @@ body {
 .progress-track li::after {
   content: "";
   position: absolute;
-  top: 18px;
+  top: 34px;
   left: 50%;
   width: 100%;
-  border-top: 2px dashed #bccce2;
+  border-top: 2px dashed #c4d5e9;
   z-index: 0;
 }
 
@@ -494,19 +563,28 @@ body {
 .step-dot {
   position: relative;
   z-index: 1;
-  width: 36px;
-  height: 36px;
-  margin: 0 auto 0.48rem;
+  width: 68px;
+  height: 68px;
+  margin: 0 auto 0.62rem;
   border-radius: 999px;
-  border: 2px solid #b8c8dc;
+  border: 2px solid #d3e0ee;
   background: #fff;
   color: #8ca1bc;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
   font-size: 0.83rem;
   font-weight: 900;
-  transition: transform 0.22s ease, box-shadow 0.22s ease;
+  box-shadow: 0 6px 14px rgba(27, 67, 112, 0.08);
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+
+.step-dot img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .progress-track li span {
@@ -520,8 +598,7 @@ body {
 
 .progress-track li.is-done .step-dot,
 .progress-track li.is-current .step-dot {
-  border-color: var(--green);
-  background: var(--green);
+  border-color: #44a33a;
   color: #fff;
 }
 
@@ -531,10 +608,18 @@ body {
   font-weight: 750;
 }
 
-.progress-track li.is-done::after { border-top-color: var(--green); }
+.progress-track li.is-done::after {
+  border-top-style: solid;
+  border-top-color: var(--green);
+}
+
+.progress-track li:not(.is-done):not(.is-current) .step-dot {
+  opacity: 0.72;
+  box-shadow: none;
+}
 
 .progress-track li.is-current .step-dot {
-  box-shadow: 0 0 0 8px rgba(62, 165, 47, 0.16);
+  box-shadow: 0 0 0 7px rgba(62, 165, 47, 0.15), 0 8px 16px rgba(32, 111, 41, 0.16);
   animation: currentPulse 1.5s ease-in-out infinite;
 }
 
@@ -552,10 +637,10 @@ body {
 
 .progress-track li.is-customs .step-dot {
   border-color: #1976c9;
-  background: #1976c9;
+  background: rgba(25, 118, 201, 0.12);
   color: #fff;
-  box-shadow: 0 0 0 8px rgba(25, 118, 201, 0.16);
-  animation: currentPulse 1.5s ease-in-out infinite;
+  box-shadow: 0 0 0 7px rgba(25, 118, 201, 0.16), 0 8px 16px rgba(17, 86, 150, 0.17);
+  animation: customsPulse 1.5s ease-in-out infinite;
 }
 
 .progress-track li.is-customs span {
@@ -805,8 +890,13 @@ body {
 }
 
 @keyframes currentPulse {
-  0%, 100% { box-shadow: 0 0 0 8px rgba(62, 165, 47, 0.16); }
-  50% { box-shadow: 0 0 0 12px rgba(62, 165, 47, 0.09); }
+  0%, 100% { box-shadow: 0 0 0 7px rgba(62, 165, 47, 0.15), 0 8px 16px rgba(32, 111, 41, 0.16); }
+  50% { box-shadow: 0 0 0 12px rgba(62, 165, 47, 0.07), 0 8px 16px rgba(32, 111, 41, 0.16); }
+}
+
+@keyframes customsPulse {
+  0%, 100% { box-shadow: 0 0 0 7px rgba(25, 118, 201, 0.16), 0 8px 16px rgba(17, 86, 150, 0.17); }
+  50% { box-shadow: 0 0 0 12px rgba(25, 118, 201, 0.08), 0 8px 16px rgba(17, 86, 150, 0.17); }
 }
 
 @media (max-width: 980px) {
@@ -847,15 +937,16 @@ body {
   }
   .progress-track li::after {
     display: block;
-    left: calc(50% + 18px);
-    width: calc(100% - 36px);
+    top: 24px;
+    left: calc(50% + 24px);
+    width: calc(100% - 48px);
   }
   .progress-track li span {
     font-size: 0.72rem;
   }
   .step-dot {
-    width: 32px;
-    height: 32px;
+    width: 48px;
+    height: 48px;
     margin-bottom: 0.38rem;
     font-size: 0.76rem;
   }
