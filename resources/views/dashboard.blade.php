@@ -433,7 +433,7 @@
         <span class="badge badge-success ml-1">Verde = entregado</span>
         <span class="badge badge-warning ml-1">Amarillo = pendiente</span>
         <span class="badge badge-danger ml-1">Rojo = rezago</span>
-        <span class="ml-2 text-muted">Usa el boton de expandir para ver un grafico grande y cierra con ESC.</span>
+        <span class="ml-2 text-muted">Los pendientes y sus plazos se cuentan desde que el recojo o la recepcion del envio queda registrado. Las solicitudes todavia no recogidas no ingresan en En plazo, Retraso ni Rezago.</span>
     </div>
 
     <div class="row">

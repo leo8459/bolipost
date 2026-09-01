@@ -66,7 +66,7 @@
                         </div>
                         <div class="col-md-6 form-group">
                             <label>Origen</label>
-                            <select name="origen" class="form-control">
+                            <select name="origen" id="origen" class="form-control">
                                 <option value="">Seleccione...</option>
                                 @foreach($ciudades as $ciudad)
                                     <option value="{{ $ciudad }}" @selected(old('origen') === $ciudad)>{{ $ciudad }}</option>
@@ -75,7 +75,7 @@
                         </div>
                         <div class="col-md-6 form-group">
                             <label>Destino</label>
-                            <select name="destino_id" class="form-control">
+                            <select name="destino_id" id="destino_id" class="form-control">
                                 <option value="">Seleccione...</option>
                                 @foreach($destinos as $destino)
                                     <option value="{{ $destino->id }}" @selected((int) old('destino_id') === (int) $destino->id)>{{ $destino->nombre_destino }}</option>
@@ -89,6 +89,15 @@
                         <div class="col-md-6 form-group mb-0">
                             <label>Contenido</label>
                             <textarea name="contenido" rows="2" class="form-control">{{ old('contenido') }}</textarea>
+                        </div>
+                        <div class="col-md-6 form-group mb-0">
+                            <label>Precio de la solicitud</label>
+                            <div id="precio_solicitud" class="alert alert-light border mb-0 py-2" role="status" aria-live="polite">
+                                Seleccione el servicio, origen y destino para conocer el precio.
+                            </div>
+                            <small class="form-text text-muted">
+                                Si el volumen del paquete es muy grande, se a&ntilde;adir&aacute; un recargo de Bs 10 al precio indicado.
+                            </small>
                         </div>
                     </div>
                 </div>
@@ -157,7 +166,11 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const servicioSelect = document.getElementById('servicio_extra_id');
+    const origenSelect = document.getElementById('origen');
+    const destinoSelect = document.getElementById('destino_id');
     const direccionInput = document.getElementById('direccion_entrega');
+    const precioSolicitud = document.getElementById('precio_solicitud');
+    const quoteUrl = @json(route('clientes.solicitudes.quote'));
 
     if (!servicioSelect || !direccionInput) {
         return;
@@ -199,8 +212,55 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    function setPrecio(message, type) {
+        if (!precioSolicitud) return;
+
+        precioSolicitud.textContent = message;
+        precioSolicitud.className = 'alert border mb-0 py-2 alert-' + type;
+    }
+
+    async function cotizarSolicitud() {
+        const servicioId = servicioSelect.value;
+        const origen = origenSelect?.value || '';
+        const destinoId = destinoSelect?.value || '';
+
+        if (!servicioId || !origen || !destinoId) {
+            setPrecio('Seleccione el servicio, origen y destino para conocer el precio.', 'light');
+            return;
+        }
+
+        setPrecio('Calculando precio...', 'info');
+
+        try {
+            const params = new URLSearchParams({
+                servicio_extra_id: servicioId,
+                origen: origen,
+                destino_id: destinoId,
+            });
+            const response = await fetch(quoteUrl + '?' + params.toString(), {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+            const payload = await response.json();
+
+            if (!response.ok) {
+                throw new Error(payload.message || 'No se pudo calcular el precio.');
+            }
+
+            setPrecio('Precio: Bs ' + payload.precio + '.', 'success');
+        } catch (error) {
+            setPrecio(error.message || 'No se pudo calcular el precio.', 'warning');
+        }
+    }
+
     servicioSelect.addEventListener('change', syncDireccionEntrega);
+    servicioSelect.addEventListener('change', cotizarSolicitud);
+    origenSelect?.addEventListener('change', cotizarSolicitud);
+    destinoSelect?.addEventListener('change', cotizarSolicitud);
     syncDireccionEntrega();
+    cotizarSolicitud();
 });
 </script>
 @endpush

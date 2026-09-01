@@ -218,6 +218,18 @@
             text-transform: uppercase;
         }
 
+        .volume-notice {
+            margin-top: 6px;
+            padding: 7px;
+            border: 2px solid #000;
+            background: #fff;
+            color: #000;
+            font-size: 9px;
+            line-height: 1.35;
+            font-weight: 900;
+            text-align: center;
+        }
+
         .province-notice {
             margin-top: 6px;
             padding: 7px;
@@ -301,6 +313,10 @@
         $barcodePng = null;
         $destinoNombre = $solicitud->destino?->nombre_destino ?: $solicitud->ciudad;
         $fechaTicket = optional($solicitud->created_at)->format('d/m/Y H:i');
+        $logoPath = public_path('images/logo-horizontal-delivery.jpeg');
+        $logoSource = ($isPdf ?? false) && is_file($logoPath)
+            ? 'data:image/jpeg;base64,' . base64_encode(file_get_contents($logoPath))
+            : asset('images/logo-horizontal-delivery.jpeg');
 
         if ($codigo !== '' && class_exists('\DNS1D')) {
             try {
@@ -320,7 +336,7 @@
 
         <header class="ticket-head">
             <img
-                src="{{ asset('images/logo-horizontal-delivery.jpeg') }}"
+                src="{{ $logoSource }}"
                 alt="Delivery Express"
                 class="ticket-logo"
             >
@@ -409,8 +425,12 @@
             </section>
 
             <div class="total-box">
-                <span class="total-label">Total a cobrar</span>
+                <span class="total-label">Precio</span>
                 <span class="price">Bs {{ $solicitud->precio !== null ? number_format((float) $solicitud->precio, 2, '.', '') : '0.00' }}</span>
+            </div>
+
+            <div class="volume-notice">
+                Importante: Si el volumen del paquete es muy grande, se a&ntilde;adir&aacute; un recargo de Bs 10 al precio indicado.
             </div>
 
             <div class="pickup-notice">
@@ -433,17 +453,19 @@
         </section>
     </main>
 
-    <div class="actions">
-        <button type="button" onclick="window.print()">Imprimir</button>
-        <button type="button" class="secondary" onclick="window.close()">Cerrar</button>
-    </div>
+    @unless($isPdf ?? false)
+        <div class="actions">
+            <button type="button" onclick="window.print()">Imprimir</button>
+            <button type="button" class="secondary" onclick="window.close()">Cerrar</button>
+        </div>
 
-    <script>
-    window.addEventListener('load', function () {
-        setTimeout(function () {
-            window.print();
-        }, 250);
-    });
-    </script>
+        <script>
+        window.addEventListener('load', function () {
+            setTimeout(function () {
+                window.print();
+            }, 250);
+        });
+        </script>
+    @endunless
 </body>
 </html>

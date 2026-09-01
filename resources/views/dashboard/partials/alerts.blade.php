@@ -129,16 +129,48 @@
 </style>
 
 <script>
-    window.addEventListener('pageshow', function () {
-        var modalElement = document.getElementById('deliveryExpressPickupModal');
-        if (!modalElement || !window.jQuery || !window.jQuery.fn || !window.jQuery.fn.modal) {
-            return;
+    (function () {
+        var modalOpened = false;
+
+        function showDeliveryExpressPickupModal(attempt) {
+            if (modalOpened) {
+                return;
+            }
+
+            var modalElement = document.getElementById('deliveryExpressPickupModal');
+            var modalReady = modalElement
+                && window.jQuery
+                && window.jQuery.fn
+                && window.jQuery.fn.modal;
+
+            if (!modalReady) {
+                if (attempt < 20) {
+                    window.setTimeout(function () {
+                        showDeliveryExpressPickupModal(attempt + 1);
+                    }, 150);
+                }
+
+                return;
+            }
+
+            window.jQuery(modalElement).modal('show');
+            modalOpened = true;
         }
 
-        window.setTimeout(function () {
-            window.jQuery(modalElement).modal('show');
-        }, 350);
-    });
+        function scheduleDeliveryExpressPickupModal() {
+            window.setTimeout(function () {
+                showDeliveryExpressPickupModal(0);
+            }, 350);
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', scheduleDeliveryExpressPickupModal, { once: true });
+        } else {
+            scheduleDeliveryExpressPickupModal();
+        }
+
+        window.addEventListener('pageshow', scheduleDeliveryExpressPickupModal);
+    })();
 </script>
 @endif
 

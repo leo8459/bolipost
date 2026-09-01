@@ -14,6 +14,7 @@ class IndicadorController extends Controller
     private array $estadoIdCache = [];
 
     private const EVENTO_CONTRATO_ENTREGADO_ID = 316;
+    private const EVENTO_CONTRATO_RECOGIDO_ID = 295;
     private const EVENTO_EMS_SOLICITUD_ID = 295;
     private const EVENTO_EMS_ENTREGADO_ID = 316;
     private const EVENTO_CERTI_ENTREGADO_ID = 316;
@@ -108,6 +109,10 @@ class IndicadorController extends Controller
             ->select('codigo', DB::raw('MIN(created_at) as entregado_evento_at'))
             ->where('evento_id', self::EVENTO_CONTRATO_ENTREGADO_ID)
             ->groupBy('codigo');
+        $recojoSub = DB::table('eventos_contrato')
+            ->select('codigo', DB::raw('MIN(created_at) as recojo_evento_at'))
+            ->where('evento_id', self::EVENTO_CONTRATO_RECOGIDO_ID)
+            ->groupBy('codigo');
 
         $rows = DB::table('paquetes_contrato')
             ->leftJoin('estados', 'estados.id', '=', 'paquetes_contrato.estados_id')
@@ -115,6 +120,9 @@ class IndicadorController extends Controller
             ->leftJoin('users', 'users.id', '=', 'paquetes_contrato.user_id')
             ->leftJoinSub($entregadoSub, 'ev_entregado', function ($join) {
                 $join->on('ev_entregado.codigo', '=', 'paquetes_contrato.codigo');
+            })
+            ->leftJoinSub($recojoSub, 'ev_recojo', function ($join) {
+                $join->on('ev_recojo.codigo', '=', 'paquetes_contrato.codigo');
             })
             ->select([
                 'paquetes_contrato.codigo',
@@ -130,6 +138,7 @@ class IndicadorController extends Controller
                 'paquetes_contrato.created_at as fecha_registro',
                 'paquetes_contrato.updated_at as fecha_actualizacion',
                 'paquetes_contrato.fecha_recojo as fecha_recojo',
+                'ev_recojo.recojo_evento_at',
                 'ev_entregado.entregado_evento_at',
             ]);
 
@@ -297,6 +306,7 @@ class IndicadorController extends Controller
         );
         $inicioSub = DB::table('eventos_certi')
             ->select('codigo', DB::raw('MIN(created_at) as primer_evento_at'))
+            ->where('evento_id', 168)
             ->groupBy('codigo');
         $entregadoSub = DB::table('eventos_certi')
             ->select('codigo', DB::raw('MIN(created_at) as entregado_evento_at'))
@@ -388,6 +398,7 @@ class IndicadorController extends Controller
         );
         $inicioSub = DB::table('eventos_ordi')
             ->select('codigo', DB::raw('MIN(created_at) as primer_evento_at'))
+            ->where('evento_id', 295)
             ->groupBy('codigo');
         $entregadoSub = DB::table('eventos_ordi')
             ->select('codigo', DB::raw('MIN(created_at) as entregado_evento_at'))
@@ -672,8 +683,7 @@ class IndicadorController extends Controller
 
     private function decorateEmsSlaRow(object $row, bool $entregados): object
     {
-        $inicio = $this->safeCarbon($row->solicitud_at ?? null)
-            ?? $this->safeCarbon($row->fecha_registro ?? null);
+        $inicio = $this->safeCarbon($row->solicitud_at ?? null);
         $fin = $entregados
             ? ($this->safeCarbon($row->entregado_evento_at ?? null)
                 ?? $this->safeCarbon($row->fecha_actualizacion ?? null))
@@ -724,7 +734,7 @@ class IndicadorController extends Controller
 
     private function decorateContratoSlaRow(object $row, bool $entregados): object
     {
-        $inicio = $this->safeCarbon($row->fecha_recojo ?? null);
+        $inicio = $this->safeCarbon($row->recojo_evento_at ?? null);
         $fin = $entregados
             ? ($this->safeCarbon($row->entregado_evento_at ?? null)
                 ?? $this->safeCarbon($row->fecha_actualizacion ?? null))
@@ -776,8 +786,7 @@ class IndicadorController extends Controller
 
     private function decorateCertiOrdiSlaRow(object $row, bool $entregados): object
     {
-        $inicio = $this->safeCarbon($row->primer_evento_at ?? null)
-            ?? $this->safeCarbon($row->fecha_registro ?? null);
+        $inicio = $this->safeCarbon($row->primer_evento_at ?? null);
         $fin = $entregados
             ? ($this->safeCarbon($row->entregado_evento_at ?? null)
                 ?? $this->safeCarbon($row->fecha_actualizacion ?? null))

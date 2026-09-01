@@ -36,6 +36,8 @@ return [
     'route_permission_aliases' => [
         'clientes.solicitudes.index' => 'clientes.solicitudes.create',
         'clientes.solicitudes.store' => 'clientes.solicitudes.create',
+        'clientes.solicitudes.quote' => 'clientes.solicitudes.create',
+        'clientes.solicitudes.ticket' => 'clientes.solicitudes.history',
     ],
 
     'feature_permissions' => [

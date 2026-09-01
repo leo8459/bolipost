@@ -116,6 +116,7 @@
                                 <th>Destino</th>
                                 <th>Estado</th>
                                 <th>Fecha</th>
+                                <th>Comprobante</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -137,6 +138,9 @@
                                         @else
                                             <span class="text-muted">Sin tarifa</span>
                                         @endif
+                                        <span class="d-block mt-1 font-weight-bold text-primary">
+                                            Precio: {{ $solicitud->precio !== null ? 'Bs ' . number_format((float) $solicitud->precio, 2, '.', '') : 'No disponible' }}
+                                        </span>
                                     </td>
                                     <td>{{ $solicitud->origen }}</td>
                                     <td>{{ $solicitud->destino?->nombre_destino }}</td>
@@ -147,6 +151,11 @@
                                         </span>
                                     </td>
                                     <td>{{ optional($solicitud->created_at)->format('d/m/Y H:i') }}</td>
+                                    <td>
+                                        <a href="{{ route('clientes.solicitudes.ticket', $solicitud) }}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-file-pdf mr-1"></i> Descargar PDF
+                                        </a>
+                                    </td>
                                 </tr>
                             @endforeach
                         </tbody>

@@ -96,6 +96,14 @@ class DeliveryExpressPickupAlertTest extends TestCase
             ['LP-001', 'CBBA-001'],
             $alert['requests']->pluck('codigo_solicitud')->all()
         );
+
+        $html = view('dashboard.partials.alerts', [
+            'deliveryExpressPickupAlert' => $alert,
+        ])->render();
+
+        $this->assertStringContainsString('Alerta Delivery Express', $html);
+        $this->assertStringContainsString('id="deliveryExpressPickupModal"', $html);
+        $this->assertStringContainsString('showDeliveryExpressPickupModal', $html);
     }
 
     private function invokePickupAlert(User $user): array
