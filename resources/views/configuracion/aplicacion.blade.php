@@ -50,6 +50,69 @@
 
                 <hr>
 
+                <h5 class="mb-3">Notificaciones de ChasquiApp</h5>
+                <p class="text-muted">
+                    Configura cada cuanto tiempo la aplicacion consulta si el cartero tiene paquetes pendientes.
+                    Android permite un minimo fiable de 15 minutos para esta tarea en segundo plano.
+                </p>
+
+                <div class="form-group form-check">
+                    <input type="hidden" name="carteroNotificationEnabled" value="0">
+                    <input
+                        type="checkbox"
+                        class="form-check-input"
+                        id="carteroNotificationEnabled"
+                        name="carteroNotificationEnabled"
+                        value="1"
+                        {{ old('carteroNotificationEnabled', $settings['carteroNotificationEnabled']) ? 'checked' : '' }}>
+                    <label class="form-check-label" for="carteroNotificationEnabled">Activar avisos de paquetes pendientes</label>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group col-md-4">
+                        <label for="carteroNotificationIntervalMinutes">Avisar cada cuantos minutos</label>
+                        <input
+                            type="number"
+                            min="15"
+                            max="1440"
+                            step="1"
+                            id="carteroNotificationIntervalMinutes"
+                            name="carteroNotificationIntervalMinutes"
+                            class="form-control @error('carteroNotificationIntervalMinutes') is-invalid @enderror"
+                            value="{{ old('carteroNotificationIntervalMinutes', $settings['carteroNotificationIntervalMinutes']) }}"
+                            required>
+                        @error('carteroNotificationIntervalMinutes')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="form-group col-md-8">
+                        <label for="carteroNotificationTitle">Titulo de la notificacion</label>
+                        <input
+                            type="text"
+                            id="carteroNotificationTitle"
+                            name="carteroNotificationTitle"
+                            class="form-control"
+                            maxlength="80"
+                            value="{{ old('carteroNotificationTitle', $settings['carteroNotificationTitle']) }}"
+                            required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="carteroNotificationMessage">Mensaje de la notificacion</label>
+                    <input
+                        type="text"
+                        id="carteroNotificationMessage"
+                        name="carteroNotificationMessage"
+                        class="form-control"
+                        maxlength="180"
+                        value="{{ old('carteroNotificationMessage', $settings['carteroNotificationMessage']) }}"
+                        required>
+                    <small class="form-text text-muted">Solo se mostrara cuando el cartero tenga uno o mas paquetes pendientes.</small>
+                </div>
+
+                <hr>
+
                 <h5 class="mb-3">Facturacion</h5>
                 <p class="text-muted">Controla si los botones de emision aparecen o no dentro del modal de facturacion.</p>
 

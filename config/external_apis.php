@@ -134,6 +134,40 @@ return [
                 ],
             ],
         ],
+        'chasqui:notificaciones:read' => [
+            'name' => 'NOTIFICACIONES CARTEROS',
+            'description' => 'Indica si el cartero autenticado tiene paquetes pendientes y devuelve el titulo, mensaje e intervalo configurable que ChasquiApp debe usar para programar la notificacion del celular.',
+            'access' => 'Solo lectura',
+            'icon' => 'fas fa-bell',
+            'color' => 'warning',
+            'endpoints' => [
+                [
+                    'method' => 'GET',
+                    'path' => '/api/chasqui/notificaciones/pendientes',
+                    'example' => '',
+                    'headers' => [
+                        'Authorization' => 'Bearer TOKEN_PERSONAL_DEL_CARTERO',
+                        'X-API-Token' => 'TOKEN_JWT_DE_LA_INTEGRACION',
+                        'Accept' => 'application/json',
+                    ],
+                    'response' => [
+                        'should_notify' => true,
+                        'pending_packages' => 3,
+                        'notification' => [
+                            'enabled' => true,
+                            'title' => 'ChasquiApp',
+                            'message' => 'Tienes paquetes pendientes',
+                            'interval_minutes' => 15,
+                            'interval_seconds' => 900,
+                        ],
+                        'pending_by_type' => [
+                            'EMS' => 2,
+                            'CONTRATO' => 1,
+                        ],
+                    ],
+                ],
+            ],
+        ],
         'siop:login' => [
             'name' => 'INICIO SESION SIOP',
             'description' => 'Valida el alias y la contrasena de un usuario de SIOP y devuelve un Bearer Token personal para la aplicacion.',
