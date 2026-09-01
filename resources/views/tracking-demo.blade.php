@@ -748,7 +748,10 @@
 
                 <article class="card progress-card reveal-block" style="--reveal-delay: 110ms;">
                     <div class="card-head">
-                        <h2>Progreso del envio</h2>
+                        <div class="progress-heading">
+                            <h2>Progreso del envio</h2>
+                            <p class="progress-help"><span aria-hidden="true">i</span> Pasa o toca un icono para ver los detalles.</p>
+                        </div>
                         <span>Paso actual: <strong>{{ $pasos[$pasoActual] }}</strong></span>
                     </div>
                     <button class="progress-mobile-nav progress-mobile-nav-prev" id="progressPrev" type="button" aria-label="Ver pasos anteriores" hidden>&lsaquo;</button>
@@ -766,14 +769,14 @@
                                 $ayudaPaso = $ayudasPasos[$paso] ?? $paso;
                             @endphp
                             <li class="{{ $done ? 'is-done' : '' }} {{ $current ? 'is-current' : '' }} {{ $cancelledCurrent ? 'is-cancelled' : '' }} {{ $customsCurrent ? 'is-customs' : '' }}" style="--step-index: {{ $index }};">
-                                <span class="step-tooltip" role="tooltip">{{ $ayudaPaso }}</span>
-                                <div class="step-dot">
+                                <span class="step-tooltip" id="progreso-ayuda-{{ $index }}" role="tooltip">{{ $ayudaPaso }}</span>
+                                <button class="step-dot" type="button" aria-describedby="progreso-ayuda-{{ $index }}" aria-expanded="false" aria-label="{{ $paso }}. {{ $ayudaPaso }}">
                                     @if ($imagenPendiente)
                                         <img src="{{ asset('images/eventos/' . $imagenPendiente . '.png') }}" alt="" aria-hidden="true">
                                     @else
                                         {!! $cancelledCurrent ? '!' : '&#9675;' !!}
                                     @endif
-                                </div>
+                                </button>
                                 <span>{{ $paso }}</span>
                             </li>
                         @endforeach
@@ -983,6 +986,7 @@
         const revealBlocks = document.querySelectorAll('.reveal-block');
         const revealItems = document.querySelectorAll('.reveal-item');
         const progressItems = document.querySelectorAll('.progress-track li');
+        const progressDots = document.querySelectorAll('.progress-track .step-dot');
         const progressCard = document.querySelector('.progress-card');
         const progressTrack = document.querySelector('.progress-track');
         const progressCurrent = progressTrack?.querySelector('li.is-current') ?? progressTrack?.querySelector('li:last-child');
@@ -1061,6 +1065,38 @@
 
         progressPrev?.addEventListener('click', () => scrollProgressByStep(-1));
         progressNext?.addEventListener('click', () => scrollProgressByStep(1));
+
+        const closeProgressTooltips = (except = null) => {
+            progressItems.forEach((item) => {
+                if (item === except) return;
+                item.classList.remove('is-tooltip-open');
+                item.querySelector('.step-dot')?.setAttribute('aria-expanded', 'false');
+            });
+        };
+
+        progressDots.forEach((dot) => {
+            dot.addEventListener('click', () => {
+                const item = dot.closest('li');
+                if (!item) return;
+
+                const willOpen = !item.classList.contains('is-tooltip-open');
+                closeProgressTooltips(item);
+                item.classList.toggle('is-tooltip-open', willOpen);
+                dot.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+            });
+        });
+
+        document.addEventListener('click', (event) => {
+            if (!event.target.closest('.progress-track li')) {
+                closeProgressTooltips();
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                closeProgressTooltips();
+            }
+        });
 
         if (typeof Intl !== 'undefined' && typeof Intl.DisplayNames !== 'undefined') {
             const regionNames = new Intl.DisplayNames(['es', 'en'], { type: 'region' });

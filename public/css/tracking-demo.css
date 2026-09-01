@@ -461,8 +461,12 @@ body {
 }
 
 .progress-card .card-head {
-  padding: 1rem 1.3rem 0.9rem;
+  padding: 0.82rem 1.3rem 0.76rem;
   border-bottom: 1px solid rgba(182, 204, 230, 0.7);
+}
+
+.progress-heading {
+  min-width: 0;
 }
 
 .progress-card .card-head h2 {
@@ -486,6 +490,31 @@ body {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.78);
   font-size: 0.78rem;
+  text-transform: uppercase;
+}
+
+.progress-help {
+  display: flex;
+  align-items: center;
+  gap: 0.38rem;
+  margin: 0.2rem 0 0;
+  padding: 0;
+  color: #58728f;
+  font-size: 0.69rem;
+  font-weight: 650;
+}
+
+.progress-help span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: #e6f1ff;
+  color: #1b67ab;
+  font-size: 0.66rem;
+  font-weight: 800;
 }
 
 .progress-track {
@@ -493,7 +522,7 @@ body {
   display: grid;
   grid-template-columns: repeat(var(--steps-count, 6), minmax(0, 1fr));
   gap: 0;
-  padding: 1.25rem 1.25rem 1.35rem;
+  padding: 3.5rem 1.25rem 1.2rem;
 }
 
 .progress-track li {
@@ -509,7 +538,7 @@ body {
   position: absolute;
   z-index: 4;
   left: 50%;
-  bottom: calc(100% - 0.4rem);
+  top: -2.7rem;
   width: max-content;
   max-width: 13rem;
   padding: 0.46rem 0.62rem;
@@ -522,7 +551,7 @@ body {
   line-height: 1.25;
   opacity: 0;
   pointer-events: none;
-  transform: translate(-50%, 0.45rem) scale(0.96);
+  transform: translate(-50%, 0.35rem) scale(0.96);
   transition: opacity 0.18s ease, transform 0.18s ease;
 }
 
@@ -530,7 +559,7 @@ body {
   content: "";
   position: absolute;
   left: 50%;
-  bottom: -0.32rem;
+  bottom: -0.3rem;
   width: 0.62rem;
   height: 0.62rem;
   background: #123c6b;
@@ -538,7 +567,8 @@ body {
 }
 
 .progress-track li:hover .step-tooltip,
-.progress-track li:focus-within .step-tooltip {
+.progress-track li:focus-within .step-tooltip,
+.progress-track li.is-tooltip-open .step-tooltip {
   opacity: 1;
   transform: translate(-50%, 0) scale(1);
 }
@@ -576,8 +606,16 @@ body {
   overflow: hidden;
   font-size: 0.83rem;
   font-weight: 900;
+  padding: 0;
+  cursor: pointer;
+  appearance: none;
   box-shadow: 0 6px 14px rgba(27, 67, 112, 0.08);
   transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+
+.step-dot:focus-visible {
+  outline: 3px solid #1b70ba;
+  outline-offset: 4px;
 }
 
 .step-dot img {
@@ -594,6 +632,11 @@ body {
   font-weight: 650;
   line-height: 1.28;
   overflow-wrap: anywhere;
+}
+
+.progress-track li > span:not(.step-tooltip) {
+  text-transform: uppercase;
+  letter-spacing: 0.035em;
 }
 
 .progress-track li.is-done .step-dot,
@@ -923,7 +966,7 @@ body {
     display: flex;
     gap: 0;
     overflow-x: auto;
-    padding: 0.18rem 1.05rem 1rem 0.9rem;
+    padding: 3.2rem 1.05rem 1rem 0.9rem;
     scroll-snap-type: x proximity;
     -webkit-overflow-scrolling: touch;
   }
