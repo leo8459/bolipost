@@ -40,6 +40,7 @@
         $idxEntregado = count($pasos) - 1;
         $estadoGlobal = $trackingProgress['status'];
         $envioCancelado = $trackingProgress['is_cancelled'];
+        $envioEnAduana = $trackingProgress['is_customs'] ?? false;
         $entregaConfirmada = $estadoGlobal === 'Entregado';
 
         $normalizarIso2 = function (?string $valor): ?string {
@@ -97,6 +98,11 @@
             'JAPON' => 'JP',
             'SOUTH KOREA' => 'KR',
             'COREA DEL SUR' => 'KR',
+            'NETHERLANDS (THE)' => 'NL',
+            'THE NETHERLANDS' => 'NL',
+            'NETHERLANDS' => 'NL',
+            'NEDERLAND' => 'NL',
+            'PAISES BAJOS' => 'NL',
         ];
         $mapaIso2APais = [
             'BO' => 'Bolivia',
@@ -435,6 +441,10 @@
         if ($esCodigoBoliviano && is_array($rutaInternacionalSaliente)) {
             $origenLabel = $nombrePaisDesdeIso2('BO') ?? 'Bolivia';
             $origenIso2 = 'BO';
+        } elseif (!$esCodigoBoliviano && ($iso2DesdeCodigoS10($codigo) ?? null) !== null) {
+            // The S10 suffix is the issuing postal administration and is more reliable than a free-text origin.
+            $origenIso2 = $iso2DesdeCodigoS10($codigo);
+            $origenLabel = $nombrePaisDesdeIso2($origenIso2) ?? $origenIso2;
         } elseif ($preferirOrigenExterno) {
             $origenLabel = $paisOrigenExterno;
             $origenIso2 = $origenExternoIso2;
@@ -728,8 +738,9 @@
                                 $done = $index < $pasoActual;
                                 $current = $index === $pasoActual;
                                 $cancelledCurrent = $envioCancelado && $current;
+                                $customsCurrent = $envioEnAduana && $current;
                             @endphp
-                            <li class="{{ $done ? 'is-done' : '' }} {{ $current ? 'is-current' : '' }} {{ $cancelledCurrent ? 'is-cancelled' : '' }}" style="--step-index: {{ $index }};">
+                            <li class="{{ $done ? 'is-done' : '' }} {{ $current ? 'is-current' : '' }} {{ $cancelledCurrent ? 'is-cancelled' : '' }} {{ $customsCurrent ? 'is-customs' : '' }}" style="--step-index: {{ $index }};">
                                 <div class="step-dot">{!! $done ? '&#10003;' : ($cancelledCurrent ? '!' : ($current ? '&#9679;' : '&#9675;')) !!}</div>
                                 <span>{{ $paso }}</span>
                             </li>

@@ -73,6 +73,7 @@ class TrackingProgressService
         $events = collect($events);
         $firstStep = in_array(strtoupper($service), ['ORDI', 'CERTI'], true) ? 'Clasificacion' : 'Admision';
         $isCancelled = $events->isNotEmpty() && $this->isCancelledText($this->eventText((object) $events->first()));
+        $isInCustoms = $events->isNotEmpty() && $this->isCustomsEvent((object) $events->first());
         $highestStage = self::STAGE_ADMISSION;
         $hasCourierEvent = false;
         $hasIncident = false;
@@ -87,7 +88,11 @@ class TrackingProgressService
             $hasIncident = $hasIncident || $this->isIncident($event);
         }
 
-        $steps = [$firstStep, 'Despacho', 'Expedicion', 'Ventanilla'];
+        $steps = [$firstStep, 'Despacho', 'Expedicion'];
+        if ($isInCustoms) {
+            $steps[] = 'Aduana';
+        }
+        $steps[] = 'Ventanilla';
         if ($hasCourierEvent || $highestStage >= self::STAGE_COURIER) {
             $steps[] = 'Cartero';
         }
@@ -101,16 +106,20 @@ class TrackingProgressService
                 'current_index' => 1,
                 'has_incident' => true,
                 'is_cancelled' => true,
+                'is_customs' => false,
                 'status' => 'Envio cancelado',
             ];
         }
 
-        $currentIndex = $this->stepIndex($highestStage, $hasCourierEvent || $highestStage >= self::STAGE_COURIER);
+        $currentIndex = $isInCustoms
+            ? 3
+            : $this->stepIndex($highestStage, $hasCourierEvent || $highestStage >= self::STAGE_COURIER);
         return [
             'steps' => $steps,
             'current_index' => $currentIndex,
             'has_incident' => $hasIncident,
             'is_cancelled' => false,
+            'is_customs' => $isInCustoms,
             'status' => $highestStage === self::STAGE_DELIVERED
                 ? 'Entregado'
                 : ($hasIncident ? 'En transito con incidencia' : 'En transito'),
@@ -186,6 +195,17 @@ class TrackingProgressService
     private function isCancelledText(string $text): bool
     {
         return $this->containsAny($text, ['envio cancelado', 'paquete cancelado']);
+    }
+
+    private function isCustomsEvent(object $event): bool
+    {
+        if ($this->numericValue($event->codigo_evento ?? null) === 31) {
+            return true;
+        }
+
+        return $this->containsAny($this->eventText($event), [
+            'send item to customs', 'enviado a control aduanero', 'enviado a aduana',
+        ]);
     }
 
     private function isDeliveredText(string $text): bool

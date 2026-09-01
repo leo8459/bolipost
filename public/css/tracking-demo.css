@@ -550,6 +550,19 @@ body {
   color: #a92b2b;
 }
 
+.progress-track li.is-customs .step-dot {
+  border-color: #1976c9;
+  background: #1976c9;
+  color: #fff;
+  box-shadow: 0 0 0 8px rgba(25, 118, 201, 0.16);
+  animation: currentPulse 1.5s ease-in-out infinite;
+}
+
+.progress-track li.is-customs span {
+  color: #1764ab;
+  font-weight: 750;
+}
+
 .progress-mobile-hint {
   display: none;
 }
