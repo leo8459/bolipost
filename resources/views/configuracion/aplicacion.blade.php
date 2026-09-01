@@ -53,7 +53,8 @@
                 <h5 class="mb-3">Notificaciones de ChasquiApp</h5>
                 <p class="text-muted">
                     Configura cada cuanto tiempo la aplicacion consulta si el cartero tiene paquetes pendientes.
-                    Android permite un minimo fiable de 15 minutos para esta tarea en segundo plano.
+                    Para pruebas locales puedes usar desde 1 minuto. En produccion se recomienda usar 15 minutos o mas
+                    por las restricciones de tareas periodicas de Android.
                 </p>
 
                 <div class="form-group form-check">
@@ -73,7 +74,7 @@
                         <label for="carteroNotificationIntervalMinutes">Avisar cada cuantos minutos</label>
                         <input
                             type="number"
-                            min="15"
+                            min="1"
                             max="1440"
                             step="1"
                             id="carteroNotificationIntervalMinutes"

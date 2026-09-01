@@ -79,7 +79,17 @@
                         <td style="padding:8px 0;color:#526075;">Estado inicial</td>
                         <td style="padding:8px 0;color:#172033;font-weight:600;">{{ optional($solicitud->estadoRegistro)->nombre_estado ?: '-' }}</td>
                     </tr>
+                    <tr>
+                        <td style="padding:8px 0;color:#526075;">Precio</td>
+                        <td style="padding:8px 0;color:#172033;font-weight:700;">Bs {{ $solicitud->precio !== null ? number_format((float) $solicitud->precio, 2, '.', '') : '0.00' }}</td>
+                    </tr>
                 </table>
+            </div>
+
+            <div style="margin-top:18px;padding:18px 20px;border-radius:14px;background:#fff3cd;border:2px solid #e0a800;color:#5f4600;text-align:center;">
+                <p style="margin:0;font-size:14px;line-height:1.7;font-weight:800;">
+                    <strong>Importante:</strong> Si el volumen del paquete es muy grande, se a&ntilde;adir&aacute; un recargo de Bs 10 al precio indicado.
+                </p>
             </div>
 
             <div style="margin-top:18px;padding:0;border:1px solid #d7e0eb;border-radius:16px;overflow:hidden;background:#ffffff;">
@@ -142,7 +152,7 @@
             </div>
 
             <p style="margin:24px 0 0 0;font-size:14px;line-height:1.7;">
-                Conserva este codigo para el seguimiento de tu solicitud y para cualquier consulta futura.
+                Adjuntamos el comprobante PDF. Conserva este codigo para el seguimiento de tu solicitud y para cualquier consulta futura.
             </p>
             <p style="margin:16px 0 0 0;font-size:14px;line-height:1.7;">
                 Atentamente,<br>

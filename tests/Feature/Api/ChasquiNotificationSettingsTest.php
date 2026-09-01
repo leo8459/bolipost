@@ -56,14 +56,19 @@ class ChasquiNotificationSettingsTest extends TestCase
             ->value('value'));
     }
 
-    public function test_intervalo_menor_a_quince_minutos_es_rechazado(): void
+    public function test_permite_intervalo_de_un_minuto_para_pruebas_locales(): void
     {
         $this->put('/configuracion/aplicacion', [
             'latestVersion' => '1.0.0',
             'minimumVersion' => '1.0.0',
-            'carteroNotificationIntervalMinutes' => '5',
+            'carteroNotificationEnabled' => '1',
+            'carteroNotificationIntervalMinutes' => '1',
             'carteroNotificationTitle' => 'ChasquiApp',
             'carteroNotificationMessage' => 'Tienes paquetes pendientes',
-        ])->assertSessionHasErrors('carteroNotificationIntervalMinutes');
+        ])->assertRedirect();
+
+        $this->assertSame('1', DB::table('app_settings')
+            ->where('key', 'chasqui.notifications.interval_minutes')
+            ->value('value'));
     }
 }

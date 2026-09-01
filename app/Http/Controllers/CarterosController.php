@@ -594,7 +594,7 @@ class CarterosController extends Controller
     public function chasquiPendingNotification(Request $request): JsonResponse
     {
         $intervalMinutes = min(1440, max(
-            15,
+            1,
             (int) AppSetting::getValue('chasqui.notifications.interval_minutes', '15')
         ));
         $enabled = AppSetting::getValue('chasqui.notifications.enabled', '1') === '1';

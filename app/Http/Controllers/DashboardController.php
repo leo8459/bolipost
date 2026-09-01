@@ -78,6 +78,7 @@ class DashboardController extends Controller
             'precio_column' => 'precio',
             'event_table' => 'eventos_ems',
             'registro_eventos' => [295],
+            'operational_start_events' => [295],
             'late_hours' => 48,
             'start_expression' => 'coalesce(t.created_at, t.created_at)',
         ],
@@ -91,6 +92,7 @@ class DashboardController extends Controller
             'precio_column' => 'precio',
             'event_table' => 'eventos_contrato',
             'registro_eventos' => [318, 295],
+            'operational_start_events' => [295],
             'late_hours' => 72,
             'start_expression' => 'coalesce(t.fecha_recojo, t.created_at)',
         ],
@@ -104,6 +106,7 @@ class DashboardController extends Controller
             'precio_column' => null,
             'event_table' => 'eventos_certi',
             'registro_eventos' => [168],
+            'operational_start_events' => [168],
             'late_hours' => 24 * 15,
             'start_expression' => 'coalesce(t.created_at, t.created_at)',
         ],
@@ -117,6 +120,7 @@ class DashboardController extends Controller
             'precio_column' => null,
             'event_table' => 'eventos_ordi',
             'registro_eventos' => [295],
+            'operational_start_events' => [295],
             'late_hours' => 24 * 15,
             'start_expression' => 'coalesce(t.created_at, t.created_at)',
         ],
@@ -164,7 +168,7 @@ class DashboardController extends Controller
             'date' => now()->toDateString(),
         ];
 
-        return 'dashboard:v3:' . sha1(json_encode($filters, JSON_UNESCAPED_UNICODE));
+        return 'dashboard:v4:' . sha1(json_encode($filters, JSON_UNESCAPED_UNICODE));
     }
 
     private function cachedDashboardAlerts($authUser): array
@@ -184,7 +188,7 @@ class DashboardController extends Controller
                 : [],
         ];
 
-        $key = 'dashboard-alerts:v2:' . sha1(json_encode($scope, JSON_UNESCAPED_UNICODE));
+        $key = 'dashboard-alerts:v3:' . sha1(json_encode($scope, JSON_UNESCAPED_UNICODE));
 
         return Cache::remember(
             $key,
@@ -524,7 +528,10 @@ class DashboardController extends Controller
                 ? (int) (clone $querySinCancelados)->where($config['estado_column'], $estadoSolicitudId)->count()
                 : 0;
 
-            $pendientes = max(0, $total - $entregados - $solicitudes);
+            // Un pendiente operativo empieza cuando ya existe su recojo/recepcion.
+            // Los registros sin fecha o evento inicial quedan en "sin datos" y no
+            // deben inflar Pendientes, En plazo, Retraso ni Rezago.
+            $pendientes = $correctos + $atrasados + $rezago;
 
             $pesoTotal = (float) (clone $querySinCancelados)->sum(
                 DB::raw('coalesce(' . $config['peso_column'] . ', 0)')
@@ -1228,20 +1235,29 @@ class DashboardController extends Controller
         ];
 
         if ($moduloKey === 'contrato') {
+            $recojoSub = DB::table($config['event_table'])
+                ->select('codigo', DB::raw('MIN(created_at) as recojo_at'))
+                ->whereIn('evento_id', $config['operational_start_events'])
+                ->groupBy('codigo');
+
             $query = DB::table($config['table'] . ' as t')
+                ->leftJoinSub($recojoSub, 'ev_recojo', function ($join) {
+                    $join->on('ev_recojo.codigo', '=', 't.codigo');
+                })
                 ->select([
                     't.id',
                     't.destino',
                     't.provincia',
                     't.fecha_recojo',
                     't.created_at',
+                    'ev_recojo.recojo_at',
                 ]);
             $this->applyNoEntregadoScope($query, 't.estados_id', $estadoEntregadoId);
             $this->applyDateFilter($query, 't.created_at', $from, $to);
             $this->applyDepartamentoFilter($query, $config, $departamento, 't');
 
             foreach ($query->orderBy('t.id')->cursor() as $row) {
-                $inicio = $this->safeCarbonValue($row->fecha_recojo ?? null);
+                $inicio = $this->safeCarbonValue($row->recojo_at ?? null);
                 $esProvincia = trim((string) ($row->provincia ?? '')) !== '';
                 $umbral = $this->resolveEmsThresholdDays((string) ($row->destino ?? ''), $esProvincia);
                 $bucket = $this->resolveSituacionBucket($inicio, $now, (int) $umbral['green'], (int) $umbral['yellow']);
@@ -1272,8 +1288,7 @@ class DashboardController extends Controller
             $this->applyDepartamentoFilter($query, $config, $departamento, 't');
 
             foreach ($query->orderBy('t.id')->cursor() as $row) {
-                $inicio = $this->safeCarbonValue($row->solicitud_at ?? null)
-                    ?? $this->safeCarbonValue($row->created_at ?? null);
+                $inicio = $this->safeCarbonValue($row->solicitud_at ?? null);
                 $destino = (string) ($row->destino ?? '');
                 $esProvincia = $this->isEmsProvincia($destino);
                 $umbral = $this->resolveEmsThresholdDays($destino, $esProvincia);
@@ -1287,6 +1302,7 @@ class DashboardController extends Controller
         if (in_array($moduloKey, ['certi', 'ordi'], true)) {
             $inicioSub = DB::table($config['event_table'])
                 ->select('codigo', DB::raw('MIN(created_at) as primer_evento_at'))
+                ->whereIn('evento_id', $config['operational_start_events'])
                 ->groupBy('codigo');
 
             $query = DB::table($config['table'] . ' as t')
@@ -1303,8 +1319,7 @@ class DashboardController extends Controller
             $this->applyDepartamentoFilter($query, $config, $departamento, 't');
 
             foreach ($query->orderBy('t.id')->cursor() as $row) {
-                $inicio = $this->safeCarbonValue($row->primer_evento_at ?? null)
-                    ?? $this->safeCarbonValue($row->created_at ?? null);
+                $inicio = $this->safeCarbonValue($row->primer_evento_at ?? null);
                 $bucket = $this->resolveSituacionBucket(
                     $inicio,
                     $now,
@@ -1898,6 +1913,13 @@ class DashboardController extends Controller
                     DB::raw($identityColumns['destinatario'] . ' as destinatario'),
                     't.created_at as creado_at',
                 ]);
+
+            $query->whereExists(function (Builder $eventQuery) use ($config) {
+                $eventQuery->selectRaw('1')
+                    ->from($config['event_table'] . ' as inicio_operativo')
+                    ->whereColumn('inicio_operativo.codigo', 't.codigo')
+                    ->whereIn('inicio_operativo.evento_id', $config['operational_start_events']);
+            });
 
             $this->applyDateFilter($query, 't.created_at', $from, $to);
             $this->applyPendingDepartamentoAliasesFilter($query, $config, $aliases, 't');

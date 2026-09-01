@@ -39,7 +39,7 @@ class AppConfigController extends Controller
             'title' => ['nullable', 'string', 'max:120'],
             'message' => ['nullable', 'string', 'max:300'],
             'carteroNotificationEnabled' => ['nullable', 'boolean'],
-            'carteroNotificationIntervalMinutes' => ['required', 'integer', 'min:15', 'max:1440'],
+            'carteroNotificationIntervalMinutes' => ['required', 'integer', 'min:1', 'max:1440'],
             'carteroNotificationTitle' => ['required', 'string', 'max:80'],
             'carteroNotificationMessage' => ['required', 'string', 'max:180'],
             'facturacionShowFacturaElectronica' => ['nullable', 'boolean'],

@@ -38,11 +38,16 @@ class DeliveryExpressProvinceNoticeTest extends TestCase
         ]);
 
         $expectedNotice = 'Importante: Si registro una provincia para el envio, la solicitud no sera recogida ni validada.';
+        $expectedVolumeNotice = 'Importante: Si el volumen del paquete es muy grande, se anadira un recargo de Bs 10 al precio indicado.';
         $emailHtml = (new SolicitudClienteCreadaMail($solicitud, $cliente))->render();
         $ticketHtml = view('paquetes_ems.solicitud-ticket', ['solicitud' => $solicitud])->render();
 
         $this->assertStringContainsString($expectedNotice, $this->normalizedText($emailHtml));
         $this->assertStringContainsString($expectedNotice, $this->normalizedText($ticketHtml));
+        $this->assertStringContainsString('Precio Bs 20.00', $this->normalizedText($emailHtml));
+        $this->assertStringContainsString('Precio Bs 20.00', $this->normalizedText($ticketHtml));
+        $this->assertStringContainsString($expectedVolumeNotice, $this->normalizedText($emailHtml));
+        $this->assertStringContainsString($expectedVolumeNotice, $this->normalizedText($ticketHtml));
     }
 
     private function normalizedText(string $html): string

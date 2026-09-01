@@ -11,6 +11,8 @@ use App\Models\SolicitudCliente;
 use App\Models\TarifarioTiktoker;
 use App\Support\SolicitudCode;
 use App\Support\TiktokerEvent;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -91,7 +93,7 @@ class ClienteSolicitudController extends Controller
             ->all();
 
         $data = $request->validate([
-            'servicio_extra_id' => ['required', 'integer', 'in:' . implode(',', $servicioExtraIds)],
+            'servicio_extra_id' => ['required', 'integer', 'in:'.implode(',', $servicioExtraIds)],
             'origen' => ['required', 'string'],
             'destino_id' => ['required', 'integer', 'exists:destino,id'],
             'cantidad' => ['required', 'integer', 'min:1'],
@@ -160,7 +162,7 @@ class ClienteSolicitudController extends Controller
         $this->registrarEventoTiktokerCreacionCliente($solicitud, (int) $cliente->id);
         $solicitud->loadMissing(['destino:id,nombre_destino', 'estadoRegistro:id,nombre_estado']);
 
-        $message = 'Solicitud registrada correctamente con codigo ' . $solicitud->codigo_solicitud . '.';
+        $message = 'Solicitud registrada correctamente con codigo '.$solicitud->codigo_solicitud.'.';
 
         try {
             Mail::to($cliente->email)->send(new SolicitudClienteCreadaMail($solicitud, $cliente));
@@ -248,7 +250,7 @@ class ClienteSolicitudController extends Controller
     private function isPuertaAVentanillaService(ServicioExtra $servicioExtra): bool
     {
         $text = $this->normalizeServiceText(
-            (string) $servicioExtra->nombre . ' ' . (string) $servicioExtra->descripcion
+            (string) $servicioExtra->nombre.' '.(string) $servicioExtra->descripcion
         );
 
         return str_contains($text, 'puerta a ventanilla');
@@ -284,5 +286,46 @@ class ClienteSolicitudController extends Controller
             'updated_at' => now(),
         ]);
     }
-}
 
+    public function downloadTicket(SolicitudCliente $solicitud)
+    {
+        $cliente = Auth::guard('cliente')->user();
+        abort_unless($cliente && (int) $solicitud->cliente_id === (int) $cliente->id, 404);
+
+        $solicitud->loadMissing([
+            'estadoRegistro:id,nombre_estado',
+            'servicioExtra:id,nombre,descripcion',
+            'destino:id,nombre_destino',
+        ]);
+
+        $pdf = Pdf::loadView('paquetes_ems.solicitud-ticket', [
+            'solicitud' => $solicitud,
+            'isPdf' => true,
+        ])->setPaper([0, 0, 226.77, 950]);
+
+        return $pdf->download('solicitud-'.$solicitud->codigo_solicitud.'.pdf');
+    }
+
+    public function quote(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'servicio_extra_id' => ['required', 'integer', 'exists:servicio_extras,id'],
+            'origen' => ['required', 'string'],
+            'destino_id' => ['required', 'integer', 'exists:destino,id'],
+        ]);
+
+        try {
+            $tarifario = $this->resolveTarifarioTiktoker(
+                (int) $data['servicio_extra_id'],
+                (string) $data['origen'],
+                (int) $data['destino_id']
+            );
+        } catch (\RuntimeException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
+
+        return response()->json([
+            'precio' => number_format((float) $tarifario->peso1, 2, '.', ''),
+        ]);
+    }
+}

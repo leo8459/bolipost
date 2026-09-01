@@ -71,7 +71,18 @@ class ClienteSolicitudMailTest extends TestCase
 
         Mail::assertSent(SolicitudClienteCreadaMail::class, function (SolicitudClienteCreadaMail $mail) use ($cliente) {
             return $mail->hasTo($cliente->email)
-                && str_starts_with($mail->solicitud->codigo_solicitud, 'SOL');
+                && str_starts_with($mail->solicitud->codigo_solicitud, 'SOL')
+                && ($mail->attachments()[0] ?? null)?->as === 'solicitud-SOL00000001.pdf'
+                && ($mail->attachments()[0] ?? null)?->mime === 'application/pdf';
         });
+
+        $this->actingAs($cliente, 'cliente')
+            ->getJson(route('clientes.solicitudes.quote', [
+                'servicio_extra_id' => $servicioExtraId,
+                'origen' => 'LA PAZ',
+                'destino_id' => $destinoId,
+            ]))
+            ->assertOk()
+            ->assertJsonPath('precio', '20.00');
     }
 }

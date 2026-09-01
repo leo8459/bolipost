@@ -10,6 +10,7 @@ use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
+use App\Http\Controllers\ClienteSolicitudController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['guest.cliente', 'throttle:10,1'])->group(function () {
@@ -28,16 +29,20 @@ Route::middleware(['cliente.guard', 'auth:cliente', 'cliente.acl.sync', 'route.p
     Route::get('clientes/completar-perfil', [ClienteAuthController::class, 'showCompleteProfile'])->name('clientes.profile.complete');
     Route::post('clientes/completar-perfil', [ClienteAuthController::class, 'completeProfile'])->name('clientes.profile.complete.store');
 
-        Route::middleware('cliente.profile.complete')->group(function () {
-            Route::get('clientes/solicitudes', [\App\Http\Controllers\ClienteSolicitudController::class, 'create'])
-                ->name('clientes.solicitudes.index');
-            Route::get('clientes/solicitudes/nueva', [\App\Http\Controllers\ClienteSolicitudController::class, 'create'])
-                ->name('clientes.solicitudes.create');
-            Route::post('clientes/solicitudes', [\App\Http\Controllers\ClienteSolicitudController::class, 'store'])
-                ->name('clientes.solicitudes.store');
-            Route::get('clientes/mis-solicitudes', [\App\Http\Controllers\ClienteSolicitudController::class, 'history'])
-                ->name('clientes.solicitudes.history');
-        });
+    Route::middleware('cliente.profile.complete')->group(function () {
+        Route::get('clientes/solicitudes', [ClienteSolicitudController::class, 'create'])
+            ->name('clientes.solicitudes.index');
+        Route::get('clientes/solicitudes/nueva', [ClienteSolicitudController::class, 'create'])
+            ->name('clientes.solicitudes.create');
+        Route::post('clientes/solicitudes', [ClienteSolicitudController::class, 'store'])
+            ->name('clientes.solicitudes.store');
+        Route::get('clientes/solicitudes/cotizar', [ClienteSolicitudController::class, 'quote'])
+            ->name('clientes.solicitudes.quote');
+        Route::get('clientes/mis-solicitudes', [ClienteSolicitudController::class, 'history'])
+            ->name('clientes.solicitudes.history');
+        Route::get('clientes/mis-solicitudes/{solicitud}/comprobante', [ClienteSolicitudController::class, 'downloadTicket'])
+            ->name('clientes.solicitudes.ticket');
+    });
 });
 
 Route::middleware('guest')->group(function () {
