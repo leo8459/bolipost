@@ -752,7 +752,10 @@
                             <h2>Progreso del envio</h2>
                             <p class="progress-help"><span aria-hidden="true">i</span> Pasa o toca un icono para ver los detalles.</p>
                         </div>
-                        <span>Paso actual: <strong>{{ $pasos[$pasoActual] }}</strong></span>
+                        <div class="progress-status">
+                            <small>{{ $pasoActual }} de {{ count($pasos) }} etapas completadas</small>
+                            <span>En curso: <strong>{{ $pasos[$pasoActual] }}</strong></span>
+                        </div>
                     </div>
                     <button class="progress-mobile-nav progress-mobile-nav-prev" id="progressPrev" type="button" aria-label="Ver pasos anteriores" hidden>&lsaquo;</button>
                     <ol class="progress-track" style="--steps-count: {{ count($pasos) }};">
@@ -767,6 +770,7 @@
                                     ? $imagenPaso . '-blanco'
                                     : $imagenPaso;
                                 $ayudaPaso = $ayudasPasos[$paso] ?? $paso;
+                                $estadoPaso = $cancelledCurrent ? 'Cancelado' : ($done ? 'Listo' : ($current ? 'En curso' : 'Pendiente'));
                             @endphp
                             <li class="{{ $done ? 'is-done' : '' }} {{ $current ? 'is-current' : '' }} {{ $cancelledCurrent ? 'is-cancelled' : '' }} {{ $customsCurrent ? 'is-customs' : '' }}" style="--step-index: {{ $index }};">
                                 <span class="step-tooltip" id="progreso-ayuda-{{ $index }}" role="tooltip">{{ $ayudaPaso }}</span>
@@ -777,7 +781,8 @@
                                         {!! $cancelledCurrent ? '!' : '&#9675;' !!}
                                     @endif
                                 </button>
-                                <span>{{ $paso }}</span>
+                                <span class="step-name">{{ $paso }}</span>
+                                <span class="step-state">{{ $estadoPaso }}</span>
                             </li>
                         @endforeach
                     </ol>
