@@ -98,6 +98,10 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
         $model = $row['row'];
         $provinciaOrigen = $this->normalizeUpper((string) ($model->provincia_origen ?? ''));
         $provincia = trim((string) ($model->provincia ?? ''));
+        $destinoRegistrado = trim((string) ($model->destino_registrado ?? ''));
+        $destino = $destinoRegistrado !== ''
+            ? $destinoRegistrado
+            : trim((string) ($model->destino ?? ''));
         $precio = (float) ($model->precio ?? 0);
 
         return [
@@ -107,7 +111,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
             (string) ($model->origen ?? ''),
             $provinciaOrigen,
             $provinciaOrigen === '' ? 'X' : '',
-            (string) ($model->destino_registrado ?? ''),
+            $destino,
             $provincia,
             $provincia === '' ? 'X' : '',
             1,

@@ -43,6 +43,8 @@ class AreaContratosReportesTest extends TestCase
             $table->string('codigo')->nullable();
             $table->string('codigo_madre')->nullable();
             $table->string('origen')->nullable();
+            $table->string('destino')->nullable();
+            $table->string('destino_registrado')->nullable();
             $table->text('imagen')->nullable();
             $table->dateTime('fecha_recojo')->nullable();
             $table->timestamps();
@@ -192,6 +194,40 @@ class AreaContratosReportesTest extends TestCase
                 '/area-contratos/imagen-entrega/1/descargar',
                 $sheet->getCell('U13')->getHyperlink()->getUrl()
             );
+        } finally {
+            if (is_string($path) && is_file($path)) {
+                unlink($path);
+            }
+        }
+    }
+
+    public function test_excel_usa_destino_como_respaldo_si_no_hay_destino_registrado(): void
+    {
+        DB::table('paquetes_contrato')->where('id', 1)->update([
+            'destino' => 'COCHABAMBA',
+            'destino_registrado' => null,
+        ]);
+        DB::table('paquetes_contrato')->where('id', 2)->update([
+            'destino' => 'SANTA CRUZ',
+            'destino_registrado' => '   ',
+        ]);
+        DB::table('paquetes_contrato')->where('id', 3)->update([
+            'destino' => 'ORURO',
+            'destino_registrado' => 'POTOSI',
+        ]);
+
+        $rows = Recojo::query()->whereIn('id', [1, 2, 3])->orderBy('id')->get();
+        $contents = Excel::raw(new AreaContratosEntregadosExport($rows), ExcelWriter::XLSX);
+        $path = tempnam(sys_get_temp_dir(), 'contratos-destino-excel-');
+        $this->assertNotFalse($path);
+
+        try {
+            file_put_contents($path, $contents);
+            $sheet = IOFactory::load($path)->getSheet(0);
+
+            $this->assertSame('COCHABAMBA', $sheet->getCell('G13')->getValue());
+            $this->assertSame('SANTA CRUZ', $sheet->getCell('G14')->getValue());
+            $this->assertSame('POTOSI', $sheet->getCell('G15')->getValue());
         } finally {
             if (is_string($path) && is_file($path)) {
                 unlink($path);
