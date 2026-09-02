@@ -505,6 +505,16 @@ body {
   text-transform: uppercase;
 }
 
+.progress-card .card-head .progress-status > span.is-delivered {
+  border-color: #bde2c5;
+  background: #ecf8ee;
+  color: #287d32;
+}
+
+.progress-card .card-head .progress-status > span.is-delivered strong {
+  color: #287d32;
+}
+
 .progress-help {
   display: flex;
   align-items: center;
@@ -704,6 +714,12 @@ body {
   border-color: #bdd7f0;
   background: #eaf4ff;
   color: #1a609f;
+}
+
+.progress-track li.is-delivered .step-state {
+  border-color: #bde2c5;
+  background: #ecf8ee;
+  color: #287d32;
 }
 
 .progress-track li.is-done::after {

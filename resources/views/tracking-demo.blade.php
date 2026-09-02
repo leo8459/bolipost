@@ -753,8 +753,10 @@
                             <p class="progress-help"><span aria-hidden="true">i</span> Pasa o toca un icono para ver los detalles.</p>
                         </div>
                         <div class="progress-status">
-                            <small>{{ $pasoActual }} de {{ count($pasos) }} etapas completadas</small>
-                            <span>En curso: <strong>{{ $pasos[$pasoActual] }}</strong></span>
+                            <small>{{ $entregaConfirmada ? count($pasos) : $pasoActual }} de {{ count($pasos) }} etapas completadas</small>
+                            <span class="{{ $entregaConfirmada ? 'is-delivered' : '' }}">
+                                {{ $entregaConfirmada ? 'Envio:' : 'En curso:' }} <strong>{{ $entregaConfirmada ? 'Entregado' : $pasos[$pasoActual] }}</strong>
+                            </span>
                         </div>
                     </div>
                     <button class="progress-mobile-nav progress-mobile-nav-prev" id="progressPrev" type="button" aria-label="Ver pasos anteriores" hidden>&lsaquo;</button>
@@ -765,14 +767,17 @@
                                 $current = $index === $pasoActual;
                                 $cancelledCurrent = $envioCancelado && $current;
                                 $customsCurrent = $envioEnAduana && $current;
+                                $deliveredCurrent = $entregaConfirmada && $current;
                                 $imagenPaso = $imagenesPasos[$paso] ?? null;
                                 $imagenPendiente = $imagenPaso && !$done && !$current
                                     ? $imagenPaso . '-blanco'
                                     : $imagenPaso;
                                 $ayudaPaso = $ayudasPasos[$paso] ?? $paso;
-                                $estadoPaso = $cancelledCurrent ? 'Cancelado' : ($done ? 'Listo' : ($current ? 'En curso' : 'Pendiente'));
+                                $estadoPaso = $cancelledCurrent
+                                    ? 'Cancelado'
+                                    : ($deliveredCurrent ? 'Entregado' : ($done ? 'Listo' : ($current ? 'En curso' : 'Pendiente')));
                             @endphp
-                            <li class="{{ $done ? 'is-done' : '' }} {{ $current ? 'is-current' : '' }} {{ $cancelledCurrent ? 'is-cancelled' : '' }} {{ $customsCurrent ? 'is-customs' : '' }}" style="--step-index: {{ $index }};">
+                            <li class="{{ $done ? 'is-done' : '' }} {{ $current ? 'is-current' : '' }} {{ $cancelledCurrent ? 'is-cancelled' : '' }} {{ $customsCurrent ? 'is-customs' : '' }} {{ $deliveredCurrent ? 'is-delivered' : '' }}" style="--step-index: {{ $index }};">
                                 <span class="step-tooltip" id="progreso-ayuda-{{ $index }}" role="tooltip">{{ $ayudaPaso }}</span>
                                 <button class="step-dot" type="button" aria-describedby="progreso-ayuda-{{ $index }}" aria-expanded="false" aria-label="{{ $paso }}. {{ $ayudaPaso }}">
                                     @if ($imagenPendiente)
