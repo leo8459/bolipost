@@ -70,12 +70,22 @@
             height: 12mm;
             object-fit: fill;
         }
-        .code {
-            font-size: 14px;
+        .verification-block { margin: 1mm 0; text-align: center; }
+        .verification-qr { width: 14mm; height: 14mm; }
+        .verification-label {
+            display: block;
+            margin-top: .5mm;
+            font-size: 5px;
             font-weight: 700;
-            letter-spacing: .06em;
+            line-height: 1;
+            text-transform: uppercase;
+        }
+        .code {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .03em;
             margin-top: 1mm;
-            word-break: break-word;
+            white-space: nowrap;
         }
         .grid-2 {
             display: table;
@@ -181,6 +191,16 @@
             $barcodePngB64 = DNS1D::getBarcodePNG($codigo, 'C128', $barcodeWidth, $barcodeHeight);
         } catch (\Throwable $e) {
             $barcodePngB64 = null;
+        }
+    }
+
+    $verificationQrB64 = null;
+    $verificationUrl = $verificationUrl ?? null;
+    if (!empty($verificationUrl) && class_exists('\DNS2D')) {
+        try {
+            $verificationQrB64 = DNS2D::getBarcodePNG($verificationUrl, 'QRCODE', 4, 4);
+        } catch (\Throwable $e) {
+            $verificationQrB64 = null;
         }
     }
 
@@ -297,6 +317,13 @@
         </div>
 
         <div class="divider"></div>
+
+        @if($verificationQrB64)
+            <div class="verification-block">
+                <img class="verification-qr" src="data:image/png;base64,{{ $verificationQrB64 }}" alt="QR de verificacion">
+                <span class="verification-label">Verificar guia</span>
+            </div>
+        @endif
 
         <div class="grid-2">
             <div>

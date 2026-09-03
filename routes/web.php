@@ -12,6 +12,7 @@ use App\Http\Controllers\BusquedaController;
 use App\Http\Controllers\CarterosController;
 use App\Http\Controllers\ClientManagementController;
 use App\Http\Controllers\ClientRoleController;
+use App\Http\Controllers\CnGenerationController;
 use App\Http\Controllers\CodigoEmpresaController;
 use App\Http\Controllers\ConceptoFacturacionController;
 use App\Http\Controllers\ConciliacionEmpresaController;
@@ -144,6 +145,10 @@ Route::get('/vgc', [RecojoController::class, 'verificarGuia'])
     ->name('paquetes-contrato.verificar-guia');
 Route::get('/vgc/pdf', [RecojoController::class, 'verificarGuiaPdf'])
     ->name('paquetes-contrato.verificar-guia.pdf');
+Route::get('/vge', [PaquetesEmsBoletaController::class, 'verify'])
+    ->name('paquetes-ems.verificar-guia');
+Route::get('/vge/pdf', [PaquetesEmsBoletaController::class, 'verifyPdf'])
+    ->name('paquetes-ems.verificar-guia.pdf');
 Route::middleware(['auth', 'internal.only'])->get('/acl/livewire-actions', [AclController::class, 'livewireActions'])
     ->name('acl.livewire-actions');
 Route::middleware(['auth', 'internal.only'])->group(function () {
@@ -199,6 +204,12 @@ Route::get('/dir-operaciones/global-por-servicio/export/pdf', [ReportesControlle
 Route::get('/dir-operaciones/envios-oficiales', [ReportesController::class, 'enviosOficiales'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.envios-oficiales');
+Route::get('/dir-operaciones/generacion-cn', [CnGenerationController::class, 'index'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.generacion-cn');
+Route::post('/dir-operaciones/generacion-cn/pdf', [CnGenerationController::class, 'pdf'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.generacion-cn.pdf');
 Route::get('/dir-comercial/rendimiento-servicios', [ReportesController::class, 'commercialPerformance'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.comercial.rendimiento-servicios');

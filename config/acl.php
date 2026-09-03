@@ -386,6 +386,7 @@ return [
         'dashboard.global-ingreso' => 'Dir. Operaciones - Global Ingreso',
         'dashboard.global-por-servicio' => 'Dir. Operaciones - Global por servicio',
         'dashboard.reimprimir-cn33' => 'Dir. Operaciones - Reimprimir CN-33',
+        'dashboard.generacion-cn' => 'Dir. Operaciones - Generacion de CN',
         'dashboard.comercial.rendimiento-servicios' => 'Dir. Comercial - Rendimiento Servicios',
         'reportes' => 'Reportes',
         'malencaminados' => 'Malencaminados',
