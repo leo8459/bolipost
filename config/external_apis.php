@@ -377,6 +377,32 @@ return [
                 ],
             ],
         ],
+        'paquetes-contrato:pickup' => [
+            'name' => 'RECOJO DE PAQUETES',
+            'description' => 'Recoge uno o varios paquetes de contrato en estado SOLICITUD, los pasa a ALMACEN y registra el evento de recojo. El alcance regional corresponde al usuario que creo la credencial.',
+            'access' => 'Escritura',
+            'icon' => 'fas fa-dolly',
+            'color' => 'warning',
+            'endpoints' => [
+                [
+                    'method' => 'POST',
+                    'path' => '/api/paquetes-contrato/recoger',
+                    'example' => '',
+                    'body' => [
+                        'codigos' => [
+                            'CEMPRESA00001BO',
+                            'CEMPRESA00002BO',
+                        ],
+                    ],
+                    'response' => [
+                        'message' => '2 envio(s) enviado(s) a ALMACEN.',
+                        'actualizados' => 2,
+                        'codigos' => ['CEMPRESA00001BO', 'CEMPRESA00002BO'],
+                        'no_procesados' => [],
+                    ],
+                ],
+            ],
+        ],
         'paquetes-eventos:read' => [
             'name' => 'EVENTOS SIOP',
             'description' => 'Lista paquetes ordinarios, EMS, de contrato, certificados y solicitudes de clientes, incluyendo todo el historial de eventos de cada envio.',

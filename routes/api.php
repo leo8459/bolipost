@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AuthTokenController;
 use App\Http\Controllers\Api\ChasquiAuthApiController;
 use App\Http\Controllers\Api\ClienteAuthApiController;
 use App\Http\Controllers\Api\ClienteSolicitudApiController;
+use App\Http\Controllers\Api\ContratoPickupApiController;
 use App\Http\Controllers\Api\DireccionDestinoApiController;
 use App\Http\Controllers\Api\EventosSiopApiController;
 use App\Http\Controllers\Api\ExternalClienteSolicitudApiController;
@@ -108,6 +109,10 @@ Route::middleware(['force.json', 'external.api.jwt', 'throttle:120,1'])->group(f
         ->middleware('external.api.ability:clientes:solicitudes:create')
         ->whereNumber('cliente')
         ->name('api.integraciones.clientes.solicitudes.store');
+
+    Route::post('/paquetes-contrato/recoger', [ContratoPickupApiController::class, 'store'])
+        ->middleware('external.api.ability:paquetes-contrato:pickup')
+        ->name('api.paquetes-contrato.recoger');
 
     Route::get('/paquetes-contactos', [PaqueteContactoApiController::class, 'index'])
         ->name('api.paquetes-contactos.index');

@@ -20,8 +20,8 @@
             display: table;
             width: 100%;
             border-bottom: 3px solid #000;
-            padding-bottom: 10px;
-            margin-bottom: 14px;
+            padding-bottom: 6px;
+            margin-bottom: 8px;
         }
         .header-left,
         .header-right {
@@ -37,8 +37,8 @@
         }
         .logo {
             max-width: 165px;
-            max-height: 58px;
-            margin-bottom: 6px;
+            max-height: 52px;
+            margin-bottom: 3px;
         }
         .title {
             color: #000;
@@ -57,6 +57,9 @@
             height: 54px;
             object-fit: fill;
         }
+        .header-verification { display: inline-block; margin-top: 3px; text-align: center; }
+        .verification-qr { width: 42px; height: 42px; }
+        .verification-label { display: block; margin-top: 2px; font-size: 6px; font-weight: 800; text-transform: uppercase; }
         .code {
             font-size: 18px;
             font-weight: 800;
@@ -71,7 +74,7 @@
             padding: 4px 10px;
             font-size: 11px;
             font-weight: 800;
-            margin-top: 6px;
+            margin-top: 3px;
         }
         .grid {
             display: table;
@@ -93,9 +96,9 @@
         .box {
             border: 1px solid #000;
             border-radius: 6px;
-            padding: 10px;
-            min-height: 118px;
-            margin-bottom: 12px;
+            padding: 8px;
+            min-height: 108px;
+            margin-bottom: 8px;
         }
         .box-title {
             color: #000;
@@ -133,19 +136,19 @@
         .full-box {
             border: 1px solid #000;
             border-radius: 6px;
-            padding: 10px;
-            margin-bottom: 12px;
+            padding: 8px;
+            margin-bottom: 8px;
         }
         .summary {
             display: table;
             width: 100%;
             table-layout: fixed;
-            margin-bottom: 14px;
+            margin-bottom: 9px;
         }
         .summary-item {
             display: table-cell;
             border: 1px solid #000;
-            padding: 9px;
+            padding: 7px;
             text-align: center;
         }
         .summary-item + .summary-item {
@@ -165,16 +168,16 @@
         }
         .responsibility {
             border: 1px solid #000;
-            padding: 9px;
+            padding: 7px;
             font-size: 10px;
             text-align: justify;
-            margin-top: 10px;
+            margin-top: 6px;
         }
         .signatures {
             display: table;
             width: 100%;
             table-layout: fixed;
-            margin-top: 34px;
+            margin-top: 24px;
         }
         .signature {
             display: table-cell;
@@ -190,7 +193,7 @@
             text-transform: uppercase;
         }
         .footer {
-            margin-top: 18px;
+            margin-top: 12px;
             text-align: center;
             color: #000;
             font-size: 10px;
@@ -206,6 +209,16 @@
             $barcodePngB64 = DNS1D::getBarcodePNG($codigo, 'C128', 2.0, 70);
         } catch (\Throwable $e) {
             $barcodePngB64 = null;
+        }
+    }
+
+    $verificationQrB64 = null;
+    $verificationUrl = $verificationUrl ?? null;
+    if (!empty($verificationUrl) && class_exists('\DNS2D')) {
+        try {
+            $verificationQrB64 = DNS2D::getBarcodePNG($verificationUrl, 'QRCODE', 4, 4);
+        } catch (\Throwable $e) {
+            $verificationQrB64 = null;
         }
     }
 
@@ -238,6 +251,12 @@
                     <img src="data:image/png;base64,{{ $logoB64 }}" class="logo" alt="Correos de Bolivia">
                 @endif
                 <h1 class="title">Boleta EMS</h1>
+                @if($verificationQrB64)
+                    <div class="header-verification">
+                        <img class="verification-qr" src="data:image/png;base64,{{ $verificationQrB64 }}" alt="QR de verificacion">
+                        <span class="verification-label">Verificar guia</span>
+                    </div>
+                @endif
                 <div class="subtitle">Comprobante de admision postal</div>
                 @if($servicio !== '')
                     <div class="badge">{{ $servicio }}</div>

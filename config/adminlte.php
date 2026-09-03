@@ -440,6 +440,12 @@ return [
                     'url' => '/dir-operaciones/reimprimir-cn33',
                     'icon' => 'fas fa-file-excel',
                 ],
+                [
+                    'text' => 'Generacion de CN',
+                    'url' => '/dir-operaciones/generacion-cn',
+                    'icon' => 'fas fa-file-alt',
+                    'can' => 'dashboard.generacion-cn',
+                ],
             ],
         ],
         [
