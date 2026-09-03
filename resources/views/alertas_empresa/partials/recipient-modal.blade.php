@@ -18,7 +18,8 @@
                      alt="Portada de {{ $alertaEmpresaPendiente->titulo }}">
                 <div class="company-alert-body">
                     <div class="text-uppercase text-muted small font-weight-bold mb-2">
-                        <i class="fas fa-bell mr-1"></i> Comunicado para tu empresa
+                        <i class="fas fa-bell mr-1"></i>
+                        {{ auth()->user()?->empresa_id ? 'Comunicado para tu empresa' : 'Comunicado para ti' }}
                     </div>
                     <h3 class="company-alert-title mb-3" id="companyAlertTitle">{{ $alertaEmpresaPendiente->titulo }}</h3>
                     @if(filled($alertaEmpresaPendiente->mensaje))

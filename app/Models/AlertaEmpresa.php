@@ -36,6 +36,11 @@ class AlertaEmpresa extends Model
         return $this->belongsToMany(Empresa::class, 'alerta_empresa_destinatarios', 'alerta_empresa_id', 'empresa_id');
     }
 
+    public function usuariosDestinatarios(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'alerta_empresa_usuarios', 'alerta_empresa_id', 'user_id');
+    }
+
     public function creador(): BelongsTo
     {
         return $this->belongsTo(User::class, 'creado_por');

@@ -10,12 +10,20 @@ class AlertaEmpresaService
 {
     public function siguienteNoLeida(?User $user): ?AlertaEmpresa
     {
-        if (! $user || ! $user->empresa_id || ! Schema::hasTable('alertas_empresa')) {
+        if (! $user || ! Schema::hasTable('alertas_empresa')) {
             return null;
         }
 
         return AlertaEmpresa::query()
-            ->whereHas('empresas', fn ($query) => $query->whereKey($user->empresa_id))
+            ->where(function ($query) use ($user): void {
+                if ($user->empresa_id) {
+                    $query->whereHas('empresas', fn ($empresaQuery) => $empresaQuery->whereKey($user->empresa_id));
+
+                    return;
+                }
+
+                $query->whereHas('usuariosDestinatarios', fn ($userQuery) => $userQuery->whereKey($user->id));
+            })
             ->whereNotNull('aprobada_at')
             ->where('publicada_at', '<=', now())
             ->where(fn ($query) => $query->whereNull('vence_at')->orWhere('vence_at', '>=', now()))

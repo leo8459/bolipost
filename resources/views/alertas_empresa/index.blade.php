@@ -5,8 +5,8 @@
 @section('content_header')
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center">
         <div>
-            <h1 class="mb-1">Alertas para empresas</h1>
-            <p class="text-muted mb-0">Prepara comunicados, revísalos y apruébalos antes de mostrarlos a las empresas.</p>
+            <h1 class="mb-1">Alertas para empresas y usuarios</h1>
+            <p class="text-muted mb-0">Prepara comunicados, revísalos y apruébalos antes de mostrarlos a sus destinatarios.</p>
         </div>
         @aclcan('create', null, 'alertas-empresa')
             <button class="btn btn-primary mt-3 mt-md-0" type="button" data-toggle="modal" data-target="#createCompanyAlertModal">
@@ -32,7 +32,7 @@
             <div class="table-responsive">
                 <table class="table table-hover mb-0">
                     <thead class="thead-light">
-                        <tr><th>Portada</th><th>Comunicado</th><th>Empresas</th><th>Estado</th><th>Vistas</th><th>Publicación</th><th class="text-right">Acciones</th></tr>
+                        <tr><th>Portada</th><th>Comunicado</th><th>Destinatarios</th><th>Estado</th><th>Vistas</th><th>Publicación</th><th class="text-right">Acciones</th></tr>
                     </thead>
                     <tbody>
                         @forelse($alertas as $alerta)
@@ -47,6 +47,12 @@
                                         <span class="badge badge-primary mb-1">{{ $empresa->sigla ?: $empresa->nombre }}</span>
                                     @endforeach
                                     @if($alerta->empresas->count() > 3)<span class="badge badge-secondary">+{{ $alerta->empresas->count() - 3 }}</span>@endif
+                                    @if(!$isEmpresaUser)
+                                        @foreach($alerta->usuariosDestinatarios->take(3) as $destinatario)
+                                            <span class="badge badge-info mb-1" title="{{ $destinatario->email }}"><i class="fas fa-user mr-1"></i>{{ $destinatario->name }}</span>
+                                        @endforeach
+                                        @if($alerta->usuariosDestinatarios->count() > 3)<span class="badge badge-secondary">+{{ $alerta->usuariosDestinatarios->count() - 3 }} usuarios</span>@endif
+                                    @endif
                                 </td>
                                 <td>
                                     @if($alerta->aprobada_at)
@@ -150,7 +156,7 @@
                             @method('PATCH')
                             <input type="hidden" name="_approval_alert_id" value="{{ $alerta->id }}">
                             <div class="modal-header bg-success text-white">
-                                <div><h5 class="modal-title font-weight-bold" id="approveAlertTitle{{ $alerta->id }}">Revisar y aprobar noticia</h5><small>Corrige el texto antes de hacerlo visible para las empresas.</small></div>
+                                <div><h5 class="modal-title font-weight-bold" id="approveAlertTitle{{ $alerta->id }}">Revisar y aprobar noticia</h5><small>Corrige el texto antes de hacerlo visible para sus destinatarios.</small></div>
                                 <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
                             </div>
                             <div class="modal-body">
@@ -160,7 +166,7 @@
                                 <div class="row">
                                     <div class="col-md-4 mb-3 mb-md-0">
                                         <img src="{{ route('alertas-empresa.portada', $alerta, false) }}" alt="Portada de {{ $alerta->titulo }}" class="img-fluid rounded border">
-                                        <small class="text-muted d-block mt-2">La noticia todavía no es visible para las empresas.</small>
+                                        <small class="text-muted d-block mt-2">La noticia todavía no es visible para sus destinatarios.</small>
                                     </div>
                                     <div class="col-md-8">
                                         <div class="form-group">
@@ -176,7 +182,7 @@
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Seguir pendiente</button>
-                                <button type="submit" class="btn btn-success" onclick="return confirm('¿Confirmas que la noticia está corregida y lista para las empresas?')"><i class="fas fa-check-circle mr-1"></i>Confirmar y publicar</button>
+                                <button type="submit" class="btn btn-success" onclick="return confirm('¿Confirmas que la noticia está corregida y lista para sus destinatarios?')"><i class="fas fa-check-circle mr-1"></i>Confirmar y publicar</button>
                             </div>
                         </form>
                     </div>
@@ -208,7 +214,7 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="alertMessage">Texto del comunicado <span class="text-muted font-weight-normal">(opcional)</span></label>
-                                    <textarea class="form-control" id="alertMessage" name="mensaje" rows="6" maxlength="10000" placeholder="Escribe aquí el mensaje para la empresa...">{{ old('mensaje') }}</textarea>
+                                    <textarea class="form-control" id="alertMessage" name="mensaje" rows="6" maxlength="10000" placeholder="Escribe aquí el mensaje para los destinatarios...">{{ old('mensaje') }}</textarea>
                                 </div>
                                 <div class="row">
                                     <div class="col-md-6 form-group">
@@ -228,13 +234,13 @@
                                 </div>
                             </div>
                             <div class="col-lg-5">
-                                <div class="border rounded p-3 h-100 bg-light">
+                                <div class="border rounded p-3 mb-3 bg-light">
                                     <div class="d-flex justify-content-between align-items-center mb-2">
-                                        <label class="mb-0">Perfiles de empresa <span class="text-danger">*</span></label>
+                                        <label class="mb-0">Perfiles de empresa</label>
                                         <button class="btn btn-link btn-sm p-0" type="button" id="toggleAllCompanies">Seleccionar todas</button>
                                     </div>
                                     <input class="form-control form-control-sm mb-2" id="companyAlertSearch" type="search" placeholder="Buscar empresa...">
-                                    <div style="max-height:345px;overflow-y:auto">
+                                    <div style="max-height:190px;overflow-y:auto">
                                         @foreach($empresas as $empresa)
                                             <label class="d-flex align-items-start bg-white border rounded p-2 mb-2 company-alert-option" data-search="{{ mb_strtolower($empresa->nombre.' '.$empresa->sigla.' '.$empresa->codigo_cliente) }}">
                                                 <input class="mt-1 mr-2 company-alert-checkbox" type="checkbox" name="empresa_ids[]" value="{{ $empresa->id }}" {{ in_array((string) $empresa->id, array_map('strval', old('empresa_ids', [])), true) ? 'checked' : '' }}>
@@ -244,6 +250,25 @@
                                     </div>
                                     <small class="text-muted"><span id="selectedCompanyCount">0</span> empresa(s) seleccionada(s).</small>
                                 </div>
+                                <div class="border rounded p-3 bg-light">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <label class="mb-0">Usuarios sin empresa (correo)</label>
+                                        <button class="btn btn-link btn-sm p-0" type="button" id="toggleAllUsers">Seleccionar todos</button>
+                                    </div>
+                                    <input class="form-control form-control-sm mb-2" id="userAlertSearch" type="search" placeholder="Buscar nombre o correo...">
+                                    <div style="max-height:190px;overflow-y:auto">
+                                        @forelse($usuariosSinEmpresa as $destinatario)
+                                            <label class="d-flex align-items-start bg-white border rounded p-2 mb-2 user-alert-option" data-search="{{ mb_strtolower($destinatario->name.' '.$destinatario->email) }}">
+                                                <input class="mt-1 mr-2 user-alert-checkbox" type="checkbox" name="user_ids[]" value="{{ $destinatario->id }}" {{ in_array((string) $destinatario->id, array_map('strval', old('user_ids', [])), true) ? 'checked' : '' }}>
+                                                <span><strong class="d-block">{{ $destinatario->name }}</strong><small class="text-muted">{{ $destinatario->email }}</small></span>
+                                            </label>
+                                        @empty
+                                            <div class="text-muted small py-3 text-center">No hay usuarios sin empresa.</div>
+                                        @endforelse
+                                    </div>
+                                    <small class="text-muted"><span id="selectedUserCount">0</span> usuario(s) seleccionado(s).</small>
+                                </div>
+                                <small class="text-muted d-block mt-2">Selecciona al menos una empresa o un usuario.</small>
                             </div>
                         </div>
                     </div>
@@ -261,25 +286,31 @@
 @push('js')
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            const search = document.getElementById('companyAlertSearch');
-            const options = Array.from(document.querySelectorAll('.company-alert-option'));
-            const checks = Array.from(document.querySelectorAll('.company-alert-checkbox'));
-            const counter = document.getElementById('selectedCompanyCount');
-            const toggle = document.getElementById('toggleAllCompanies');
-            const updateCount = () => { counter.textContent = checks.filter(item => item.checked).length; };
-            checks.forEach(item => item.addEventListener('change', updateCount));
-            updateCount();
-            search?.addEventListener('input', function () {
-                const term = this.value.trim().toLocaleLowerCase('es');
-                options.forEach(option => { option.style.display = option.dataset.search.includes(term) ? '' : 'none'; });
-            });
-            toggle?.addEventListener('click', function () {
-                const visible = checks.filter(item => item.closest('.company-alert-option').style.display !== 'none');
-                const select = visible.some(item => !item.checked);
-                visible.forEach(item => { item.checked = select; });
-                this.textContent = select ? 'Quitar selección' : 'Seleccionar todas';
+            const configureRecipientSelector = (searchId, optionClass, checkboxClass, counterId, toggleId, selectAllText) => {
+                const search = document.getElementById(searchId);
+                const options = Array.from(document.querySelectorAll('.' + optionClass));
+                const checks = Array.from(document.querySelectorAll('.' + checkboxClass));
+                const counter = document.getElementById(counterId);
+                const toggle = document.getElementById(toggleId);
+                const updateCount = () => { if (counter) counter.textContent = checks.filter(item => item.checked).length; };
+
+                checks.forEach(item => item.addEventListener('change', updateCount));
                 updateCount();
-            });
+                search?.addEventListener('input', function () {
+                    const term = this.value.trim().toLocaleLowerCase('es');
+                    options.forEach(option => { option.style.display = option.dataset.search.includes(term) ? '' : 'none'; });
+                });
+                toggle?.addEventListener('click', function () {
+                    const visible = checks.filter(item => item.closest('.' + optionClass).style.display !== 'none');
+                    const select = visible.some(item => !item.checked);
+                    visible.forEach(item => { item.checked = select; });
+                    this.textContent = select ? 'Quitar selección' : selectAllText;
+                    updateCount();
+                });
+            };
+
+            configureRecipientSelector('companyAlertSearch', 'company-alert-option', 'company-alert-checkbox', 'selectedCompanyCount', 'toggleAllCompanies', 'Seleccionar todas');
+            configureRecipientSelector('userAlertSearch', 'user-alert-option', 'user-alert-checkbox', 'selectedUserCount', 'toggleAllUsers', 'Seleccionar todos');
             @if($errors->createAlert->any()) $('#createCompanyAlertModal').modal('show'); @endif
             @if($errors->approveAlert->any() && old('_approval_alert_id'))
                 const approvalAlertId = @json((string) old('_approval_alert_id'));

@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\AlertaEmpresa;
 use App\Models\Empresa;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\File;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -20,6 +22,9 @@ class AlertaEmpresaController extends Controller
         $empresaId = $isEmpresaUser ? (int) ($user->empresa_id ?? 0) : null;
 
         $empresasQuery = Empresa::query()->orderBy('nombre');
+        $usuariosQuery = User::query()
+            ->whereNull('empresa_id')
+            ->orderBy('name');
         $alertasQuery = AlertaEmpresa::query();
 
         if ($isEmpresaUser) {
@@ -39,6 +44,7 @@ class AlertaEmpresaController extends Controller
             $alertasQuery
                 ->with([
                     'empresas:id,nombre,sigla',
+                    'usuariosDestinatarios:id,name,email,empresa_id',
                     'creador:id,name',
                     'aprobador:id,name',
                     'lectores:id,name,empresa_id',
@@ -49,6 +55,9 @@ class AlertaEmpresaController extends Controller
 
         return view('alertas_empresa.index', [
             'empresas' => $empresasQuery->get(['id', 'nombre', 'sigla', 'codigo_cliente']),
+            'usuariosSinEmpresa' => $isEmpresaUser
+                ? collect()
+                : $usuariosQuery->get(['id', 'name', 'email', 'empresa_id']),
             'alertas' => $alertasQuery
                 ->latest('created_at')
                 ->paginate(15),
@@ -61,13 +70,23 @@ class AlertaEmpresaController extends Controller
         $validated = $request->validateWithBag('createAlert', [
             'titulo' => ['required', 'string', 'max:150'],
             'mensaje' => ['nullable', 'string', 'max:10000'],
-            'empresa_ids' => ['required', 'array', 'min:1'],
+            'empresa_ids' => ['nullable', 'array', 'required_without:user_ids'],
             'empresa_ids.*' => ['integer', 'distinct', 'exists:empresa,id'],
+            'user_ids' => ['nullable', 'array', 'required_without:empresa_ids'],
+            'user_ids.*' => [
+                'integer',
+                'distinct',
+                Rule::exists('users', 'id')->where(fn ($query) => $query
+                    ->whereNull('empresa_id')
+                    ->whereNull('deleted_at')),
+            ],
             'portada' => ['required', File::image()->types(['jpg', 'jpeg', 'png', 'webp'])->max(10 * 1024)],
             'pdf' => ['nullable', File::types(['pdf'])->max(50 * 1024)],
             'vence_at' => ['nullable', 'date', 'after:now'],
         ], [
-            'empresa_ids.required' => 'Selecciona al menos una empresa destinataria.',
+            'empresa_ids.required_without' => 'Selecciona al menos una empresa o un usuario destinatario.',
+            'user_ids.required_without' => 'Selecciona al menos una empresa o un usuario destinatario.',
+            'user_ids.*.exists' => 'Uno de los usuarios seleccionados no existe o ya tiene una empresa asignada.',
             'portada.required' => 'La imagen de portada es obligatoria.',
             'portada.image' => 'La portada debe ser una imagen valida.',
             'pdf.mimes' => 'El documento adjunto debe ser PDF.',
@@ -89,7 +108,8 @@ class AlertaEmpresaController extends Controller
                     'vence_at' => $validated['vence_at'] ?? null,
                 ]);
 
-                $alerta->empresas()->sync($validated['empresa_ids']);
+                $alerta->empresas()->sync($validated['empresa_ids'] ?? []);
+                $alerta->usuariosDestinatarios()->sync($validated['user_ids'] ?? []);
             });
         } catch (\Throwable $exception) {
             Storage::disk('public')->delete(array_filter([$portadaPath, $pdfPath]));
@@ -118,7 +138,7 @@ class AlertaEmpresaController extends Controller
             'aprobada_por' => $request->user()->id,
         ]);
 
-        return redirect()->route('alertas-empresa.index')->with('success', 'La noticia fue corregida, aprobada y publicada para las empresas.');
+        return redirect()->route('alertas-empresa.index')->with('success', 'La noticia fue corregida, aprobada y publicada para sus destinatarios.');
     }
 
     public function destroy(AlertaEmpresa $alertaEmpresa): RedirectResponse
@@ -173,9 +193,12 @@ class AlertaEmpresaController extends Controller
             $isManager = ! $isEmpresaUser
                 && ($user->isSuperAdmin() || $user->can('feature.alertas-empresa.manage'));
         }
-        $isRecipient = $user->empresa_id
-            && $alertaEmpresa->aprobada_at !== null
+        $isCompanyRecipient = $user->empresa_id
             && $alertaEmpresa->empresas()->whereKey($user->empresa_id)->exists();
+        $isIndividualRecipient = ! $user->empresa_id
+            && $alertaEmpresa->usuariosDestinatarios()->whereKey($user->id)->exists();
+        $isRecipient = $alertaEmpresa->aprobada_at !== null
+            && ($isCompanyRecipient || $isIndividualRecipient);
 
         abort_unless($isManager || $isRecipient, 403);
     }

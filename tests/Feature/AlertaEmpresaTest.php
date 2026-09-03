@@ -70,6 +70,11 @@ class AlertaEmpresaTest extends TestCase
             $table->unsignedBigInteger('empresa_id');
             $table->primary(['alerta_empresa_id', 'empresa_id']);
         });
+        Schema::create('alerta_empresa_usuarios', function (Blueprint $table): void {
+            $table->unsignedBigInteger('alerta_empresa_id');
+            $table->unsignedBigInteger('user_id');
+            $table->primary(['alerta_empresa_id', 'user_id']);
+        });
         Schema::create('alerta_empresa_lecturas', function (Blueprint $table): void {
             $table->unsignedBigInteger('alerta_empresa_id');
             $table->unsignedBigInteger('user_id');
@@ -81,6 +86,7 @@ class AlertaEmpresaTest extends TestCase
     protected function tearDown(): void
     {
         Schema::dropIfExists('alerta_empresa_lecturas');
+        Schema::dropIfExists('alerta_empresa_usuarios');
         Schema::dropIfExists('alerta_empresa_destinatarios');
         Schema::dropIfExists('alertas_empresa');
         Schema::dropIfExists('users');
@@ -170,6 +176,71 @@ class AlertaEmpresaTest extends TestCase
             'user_id' => $user->id,
         ]);
         $this->assertNull(app(AlertaEmpresaService::class)->siguienteNoLeida($user));
+    }
+
+    public function test_administrator_can_send_an_alert_to_a_user_without_company(): void
+    {
+        Storage::fake('public');
+        $admin = User::factory()->create();
+        $recipient = User::factory()->create(['empresa_id' => null]);
+
+        $this->actingAs($admin)->post(route('alertas-empresa.store'), [
+            'titulo' => 'Comunicado interno',
+            'mensaje' => 'Texto para un usuario de correo.',
+            'user_ids' => [$recipient->id],
+            'portada' => $this->fakePng(),
+        ])->assertRedirect(route('alertas-empresa.index'));
+
+        $alerta = AlertaEmpresa::query()->firstOrFail();
+        $this->assertTrue($alerta->usuariosDestinatarios->contains($recipient));
+        $this->assertTrue($alerta->empresas->isEmpty());
+        $this->assertNull($alerta->aprobada_at);
+    }
+
+    public function test_user_without_company_receives_individual_alert_until_marking_it_as_read(): void
+    {
+        $recipient = User::factory()->create(['empresa_id' => null]);
+        $otherUser = User::factory()->create(['empresa_id' => null]);
+        $alerta = AlertaEmpresa::query()->create([
+            'titulo' => 'Alerta por correo',
+            'portada_path' => 'alertas-empresa/portadas/demo.png',
+            'publicada_at' => now(),
+            'aprobada_at' => now(),
+        ]);
+        $alerta->usuariosDestinatarios()->attach($recipient);
+
+        $this->assertSame($alerta->id, app(AlertaEmpresaService::class)->siguienteNoLeida($recipient)?->id);
+        $this->assertNull(app(AlertaEmpresaService::class)->siguienteNoLeida($otherUser));
+
+        $this->actingAs($otherUser)
+            ->post(route('alertas-empresa.read', $alerta))
+            ->assertForbidden();
+
+        $this->actingAs($recipient)
+            ->post(route('alertas-empresa.read', $alerta))
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('alerta_empresa_lecturas', [
+            'alerta_empresa_id' => $alerta->id,
+            'user_id' => $recipient->id,
+        ]);
+        $this->assertNull(app(AlertaEmpresaService::class)->siguienteNoLeida($recipient));
+    }
+
+    public function test_company_user_cannot_be_selected_as_individual_recipient(): void
+    {
+        Storage::fake('public');
+        $admin = User::factory()->create();
+        $empresa = $this->createEmpresa();
+        $companyUser = User::factory()->create(['empresa_id' => $empresa->id]);
+
+        $this->actingAs($admin)->post(route('alertas-empresa.store'), [
+            'titulo' => 'Destino inválido',
+            'user_ids' => [$companyUser->id],
+            'portada' => $this->fakePng(),
+        ])->assertSessionHasErrorsIn('createAlert', 'user_ids.0');
+
+        $this->assertDatabaseCount('alertas_empresa', 0);
     }
 
     public function test_empresa_role_only_lists_approved_alerts_for_its_own_company(): void
