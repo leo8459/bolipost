@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ExternalApiToken extends Model
 {
@@ -33,5 +34,10 @@ class ExternalApiToken extends Model
         return $this->is_active
             && $this->revoked_at === null
             && ($this->expires_at === null || $this->expires_at->isFuture());
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 }

@@ -4,22 +4,26 @@ namespace App\Livewire;
 
 use App\Models\Estado;
 use App\Models\Recojo as RecojoModel;
+use App\Services\ContratoPickupService;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 use Livewire\WithPagination;
+use RuntimeException;
 
 class RecojoRecogerEnvios extends Component
 {
-    private const EVENTO_ID_CONTRATO_RECOGIDO = 295;
-
     use WithPagination;
 
     public $search = '';
+
     public $searchQuery = '';
+
     public $userCity = '';
+
     public $estadoSolicitudId = null;
+
     public $estadoAlmacenId = null;
+
     public $selectedRecojos = [];
 
     protected $paginationTheme = 'bootstrap';
@@ -35,12 +39,10 @@ class RecojoRecogerEnvios extends Component
             ->value('id') ?? 0);
     }
 
-    public function mandarSeleccionadosAlmacen()
+    public function mandarSeleccionadosAlmacen(ContratoPickupService $pickupService)
     {
         $this->authorizePermission('feature.paquetes-contrato.recoger-envios.assign');
-        $hasGlobalDepartmentAccess = (bool) optional(Auth::user())->hasGlobalDepartmentAccess();
-
-        $actorUserId = (int) optional(Auth::user())->id;
+        $actor = Auth::user();
         $ids = collect($this->selectedRecojos)
             ->filter()
             ->map(fn ($id) => (int) $id)
@@ -51,90 +53,35 @@ class RecojoRecogerEnvios extends Component
 
         if (empty($ids)) {
             session()->flash('error', 'Selecciona al menos un envio para mandar a ALMACEN.');
+
             return;
         }
 
-        if ($this->estadoAlmacenId <= 0) {
-            session()->flash('error', 'No existe el estado ALMACEN en la tabla estados.');
-            return;
-        }
-
-        if ($actorUserId <= 0) {
+        if (! $actor) {
             session()->flash('error', 'Usuario no autenticado para registrar evento.');
+
             return;
         }
 
-        $eventoExiste = DB::table('eventos')
-            ->where('id', self::EVENTO_ID_CONTRATO_RECOGIDO)
-            ->exists();
+        try {
+            $resultado = $pickupService->recogerPorIds($actor, $ids);
+            $actualizados = $resultado['actualizados'];
+        } catch (RuntimeException $exception) {
+            session()->flash('error', $exception->getMessage());
 
-        if (!$eventoExiste) {
-            session()->flash('error', 'No existe el evento con ID ' . self::EVENTO_ID_CONTRATO_RECOGIDO . ' en la tabla eventos.');
             return;
         }
-
-        $actualizados = 0;
-        DB::transaction(function () use ($ids, $actorUserId, $hasGlobalDepartmentAccess, &$actualizados) {
-            $recojosActualizar = RecojoModel::query()
-                ->whereIn('id', $ids)
-                ->where('estados_id', (int) $this->estadoSolicitudId)
-                ->when(!$hasGlobalDepartmentAccess && $this->userCity !== '', function ($query) {
-                    $query->whereRaw('trim(upper(origen)) = ?', [$this->userCity]);
-                }, function ($query) use ($hasGlobalDepartmentAccess) {
-                    if ($hasGlobalDepartmentAccess) {
-                        return;
-                    }
-
-                    $query->whereRaw('1 = 0');
-                })
-                ->get(['id', 'codigo']);
-
-            if ($recojosActualizar->isEmpty()) {
-                $actualizados = 0;
-                return;
-            }
-
-            $idsActualizar = $recojosActualizar->pluck('id')->map(fn ($id) => (int) $id)->all();
-
-            $actualizados = RecojoModel::query()
-                ->whereIn('id', $idsActualizar)
-                ->update([
-                    'estados_id' => (int) $this->estadoAlmacenId,
-                    'fecha_recojo' => now(),
-                    'updated_at' => now(),
-                ]);
-
-            $now = now();
-            $rows = $recojosActualizar
-                ->pluck('codigo')
-                ->map(fn ($codigo) => trim((string) $codigo))
-                ->filter(fn ($codigo) => $codigo !== '')
-                ->values()
-                ->map(function ($codigo) use ($actorUserId, $now) {
-                    return [
-                        'codigo' => $codigo,
-                        'evento_id' => self::EVENTO_ID_CONTRATO_RECOGIDO,
-                        'user_id' => $actorUserId,
-                        'created_at' => $now,
-                        'updated_at' => $now,
-                    ];
-                })
-                ->all();
-
-            if (!empty($rows)) {
-                DB::table('eventos_contrato')->insert($rows);
-            }
-        });
 
         $this->selectedRecojos = [];
         $this->resetPage();
 
         if ($actualizados <= 0) {
             session()->flash('error', 'No se actualizo ningun envio. Verifica estado y ciudad.');
+
             return;
         }
 
-        session()->flash('success', $actualizados . ' envio(s) enviado(s) a ALMACEN.');
+        session()->flash('success', $actualizados.' envio(s) enviado(s) a ALMACEN.');
     }
 
     public function searchRecojos($seleccionarPorCodigo = false)
@@ -143,7 +90,7 @@ class RecojoRecogerEnvios extends Component
         $this->resetPage();
         $hasGlobalDepartmentAccess = (bool) optional(Auth::user())->hasGlobalDepartmentAccess();
 
-        if (!$seleccionarPorCodigo) {
+        if (! $seleccionarPorCodigo) {
             return;
         }
 
@@ -153,7 +100,7 @@ class RecojoRecogerEnvios extends Component
         }
 
         $recojo = RecojoModel::query()
-            ->when(!$hasGlobalDepartmentAccess && $this->userCity !== '', function ($query) {
+            ->when(! $hasGlobalDepartmentAccess && $this->userCity !== '', function ($query) {
                 $query->whereRaw('trim(upper(origen)) = ?', [$this->userCity]);
             }, function ($query) use ($hasGlobalDepartmentAccess) {
                 if ($hasGlobalDepartmentAccess) {
@@ -162,7 +109,7 @@ class RecojoRecogerEnvios extends Component
 
                 $query->whereRaw('1 = 0');
             })
-            ->when(!empty($this->estadoSolicitudId), function ($query) {
+            ->when(! empty($this->estadoSolicitudId), function ($query) {
                 $query->where('estados_id', (int) $this->estadoSolicitudId);
             }, function ($query) {
                 $query->whereRaw('1 = 0');
@@ -170,9 +117,10 @@ class RecojoRecogerEnvios extends Component
             ->whereRaw('trim(upper(codigo)) = trim(upper(?))', [$codigo])
             ->first(['id', 'codigo']);
 
-        if (!$recojo) {
+        if (! $recojo) {
             $this->search = '';
             $this->searchQuery = '';
+
             return;
         }
 
@@ -186,7 +134,7 @@ class RecojoRecogerEnvios extends Component
         $this->search = '';
         $this->searchQuery = '';
         $this->resetPage();
-        session()->flash('success', 'Paquete ' . $recojo->codigo . ' autoseleccionado.');
+        session()->flash('success', 'Paquete '.$recojo->codigo.' autoseleccionado.');
     }
 
     public function render()
@@ -207,7 +155,7 @@ class RecojoRecogerEnvios extends Component
                 'user.empresa:id,nombre,sigla',
                 'estadoRegistro:id,nombre_estado',
             ])
-            ->when(!$hasGlobalDepartmentAccess && $this->userCity !== '', function ($query) {
+            ->when(! $hasGlobalDepartmentAccess && $this->userCity !== '', function ($query) {
                 $query->whereRaw('trim(upper(origen)) = ?', [$this->userCity]);
             }, function ($query) use ($hasGlobalDepartmentAccess) {
                 if ($hasGlobalDepartmentAccess) {
@@ -216,7 +164,7 @@ class RecojoRecogerEnvios extends Component
 
                 $query->whereRaw('1 = 0');
             })
-            ->when(!empty($this->estadoSolicitudId), function ($query) {
+            ->when(! empty($this->estadoSolicitudId), function ($query) {
                 $query->where('estados_id', (int) $this->estadoSolicitudId);
             }, function ($query) {
                 $query->whereRaw('1 = 0');
@@ -255,7 +203,7 @@ class RecojoRecogerEnvios extends Component
                     'estadoRegistro:id,nombre_estado',
                 ])
                 ->whereIn('id', $selectedIds->all())
-                ->when(!$hasGlobalDepartmentAccess && $this->userCity !== '', function ($query) {
+                ->when(! $hasGlobalDepartmentAccess && $this->userCity !== '', function ($query) {
                     $query->whereRaw('trim(upper(origen)) = ?', [$this->userCity]);
                 }, function ($query) use ($hasGlobalDepartmentAccess) {
                     if ($hasGlobalDepartmentAccess) {
@@ -264,7 +212,7 @@ class RecojoRecogerEnvios extends Component
 
                     $query->whereRaw('1 = 0');
                 })
-                ->when(!empty($this->estadoSolicitudId), function ($query) {
+                ->when(! empty($this->estadoSolicitudId), function ($query) {
                     $query->where('estados_id', (int) $this->estadoSolicitudId);
                 }, function ($query) {
                     $query->whereRaw('1 = 0');
