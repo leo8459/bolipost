@@ -391,7 +391,6 @@ return [
         'malencaminados' => 'Malencaminados',
         'bastiones' => 'Bastiones',
         'mis-ventas' => 'Mis Ventas',
-        'facturacion-servicio' => 'Facturacion por servicio',
         'ventas-sucursal' => 'Ventas Sucursal',
         'paquetes-ems' => 'Paquetes EMS',
         'paquetes-ems.almacen-admisiones' => 'Almacen admisiones',

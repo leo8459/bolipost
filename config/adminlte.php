@@ -515,12 +515,6 @@ return [
                     'can' => 'feature.dashboard.facturacion',
                 ],
                 [
-                    'text' => 'Facturacion por servicio',
-                    'url' => '/facturacion-servicio',
-                    'icon' => 'fas fa-file-invoice-dollar',
-                    'can' => 'facturacion-servicio.index',
-                ],
-                [
                     'text' => 'Reporte General',
                     'url' => '/reportes/general',
                     'icon' => 'fas fa-layer-group',

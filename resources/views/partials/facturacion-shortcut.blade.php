@@ -402,6 +402,8 @@
                                     data-item-direccion="{{ (string) data_get($issueItem->resumen_origen, 'direccion', '') }}"
                                     data-item-ciudad="{{ (string) data_get($issueItem->resumen_origen, 'ciudad', '') }}"
                                     data-item-peso="{{ (string) data_get($issueItem->resumen_origen, 'peso', '') }}"
+                                    data-item-codigo-paquete="{{ (string) data_get($issueItem->resumen_origen, 'codigo_paquete', '') }}"
+                                    data-item-codigo-servicio="{{ (string) data_get($issueItem->resumen_origen, 'codigo_servicio', '') }}"
                                     data-item-precio="{{ number_format((float) $facturacionResolveUnitBase($issueItem), 2, '.', '') }}"
                                     data-item-cantidad="{{ $facturacionResolveQuantity($issueItem) }}"
                                     data-item-actividad-economica="{{ (string) data_get($issueItem->resumen_origen, 'actividad_economica', '') }}"
@@ -670,6 +672,8 @@
                                         data-item-direccion="{{ (string) data_get($item->resumen_origen, 'direccion', '') }}"
                                         data-item-ciudad="{{ (string) data_get($item->resumen_origen, 'ciudad', '') }}"
                                         data-item-peso="{{ (string) data_get($item->resumen_origen, 'peso', '') }}"
+                                        data-item-codigo-paquete="{{ (string) data_get($item->resumen_origen, 'codigo_paquete', '') }}"
+                                        data-item-codigo-servicio="{{ (string) data_get($item->resumen_origen, 'codigo_servicio', '') }}"
                                         data-item-precio="{{ number_format((float) $facturacionResolveUnitBase($item), 2, '.', '') }}"
                                         data-item-cantidad="{{ $itemCantidad }}"
                                         data-item-actividad-economica="{{ (string) data_get($item->resumen_origen, 'actividad_economica', '') }}"
@@ -777,7 +781,7 @@
                                                 data-precio-base="{{ number_format((float) $conceptoFacturable->precio_base, 2, '.', '') }}"
                                                 data-concepto-nombre="{{ $conceptoFacturable->nombre }}"
                                                 data-concepto-codigo="{{ $conceptoFacturable->codigo }}"
-                                                data-concepto-descripcion="{{ $conceptoFacturable->descripcion_servicio ?? $conceptoFacturable->nombre }}"
+                                                data-concepto-descripcion="{{ $conceptoFacturable->descripcion ?? $conceptoFacturable->nombre }}"
                                             >
                                                 {{ $conceptoFacturable->nombre }} | {{ $conceptoFacturable->codigo }} | Bs {{ number_format((float) $conceptoFacturable->precio_base, 2) }}
                                             </option>
@@ -1009,6 +1013,38 @@
                     Este item esta agrupado. Si cambias la cantidad a un valor menor que el total, separaremos esa parte en una nueva linea para que puedas darle otro detalle, precio o descripcion.
                 </div>
                 <div class="facturacion-item-edit-batch is-hidden" id="facturacionItemEditBatch"></div>
+                <div class="facturacion-item-edit-service-summary is-hidden" id="facturacionItemEditServiceSummary">
+                    <span class="facturacion-item-edit-service-summary__icon" id="facturacionItemEditServiceIcon"><i class="fas fa-box" aria-hidden="true"></i></span>
+                    <div><span>Codigo</span><strong id="facturacionItemEditServiceCode">-</strong></div>
+                    <div><span>Precio base</span><strong id="facturacionItemEditServicePrice">Bs 0.00</strong></div>
+                    <div class="facturacion-item-edit-service-summary__quantity">
+                        <label for="facturacionEditItemServiceCantidad">Cantidad</label>
+                        <input type="number" id="facturacionEditItemServiceCantidad" min="1" max="999" step="1" inputmode="numeric">
+                        <label for="facturacionEditItemServicePrecio">Precio unitario</label>
+                        <input type="number" id="facturacionEditItemServicePrecio" min="0" step="0.01" inputmode="decimal">
+                    </div>
+                </div>
+                <div class="facturacion-item-edit-code-summary is-hidden" id="facturacionItemEditCodeSummary">
+                    <span class="facturacion-item-edit-code-summary__icon"><i class="fas fa-barcode" aria-hidden="true"></i></span>
+                    <div class="facturacion-item-edit-code-summary__code">
+                        <label for="facturacionEditItemCodeCodigo">Codigo</label>
+                        <input type="text" id="facturacionEditItemCodeCodigo" maxlength="120" placeholder="Codigo del item" readonly>
+                    </div>
+                    <div class="facturacion-item-edit-code-summary__amount">
+                        <div class="facturacion-item-edit-code-summary__metric">
+                            <label for="facturacionEditItemCodeCantidad">Cantidad</label>
+                            <input type="number" id="facturacionEditItemCodeCantidad" min="1" max="999" step="1" inputmode="numeric" readonly>
+                        </div>
+                        <div class="facturacion-item-edit-code-summary__metric">
+                            <label for="facturacionEditItemCodePeso">Peso (kg)</label>
+                            <input type="number" id="facturacionEditItemCodePeso" min="0" step="0.01" inputmode="decimal" placeholder="0.00" readonly>
+                        </div>
+                        <div class="facturacion-item-edit-code-summary__metric">
+                            <label for="facturacionEditItemCodePrecio">Precio unitario</label>
+                            <input type="number" id="facturacionEditItemCodePrecio" min="0" step="0.01" inputmode="decimal">
+                        </div>
+                    </div>
+                </div>
                 <div class="global-shortcut-item-edit-summary" id="facturacionItemEditSummary">
                     <div class="global-shortcut-item-edit-summary__row">
                         <span>Codigo</span>
@@ -1063,13 +1099,63 @@
                             ></strong>
                         </div>
                         <textarea id="facturacionEditItemDescripcionServicioEditable" rows="3" maxlength="255" placeholder="Agrega el detalle complementario del servicio"></textarea>
-                        <small class="global-shortcut-field__hint">Aqui solo editas el detalle adicional.</small>
                     </div>
                     <div class="global-shortcut-field global-shortcut-field--full" data-edit-field-key="precio">
                         <label for="facturacionEditItemPrecio">Precio</label>
                         <input type="number" id="facturacionEditItemPrecio" name="precio" min="0" step="0.01" required>
                     </div>
                 </div>
+                <section class="facturacion-item-edit-casilla is-hidden" id="facturacionItemEditCasillaFields">
+                    <div class="facturacion-item-edit-casilla__grid">
+                        <div class="global-shortcut-field">
+                            <label for="facturacionEditItemCasillaTamano">Tamaño de casilla</label>
+                            <select id="facturacionEditItemCasillaTamano">
+                                <option value="">Selecciona un tamaño</option>
+                                <option value="Pequeño">Pequeño</option>
+                                <option value="Mediano">Mediano</option>
+                                <option value="Gabeta">Gabeta</option>
+                                <option value="Cajon">Cajon</option>
+                            </select>
+                        </div>
+                        <div class="global-shortcut-field">
+                            <label for="facturacionEditItemCasillaNumero">Número de casilla</label>
+                            <input type="text" id="facturacionEditItemCasillaNumero" maxlength="30" inputmode="numeric" placeholder="Escribe el número">
+                        </div>
+                    </div>
+                    <div class="global-shortcut-field">
+                        <label>Descripción del servicio</label>
+                        <input type="hidden" id="facturacionEditItemCasillaDescripcion" name="descripcion_servicio">
+                        <div class="global-shortcut-description-lock">
+                            <span class="global-shortcut-description-lock__label">Vista previa de la descripción</span>
+                            <strong class="global-shortcut-description-lock__value" id="facturacionEditItemCasillaPreview">Servicio Casilla</strong>
+                        </div>
+                        <textarea id="facturacionEditItemCasillaPago" rows="3" maxlength="255" placeholder="Describa el tiempo del pago de la casilla."></textarea>
+                    </div>
+                </section>
+                <section class="facturacion-item-edit-ems is-hidden" id="facturacionItemEditEmsFields">
+                    <span class="facturacion-item-edit-ems__eyebrow">Datos del paquete EMS</span>
+                    <div class="global-shortcut-description-lock">
+                        <span class="global-shortcut-description-lock__label">Descripcion final (no editable)</span>
+                        <strong class="global-shortcut-description-lock__value" id="facturacionEditItemEmsDescripcion">Servicio EMS Internacional - Entrega/Envio de Paqueteria</strong>
+                    </div>
+                    <div class="facturacion-item-edit-ems__grid">
+                        <div class="global-shortcut-field facturacion-item-edit-ems__code-field">
+                            <label for="facturacionEditItemEmsCodigoPaquete">Codigo del paquete</label>
+                            <div class="facturacion-ems-package-code">
+                                <span id="facturacionEditItemPackageServicePrefix">SRVE-3 -</span>
+                                <input type="text" id="facturacionEditItemEmsCodigoPaquete" name="codigo_paquete" maxlength="120" required placeholder="Ej. EMS-0001">
+                            </div>
+                        </div>
+                        <div class="global-shortcut-field">
+                            <label for="facturacionEditItemEmsPeso">Peso (kg)</label>
+                            <input type="number" id="facturacionEditItemEmsPeso" name="peso" min="0.01" step="0.01" inputmode="decimal" required>
+                        </div>
+                        <div class="global-shortcut-field">
+                            <label for="facturacionEditItemEmsPrecio">Precio unitario</label>
+                            <input type="number" id="facturacionEditItemEmsPrecio" name="precio" min="0.01" step="0.01" inputmode="decimal" required>
+                        </div>
+                    </div>
+                </section>
                 <div class="global-shortcut-confirm__actions">
                     <button type="button" class="global-shortcut-confirm__btn global-shortcut-confirm__btn--ghost" id="facturacionItemEditCancel">
                         Cancelar
@@ -1099,9 +1185,6 @@
                 <div class="global-shortcut-confirm__eyebrow">Nuevo cobro</div>
             </div>
             <h4 id="facturacionConceptoModalTitle" class="global-shortcut-confirm__title">Configurar cobro antes de agregar</h4>
-            <p class="global-shortcut-confirm__message" id="facturacionConceptoModalMessage">
-                Aqui defines la cantidad, el precio unitario y la descripcion que se usaran para agregar este cobro extra al carrito.
-            </p>
             <form
                 method="POST"
                 action="{{ route('facturacion.cart.conceptos.store') }}"
@@ -1110,47 +1193,80 @@
             >
                 @csrf
                 <input type="hidden" name="concepto_facturacion_id" id="facturacionConceptoModalConceptId" value="">
-                <div class="global-shortcut-item-edit-summary">
-                    <div class="global-shortcut-item-edit-summary__row">
-                        <span>Concepto</span>
+                <div class="facturacion-concepto-main-column">
+                <div class="global-shortcut-item-edit-summary" id="facturacionConceptoModalResumen">
+                    <div class="global-shortcut-item-edit-summary__row global-shortcut-item-edit-summary__row--name">
+                        <span id="facturacionConceptoModalResumenNombreLabel">Concepto</span>
                         <strong id="facturacionConceptoModalResumenNombre">-</strong>
                     </div>
-                    <div class="global-shortcut-item-edit-summary__row">
+                    <div class="global-shortcut-item-edit-summary__row global-shortcut-item-edit-summary__row--code">
                         <span>Codigo</span>
                         <strong id="facturacionConceptoModalResumenCodigo">-</strong>
                     </div>
-                    <div class="global-shortcut-item-edit-summary__row">
+                    <div class="global-shortcut-item-edit-summary__row global-shortcut-item-edit-summary__row--price">
                         <span>Precio base</span>
                         <strong id="facturacionConceptoModalResumenPrecio">Bs 0.00</strong>
                     </div>
+                    <div class="facturacion-concepto-summary__quantity" id="facturacionConceptoModalQuantitySlot"></div>
                 </div>
-                <div class="global-shortcut-item-edit-grid">
-                    <div class="global-shortcut-field">
+                <div class="global-shortcut-item-edit-grid" id="facturacionConceptoFields">
+                    <div class="global-shortcut-field" id="facturacionConceptoCantidadField">
                         <label for="facturacionConceptoCantidad">Cantidad</label>
                         <input type="number" name="cantidad" id="facturacionConceptoCantidad" value="1" min="1" max="999" step="1" placeholder="1" inputmode="numeric">
                     </div>
-                    <div class="global-shortcut-field">
+                    <div class="global-shortcut-field" id="facturacionConceptoPrecioField">
                         <label for="facturacionConceptoPrecio">Precio unitario</label>
-                        <input type="number" name="precio" id="facturacionConceptoPrecio" value="" min="0" step="0.01" placeholder="0.00" inputmode="decimal">
+                        <input type="number" name="precio" id="facturacionConceptoPrecio" value="" min="0.01" step="0.01" placeholder="0.01" inputmode="decimal" required>
                     </div>
-                    <div class="global-shortcut-field global-shortcut-field--full">
-                        <label for="facturacionConceptoDescripcion">Descripcion</label>
+                    <div class="global-shortcut-field global-shortcut-field--full" id="facturacionConceptoDescripcionField">
+                        <label for="facturacionConceptoDescripcion">Descripcion del servicio</label>
                         <input type="hidden" id="facturacionConceptoDescripcionValor" name="descripcion_servicio">
                         <div
                             id="facturacionConceptoDescripcionBaseBox"
                             data-description-lock-container
                             class="global-shortcut-description-lock is-hidden"
                         >
-                            <span class="global-shortcut-description-lock__label">Servicio base</span>
+                            <span id="facturacionConceptoDescripcionBaseLabel" class="global-shortcut-description-lock__label">Descripcion base (no editable)</span>
                             <strong
                                 id="facturacionConceptoDescripcionBase"
                                 class="global-shortcut-description-lock__value"
                             ></strong>
                         </div>
-                        <textarea id="facturacionConceptoDescripcion" rows="3" maxlength="255" placeholder="Agrega el detalle adicional que ira despues de la descripcion base"></textarea>
-                        <small class="global-shortcut-field__hint">La descripcion base se mantiene. Aqui solo agregas el detalle adicional.</small>
+                        <textarea id="facturacionConceptoDescripcion" name="detalle_servicio" rows="3" maxlength="255" aria-label="Detalle editable de la descripcion" placeholder="Detalle editable del servicio" required></textarea>
+                    </div>
+                    <div class="global-shortcut-field facturacion-concepto-casilla-field is-hidden">
+                        <label for="facturacionConceptoCasillaTamano">Tamaño de casilla</label>
+                        <select name="casilla_tamano" id="facturacionConceptoCasillaTamano">
+                            <option value="">Selecciona un tamaño</option>
+                            <option value="Pequeño">Pequeño</option>
+                            <option value="Mediano">Mediano</option>
+                            <option value="Gabeta">Gabeta</option>
+                            <option value="Cajon">Cajon</option>
+                        </select>
+                    </div>
+                    <div class="global-shortcut-field facturacion-concepto-casilla-field is-hidden">
+                        <label for="facturacionConceptoCasillaNumero">Número de casilla</label>
+                        <input type="text" name="casilla_numero" id="facturacionConceptoCasillaNumero" maxlength="30" inputmode="numeric" placeholder="Escribe el número">
                     </div>
                 </div>
+                <section class="facturacion-ems-registration-summary is-hidden" id="facturacionEmsRegistrationSummary" aria-live="polite">
+                    <span class="facturacion-ems-registration-summary__label">Resumen del registro</span>
+                    <div class="facturacion-ems-registration-summary__metrics">
+                        <div><span>Paquetes</span><strong id="facturacionEmsSummaryCount">0</strong></div>
+                        <div><span>Peso total</span><strong id="facturacionEmsSummaryWeight">0.00 kg</strong></div>
+                        <div><span>Total</span><strong id="facturacionEmsSummaryTotal">Bs 0.00</strong></div>
+                    </div>
+                </section>
+                <aside class="facturacion-ems-packages-panel is-hidden" id="facturacionEmsPackagesPanel">
+                    <div class="facturacion-ems-packages-panel__head">
+                        <span class="facturacion-ems-packages-panel__icon"><i class="fas fa-box" aria-hidden="true"></i></span>
+                        <div>
+                            <strong id="facturacionEmsPackagesTitle">Paquetes EMS</strong>
+                            <p>Registra codigo, peso y precio de cada paquete.</p>
+                        </div>
+                    </div>
+                    <div class="facturacion-ems-packages-panel__list" id="facturacionEmsPackagesList"></div>
+                </aside>
                 <div class="global-shortcut-confirm__actions">
                     <button type="button" class="global-shortcut-confirm__btn global-shortcut-confirm__btn--ghost" id="facturacionConceptoModalCancel">
                         Cancelar
@@ -1158,6 +1274,7 @@
                     <button type="submit" class="global-shortcut-confirm__btn global-shortcut-confirm__btn--primary" id="facturacionConceptoModalSubmit">
                         Agregar cobro al carrito
                     </button>
+                </div>
                 </div>
             </form>
         </div>
@@ -2900,6 +3017,215 @@
         .facturacion-item-edit-hint.is-hidden {
             display: none;
         }
+        .facturacion-item-edit-service-summary {
+            display: grid;
+            grid-template-columns: 58px max-content max-content minmax(110px, 1fr);
+            align-items: center;
+            gap: 16px;
+            min-height: 88px;
+            margin-bottom: 16px;
+            padding: 14px 18px;
+            border: 1px solid #dbe7f7;
+            border-radius: 18px;
+            background: #fbfdff;
+        }
+        .facturacion-item-edit-service-summary.is-hidden {
+            display: none;
+        }
+        .facturacion-item-edit-code-summary {
+            display: grid;
+            grid-template-columns: 48px minmax(0, 1fr);
+            align-items: center;
+            gap: 14px;
+            min-height: 124px;
+            margin-bottom: 16px;
+            padding: 14px 18px;
+            border: 1px solid #dbe7f7;
+            border-radius: 18px;
+            background: #fbfdff;
+        }
+        .facturacion-item-edit-code-summary.is-hidden {
+            display: none;
+        }
+        .facturacion-item-edit-code-summary__icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 44px;
+            height: 44px;
+            color: #1768b5;
+            font-size: 1.45rem;
+            grid-row: span 2;
+        }
+        .facturacion-item-edit-code-summary__code,
+        .facturacion-item-edit-code-summary__amount {
+            display: grid;
+            gap: 4px;
+        }
+        .facturacion-item-edit-code-summary label {
+            color: #516987;
+            font-size: .72rem;
+            font-weight: 800;
+            letter-spacing: .045em;
+            text-transform: uppercase;
+        }
+        .facturacion-item-edit-code-summary input {
+            width: 100%;
+            min-height: 38px;
+            padding: 7px 10px;
+            border: 1px solid #d3e1f2;
+            border-radius: 12px;
+            outline: 0;
+            background: #fbfdff;
+            color: #183d6a;
+            font: inherit;
+        }
+        .facturacion-item-edit-code-summary input:focus {
+            border-color: #77a9ef;
+            box-shadow: 0 0 0 3px rgba(69, 133, 222, .14);
+        }
+        .facturacion-item-edit-code-summary input[readonly] {
+            background: #eef4fb;
+            color: #587191;
+            cursor: not-allowed;
+        }
+        .facturacion-item-edit-code-summary__amount {
+            grid-column: 1 / -1;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #dce8f8;
+        }
+        .facturacion-item-edit-code-summary__metric {
+            display: grid;
+            gap: 6px;
+        }
+        .facturacion-item-edit-code-summary__amount input {
+            text-align: center;
+        }
+        .facturacion-item-edit-code-summary__amount input[readonly] {
+            background: #eef4fb;
+            color: #587191;
+            cursor: not-allowed;
+        }
+        @media (max-width: 760px) {
+            .facturacion-item-edit-code-summary {
+                grid-template-columns: 42px minmax(0, 1fr);
+            }
+            .facturacion-item-edit-code-summary__icon {
+                grid-row: span 2;
+            }
+            .facturacion-item-edit-code-summary__amount {
+                grid-column: 1 / -1;
+            }
+            .facturacion-item-edit-code-summary__amount {
+                grid-template-columns: 1fr;
+                padding: 12px 0 0;
+                border-top: 1px solid #dce8f8;
+                border-left: 0;
+            }
+        }
+        .facturacion-item-edit-service-summary__icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 48px;
+            height: 48px;
+            color: #1768b5;
+            font-size: 1.7rem;
+        }
+        .facturacion-item-edit-service-summary > div {
+            display: grid;
+            gap: 4px;
+        }
+        .facturacion-item-edit-service-summary span:not(.facturacion-item-edit-service-summary__icon) {
+            color: #6981a2;
+            font-size: .72rem;
+            font-weight: 800;
+            letter-spacing: .045em;
+            text-transform: uppercase;
+        }
+        .facturacion-item-edit-service-summary strong {
+            color: #173b68;
+            font-size: .94rem;
+            white-space: nowrap;
+        }
+        .facturacion-item-edit-service-summary__quantity {
+            display: grid !important;
+            gap: 7px !important;
+            padding-left: 16px;
+            border-left: 1px solid #dce8f8;
+        }
+        .facturacion-item-edit-service-summary__quantity label {
+            color: #516987;
+            font-size: .72rem;
+            font-weight: 800;
+        }
+        .facturacion-item-edit-service-summary__quantity input {
+            width: 100%;
+            min-height: 38px;
+            padding: 7px 10px;
+            border: 1px solid #d3e1f2;
+            border-radius: 12px;
+            outline: 0;
+            background: #fbfdff;
+            color: #183d6a;
+            font: inherit;
+            text-align: center;
+            box-shadow: none;
+        }
+        .facturacion-item-edit-service-summary__quantity input:focus {
+            border-color: #77a9ef;
+            box-shadow: 0 0 0 3px rgba(69, 133, 222, .14);
+        }
+        .facturacion-item-edit-service-summary__quantity input[readonly] {
+            background: #eef4fb;
+            color: #587191;
+            cursor: not-allowed;
+        }
+        #facturacionItemEditModal.is-service-item #facturacionItemEditSummary,
+        #facturacionItemEditModal.is-service-item [data-edit-field-key="codigo"],
+        #facturacionItemEditModal.is-service-item [data-edit-field-key="precio"] {
+            display: none;
+        }
+        #facturacionItemEditModal.is-service-item .global-shortcut-item-edit-grid {
+            gap: 14px;
+        }
+        #facturacionItemEditModal.is-service-airline [data-edit-field-key="descripcion_servicio"] textarea {
+            display: none;
+        }
+        #facturacionItemEditModal.is-service-casilla #facturacionItemEditSingleGrid [data-edit-field-key="descripcion_servicio"] {
+            display: none;
+        }
+        #facturacionItemEditModal.is-ems-item #facturacionItemEditSingleGrid [data-edit-field-key="descripcion_servicio"] {
+            display: none;
+        }
+        #facturacionItemEditModal.is-ems-item .facturacion-item-edit-service-summary {
+            grid-template-columns: 58px max-content minmax(110px, 1fr);
+        }
+        #facturacionItemEditModal.is-ems-item .facturacion-item-edit-service-summary > div:nth-of-type(2) {
+            display: none;
+        }
+        #facturacionItemEditModal.is-code-item [data-edit-field-key="codigo"],
+        #facturacionItemEditModal.is-code-item [data-edit-field-key="precio"] {
+            display: none;
+        }
+        #facturacionItemEditModal.is-code-item [data-edit-field-key="codigo"] {
+            order: initial;
+        }
+        .facturacion-item-edit-casilla {
+            display: grid;
+            gap: 14px;
+            margin-top: 14px;
+        }
+        .facturacion-item-edit-casilla.is-hidden {
+            display: none;
+        }
+        .facturacion-item-edit-casilla__grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+        }
         .facturacion-item-edit-batch {
             display: grid;
             gap: 14px;
@@ -3021,6 +3347,75 @@
             line-height: 1.35;
             word-break: break-word;
         }
+        .global-shortcut-item-edit-summary--airline {
+            grid-template-columns: 62px max-content max-content minmax(132px, 1fr);
+            align-items: center;
+            min-height: 84px;
+            gap: 0 18px;
+            background: #fbfdff;
+        }
+        .global-shortcut-item-edit-summary--airline .global-shortcut-item-edit-summary__row--name {
+            grid-column: 1;
+            grid-row: 1;
+            align-self: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .global-shortcut-item-edit-summary--airline .global-shortcut-item-edit-summary__row--name strong {
+            display: none;
+        }
+        .global-shortcut-item-edit-summary--airline .global-shortcut-item-edit-summary__row--code,
+        .global-shortcut-item-edit-summary--airline .global-shortcut-item-edit-summary__row--price {
+            grid-row: 1;
+            text-align: left;
+            padding-left: 0;
+            border-left: 0;
+        }
+        .global-shortcut-item-edit-summary--airline .global-shortcut-item-edit-summary__row--code {
+            grid-column: 2;
+        }
+        .global-shortcut-item-edit-summary--airline .global-shortcut-item-edit-summary__row--price {
+            grid-column: 3;
+        }
+        .global-shortcut-item-edit-summary--airline .facturacion-concepto-summary__quantity {
+            grid-column: 4;
+            grid-row: 1;
+            min-width: 132px;
+            padding-left: 18px;
+            border-left: 1px solid #dce8f8;
+            display: grid;
+            gap: 11px;
+        }
+        .global-shortcut-item-edit-summary--airline .facturacion-concepto-summary__quantity .global-shortcut-field label {
+            margin-bottom: 5px;
+            font-size: .72rem;
+        }
+        .global-shortcut-item-edit-summary--airline .facturacion-concepto-summary__quantity .global-shortcut-field input {
+            min-height: 38px;
+            padding: 7px 10px;
+            text-align: center;
+        }
+        #facturacionConceptoFields.is-airline-layout .global-shortcut-field:not(.global-shortcut-field--full):not(.facturacion-concepto-casilla-field) {
+            grid-column: 1 / -1;
+        }
+        #facturacionConceptoFields.is-airline-layout .facturacion-concepto-casilla-field {
+            order: -1;
+        }
+        .global-shortcut-item-edit-summary .global-shortcut-item-edit-summary__airline-icon {
+            width: 60px;
+            height: 60px;
+            flex: 0 0 60px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0;
+            background: transparent;
+            border: 0;
+            color: #1464ae;
+            font-size: 2.6rem;
+            box-shadow: none;
+        }
         .global-shortcut-confirm__btn.is-hidden {
             display: none;
         }
@@ -3083,6 +3478,9 @@
             min-height: 96px;
             resize: vertical;
             line-height: 1.45;
+        }
+        #facturacionConceptoDescripcion.is-hidden {
+            display: none;
         }
         .global-shortcut-description-lock {
             display: grid;
@@ -3643,6 +4041,251 @@
             font-weight: 800;
             text-align: center;
         }
+        #facturacionConceptoModal .global-shortcut-confirm__title {
+            padding-bottom: 18px;
+        }
+        #facturacionConceptoModal .global-shortcut-confirm__panel--wide {
+            width: min(680px, calc(100vw - 26px));
+        }
+        #facturacionConceptoModal.is-ems-packages .global-shortcut-confirm__panel--wide {
+            width: min(760px, calc(100vw - 26px));
+        }
+        #facturacionConceptoModal.is-ems-packages .global-shortcut-item-edit-form {
+            display: block;
+        }
+        #facturacionConceptoModal.is-ems-packages .facturacion-concepto-main-column {
+            display: grid;
+            gap: 14px;
+            align-content: start;
+        }
+        #facturacionConceptoModal.is-ems-packages .facturacion-concepto-main-column > .global-shortcut-item-edit-summary,
+        #facturacionConceptoModal.is-ems-packages .facturacion-concepto-main-column > .global-shortcut-item-edit-grid {
+            margin: 0;
+        }
+        #facturacionConceptoModal.is-ems-packages .facturacion-concepto-main-column .global-shortcut-confirm__actions {
+            grid-template-columns: 1fr 1fr;
+            margin-top: 4px;
+        }
+        #facturacionConceptoModal.is-ems-packages .facturacion-concepto-main-column .global-shortcut-confirm__btn--ghost {
+            width: min(280px, 100%);
+            justify-self: start;
+        }
+        #facturacionConceptoModal.is-ems-packages .facturacion-concepto-main-column .global-shortcut-confirm__btn--primary {
+            width: min(320px, 100%);
+            justify-self: end;
+        }
+        #facturacionConceptoModal.is-ems-packages #facturacionConceptoDescripcionField > label {
+            display: none;
+        }
+        .facturacion-ems-packages-panel {
+            display: grid;
+            gap: 14px;
+            padding: 16px;
+            border: 1px solid #dbe7f7;
+            border-radius: 18px;
+            background: linear-gradient(180deg, #fafdff 0%, #f3f8ff 100%);
+        }
+        .facturacion-ems-packages-panel.is-hidden {
+            display: none;
+        }
+        .facturacion-ems-registration-summary {
+            display: grid;
+            gap: 10px;
+            padding: 14px 16px;
+            border: 1px solid #d8e5f5;
+            border-radius: 16px;
+            background: linear-gradient(135deg, #f8fbff 0%, #eef5ff 100%);
+        }
+        .facturacion-ems-registration-summary.is-hidden {
+            display: none;
+        }
+        .facturacion-ems-registration-summary__label {
+            color: #5a7598;
+            font-size: .73rem;
+            font-weight: 800;
+            letter-spacing: .055em;
+            text-transform: uppercase;
+        }
+        .facturacion-ems-registration-summary__metrics {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        .facturacion-ems-registration-summary__metrics > div {
+            display: grid;
+            gap: 3px;
+            min-width: 0;
+            padding: 0 12px;
+            border-left: 1px solid #d6e3f3;
+        }
+        .facturacion-ems-registration-summary__metrics > div:first-child {
+            padding-left: 0;
+            border-left: 0;
+        }
+        .facturacion-ems-registration-summary__metrics > div:last-child {
+            padding-right: 0;
+        }
+        .facturacion-ems-registration-summary__metrics span {
+            color: #607a9b;
+            font-size: .72rem;
+            font-weight: 700;
+        }
+        .facturacion-ems-registration-summary__metrics strong {
+            overflow: hidden;
+            color: #173b68;
+            font-size: .98rem;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .facturacion-ems-packages-panel__head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #dce8f8;
+        }
+        .facturacion-ems-packages-panel__icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            background: #e4f0ff;
+            color: #1768b5;
+        }
+        .facturacion-ems-packages-panel__head strong {
+            display: block;
+            color: #18385f;
+            font-size: .92rem;
+        }
+        .facturacion-ems-packages-panel__head p {
+            margin: 2px 0 0;
+            color: #6b809c;
+            font-size: .73rem;
+            line-height: 1.35;
+        }
+        .facturacion-ems-packages-panel__list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 12px;
+        }
+        .facturacion-ems-package-card {
+            display: grid;
+            gap: 9px;
+            padding: 12px;
+            border: 1px solid #d8e4f3;
+            border-radius: 14px;
+            background: #fff;
+        }
+        .facturacion-ems-package-card__fields {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 9px;
+        }
+        .facturacion-ems-package-card__fields .global-shortcut-field:first-child {
+            grid-column: 1 / -1;
+        }
+        .facturacion-ems-package-code {
+            display: flex;
+            min-height: 40px;
+            overflow: hidden;
+            border: 1px solid #d8e4f3;
+            border-radius: 12px;
+            background: #fbfdff;
+        }
+        .facturacion-ems-package-code span {
+            display: inline-flex;
+            align-items: center;
+            padding: 0 9px;
+            border-right: 1px solid #d8e4f3;
+            background: #eef4fb;
+            color: #46617f;
+            font-size: .78rem;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+        .facturacion-ems-package-code input {
+            min-width: 0;
+            min-height: 38px !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+        }
+        .facturacion-ems-package-card__number {
+            color: #20539a;
+            font-size: .75rem;
+            font-weight: 800;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+        }
+        .facturacion-ems-package-card .global-shortcut-field label {
+            margin-bottom: 5px;
+            font-size: .74rem;
+        }
+        .facturacion-ems-package-card .global-shortcut-field input {
+            min-height: 40px;
+            padding: 8px 10px;
+        }
+        .facturacion-item-edit-ems {
+            display: grid;
+            gap: 14px;
+            margin-top: 18px;
+            padding: 16px;
+            border: 1px solid #d8e5f5;
+            border-radius: 18px;
+            background: linear-gradient(180deg, #fafdff 0%, #f3f8ff 100%);
+        }
+        .facturacion-item-edit-ems.is-hidden {
+            display: none;
+        }
+        .facturacion-item-edit-ems__eyebrow {
+            color: #20539a;
+            font-size: .76rem;
+            font-weight: 800;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+        }
+        .facturacion-item-edit-ems__grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.35fr) repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .facturacion-item-edit-ems__code-field {
+            grid-column: auto;
+        }
+        #facturacionItemEditModal.is-ems-item #facturacionItemEditSingleGrid {
+            display: none;
+        }
+        #facturacionItemEditModal.is-ems-item .global-shortcut-confirm__message {
+            max-width: 560px;
+        }
+        @media (max-width: 560px) {
+            .facturacion-item-edit-ems__grid {
+                grid-template-columns: 1fr;
+            }
+            .facturacion-item-edit-service-summary {
+                grid-template-columns: 48px 1fr 1fr;
+                gap: 12px;
+            }
+            .facturacion-item-edit-service-summary__quantity {
+                grid-column: 2 / -1;
+                padding-top: 10px;
+                padding-left: 0;
+                border-top: 1px solid #dce8f8;
+                border-left: 0;
+            }
+        }
+        #facturacionConceptoModal .global-shortcut-item-edit-form {
+            padding: 0 28px 30px;
+        }
+        #facturacionConceptoModal .global-shortcut-item-edit-summary {
+            margin-bottom: 22px;
+            padding: 18px 20px;
+        }
+        #facturacionConceptoModal .global-shortcut-item-edit-grid {
+            gap: 16px;
+            margin-top: 20px;
+        }
         .global-shortcut-confirm__message {
             margin: 12px 0 0;
             padding: 0 24px;
@@ -3975,6 +4618,36 @@
             }
             .global-shortcut-confirm__panel--wide {
                 width: calc(100vw - 8px);
+            }
+            #facturacionConceptoModal .global-shortcut-item-edit-summary--airline {
+                grid-template-columns: 52px minmax(0, 1fr) minmax(0, 1fr);
+                gap: 12px;
+            }
+            #facturacionConceptoModal .global-shortcut-item-edit-summary--airline .global-shortcut-item-edit-summary__row--name {
+                grid-column: 1;
+            }
+            #facturacionConceptoModal .global-shortcut-item-edit-summary--airline .global-shortcut-item-edit-summary__row--code {
+                grid-column: 2;
+            }
+            #facturacionConceptoModal .global-shortcut-item-edit-summary--airline .global-shortcut-item-edit-summary__row--price {
+                grid-column: 3;
+            }
+            #facturacionConceptoModal .global-shortcut-item-edit-summary--airline .facturacion-concepto-summary__quantity {
+                grid-column: 1 / -1;
+                grid-row: 2;
+                min-width: 0;
+                padding: 12px 0 0;
+                border-left: 0;
+                border-top: 1px solid #dce8f8;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            #facturacionConceptoModal.is-ems-packages .global-shortcut-item-edit-form {
+                grid-template-columns: 1fr;
+            }
+            #facturacionConceptoModal.is-ems-packages .facturacion-ems-packages-panel {
+                grid-column: 1;
+                grid-row: auto;
+                max-height: none;
             }
             .global-shortcut-selector-block {
                 grid-template-columns: 1fr;
@@ -4311,6 +4984,31 @@
             const facturacionItemEditBatch = document.getElementById('facturacionItemEditBatch');
             const facturacionItemEditSingleGrid = document.getElementById('facturacionItemEditSingleGrid');
             const facturacionItemEditSummary = document.getElementById('facturacionItemEditSummary');
+            const facturacionItemEditServiceSummary = document.getElementById('facturacionItemEditServiceSummary');
+            const facturacionItemEditServiceIcon = document.getElementById('facturacionItemEditServiceIcon');
+            const facturacionItemEditServiceCode = document.getElementById('facturacionItemEditServiceCode');
+            const facturacionItemEditServicePrice = document.getElementById('facturacionItemEditServicePrice');
+            const facturacionEditItemServiceCantidad = document.getElementById('facturacionEditItemServiceCantidad');
+            const facturacionEditItemServicePrecio = document.getElementById('facturacionEditItemServicePrecio');
+            const facturacionItemEditCodeSummary = document.getElementById('facturacionItemEditCodeSummary');
+            const facturacionEditItemCodeCodigo = document.getElementById('facturacionEditItemCodeCodigo');
+            const facturacionEditItemCodeTitulo = document.getElementById('facturacionEditItemCodeTitulo');
+            const facturacionEditItemCodeDestinatario = document.getElementById('facturacionEditItemCodeDestinatario');
+            const facturacionEditItemCodeCantidad = document.getElementById('facturacionEditItemCodeCantidad');
+            const facturacionEditItemCodePeso = document.getElementById('facturacionEditItemCodePeso');
+            const facturacionEditItemCodePrecio = document.getElementById('facturacionEditItemCodePrecio');
+            const facturacionItemEditCasillaFields = document.getElementById('facturacionItemEditCasillaFields');
+            const facturacionEditItemCasillaTamano = document.getElementById('facturacionEditItemCasillaTamano');
+            const facturacionEditItemCasillaNumero = document.getElementById('facturacionEditItemCasillaNumero');
+            const facturacionEditItemCasillaPago = document.getElementById('facturacionEditItemCasillaPago');
+            const facturacionEditItemCasillaDescripcion = document.getElementById('facturacionEditItemCasillaDescripcion');
+            const facturacionEditItemCasillaPreview = document.getElementById('facturacionEditItemCasillaPreview');
+            const facturacionItemEditEmsFields = document.getElementById('facturacionItemEditEmsFields');
+            const facturacionEditItemEmsCodigoPaquete = document.getElementById('facturacionEditItemEmsCodigoPaquete');
+            const facturacionEditItemEmsPeso = document.getElementById('facturacionEditItemEmsPeso');
+            const facturacionEditItemEmsPrecio = document.getElementById('facturacionEditItemEmsPrecio');
+            const facturacionEditItemEmsDescripcion = document.getElementById('facturacionEditItemEmsDescripcion');
+            const facturacionEditItemPackageServicePrefix = document.getElementById('facturacionEditItemPackageServicePrefix');
             const facturacionEditItemDescripcionServicioInput = document.getElementById('facturacionEditItemDescripcionServicio');
             const facturacionEditItemDescripcionServicioEditable = document.getElementById('facturacionEditItemDescripcionServicioEditable');
             const facturacionEditItemDescripcionServicioLocked = document.getElementById('facturacionEditItemDescripcionServicioLocked');
@@ -4344,10 +5042,28 @@
             const facturacionConceptoModalSubmit = document.getElementById('facturacionConceptoModalSubmit');
             const facturacionConceptoModalConceptId = document.getElementById('facturacionConceptoModalConceptId');
             const facturacionConceptoModalResumenNombre = document.getElementById('facturacionConceptoModalResumenNombre');
+            const facturacionConceptoModalResumen = document.getElementById('facturacionConceptoModalResumen');
+            const facturacionConceptoModalResumenNombreLabel = document.getElementById('facturacionConceptoModalResumenNombreLabel');
+            const facturacionConceptoModalQuantitySlot = document.getElementById('facturacionConceptoModalQuantitySlot');
+            const facturacionConceptoFields = document.getElementById('facturacionConceptoFields');
+            const facturacionConceptoCantidadField = document.getElementById('facturacionConceptoCantidadField');
+            const facturacionConceptoPrecioField = document.getElementById('facturacionConceptoPrecioField');
+            const facturacionConceptoDescripcionField = document.getElementById('facturacionConceptoDescripcionField');
+            const facturacionConceptoCasillaFields = document.querySelectorAll('.facturacion-concepto-casilla-field');
+            const facturacionConceptoCasillaTamano = document.getElementById('facturacionConceptoCasillaTamano');
+            const facturacionConceptoCasillaNumero = document.getElementById('facturacionConceptoCasillaNumero');
+            const facturacionEmsPackagesPanel = document.getElementById('facturacionEmsPackagesPanel');
+            const facturacionEmsPackagesList = document.getElementById('facturacionEmsPackagesList');
+            const facturacionEmsPackagesTitle = document.getElementById('facturacionEmsPackagesTitle');
+            const facturacionEmsRegistrationSummary = document.getElementById('facturacionEmsRegistrationSummary');
+            const facturacionEmsSummaryCount = document.getElementById('facturacionEmsSummaryCount');
+            const facturacionEmsSummaryWeight = document.getElementById('facturacionEmsSummaryWeight');
+            const facturacionEmsSummaryTotal = document.getElementById('facturacionEmsSummaryTotal');
             const facturacionConceptoModalResumenCodigo = document.getElementById('facturacionConceptoModalResumenCodigo');
             const facturacionConceptoModalResumenPrecio = document.getElementById('facturacionConceptoModalResumenPrecio');
             const facturacionConceptoDescripcionInput = document.getElementById('facturacionConceptoDescripcionValor');
             const facturacionConceptoDescripcionBase = document.getElementById('facturacionConceptoDescripcionBase');
+            const facturacionConceptoDescripcionBaseLabel = document.getElementById('facturacionConceptoDescripcionBaseLabel');
             let facturacionConceptoCantidad = document.getElementById('facturacionConceptoCantidad');
             let facturacionConceptoPrecio = document.getElementById('facturacionConceptoPrecio');
             let facturacionConceptoDescripcion = document.getElementById('facturacionConceptoDescripcion');
@@ -4388,6 +5104,31 @@
                 return locked !== '' ? locked : editable;
             };
 
+            const normalizeFacturacionDescriptionForService = (rawValue, serviceName) => {
+                let description = String(rawValue || '').trim();
+                const service = String(serviceName || '').trim();
+                const suffix = FACTURACION_DESCRIPTION_LOCK_SEPARATOR + service;
+
+                if (description !== '' && service !== '' && description.toLocaleLowerCase().endsWith(suffix.toLocaleLowerCase())) {
+                    const withoutRepeatedService = description.slice(0, -suffix.length).trimEnd();
+                    description = withoutRepeatedService !== '' ? withoutRepeatedService : description;
+                }
+
+                const parts = splitLockedFacturacionDescription(description);
+                if (parts.lockedPart === '' || parts.editablePart === '') {
+                    return description;
+                }
+
+                const lockedPart = parts.lockedPart.toLocaleLowerCase();
+                const editablePart = parts.editablePart
+                    .split(FACTURACION_DESCRIPTION_LOCK_SEPARATOR)
+                    .map((part) => part.trim())
+                    .filter((part) => part !== '' && part.toLocaleLowerCase() !== lockedPart)
+                    .join(FACTURACION_DESCRIPTION_LOCK_SEPARATOR);
+
+                return buildLockedFacturacionDescription(parts.lockedPart, editablePart);
+            };
+
             const applyLockedDescriptionField = (hiddenInput, editableInput, lockedNode, rawValue) => {
                 if (!(hiddenInput instanceof HTMLInputElement) || !(editableInput instanceof HTMLTextAreaElement)) {
                     return;
@@ -4426,6 +5167,38 @@
                     editableInput.value
                 );
             };
+
+            const prepareFacturacionDescriptionForReplacement = (editableInput) => {
+                if (!(editableInput instanceof HTMLTextAreaElement)) {
+                    return;
+                }
+
+                editableInput.dataset.selectOnFocus = 'true';
+                if (editableInput.dataset.selectOnFocusBound === 'true') {
+                    return;
+                }
+
+                editableInput.dataset.selectOnFocusBound = 'true';
+                editableInput.addEventListener('focus', () => {
+                    if (editableInput.dataset.selectOnFocus !== 'true') {
+                        return;
+                    }
+
+                    window.requestAnimationFrame(() => editableInput.select());
+                    editableInput.dataset.selectOnFocus = 'false';
+                });
+            };
+
+            const showFacturacionConceptoValidation = (title, message) => {
+                renderFacturacionShortcutFeedback({
+                    type: 'warning',
+                    title,
+                    message,
+                    detail: '',
+                    action: 'concepto_add',
+                });
+            };
+
             if (facturacionActionConfirmMessage) {
                 facturacionActionConfirmMessage.textContent = FACTURACION_CONFIRM_DEFAULTS.message;
             }
@@ -5089,6 +5862,237 @@
                 return selected instanceof HTMLOptionElement && selected.value ? selected : null;
             };
 
+            const configureFacturacionConceptoLayout = (isCompact) => {
+                if (
+                    !(facturacionConceptoCantidadField instanceof HTMLElement)
+                    || !(facturacionConceptoPrecioField instanceof HTMLElement)
+                    || !(facturacionConceptoFields instanceof HTMLElement)
+                ) {
+                    return;
+                }
+
+                if (isCompact && facturacionConceptoModalQuantitySlot instanceof HTMLElement) {
+                    facturacionConceptoModalQuantitySlot.appendChild(facturacionConceptoCantidadField);
+                    facturacionConceptoModalQuantitySlot.appendChild(facturacionConceptoPrecioField);
+                } else {
+                    facturacionConceptoFields.prepend(facturacionConceptoCantidadField);
+                    facturacionConceptoCantidadField.after(facturacionConceptoPrecioField);
+                }
+
+                facturacionConceptoFields.classList.toggle('is-airline-layout', isCompact);
+            };
+
+            const configureFacturacionConceptoCasillaFields = (isCasilla) => {
+                if (facturacionConceptoDescripcionField instanceof HTMLElement) {
+                    facturacionConceptoDescripcionField.classList.remove('is-hidden');
+                }
+                facturacionConceptoCasillaFields.forEach((field) => field.classList.toggle('is-hidden', !isCasilla));
+
+                if (facturacionConceptoDescripcion instanceof HTMLTextAreaElement) {
+                    facturacionConceptoDescripcion.required = true;
+                }
+                if (facturacionConceptoCasillaTamano instanceof HTMLSelectElement) {
+                    facturacionConceptoCasillaTamano.required = isCasilla;
+                    facturacionConceptoCasillaTamano.value = '';
+                }
+                if (facturacionConceptoCasillaNumero instanceof HTMLInputElement) {
+                    facturacionConceptoCasillaNumero.required = isCasilla;
+                    facturacionConceptoCasillaNumero.value = '';
+                }
+            };
+
+            const updateFacturacionEmsRegistrationSummary = () => {
+                if (!(facturacionEmsPackagesList instanceof HTMLElement)) {
+                    return;
+                }
+
+                const packageCards = facturacionEmsPackagesList.querySelectorAll('.facturacion-ems-package-card');
+                const totalWeight = Array.from(facturacionEmsPackagesList.querySelectorAll('input[name$="[peso]"]'))
+                    .reduce((total, input) => total + (Number.parseFloat(input.value) || 0), 0);
+                const totalPrice = Array.from(facturacionEmsPackagesList.querySelectorAll('input[name$="[precio]"]'))
+                    .reduce((total, input) => total + (Number.parseFloat(input.value) || 0), 0);
+
+                if (facturacionEmsSummaryCount instanceof HTMLElement) {
+                    facturacionEmsSummaryCount.textContent = String(packageCards.length);
+                }
+                if (facturacionEmsSummaryWeight instanceof HTMLElement) {
+                    facturacionEmsSummaryWeight.textContent = totalWeight.toFixed(2) + ' kg';
+                }
+                if (facturacionEmsSummaryTotal instanceof HTMLElement) {
+                    facturacionEmsSummaryTotal.textContent = 'Bs ' + totalPrice.toFixed(2);
+                }
+            };
+
+            const validateFacturacionInternationalPackageCodes = () => {
+                if (!(facturacionEmsPackagesList instanceof HTMLElement)) {
+                    return;
+                }
+
+                const seenCodes = new Map();
+                const codeInputs = Array.from(facturacionEmsPackagesList.querySelectorAll('input[name$="[codigo]"]'));
+                codeInputs.forEach((input) => input.setCustomValidity(''));
+
+                codeInputs.forEach((input) => {
+                    const code = input.value.trim().toUpperCase();
+                    if (code === '') {
+                        return;
+                    }
+
+                    const firstInput = seenCodes.get(code);
+                    if (firstInput instanceof HTMLInputElement) {
+                        const message = 'El codigo de paquete no puede repetirse.';
+                        firstInput.setCustomValidity(message);
+                        input.setCustomValidity(message);
+                        return;
+                    }
+
+                    seenCodes.set(code, input);
+                });
+            };
+
+            const configureFacturacionEmsPackages = (isEmsInternacional, cantidad = 1, serviceCode = 'SRVE-3', serviceName = 'EMS Internacional') => {
+                const totalPaquetes = Math.max(1, Math.min(999, Number.parseInt(String(cantidad), 10) || 1));
+
+                if (facturacionConceptoModal instanceof HTMLElement) {
+                    facturacionConceptoModal.classList.toggle('is-ems-packages', isEmsInternacional);
+                }
+                if (facturacionConceptoPrecioField instanceof HTMLElement) {
+                    facturacionConceptoPrecioField.classList.toggle('is-hidden', isEmsInternacional);
+                }
+                if (facturacionConceptoPrecio instanceof HTMLInputElement) {
+                    facturacionConceptoPrecio.required = !isEmsInternacional;
+                    facturacionConceptoPrecio.disabled = isEmsInternacional;
+                }
+                if (facturacionEmsPackagesPanel instanceof HTMLElement) {
+                    facturacionEmsPackagesPanel.classList.toggle('is-hidden', !isEmsInternacional);
+                }
+                if (facturacionEmsRegistrationSummary instanceof HTMLElement) {
+                    facturacionEmsRegistrationSummary.classList.toggle('is-hidden', !isEmsInternacional);
+                }
+                if (facturacionEmsPackagesTitle instanceof HTMLElement) {
+                    facturacionEmsPackagesTitle.textContent = isEmsInternacional
+                        ? 'Paquetes ' + serviceName + ' (' + totalPaquetes + ')'
+                        : 'Paquetes internacionales';
+                }
+                if (!(facturacionEmsPackagesList instanceof HTMLElement)) {
+                    return;
+                }
+
+                if (!isEmsInternacional) {
+                    facturacionEmsPackagesList.innerHTML = '';
+                    return;
+                }
+
+                facturacionEmsPackagesList.innerHTML = Array.from({ length: totalPaquetes }, (_, index) => {
+                    const position = index + 1;
+                    return `
+                        <section class="facturacion-ems-package-card">
+                            <span class="facturacion-ems-package-card__number">Paquete ${position}</span>
+                            <div class="facturacion-ems-package-card__fields">
+                                <div class="global-shortcut-field">
+                                    <label for="facturacionEmsPackageCode${position}">Codigo del paquete</label>
+                                    <div class="facturacion-ems-package-code">
+                                        <span>${serviceCode} -</span>
+                                        <input type="text" id="facturacionEmsPackageCode${position}" name="paquetes[${index}][codigo]" maxlength="120" required placeholder="Ej. ${serviceCode}-000${position}">
+                                    </div>
+                                </div>
+                                <div class="global-shortcut-field">
+                                    <label for="facturacionEmsPackageWeight${position}">Peso (kg)</label>
+                                    <input type="number" id="facturacionEmsPackageWeight${position}" name="paquetes[${index}][peso]" min="0.01" step="0.01" inputmode="decimal" required placeholder="0.01">
+                                </div>
+                                <div class="global-shortcut-field">
+                                    <label for="facturacionEmsPackagePrice${position}">Precio unitario</label>
+                                    <input type="number" id="facturacionEmsPackagePrice${position}" name="paquetes[${index}][precio]" min="0.01" step="0.01" inputmode="decimal" required placeholder="0.01">
+                                </div>
+                            </div>
+                        </section>`;
+                }).join('');
+                updateFacturacionEmsRegistrationSummary();
+                validateFacturacionInternationalPackageCodes();
+            };
+
+            const syncFacturacionConceptoCasillaBase = () => {
+                if (!(facturacionConceptoDescripcion instanceof HTMLTextAreaElement)) {
+                    return;
+                }
+
+                const serviceBase = String(
+                    facturacionConceptoDescripcion.dataset.casillaServiceBase
+                    || facturacionConceptoDescripcion.dataset.lockedPart
+                    || 'Servicio Casilla'
+                ).replace(/\s*-\s*$/, '').trim();
+                const tamano = facturacionConceptoCasillaTamano instanceof HTMLSelectElement
+                    ? facturacionConceptoCasillaTamano.value.trim()
+                    : '';
+                const numero = facturacionConceptoCasillaNumero instanceof HTMLInputElement
+                    ? facturacionConceptoCasillaNumero.value.trim()
+                    : '';
+                const pago = facturacionConceptoDescripcion.value.trim();
+                const detail = [
+                    tamano !== '' ? 'Tamaño: ' + tamano : '',
+                    numero !== '' ? 'N°: ' + numero : '',
+                    'Pago:',
+                ].filter(Boolean).join(' ');
+                const lockedPart = serviceBase + ' - ' + detail;
+
+                facturacionConceptoDescripcion.dataset.lockedPart = lockedPart;
+                syncLockedDescriptionField(facturacionConceptoDescripcionInput, facturacionConceptoDescripcion);
+
+                if (facturacionConceptoDescripcionBase instanceof HTMLElement) {
+                    facturacionConceptoDescripcionBase.textContent = pago !== ''
+                        ? lockedPart + ' ' + pago
+                        : lockedPart;
+                    facturacionConceptoDescripcionBase.closest('[data-description-lock-container]')?.classList.remove('is-hidden');
+                }
+            };
+
+            const syncFacturacionConceptoContratosPreview = () => {
+                if (!(facturacionConceptoDescripcion instanceof HTMLTextAreaElement)) {
+                    return;
+                }
+
+                const lockedPart = String(
+                    facturacionConceptoDescripcion.dataset.contratosServiceBase
+                    || facturacionConceptoDescripcion.dataset.lockedPart
+                    || 'Servicio Contratos'
+                ).trim();
+                const detalle = facturacionConceptoDescripcion.value.trim();
+
+                syncLockedDescriptionField(facturacionConceptoDescripcionInput, facturacionConceptoDescripcion);
+
+                if (facturacionConceptoDescripcionBase instanceof HTMLElement) {
+                    facturacionConceptoDescripcionBase.textContent = detalle !== ''
+                        ? lockedPart + ' ' + detalle
+                        : lockedPart;
+                    facturacionConceptoDescripcionBase.closest('[data-description-lock-container]')?.classList.remove('is-hidden');
+                }
+            };
+
+            const syncFacturacionConceptoEcaPreview = () => {
+                if (!(facturacionConceptoDescripcion instanceof HTMLTextAreaElement)) {
+                    return;
+                }
+
+                const lockedPart = String(
+                    facturacionConceptoDescripcion.dataset.ecaServiceBase
+                    || facturacionConceptoDescripcion.dataset.encomiendaServiceBase
+                    || facturacionConceptoDescripcion.dataset.estampillasServiceBase
+                    || facturacionConceptoDescripcion.dataset.tarjetaPostalServiceBase
+                    || facturacionConceptoDescripcion.dataset.lockedPart
+                    || 'Servicio Venta de Tarjeta Postal'
+                ).trim();
+                const detalle = facturacionConceptoDescripcion.value.trim();
+
+                syncLockedDescriptionField(facturacionConceptoDescripcionInput, facturacionConceptoDescripcion);
+
+                if (facturacionConceptoDescripcionBase instanceof HTMLElement) {
+                    facturacionConceptoDescripcionBase.textContent = detalle !== ''
+                        ? lockedPart + ' - ' + detalle
+                        : lockedPart;
+                    facturacionConceptoDescripcionBase.closest('[data-description-lock-container]')?.classList.remove('is-hidden');
+                }
+            };
+
             const closeFacturacionConceptoModal = () => {
                 if (!(facturacionConceptoModal instanceof HTMLElement)) {
                     return;
@@ -5103,11 +6107,28 @@
                 if (facturacionConceptoModalResumenNombre instanceof HTMLElement) {
                     facturacionConceptoModalResumenNombre.textContent = '-';
                 }
+                if (facturacionConceptoModalResumen instanceof HTMLElement) {
+                    facturacionConceptoModalResumen.classList.remove('global-shortcut-item-edit-summary--airline');
+                }
+                configureFacturacionConceptoLayout(false);
+                configureFacturacionConceptoCasillaFields(false);
+                configureFacturacionEmsPackages(false);
+                if (facturacionConceptoModalResumenNombreLabel instanceof HTMLElement) {
+                    facturacionConceptoModalResumenNombreLabel.textContent = 'Concepto';
+                    facturacionConceptoModalResumenNombreLabel.classList.remove('global-shortcut-item-edit-summary__airline-icon');
+                    facturacionConceptoModalResumenNombreLabel.removeAttribute('aria-label');
+                }
                 if (facturacionConceptoModalResumenCodigo instanceof HTMLElement) {
                     facturacionConceptoModalResumenCodigo.textContent = '-';
                 }
                 if (facturacionConceptoModalResumenPrecio instanceof HTMLElement) {
                     facturacionConceptoModalResumenPrecio.textContent = 'Bs 0.00';
+                }
+                if (facturacionConceptoDescripcionBaseLabel instanceof HTMLElement) {
+                    facturacionConceptoDescripcionBaseLabel.textContent = 'Descripcion base (no editable)';
+                }
+                if (facturacionConceptoDescripcion instanceof HTMLTextAreaElement) {
+                    facturacionConceptoDescripcion.classList.remove('is-hidden');
                 }
                 applyLockedDescriptionField(
                     facturacionConceptoDescripcionInput,
@@ -5137,15 +6158,57 @@
                 const nombre = String(selected.dataset.conceptoNombre || selected.textContent || '').trim();
                 const codigo = String(selected.dataset.conceptoCodigo || '').trim();
                 const descripcionBase = String(selected.dataset.conceptoDescripcion || '').trim();
+                const isAerolinea = codigo === 'SRVE-0';
+                const isCasilla = codigo === 'SRVE-5';
+                const isContratos = codigo === 'SRVE-7';
+                const isEcaInternacional = codigo === 'SRVE-8';
+                const isEmsInternacional = ['SRVE-2', 'SRVE-3', 'SRVE-4'].includes(codigo);
+                const isEncomienda = codigo === 'SRVE-9';
+                const isEstampillas = codigo === 'SRVE-6';
+                const isTarjetaPostal = codigo === 'SRVE-1';
+                const isCompact = isAerolinea || isCasilla || isContratos || isEcaInternacional || isEmsInternacional || isEncomienda || isEstampillas || isTarjetaPostal;
+
+                if (facturacionConceptoModalResumen instanceof HTMLElement) {
+                    facturacionConceptoModalResumen.classList.toggle('global-shortcut-item-edit-summary--airline', isCompact);
+                }
+                configureFacturacionConceptoLayout(isCompact);
+                configureFacturacionConceptoCasillaFields(isCasilla);
+                configureFacturacionEmsPackages(isEmsInternacional, 1, codigo, nombre);
+                if (facturacionConceptoModalResumenNombreLabel instanceof HTMLElement) {
+                    if (isAerolinea || isCasilla || isContratos || isEcaInternacional || isEmsInternacional || isEncomienda || isEstampillas || isTarjetaPostal) {
+                        facturacionConceptoModalResumenNombreLabel.innerHTML = isAerolinea
+                            ? '<i class="fas fa-plane" aria-hidden="true"></i>'
+                            : (isCasilla
+                                ? '<i class="fas fa-inbox" aria-hidden="true"></i>'
+                                : (isContratos
+                                    ? '<i class="fas fa-file-contract" aria-hidden="true"></i>'
+                                    : (isEstampillas
+                                        ? '<i class="fas fa-stamp" aria-hidden="true"></i>'
+                                        : '<i class="fas fa-box" aria-hidden="true"></i>')));
+                        facturacionConceptoModalResumenNombreLabel.classList.add('global-shortcut-item-edit-summary__airline-icon');
+                        facturacionConceptoModalResumenNombreLabel.setAttribute(
+                            'aria-label',
+                            isAerolinea
+                                ? 'Aerolínea'
+                                : (isCasilla ? 'Casilla' : (isContratos ? 'Contratos' : (isEcaInternacional ? 'ECA Internacional' : nombre)))
+                        );
+                    } else {
+                        facturacionConceptoModalResumenNombreLabel.textContent = 'Concepto';
+                        facturacionConceptoModalResumenNombreLabel.classList.remove('global-shortcut-item-edit-summary__airline-icon');
+                        facturacionConceptoModalResumenNombreLabel.removeAttribute('aria-label');
+                    }
+                }
 
                 if (facturacionConceptoModalConceptId instanceof HTMLInputElement) {
                     facturacionConceptoModalConceptId.value = selected.value;
                 }
                 if (facturacionConceptoCantidad instanceof HTMLInputElement) {
                     facturacionConceptoCantidad.value = '1';
+                    facturacionConceptoCantidad.readOnly = isCasilla || isContratos || isEcaInternacional;
                 }
                 if (facturacionConceptoPrecio instanceof HTMLInputElement) {
                     facturacionConceptoPrecio.value = basePrice;
+                    facturacionConceptoPrecio.readOnly = isAerolinea;
                 }
                 applyLockedDescriptionField(
                     facturacionConceptoDescripcionInput,
@@ -5154,9 +6217,102 @@
                     descripcionBase
                 );
                 if (facturacionConceptoDescripcion instanceof HTMLTextAreaElement) {
+                    if (isCasilla) {
+                        facturacionConceptoDescripcion.dataset.casillaServiceBase = facturacionConceptoDescripcion.dataset.lockedPart || 'Servicio Casilla';
+                        delete facturacionConceptoDescripcion.dataset.contratosServiceBase;
+                        delete facturacionConceptoDescripcion.dataset.ecaServiceBase;
+                        delete facturacionConceptoDescripcion.dataset.encomiendaServiceBase;
+                        delete facturacionConceptoDescripcion.dataset.estampillasServiceBase;
+                        delete facturacionConceptoDescripcion.dataset.tarjetaPostalServiceBase;
+                        if (facturacionConceptoDescripcionBaseLabel instanceof HTMLElement) {
+                            facturacionConceptoDescripcionBaseLabel.textContent = 'Vista previa de la descripcion';
+                        }
+                        syncFacturacionConceptoCasillaBase();
+                    } else if (isAerolinea) {
+                        delete facturacionConceptoDescripcion.dataset.casillaServiceBase;
+                        delete facturacionConceptoDescripcion.dataset.contratosServiceBase;
+                        delete facturacionConceptoDescripcion.dataset.ecaServiceBase;
+                        delete facturacionConceptoDescripcion.dataset.encomiendaServiceBase;
+                        delete facturacionConceptoDescripcion.dataset.estampillasServiceBase;
+                        delete facturacionConceptoDescripcion.dataset.tarjetaPostalServiceBase;
+                        if (facturacionConceptoDescripcionBaseLabel instanceof HTMLElement) {
+                            facturacionConceptoDescripcionBaseLabel.textContent = 'Vista previa de la descripcion';
+                        }
+                        if (facturacionConceptoDescripcionBase instanceof HTMLElement) {
+                            facturacionConceptoDescripcionBase.textContent = descripcionBase;
+                        }
+                        facturacionConceptoDescripcion.classList.add('is-hidden');
+                    } else if (isEmsInternacional) {
+                        delete facturacionConceptoDescripcion.dataset.casillaServiceBase;
+                        delete facturacionConceptoDescripcion.dataset.contratosServiceBase;
+                        delete facturacionConceptoDescripcion.dataset.ecaServiceBase;
+                        delete facturacionConceptoDescripcion.dataset.encomiendaServiceBase;
+                        delete facturacionConceptoDescripcion.dataset.estampillasServiceBase;
+                        delete facturacionConceptoDescripcion.dataset.tarjetaPostalServiceBase;
+                        if (facturacionConceptoDescripcionBaseLabel instanceof HTMLElement) {
+                            facturacionConceptoDescripcionBaseLabel.textContent = 'Vista previa de la descripcion';
+                        }
+                        if (facturacionConceptoDescripcionBase instanceof HTMLElement) {
+                            facturacionConceptoDescripcionBase.textContent = descripcionBase;
+                        }
+                        facturacionConceptoDescripcion.classList.add('is-hidden');
+                    } else {
+                        delete facturacionConceptoDescripcion.dataset.casillaServiceBase;
+                        delete facturacionConceptoDescripcion.dataset.encomiendaServiceBase;
+                        delete facturacionConceptoDescripcion.dataset.estampillasServiceBase;
+                        delete facturacionConceptoDescripcion.dataset.tarjetaPostalServiceBase;
+                        if (isContratos) {
+                            facturacionConceptoDescripcion.dataset.contratosServiceBase = facturacionConceptoDescripcion.dataset.lockedPart || 'Servicio Contratos';
+                            delete facturacionConceptoDescripcion.dataset.ecaServiceBase;
+                            if (facturacionConceptoDescripcionBaseLabel instanceof HTMLElement) {
+                                facturacionConceptoDescripcionBaseLabel.textContent = 'Vista previa de la descripcion';
+                            }
+                            syncFacturacionConceptoContratosPreview();
+                        } else if (isEncomienda) {
+                            delete facturacionConceptoDescripcion.dataset.contratosServiceBase;
+                            delete facturacionConceptoDescripcion.dataset.ecaServiceBase;
+                            facturacionConceptoDescripcion.dataset.encomiendaServiceBase = facturacionConceptoDescripcion.dataset.lockedPart || 'Servicio Encomienda';
+                            if (facturacionConceptoDescripcionBaseLabel instanceof HTMLElement) {
+                                facturacionConceptoDescripcionBaseLabel.textContent = 'Vista previa de la descripcion';
+                            }
+                            syncFacturacionConceptoEcaPreview();
+                        } else if (isEstampillas) {
+                            delete facturacionConceptoDescripcion.dataset.contratosServiceBase;
+                            delete facturacionConceptoDescripcion.dataset.ecaServiceBase;
+                            facturacionConceptoDescripcion.dataset.estampillasServiceBase = facturacionConceptoDescripcion.dataset.lockedPart || 'Servicio Venta de Estampillas';
+                            if (facturacionConceptoDescripcionBaseLabel instanceof HTMLElement) {
+                                facturacionConceptoDescripcionBaseLabel.textContent = 'Vista previa de la descripcion';
+                            }
+                            syncFacturacionConceptoEcaPreview();
+                        } else if (isTarjetaPostal) {
+                            delete facturacionConceptoDescripcion.dataset.contratosServiceBase;
+                            delete facturacionConceptoDescripcion.dataset.ecaServiceBase;
+                            facturacionConceptoDescripcion.dataset.tarjetaPostalServiceBase = facturacionConceptoDescripcion.dataset.lockedPart || 'Servicio Venta de Tarjeta Postal';
+                            if (facturacionConceptoDescripcionBaseLabel instanceof HTMLElement) {
+                                facturacionConceptoDescripcionBaseLabel.textContent = 'Vista previa de la descripcion';
+                            }
+                            syncFacturacionConceptoEcaPreview();
+                        } else if (isEcaInternacional) {
+                            delete facturacionConceptoDescripcion.dataset.contratosServiceBase;
+                            facturacionConceptoDescripcion.dataset.ecaServiceBase = facturacionConceptoDescripcion.dataset.lockedPart || 'Servicio ECA Internacional';
+                            if (facturacionConceptoDescripcionBaseLabel instanceof HTMLElement) {
+                                facturacionConceptoDescripcionBaseLabel.textContent = 'Vista previa de la descripcion';
+                            }
+                            syncFacturacionConceptoEcaPreview();
+                        } else {
+                            delete facturacionConceptoDescripcion.dataset.contratosServiceBase;
+                            delete facturacionConceptoDescripcion.dataset.ecaServiceBase;
+                        }
+                    }
+                    facturacionConceptoDescripcion.readOnly = isAerolinea;
                     facturacionConceptoDescripcion.placeholder = descripcionBase !== ''
-                        ? 'Agrega el detalle adicional que ira despues de la base.'
+                        ? (isCasilla
+                            ? 'Describa el tiempo del pago de la casilla.'
+                            : (isContratos
+                                ? 'Describa el tiempo (mes/meses) de pago del servicio de contratos.'
+                                : 'Edita el texto que va despues del guion.'))
                         : 'Escribe el detalle que identificara este cobro dentro del carrito';
+                    prepareFacturacionDescriptionForReplacement(facturacionConceptoDescripcion);
                 }
                 if (facturacionConceptoModalResumenNombre instanceof HTMLElement) {
                     facturacionConceptoModalResumenNombre.textContent = nombre || '-';
@@ -5326,6 +6482,25 @@
                         if (numericValue > 999) {
                             facturacionConceptoCantidad.value = '999';
                         }
+
+                        const selected = selectedFacturacionConceptoOption();
+                        const serviceCode = String(selected?.dataset.conceptoCodigo || '').trim();
+                        if (['SRVE-2', 'SRVE-3', 'SRVE-4'].includes(serviceCode)) {
+                            configureFacturacionEmsPackages(
+                                true,
+                                facturacionConceptoCantidad.value,
+                                serviceCode,
+                                String(selected?.dataset.conceptoNombre || selected?.textContent || '').trim()
+                            );
+                        }
+                    });
+                }
+
+                if (facturacionEmsPackagesList instanceof HTMLElement && facturacionEmsPackagesList.dataset.facturacionBound !== 'true') {
+                    facturacionEmsPackagesList.dataset.facturacionBound = 'true';
+                    facturacionEmsPackagesList.addEventListener('input', () => {
+                        updateFacturacionEmsRegistrationSummary();
+                        validateFacturacionInternationalPackageCodes();
                     });
                 }
 
@@ -5347,10 +6522,32 @@
                 if (facturacionConceptoDescripcion instanceof HTMLTextAreaElement && facturacionConceptoDescripcion.dataset.facturacionBound !== 'true') {
                     facturacionConceptoDescripcion.dataset.facturacionBound = 'true';
                     facturacionConceptoDescripcion.addEventListener('input', function () {
-                        syncLockedDescriptionField(
-                            facturacionConceptoDescripcionInput,
-                            facturacionConceptoDescripcion
-                        );
+                        if (facturacionConceptoDescripcion.dataset.casillaServiceBase) {
+                            syncFacturacionConceptoCasillaBase();
+                            return;
+                        }
+                        if (facturacionConceptoDescripcion.dataset.contratosServiceBase) {
+                            syncFacturacionConceptoContratosPreview();
+                            return;
+                        }
+                        if (facturacionConceptoDescripcion.dataset.ecaServiceBase) {
+                            syncFacturacionConceptoEcaPreview();
+                            return;
+                        }
+                        if (facturacionConceptoDescripcion.dataset.encomiendaServiceBase) {
+                            syncFacturacionConceptoEcaPreview();
+                            return;
+                        }
+                        if (facturacionConceptoDescripcion.dataset.estampillasServiceBase) {
+                            syncFacturacionConceptoEcaPreview();
+                            return;
+                        }
+                        if (facturacionConceptoDescripcion.dataset.tarjetaPostalServiceBase) {
+                            syncFacturacionConceptoEcaPreview();
+                            return;
+                        }
+
+                        syncLockedDescriptionField(facturacionConceptoDescripcionInput, facturacionConceptoDescripcion);
                     });
                 }
 
@@ -5366,6 +6563,17 @@
                 }
 
                 facturacionConceptoModalForm.dataset.facturacionBound = 'true';
+                if (facturacionConceptoDescripcion instanceof HTMLTextAreaElement) {
+                    facturacionConceptoDescripcion.addEventListener('input', () => {
+                        facturacionConceptoDescripcion.setCustomValidity('');
+                    });
+                }
+                if (facturacionConceptoCasillaTamano instanceof HTMLSelectElement) {
+                    facturacionConceptoCasillaTamano.addEventListener('change', syncFacturacionConceptoCasillaBase);
+                }
+                if (facturacionConceptoCasillaNumero instanceof HTMLInputElement) {
+                    facturacionConceptoCasillaNumero.addEventListener('input', syncFacturacionConceptoCasillaBase);
+                }
                 facturacionConceptoModalForm.addEventListener('submit', async function (event) {
                     event.preventDefault();
 
@@ -5406,31 +6614,50 @@
                         return;
                     }
 
-                    const cantidadSolicitada = Number.parseInt(facturacionConceptoCantidad.value || '1', 10);
+                    const cantidadTexto = facturacionConceptoCantidad.value.trim();
+                    if (cantidadTexto === '') {
+                        showFacturacionConceptoValidation('Cantidad requerida', 'Debes indicar una cantidad mayor o igual a 1.');
+                        facturacionConceptoCantidad.focus();
+                        return;
+                    }
+
+                    const cantidadSolicitada = Number.parseInt(cantidadTexto, 10);
                     if (!Number.isFinite(cantidadSolicitada) || cantidadSolicitada < 1) {
-                        renderFacturacionShortcutFeedback({
-                            type: 'warning',
-                            title: 'Cantidad invalida',
-                            message: 'Debes indicar una cantidad valida antes de agregar el cobro.',
-                            detail: 'Ingresa un numero mayor o igual a 1.',
-                            action: 'concepto_add',
-                        });
+                        showFacturacionConceptoValidation('Cantidad invalida', 'Debes indicar una cantidad mayor o igual a 1.');
                         facturacionConceptoCantidad.focus();
                         facturacionConceptoCantidad.select();
                         return;
                     }
 
-                    const precioSolicitado = Number.parseFloat(facturacionConceptoPrecio.value || '0');
-                    if (!Number.isFinite(precioSolicitado) || precioSolicitado < 0) {
-                        renderFacturacionShortcutFeedback({
-                            type: 'warning',
-                            title: 'Precio invalido',
-                            message: 'Debes indicar un precio valido antes de agregar el cobro.',
-                            detail: 'Ingresa un monto mayor o igual a 0.',
-                            action: 'concepto_add',
-                        });
-                        facturacionConceptoPrecio.focus();
-                        facturacionConceptoPrecio.select();
+                    const selectedConcepto = selectedFacturacionConceptoOption();
+                    const isEmsInternacional = ['SRVE-2', 'SRVE-3', 'SRVE-4'].includes(
+                        String(selectedConcepto?.dataset.conceptoCodigo || '').trim()
+                    );
+                    const precioTexto = facturacionConceptoPrecio.value.trim();
+                    let precioSolicitado = 0;
+
+                    if (!isEmsInternacional) {
+                        if (precioTexto === '') {
+                            showFacturacionConceptoValidation('Precio requerido', 'Debes indicar un precio mayor que 0.');
+                            facturacionConceptoPrecio.focus();
+                            return;
+                        }
+
+                        precioSolicitado = Number.parseFloat(precioTexto);
+                        if (!Number.isFinite(precioSolicitado) || precioSolicitado <= 0) {
+                            showFacturacionConceptoValidation('Precio invalido', 'Debes indicar un precio mayor que 0.');
+                            facturacionConceptoPrecio.focus();
+                            facturacionConceptoPrecio.select();
+                            return;
+                        }
+                    }
+
+                    const detalleServicio = facturacionConceptoDescripcion instanceof HTMLTextAreaElement
+                        ? facturacionConceptoDescripcion.value.trim()
+                        : '';
+                    if (!isEmsInternacional && detalleServicio === '') {
+                        facturacionConceptoDescripcion?.setCustomValidity('Debes escribir la descripcion del cobro antes de agregarlo al carrito.');
+                        facturacionConceptoDescripcion?.reportValidity();
                         return;
                     }
 
@@ -5681,6 +6908,8 @@
                         data-item-direccion="${escapeFacturacionHtml(resumen.direccion || '')}"
                         data-item-ciudad="${escapeFacturacionHtml(resumen.ciudad || '')}"
                         data-item-peso="${escapeFacturacionHtml(resumen.peso || '')}"
+                        data-item-codigo-paquete="${escapeFacturacionHtml(resumen.codigo_paquete || '')}"
+                        data-item-codigo-servicio="${escapeFacturacionHtml(resumen.codigo_servicio || '')}"
                         data-item-precio="${escapeFacturacionHtml(priceValue)}"
                         data-item-cantidad="${escapeFacturacionHtml(quantityValue)}"
                         data-item-actividad-economica="${escapeFacturacionHtml(resumen.actividad_economica || '')}"
@@ -7159,6 +8388,56 @@
             };
 
             preventNumberInputWheelChange(document.getElementById('facturacionEditItemPrecio'));
+            preventNumberInputWheelChange(facturacionEditItemEmsPeso);
+            preventNumberInputWheelChange(facturacionEditItemEmsPrecio);
+            preventNumberInputWheelChange(facturacionEditItemServiceCantidad);
+            preventNumberInputWheelChange(facturacionEditItemServicePrecio);
+
+            if (facturacionEditItemServiceCantidad instanceof HTMLInputElement) {
+                const syncFacturacionEditServiceQuantity = function () {
+                    const quantity = Math.max(1, Math.min(999, Number.parseInt(this.value || '1', 10) || 1));
+                    const hiddenQuantity = document.getElementById('facturacionEditItemCantidad');
+                    if (hiddenQuantity instanceof HTMLInputElement) {
+                        hiddenQuantity.value = String(quantity);
+                    }
+                };
+                facturacionEditItemServiceCantidad.addEventListener('input', syncFacturacionEditServiceQuantity);
+                facturacionEditItemServiceCantidad.addEventListener('change', syncFacturacionEditServiceQuantity);
+            }
+            if (facturacionEditItemServicePrecio instanceof HTMLInputElement) {
+                const syncFacturacionEditServicePrice = function () {
+                    const genericPrice = document.getElementById('facturacionEditItemPrecio');
+                    if (genericPrice instanceof HTMLInputElement) {
+                        genericPrice.value = this.value;
+                    }
+                };
+                facturacionEditItemServicePrecio.addEventListener('input', syncFacturacionEditServicePrice);
+                facturacionEditItemServicePrecio.addEventListener('change', syncFacturacionEditServicePrice);
+            }
+            if (facturacionEditItemCodeCodigo instanceof HTMLInputElement) {
+                facturacionEditItemCodeCodigo.addEventListener('input', function () {
+                    const genericCode = document.getElementById('facturacionEditItemCodigo');
+                    if (genericCode instanceof HTMLInputElement) {
+                        genericCode.value = this.value;
+                    }
+                });
+            }
+            if (facturacionEditItemCodePrecio instanceof HTMLInputElement) {
+                facturacionEditItemCodePrecio.addEventListener('input', function () {
+                    const genericPrice = document.getElementById('facturacionEditItemPrecio');
+                    if (genericPrice instanceof HTMLInputElement) {
+                        genericPrice.value = this.value;
+                    }
+                });
+            }
+            if (facturacionEditItemCodePeso instanceof HTMLInputElement) {
+                facturacionEditItemCodePeso.addEventListener('input', function () {
+                    const genericWeight = document.getElementById('facturacionEditItemPeso');
+                    if (genericWeight instanceof HTMLInputElement) {
+                        genericWeight.value = this.value;
+                    }
+                });
+            }
 
             const buildSuggestedGroupedCode = (baseCode, index) => {
                 const cleanBase = String(baseCode || '').trim();
@@ -7175,7 +8454,10 @@
                 }
 
                 const baseCode = String(trigger.dataset.itemCodigo || '').trim();
-                const baseDescription = String(trigger.dataset.itemDescripcionServicio || '').trim();
+                const baseDescription = normalizeFacturacionDescriptionForService(
+                    trigger.dataset.itemDescripcionServicio || '',
+                    trigger.dataset.itemServicio || ''
+                );
                 const basePrice = String(trigger.dataset.itemPrecio || '').trim() || '0.00';
                 facturacionItemEditBatch.innerHTML = '';
 
@@ -7253,6 +8535,57 @@
                 });
             };
 
+            const syncFacturacionEditCasillaDescription = () => {
+                const tamano = facturacionEditItemCasillaTamano instanceof HTMLSelectElement
+                    ? facturacionEditItemCasillaTamano.value.trim()
+                    : '';
+                const numero = facturacionEditItemCasillaNumero instanceof HTMLInputElement
+                    ? facturacionEditItemCasillaNumero.value.trim()
+                    : '';
+                const pago = facturacionEditItemCasillaPago instanceof HTMLTextAreaElement
+                    ? facturacionEditItemCasillaPago.value.trim()
+                    : '';
+                const descripcion = 'Servicio Casilla - Tamaño: ' + tamano + ' N°: ' + numero + ' Pago: ' + pago;
+
+                if (facturacionEditItemCasillaDescripcion instanceof HTMLInputElement) {
+                    facturacionEditItemCasillaDescripcion.value = descripcion;
+                }
+                if (facturacionEditItemCasillaPreview instanceof HTMLElement) {
+                    facturacionEditItemCasillaPreview.textContent = descripcion;
+                }
+            };
+
+            const populateFacturacionEditCasillaFields = (description) => {
+                const match = String(description || '').match(/Tama[^:]*:\s*(.*?)\s+N[^:]*:\s*(.*?)\s+Pago:\s*(.*)$/i);
+                if (facturacionEditItemCasillaTamano instanceof HTMLSelectElement) {
+                    facturacionEditItemCasillaTamano.value = match?.[1]?.trim() || '';
+                }
+                if (facturacionEditItemCasillaNumero instanceof HTMLInputElement) {
+                    facturacionEditItemCasillaNumero.value = match?.[2]?.trim() || '';
+                }
+                if (facturacionEditItemCasillaPago instanceof HTMLTextAreaElement) {
+                    facturacionEditItemCasillaPago.value = match?.[3]?.trim() || '';
+                }
+                syncFacturacionEditCasillaDescription();
+            };
+
+            const syncFacturacionEditServiceDescriptionPreview = () => {
+                if (
+                    !(facturacionEditItemDescripcionServicioEditable instanceof HTMLTextAreaElement)
+                    || !(facturacionEditItemDescripcionServicioLocked instanceof HTMLElement)
+                ) {
+                    return;
+                }
+
+                const base = String(facturacionEditItemDescripcionServicioEditable.dataset.lockedPart || '').trim();
+                const detail = facturacionEditItemDescripcionServicioEditable.value.trim();
+                const separator = ' - ';
+
+                facturacionEditItemDescripcionServicioLocked.textContent = detail !== ''
+                    ? base + separator + detail
+                    : base;
+            };
+
             const openFacturacionItemEditModal = (trigger) => {
                 if (!facturacionItemEditModal || !facturacionItemEditForm || !(trigger instanceof HTMLElement)) {
                     return;
@@ -7268,6 +8601,24 @@
                     facturacionItemEditForm.dataset.itemId = itemId;
                 }
                 const groupedQuantity = Math.max(1, Number(trigger.dataset.itemCantidad || '1'));
+                const normalizedDescription = normalizeFacturacionDescriptionForService(
+                    trigger.dataset.itemDescripcionServicio || '',
+                    trigger.dataset.itemServicio || ''
+                );
+                const itemCode = String(trigger.dataset.itemCodigo || '').trim();
+                const serviceCode = String(trigger.dataset.itemCodigoServicio || '').trim().toUpperCase();
+                const resolvedItemServiceCode = /^SRVE-(?:0|1|2|3|4|5|6|7|8|9)(?:\.|\s*-|$)/i.test(itemCode)
+                    ? (itemCode.match(/^SRVE-[0-9]/i)?.[0]?.toUpperCase() || serviceCode)
+                    : serviceCode;
+                const isServiceItem = /^SRVE-[0-9]$/.test(resolvedItemServiceCode);
+                const isEmsItem = ['SRVE-2', 'SRVE-3', 'SRVE-4'].includes(serviceCode)
+                    || (/^SRVE-(?:2|3|4)(?:\.\d+|\s*-)?/i.test(itemCode)
+                        && /internacional/i.test(String(trigger.dataset.itemServicio || trigger.dataset.itemTitulo || '')));
+                const isCasillaItem = resolvedItemServiceCode === 'SRVE-5';
+                const isCodeItem = !isServiceItem && groupedQuantity <= 1;
+                const resolvedServiceCode = ['SRVE-2', 'SRVE-3', 'SRVE-4'].includes(serviceCode)
+                    ? serviceCode
+                    : (itemCode.match(/^SRVE-(?:2|3|4)/i)?.[0]?.toUpperCase() || 'SRVE-3');
 
                 const fieldMap = {
                     facturacionEditItemCodigo: trigger.dataset.itemCodigo || '',
@@ -7284,7 +8635,7 @@
                     facturacionEditItemCodigoSin: trigger.dataset.itemCodigoSin || '',
                     facturacionEditItemCodigoProducto: trigger.dataset.itemCodigoProducto || '',
                     facturacionEditItemUnidadMedida: trigger.dataset.itemUnidadMedida || '',
-                    facturacionEditItemDescripcionServicio: trigger.dataset.itemDescripcionServicio || '',
+                    facturacionEditItemDescripcionServicio: normalizedDescription,
                 };
 
                 const summaryMap = {
@@ -7309,8 +8660,148 @@
                     facturacionEditItemDescripcionServicioInput,
                     facturacionEditItemDescripcionServicioEditable,
                     facturacionEditItemDescripcionServicioLocked,
-                    trigger.dataset.itemDescripcionServicio || ''
+                    normalizedDescription
                 );
+                prepareFacturacionDescriptionForReplacement(facturacionEditItemDescripcionServicioEditable);
+                if (facturacionEditItemDescripcionServicioEditable instanceof HTMLTextAreaElement) {
+                    facturacionEditItemDescripcionServicioEditable.dataset.serviceCode = resolvedItemServiceCode;
+                    facturacionEditItemDescripcionServicioEditable.placeholder = resolvedItemServiceCode === 'SRVE-7'
+                        ? 'Describa el tiempo (mes/meses) de pago del servicio de contratos.'
+                        : 'Edita el texto que va despues del guion.';
+                    if (
+                        (isCodeItem || (isServiceItem && !isCasillaItem && !isEmsItem && resolvedItemServiceCode !== 'SRVE-0'))
+                    ) {
+                        syncFacturacionEditServiceDescriptionPreview();
+                    }
+                }
+
+                if (facturacionEditItemDescripcionServicioInput instanceof HTMLInputElement) {
+                    facturacionEditItemDescripcionServicioInput.disabled = isCasillaItem;
+                }
+                if (facturacionItemEditCasillaFields instanceof HTMLElement) {
+                    facturacionItemEditCasillaFields.classList.toggle('is-hidden', !isCasillaItem);
+                }
+                if (facturacionEditItemCasillaDescripcion instanceof HTMLInputElement) {
+                    facturacionEditItemCasillaDescripcion.disabled = !isCasillaItem;
+                }
+                if (facturacionEditItemCasillaTamano instanceof HTMLSelectElement) {
+                    facturacionEditItemCasillaTamano.required = isCasillaItem;
+                }
+                if (facturacionEditItemCasillaNumero instanceof HTMLInputElement) {
+                    facturacionEditItemCasillaNumero.required = isCasillaItem;
+                }
+                if (facturacionEditItemCasillaPago instanceof HTMLTextAreaElement) {
+                    facturacionEditItemCasillaPago.required = isCasillaItem;
+                }
+                if (isCasillaItem) {
+                    populateFacturacionEditCasillaFields(normalizedDescription);
+                }
+
+                if (facturacionItemEditEmsFields instanceof HTMLElement) {
+                    facturacionItemEditEmsFields.classList.toggle('is-hidden', !isEmsItem);
+                }
+                if (facturacionItemEditModal instanceof HTMLElement) {
+                    facturacionItemEditModal.classList.toggle('is-ems-item', isEmsItem);
+                    facturacionItemEditModal.classList.toggle('is-service-item', isServiceItem);
+                    facturacionItemEditModal.classList.toggle('is-service-airline', resolvedItemServiceCode === 'SRVE-0');
+                    facturacionItemEditModal.classList.toggle('is-service-casilla', isCasillaItem);
+                    facturacionItemEditModal.classList.toggle('is-code-item', isCodeItem);
+                }
+                if (facturacionItemEditServiceSummary instanceof HTMLElement) {
+                    facturacionItemEditServiceSummary.classList.toggle('is-hidden', !isServiceItem);
+                }
+                if (facturacionItemEditCodeSummary instanceof HTMLElement) {
+                    facturacionItemEditCodeSummary.classList.toggle('is-hidden', !isCodeItem);
+                }
+                if (facturacionEditItemCodeCodigo instanceof HTMLInputElement) {
+                    facturacionEditItemCodeCodigo.value = itemCode;
+                }
+                if (facturacionEditItemCodeTitulo instanceof HTMLElement) {
+                    facturacionEditItemCodeTitulo.textContent = String(trigger.dataset.itemTitulo || trigger.dataset.itemServicio || 'Cobro por codigo');
+                }
+                if (facturacionEditItemCodeDestinatario instanceof HTMLElement) {
+                    const destinatario = String(trigger.dataset.itemDestinatario || '').trim();
+                    facturacionEditItemCodeDestinatario.textContent = destinatario !== '' ? destinatario : 'Sin destinatario';
+                }
+                if (facturacionEditItemCodeCantidad instanceof HTMLInputElement) {
+                    facturacionEditItemCodeCantidad.value = String(groupedQuantity);
+                }
+                if (facturacionEditItemCodePeso instanceof HTMLInputElement) {
+                    facturacionEditItemCodePeso.value = String(trigger.dataset.itemPeso || '');
+                }
+                if (facturacionEditItemCodePrecio instanceof HTMLInputElement) {
+                    facturacionEditItemCodePrecio.value = String(trigger.dataset.itemPrecio || '0.00');
+                }
+                if (facturacionItemEditServiceCode instanceof HTMLElement) {
+                    facturacionItemEditServiceCode.textContent = itemCode || '-';
+                }
+                if (facturacionItemEditServicePrice instanceof HTMLElement) {
+                    facturacionItemEditServicePrice.textContent = 'Bs ' + (trigger.dataset.itemPrecio || '0.00');
+                }
+                if (facturacionEditItemServiceCantidad instanceof HTMLInputElement) {
+                    facturacionEditItemServiceCantidad.value = trigger.dataset.itemCantidad || '1';
+                    facturacionEditItemServiceCantidad.readOnly = ['SRVE-5', 'SRVE-7', 'SRVE-8'].includes(resolvedItemServiceCode) || isEmsItem;
+                    facturacionEditItemServiceCantidad.required = !facturacionEditItemServiceCantidad.readOnly;
+                }
+                if (facturacionEditItemServicePrecio instanceof HTMLInputElement) {
+                    facturacionEditItemServicePrecio.value = trigger.dataset.itemPrecio || '0.00';
+                    facturacionEditItemServicePrecio.readOnly = resolvedItemServiceCode === 'SRVE-0' || isEmsItem;
+                    facturacionEditItemServicePrecio.required = !facturacionEditItemServicePrecio.readOnly;
+                }
+                if (facturacionItemEditServiceIcon instanceof HTMLElement) {
+                    const iconClass = resolvedItemServiceCode === 'SRVE-0'
+                        ? 'fa-plane'
+                        : (resolvedItemServiceCode === 'SRVE-5'
+                            ? 'fa-inbox'
+                            : (resolvedItemServiceCode === 'SRVE-7'
+                                ? 'fa-file-contract'
+                                : (resolvedItemServiceCode === 'SRVE-6' ? 'fa-stamp' : 'fa-box')));
+                    facturacionItemEditServiceIcon.innerHTML = '<i class="fas ' + iconClass + '" aria-hidden="true"></i>';
+                }
+                if (facturacionEditItemEmsCodigoPaquete instanceof HTMLInputElement) {
+                    const packageCodeFromItem = itemCode.match(/^SRVE-(?:2|3|4)\s*-\s*(.+)$/i)?.[1]?.trim() || '';
+                    const packageCodeSource = String(trigger.dataset.itemCodigoPaquete || '').trim();
+                    const packageCodeFromSource = packageCodeSource.match(/^SRVE-(?:2|3|4)\s*-\s*(.+)$/i)?.[1]?.trim()
+                        || packageCodeSource;
+                    facturacionEditItemEmsCodigoPaquete.value = packageCodeFromSource || packageCodeFromItem;
+                    facturacionEditItemEmsCodigoPaquete.disabled = !isEmsItem;
+                }
+                if (facturacionEditItemEmsPeso instanceof HTMLInputElement) {
+                    facturacionEditItemEmsPeso.value = trigger.dataset.itemPeso || '';
+                    facturacionEditItemEmsPeso.disabled = !isEmsItem;
+                }
+                if (facturacionEditItemEmsPrecio instanceof HTMLInputElement) {
+                    facturacionEditItemEmsPrecio.value = trigger.dataset.itemPrecio || '';
+                    facturacionEditItemEmsPrecio.disabled = !isEmsItem;
+                }
+                const genericPriceInput = document.getElementById('facturacionEditItemPrecio');
+                const genericWeightInput = document.getElementById('facturacionEditItemPeso');
+                if (genericPriceInput instanceof HTMLInputElement) {
+                    genericPriceInput.disabled = isEmsItem;
+                    genericPriceInput.readOnly = resolvedItemServiceCode === 'SRVE-0';
+                }
+                if (genericWeightInput instanceof HTMLInputElement) {
+                    genericWeightInput.disabled = isEmsItem;
+                }
+                if (facturacionEditItemEmsDescripcion instanceof HTMLElement) {
+                    facturacionEditItemEmsDescripcion.textContent = normalizedDescription || String(trigger.dataset.itemServicio || trigger.dataset.itemTitulo || 'Servicio internacional');
+                }
+                if (facturacionEditItemDescripcionServicioLockedBox instanceof HTMLElement && (isServiceItem || isCodeItem)) {
+                    const label = facturacionEditItemDescripcionServicioLockedBox.querySelector('.global-shortcut-description-lock__label');
+                    if (label instanceof HTMLElement) {
+                        label.textContent = 'Vista previa de la descripcion';
+                    }
+                }
+                const descriptionFieldLabel = document.querySelector('[data-edit-field-key="descripcion_servicio"] > label');
+                if (descriptionFieldLabel instanceof HTMLElement) {
+                    descriptionFieldLabel.textContent = isServiceItem ? 'Descripcion del servicio' : 'Descripcion del item';
+                }
+                if (facturacionEditItemDescripcionServicioEditable instanceof HTMLTextAreaElement) {
+                    facturacionEditItemDescripcionServicioEditable.readOnly = resolvedItemServiceCode === 'SRVE-0' || isCasillaItem;
+                }
+                if (facturacionEditItemPackageServicePrefix instanceof HTMLElement) {
+                    facturacionEditItemPackageServicePrefix.textContent = resolvedServiceCode + ' -';
+                }
 
                 Object.entries(summaryMap).forEach(([fieldId, value]) => {
                     const summary = document.getElementById(fieldId);
@@ -7320,28 +8811,36 @@
                 });
 
                 if (facturacionItemEditTitle instanceof HTMLElement) {
-                    facturacionItemEditTitle.textContent = groupedQuantity > 1
+                    facturacionItemEditTitle.textContent = isServiceItem
+                        ? 'Corregir servicio antes de reenviar'
+                        : (isEmsItem
+                        ? 'Corregir paquete internacional antes de reenviar'
+                        : (groupedQuantity > 1
                         ? 'Editar grupo o separar unidades'
-                        : 'Corregir item antes de reenviar';
+                        : 'Corregir cobro antes de reenviar'));
                 }
 
                 if (facturacionItemEditMessage instanceof HTMLElement) {
-                    facturacionItemEditMessage.textContent = groupedQuantity > 1
+                    facturacionItemEditMessage.textContent = isServiceItem
+                        ? 'Revisa el precio y la descripcion usando el mismo formato con el que agregaste el servicio.'
+                        : (isEmsItem
+                        ? 'Actualiza los datos reales del paquete. El codigo combinado del servicio se conserva para el carrito.'
+                        : (groupedQuantity > 1
                         ? 'Este registro representa varias unidades agrupadas. Aqui mismo puedes editar las ' + groupedQuantity + ' unidades de una vez, cada una con su propio codigo, descripcion y precio.'
-                        : 'Ajusta el codigo, el precio o la descripcion del item y guarda los cambios para volver a intentar la emision.';
+                        : 'El codigo y el peso se conservan. Revisa el precio y la descripcion registrados al agregar este cobro.'));
                 }
 
                 if (facturacionItemEditSplitHint instanceof HTMLElement) {
-                    facturacionItemEditSplitHint.classList.toggle('is-hidden', groupedQuantity <= 1);
+                    facturacionItemEditSplitHint.classList.toggle('is-hidden', groupedQuantity <= 1 || isServiceItem);
                 }
                 if (facturacionItemEditSummary instanceof HTMLElement) {
-                    facturacionItemEditSummary.classList.toggle('is-hidden', groupedQuantity > 1);
+                    facturacionItemEditSummary.classList.toggle('is-hidden', isServiceItem || isCodeItem || (groupedQuantity > 1 && !isEmsItem));
                 }
                 if (facturacionItemEditPanel instanceof HTMLElement) {
-                    facturacionItemEditPanel.classList.toggle('is-batch-edit', groupedQuantity > 1);
+                    facturacionItemEditPanel.classList.toggle('is-batch-edit', groupedQuantity > 1 && !isServiceItem);
                 }
                 if (facturacionItemEditBatch instanceof HTMLElement && facturacionItemEditSingleGrid instanceof HTMLElement) {
-                    if (groupedQuantity > 1) {
+                    if (groupedQuantity > 1 && !isServiceItem) {
                         renderFacturacionGroupedEditBatch(trigger, groupedQuantity);
                         facturacionItemEditBatch.classList.remove('is-hidden');
                         facturacionItemEditSingleGrid.classList.add('is-hidden');
@@ -7352,19 +8851,31 @@
                     }
                 }
                 if (facturacionItemEditSubmit instanceof HTMLButtonElement) {
-                    facturacionItemEditSubmit.textContent = groupedQuantity > 1
+                    facturacionItemEditSubmit.textContent = isServiceItem
+                        ? 'Guardar servicio'
+                        : (isEmsItem
+                        ? 'Guardar paquete'
+                        : (groupedQuantity > 1
                         ? 'Guardar ' + groupedQuantity + ' items'
-                        : 'Guardar item';
+                        : 'Guardar cobro'));
                 }
 
                 facturacionItemEditModal.classList.add('is-open');
                 facturacionItemEditModal.setAttribute('aria-hidden', 'false');
 
                 window.setTimeout(() => {
-                    const codeField = document.getElementById('facturacionEditItemCodigo');
-                    if (codeField instanceof HTMLInputElement) {
+                    const codeField = isEmsItem
+                        ? facturacionEditItemEmsCodigoPaquete
+                        : (isCasillaItem
+                            ? facturacionEditItemCasillaTamano
+                            : (isCodeItem
+                                ? facturacionEditItemCodePrecio
+                                : document.getElementById('facturacionEditItemCodigo')));
+                    if (codeField instanceof HTMLInputElement || codeField instanceof HTMLSelectElement) {
                         codeField.focus();
-                        codeField.select();
+                        if (codeField instanceof HTMLInputElement) {
+                            codeField.select();
+                        }
                     }
                 }, 30);
             };
@@ -7386,11 +8897,13 @@
                 }
                 if (facturacionEditItemDescripcionServicioInput instanceof HTMLInputElement) {
                     facturacionEditItemDescripcionServicioInput.value = '';
+                    facturacionEditItemDescripcionServicioInput.disabled = false;
                 }
                 if (facturacionEditItemDescripcionServicioEditable instanceof HTMLTextAreaElement) {
                     facturacionEditItemDescripcionServicioEditable.value = '';
                     facturacionEditItemDescripcionServicioEditable.dataset.lockedPart = '';
                     facturacionEditItemDescripcionServicioEditable.dataset.baseDescription = '';
+                    facturacionEditItemDescripcionServicioEditable.dataset.serviceCode = '';
                 }
                 if (facturacionEditItemDescripcionServicioLocked instanceof HTMLElement) {
                     facturacionEditItemDescripcionServicioLocked.textContent = '';
@@ -7406,6 +8919,76 @@
                 }
                 if (facturacionItemEditPanel instanceof HTMLElement) {
                     facturacionItemEditPanel.classList.remove('is-batch-edit');
+                }
+                if (facturacionItemEditEmsFields instanceof HTMLElement) {
+                    facturacionItemEditEmsFields.classList.add('is-hidden');
+                }
+                if (facturacionItemEditCasillaFields instanceof HTMLElement) {
+                    facturacionItemEditCasillaFields.classList.add('is-hidden');
+                }
+                if (facturacionEditItemCasillaTamano instanceof HTMLSelectElement) {
+                    facturacionEditItemCasillaTamano.value = '';
+                    facturacionEditItemCasillaTamano.required = false;
+                }
+                if (facturacionEditItemCasillaNumero instanceof HTMLInputElement) {
+                    facturacionEditItemCasillaNumero.value = '';
+                    facturacionEditItemCasillaNumero.required = false;
+                }
+                if (facturacionEditItemCasillaPago instanceof HTMLTextAreaElement) {
+                    facturacionEditItemCasillaPago.value = '';
+                    facturacionEditItemCasillaPago.required = false;
+                }
+                if (facturacionEditItemCasillaDescripcion instanceof HTMLInputElement) {
+                    facturacionEditItemCasillaDescripcion.value = '';
+                    facturacionEditItemCasillaDescripcion.disabled = true;
+                }
+                if (facturacionEditItemCasillaPreview instanceof HTMLElement) {
+                    facturacionEditItemCasillaPreview.textContent = 'Servicio Casilla';
+                }
+                if (facturacionItemEditServiceSummary instanceof HTMLElement) {
+                    facturacionItemEditServiceSummary.classList.add('is-hidden');
+                }
+                if (facturacionItemEditCodeSummary instanceof HTMLElement) {
+                    facturacionItemEditCodeSummary.classList.add('is-hidden');
+                }
+                [facturacionEditItemCodeCodigo, facturacionEditItemCodeCantidad, facturacionEditItemCodePeso, facturacionEditItemCodePrecio].forEach((field) => {
+                    if (field instanceof HTMLInputElement) {
+                        field.value = '';
+                    }
+                });
+                if (facturacionEditItemCodeTitulo instanceof HTMLElement) {
+                    facturacionEditItemCodeTitulo.textContent = '-';
+                }
+                if (facturacionEditItemCodeDestinatario instanceof HTMLElement) {
+                    facturacionEditItemCodeDestinatario.textContent = 'Sin destinatario';
+                }
+                if (facturacionItemEditModal instanceof HTMLElement) {
+                    facturacionItemEditModal.classList.remove('is-ems-item');
+                    facturacionItemEditModal.classList.remove('is-service-item', 'is-service-airline', 'is-service-casilla', 'is-code-item');
+                }
+                [facturacionEditItemEmsCodigoPaquete, facturacionEditItemEmsPeso, facturacionEditItemEmsPrecio].forEach((field) => {
+                    if (field instanceof HTMLInputElement) {
+                        field.value = '';
+                        field.disabled = true;
+                    }
+                });
+                const genericPriceInput = document.getElementById('facturacionEditItemPrecio');
+                const genericWeightInput = document.getElementById('facturacionEditItemPeso');
+                if (genericPriceInput instanceof HTMLInputElement) {
+                    genericPriceInput.disabled = false;
+                    genericPriceInput.readOnly = false;
+                }
+                if (genericWeightInput instanceof HTMLInputElement) {
+                    genericWeightInput.disabled = false;
+                }
+                if (facturacionEditItemDescripcionServicioEditable instanceof HTMLTextAreaElement) {
+                    facturacionEditItemDescripcionServicioEditable.readOnly = false;
+                }
+                if (facturacionEditItemDescripcionServicioLockedBox instanceof HTMLElement) {
+                    const label = facturacionEditItemDescripcionServicioLockedBox.querySelector('.global-shortcut-description-lock__label');
+                    if (label instanceof HTMLElement) {
+                        label.textContent = 'Servicio base';
+                    }
                 }
 
                 facturacionItemEditModal.classList.remove('is-open');
@@ -7641,8 +9224,18 @@
                         facturacionEditItemDescripcionServicioInput,
                         facturacionEditItemDescripcionServicioEditable
                     );
+                    syncFacturacionEditServiceDescriptionPreview();
                 });
             }
+
+            if (facturacionEditItemCasillaTamano instanceof HTMLSelectElement) {
+                facturacionEditItemCasillaTamano.addEventListener('change', syncFacturacionEditCasillaDescription);
+            }
+            [facturacionEditItemCasillaNumero, facturacionEditItemCasillaPago].forEach((field) => {
+                if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
+                    field.addEventListener('input', syncFacturacionEditCasillaDescription);
+                }
+            });
 
             if (facturacionItemEditForm) {
                 facturacionItemEditForm.addEventListener('submit', async function (event) {
@@ -7652,6 +9245,55 @@
                         facturacionEditItemDescripcionServicioInput,
                         facturacionEditItemDescripcionServicioEditable
                     );
+
+                    const isCasillaEdit = facturacionItemEditCasillaFields instanceof HTMLElement
+                        && !facturacionItemEditCasillaFields.classList.contains('is-hidden');
+                    if (isCasillaEdit) {
+                        syncFacturacionEditCasillaDescription();
+                    }
+
+                    const isServiceEdit = facturacionItemEditServiceSummary instanceof HTMLElement
+                        && !facturacionItemEditServiceSummary.classList.contains('is-hidden');
+                    if (isServiceEdit) {
+                        const hiddenQuantity = document.getElementById('facturacionEditItemCantidad');
+                        if (
+                            facturacionEditItemServiceCantidad instanceof HTMLInputElement
+                            && hiddenQuantity instanceof HTMLInputElement
+                        ) {
+                            const quantity = Math.max(1, Math.min(999, Number.parseInt(facturacionEditItemServiceCantidad.value || '1', 10) || 1));
+                            facturacionEditItemServiceCantidad.value = String(quantity);
+                            hiddenQuantity.value = String(quantity);
+                        }
+                        const genericPrice = document.getElementById('facturacionEditItemPrecio');
+                        if (
+                            facturacionEditItemServicePrecio instanceof HTMLInputElement
+                            && genericPrice instanceof HTMLInputElement
+                            && !facturacionEditItemServicePrecio.readOnly
+                        ) {
+                            genericPrice.value = facturacionEditItemServicePrecio.value;
+                        }
+                    }
+
+                    const isCodeEdit = facturacionItemEditCodeSummary instanceof HTMLElement
+                        && !facturacionItemEditCodeSummary.classList.contains('is-hidden');
+                    if (isCodeEdit) {
+                        const genericCode = document.getElementById('facturacionEditItemCodigo');
+                        const genericPrice = document.getElementById('facturacionEditItemPrecio');
+                        if (facturacionEditItemCodeCodigo instanceof HTMLInputElement && genericCode instanceof HTMLInputElement) {
+                            genericCode.value = facturacionEditItemCodeCodigo.value.trim();
+                        }
+                        if (facturacionEditItemCodePrecio instanceof HTMLInputElement && genericPrice instanceof HTMLInputElement) {
+                            genericPrice.value = facturacionEditItemCodePrecio.value;
+                        }
+                        const genericWeight = document.getElementById('facturacionEditItemPeso');
+                        if (facturacionEditItemCodePeso instanceof HTMLInputElement && genericWeight instanceof HTMLInputElement) {
+                            genericWeight.value = facturacionEditItemCodePeso.value;
+                        }
+                    }
+
+                    if (!facturacionItemEditForm.reportValidity()) {
+                        return;
+                    }
 
                     if (facturacionItemEditSubmit instanceof HTMLButtonElement) {
                         facturacionItemEditSubmit.disabled = true;

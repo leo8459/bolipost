@@ -28,7 +28,6 @@ use App\Http\Controllers\EventosIpsController;
 use App\Http\Controllers\ExternalApiTokenController;
 use App\Http\Controllers\FacturacionCartController;
 use App\Http\Controllers\FacturacionQrMonitorController;
-use App\Http\Controllers\FacturacionServicioController;
 use App\Http\Controllers\FinancialReportController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\IndicadorController;
@@ -294,13 +293,6 @@ Route::get('/mis-ventas/{cart}/detail', [MisVentasController::class, 'detail'])
 Route::get('/mis-ventas/{cart}/ticket', [MisVentasController::class, 'ticket'])
     ->middleware(['auth', 'internal.only', 'verified'])
     ->name('mis-ventas.ticket');
-Route::get('/facturacion-servicio', [FacturacionServicioController::class, 'index'])
-    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
-    ->name('facturacion-servicio.index');
-Route::post('/facturacion-servicio', [FacturacionServicioController::class, 'store'])
-    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
-    ->name('facturacion-servicio.store');
-
 Route::middleware(['auth', 'internal.only', 'verified'])->group(function () {
     Route::get('/alertas-empresa/{alertaEmpresa}/portada', [AlertaEmpresaController::class, 'portada'])
         ->name('alertas-empresa.portada');
