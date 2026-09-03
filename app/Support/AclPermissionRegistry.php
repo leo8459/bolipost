@@ -563,10 +563,6 @@ class AclPermissionRegistry
         'dashboard.conciliacion.conciliaciones.descargar' => [
             'dashboard.conciliacion.conciliaciones',
         ],
-        'facturacion-servicio.store' => [
-            'facturacion-servicio.store',
-            'facturacion-servicio.index',
-        ],
         'users.empresas' => [
             'users.empresas',
             'feature.users.empresas.manage',
@@ -1984,8 +1980,6 @@ class AclPermissionRegistry
             'feature.alertas-empresa.delete' => 'Boton: Eliminar alerta',
             'feature.alertas-empresa.export' => 'Boton: Ver PDF adjunto',
             'feature.alertas-empresa.manage' => 'Acciones generales de alertas',
-            'facturacion-servicio.index' => 'Ventana: Facturacion por servicio',
-            'facturacion-servicio.store' => 'Accion: Emitir Facturacion por servicio',
             'dashboard.dir-operaciones' => 'Menu: Dir. Operaciones',
             'dashboard.dir-comercial' => 'Menu: Dir. Comercial',
             'dashboard.conciliacion' => 'Menu: Conciliación',
@@ -2395,8 +2389,6 @@ class AclPermissionRegistry
             'feature.alertas-empresa.delete' => 'Controla el boton Eliminar del historial de alertas.',
             'feature.alertas-empresa.export' => 'Controla el boton Ver PDF dentro del historial de alertas.',
             'feature.alertas-empresa.manage' => 'Agrupa las acciones generales del modulo Alertas para empresas.',
-            'facturacion-servicio.index' => 'Controla el acceso a la ventana Facturacion por servicio dentro del menu Reportes.',
-            'facturacion-servicio.store' => 'Controla la emision desde la ventana Facturacion por servicio. Usa el mismo acceso principal de la ventana.',
             'dashboard.dir-operaciones' => 'Controla la visibilidad del menu Dir. Operaciones en la barra lateral.',
             'dashboard.dir-comercial' => 'Controla la visibilidad del menu Dir. Comercial en la barra lateral.',
             'dashboard.conciliacion' => 'Controla la visibilidad del menú Conciliación en la barra lateral.',

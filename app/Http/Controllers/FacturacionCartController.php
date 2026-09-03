@@ -14,6 +14,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class FacturacionCartController extends Controller
 {
@@ -161,6 +162,7 @@ class FacturacionCartController extends Controller
 
         $validated = $request->validate([
             'codigo' => ['required', 'string', 'max:120'],
+            'codigo_paquete' => ['nullable', 'string', 'max:120'],
             'titulo' => ['required', 'string', 'max:255'],
             'nombre_servicio' => ['nullable', 'string', 'max:255'],
             'nombre_destinatario' => ['nullable', 'string', 'max:255'],
@@ -180,10 +182,31 @@ class FacturacionCartController extends Controller
         try {
             $payload = $validated;
             $cantidad = max(1, (int) ($payload['cantidad'] ?? 1));
+            $codigoServicio = strtoupper((string) preg_replace('/(?:\.\d+|\s*-.*)?$/', '', trim((string) ($payload['codigo'] ?? ''))));
+            if (in_array($codigoServicio, ['SRVE-5', 'SRVE-7', 'SRVE-8'], true)) {
+                $cantidad = 1;
+            }
             $payload['monto_base'] = (float) $payload['precio'];
             $payload['cantidad'] = $cantidad;
             $payload['total_linea'] = round((float) $payload['precio'] * $cantidad, 2);
             $payload['precio'] = (float) $payload['precio'];
+
+            if (preg_match('/^(SRVE-(?:2|3|4))(?:\.\d+|\s*-)/i', trim((string) $payload['codigo']), $matches)) {
+                $codigoPaquete = trim((string) ($payload['codigo_paquete'] ?? ''));
+                if ($codigoPaquete === '' || (float) ($payload['peso'] ?? 0) <= 0 || (float) $payload['precio'] <= 0) {
+                    throw ValidationException::withMessages([
+                        'codigo_paquete' => 'El paquete internacional requiere codigo, peso y precio mayor que 0.',
+                    ]);
+                }
+
+                $payload['cantidad'] = 1;
+                $payload['total_linea'] = round((float) $payload['precio'], 2);
+                $payload['codigo_paquete'] = $codigoPaquete;
+                $payload['codigo'] = strtoupper($matches[1]) . ' - ' . $codigoPaquete;
+                $payload['codigo_producto'] = $payload['codigo'];
+                $payload['codigo_detalle_enviado'] = $payload['codigo'];
+                $payload['codigo_producto_fiscal'] = $payload['codigo'];
+            }
 
             $resultado = $service->reviseDraftItem($user, $itemId, $payload);
             $separoLinea = (bool) ($resultado['split'] ?? false);
@@ -222,6 +245,22 @@ class FacturacionCartController extends Controller
                     'ok' => false,
                     'feedback' => $feedback,
                 ], 404);
+            }
+
+            return back()->with('facturacion_feedback', $feedback);
+        } catch (\InvalidArgumentException $e) {
+            $feedback = [
+                'type' => 'warning',
+                'title' => 'Codigo de paquete duplicado',
+                'message' => 'No se pudo guardar el paquete porque su codigo ya esta en uso.',
+                'detail' => $e->getMessage(),
+            ];
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok' => false,
+                    'feedback' => $feedback,
+                ], 422);
             }
 
             return back()->with('facturacion_feedback', $feedback);
@@ -1481,9 +1520,16 @@ class FacturacionCartController extends Controller
         try {
             $validated = $request->validate([
                 'concepto_facturacion_id' => ['required', 'integer', 'exists:conceptos_facturacion,id'],
-                'cantidad' => ['nullable', 'integer', 'min:1', 'max:999'],
+                'cantidad' => ['required', 'integer', 'min:1', 'max:999'],
                 'precio' => ['nullable', 'numeric', 'min:0'],
                 'descripcion_servicio' => ['nullable', 'string', 'max:255'],
+                'detalle_servicio' => ['nullable', 'string', 'max:255'],
+                'casilla_tamano' => ['nullable', 'string', Rule::in(['Pequeño', 'Mediano', 'Gabeta', 'Cajon'])],
+                'casilla_numero' => ['nullable', 'string', 'max:30'],
+                'paquetes' => ['nullable', 'array', 'max:999'],
+                'paquetes.*.codigo' => ['nullable', 'string', 'max:120'],
+                'paquetes.*.peso' => ['nullable', 'numeric', 'gt:0'],
+                'paquetes.*.precio' => ['nullable', 'numeric', 'gt:0'],
             ]);
 
             $concepto = ConceptoFacturacion::query()
@@ -1491,19 +1537,98 @@ class FacturacionCartController extends Controller
                 ->findOrFail((int) $validated['concepto_facturacion_id']);
 
             $cantidad = max(1, (int) ($validated['cantidad'] ?? 1));
+            if (in_array(trim((string) $concepto->codigo), ['SRVE-7', 'SRVE-8'], true)) {
+                $cantidad = 1;
+            }
             $precioUnitario = array_key_exists('precio', $validated)
                 ? round(max(0, (float) $validated['precio']), 2)
                 : null;
-            $descripcionServicio = array_key_exists('descripcion_servicio', $validated)
-                ? trim((string) $validated['descripcion_servicio'])
-                : '';
-            $cart = $service->addConceptoFacturacion(
-                $user,
-                $concepto,
-                $cantidad,
-                $precioUnitario,
-                $descripcionServicio !== '' ? $descripcionServicio : null
-            );
+            if (trim((string) $concepto->codigo) === 'SRVE-0') {
+                $precioUnitario = round(max(0, (float) ($concepto->precio_base ?? 0)), 2);
+            }
+            $codigosPaqueteInternacional = ['SRVE-2', 'SRVE-3', 'SRVE-4'];
+            if (!in_array(trim((string) $concepto->codigo), $codigosPaqueteInternacional, true) && ($precioUnitario === null || $precioUnitario <= 0)) {
+                throw ValidationException::withMessages([
+                    'precio' => 'Debes indicar un precio mayor que 0.',
+                ]);
+            }
+            $descripcionServicio = trim((string) ($validated['detalle_servicio'] ?? ''));
+            if (in_array(trim((string) $concepto->codigo), array_merge(['SRVE-0'], $codigosPaqueteInternacional), true)) {
+                $descripcionServicio = null;
+            }
+            if (trim((string) $concepto->codigo) === 'SRVE-5') {
+                $tamanoCasilla = trim((string) ($validated['casilla_tamano'] ?? ''));
+                $numeroCasilla = trim((string) ($validated['casilla_numero'] ?? ''));
+
+                if ($tamanoCasilla === '' || $numeroCasilla === '') {
+                    throw ValidationException::withMessages([
+                        'casilla_tamano' => 'Selecciona el tamaño de casilla.',
+                        'casilla_numero' => 'Escribe el número de casilla.',
+                    ]);
+                }
+
+                if ($descripcionServicio === '') {
+                    throw ValidationException::withMessages([
+                        'detalle_servicio' => 'Debes escribir la descripción de la casilla.',
+                    ]);
+                }
+
+                $descripcionServicio = 'Servicio Casilla - Tamaño: ' . $tamanoCasilla
+                    . ' N°: ' . $numeroCasilla
+                    . ' Pago: ' . $descripcionServicio;
+            } elseif ($descripcionServicio === '') {
+                throw ValidationException::withMessages([
+                    'detalle_servicio' => 'Debes escribir la descripción del cobro.',
+                ]);
+            }
+            if (in_array(trim((string) $concepto->codigo), $codigosPaqueteInternacional, true)) {
+                $paquetesEms = array_values((array) ($validated['paquetes'] ?? []));
+                $codigosRegistrados = [];
+
+                if (count($paquetesEms) !== $cantidad) {
+                    throw ValidationException::withMessages([
+                        'paquetes' => 'Registra un codigo, peso y precio para cada paquete internacional.',
+                    ]);
+                }
+
+                foreach ($paquetesEms as $index => $paqueteEms) {
+                    $codigoPaquete = trim((string) ($paqueteEms['codigo'] ?? ''));
+                    if (
+                        $codigoPaquete === ''
+                        || (float) ($paqueteEms['peso'] ?? 0) <= 0
+                        || (float) ($paqueteEms['precio'] ?? 0) <= 0
+                    ) {
+                        throw ValidationException::withMessages([
+                            'paquetes.' . $index . '.codigo' => 'Escribe el codigo del paquete.',
+                            'paquetes.' . $index . '.peso' => 'Ingresa un peso mayor que 0.',
+                            'paquetes.' . $index . '.precio' => 'Ingresa un precio mayor que 0.',
+                        ]);
+                    }
+
+                    $codigoNormalizado = mb_strtoupper($codigoPaquete);
+                    if (isset($codigosRegistrados[$codigoNormalizado])) {
+                        throw ValidationException::withMessages([
+                            'paquetes.' . $index . '.codigo' => 'No puedes repetir el codigo de paquete en este registro.',
+                        ]);
+                    }
+                    $codigosRegistrados[$codigoNormalizado] = true;
+                }
+
+                $cart = $service->addInternationalPackages(
+                    $user,
+                    $concepto,
+                    $descripcionServicio !== '' ? $descripcionServicio : null,
+                    $paquetesEms
+                );
+            } else {
+                $cart = $service->addConceptoFacturacion(
+                    $user,
+                    $concepto,
+                    $cantidad,
+                    $precioUnitario,
+                    $descripcionServicio !== '' ? $descripcionServicio : null
+                );
+            }
             $montoBase = $precioUnitario !== null
                 ? $precioUnitario
                 : round((float) ($concepto->precio_base ?? 0), 2);

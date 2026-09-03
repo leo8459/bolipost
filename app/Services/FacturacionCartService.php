@@ -705,18 +705,23 @@ class FacturacionCartService
     public function addConceptoFacturacion(User $user, ConceptoFacturacion $concepto, int $cantidad = 1, ?float $precioUnitario = null, ?string $descripcionServicio = null): object
     {
         $this->assertFacturacionPermission($user);
-        $cantidad = max(1, $cantidad);
+        $esCasillaIndividual = $this->isIndividualCasillaConcepto($concepto);
+        $cantidad = $esCasillaIndividual ? 1 : max(1, $cantidad);
         $precioUnitario = $precioUnitario !== null ? round(max(0, $precioUnitario), 2) : null;
         $descripcionServicio = $descripcionServicio !== null ? trim($descripcionServicio) : null;
         $descripcionServicio = $descripcionServicio !== '' ? $descripcionServicio : null;
+        $descripcionServicio = $this->normalizeConceptoFacturacionDescription($descripcionServicio, $concepto);
         $descripcionServicio = $this->composeConceptoFacturacionDescription(
             $this->normalizeConceptoFacturacionFiscalData($concepto)['descripcion_servicio'] ?? '',
             $descripcionServicio
         );
+        $descripcionServicio = $this->normalizeConceptoFacturacionDescription($descripcionServicio, $concepto);
 
         $ctx = $this->getRemoteContextForUser($user);
         $draft = $ctx['draft'] ?? null;
-        $existingItem = $this->findEquivalentConceptoDraftItem($draft, $concepto, $precioUnitario);
+        $existingItem = $esCasillaIndividual
+            ? null
+            : $this->findEquivalentConceptoDraftItem($draft, $concepto, $precioUnitario);
 
         if ($existingItem) {
             $cantidadActual = $this->resolveEffectiveDraftItemQuantity($existingItem);
@@ -767,6 +772,78 @@ class FacturacionCartService
         }
 
         return $this->normalizeDraftCodesAfterMutation($user, $cart);
+    }
+
+    public function addInternationalPackages(User $user, ConceptoFacturacion $concepto, ?string $descripcionServicio, array $paquetes): object
+    {
+        $this->assertFacturacionPermission($user);
+
+        if (!in_array(strtoupper(trim((string) ($concepto->codigo ?? ''))), ['SRVE-2', 'SRVE-3', 'SRVE-4'], true)) {
+            throw new \InvalidArgumentException('El concepto no corresponde a un servicio internacional con paquetes.');
+        }
+
+        $descripcionServicio = $this->normalizeConceptoFacturacionDescription($descripcionServicio, $concepto);
+        $descripcionServicio = $this->composeConceptoFacturacionDescription(
+            $this->normalizeConceptoFacturacionFiscalData($concepto)['descripcion_servicio'] ?? '',
+            $descripcionServicio
+        );
+        $descripcionServicio = $this->normalizeConceptoFacturacionDescription($descripcionServicio, $concepto);
+
+        $ctx = $this->getRemoteContextForUser($user);
+        $cart = $ctx['draft'] ?? null;
+        $codigoServicio = strtoupper(trim((string) $concepto->codigo));
+        $codigosRegistrados = collect($cart?->items ?? [])
+            ->filter(function ($item) use ($codigoServicio, $concepto) {
+                return ltrim((string) data_get($item, 'origen_tipo', ''), '\\') === ltrim(ConceptoFacturacion::class, '\\')
+                    && $this->resolveDraftConceptoFacturacionId($item) === (int) $concepto->id
+                    && strtoupper(trim((string) data_get($item, 'resumen_origen.codigo_servicio', ''))) === $codigoServicio;
+            })
+            ->mapWithKeys(fn ($item) => [mb_strtoupper(trim((string) data_get($item, 'resumen_origen.codigo_paquete', ''))) => true])
+            ->all();
+
+        foreach ($paquetes as $paquete) {
+            $codigoPaquete = trim((string) ($paquete['codigo'] ?? ''));
+            $peso = round(max(0, (float) ($paquete['peso'] ?? 0)), 3);
+            $precioUnitario = round(max(0, (float) ($paquete['precio'] ?? 0)), 2);
+            if ($codigoPaquete === '' || $peso <= 0 || $precioUnitario <= 0) {
+                throw new \InvalidArgumentException('Cada paquete internacional requiere codigo, peso y precio.');
+            }
+
+            $codigoNormalizado = mb_strtoupper($codigoPaquete);
+            if (isset($codigosRegistrados[$codigoNormalizado])) {
+                throw new \InvalidArgumentException('El codigo de paquete ' . $codigoPaquete . ' ya esta registrado para este servicio.');
+            }
+            $codigosRegistrados[$codigoNormalizado] = true;
+
+            $codigoCompleto = $codigoServicio . ' - ' . $codigoPaquete;
+
+            $payload = $this->buildConceptoDraftPayload(
+                $concepto,
+                $this->resolveConceptoDraftOriginId($cart, $concepto),
+                1,
+                $precioUnitario,
+                $codigoCompleto,
+                $descripcionServicio
+            );
+            $payload['codigo_paquete'] = $codigoPaquete;
+            $payload['peso'] = $peso;
+            $payload['resumen_origen']['codigo_paquete'] = $codigoPaquete;
+            $payload['resumen_origen']['codigo_servicio'] = $codigoServicio;
+            $payload['resumen_origen']['peso'] = $peso;
+
+            $body = $this->request('POST', '/cart/items/upsert', array_merge(
+                $this->originUserPayload($user),
+                $this->originSucursalPayload($user),
+                $payload
+            ));
+            $cart = $this->toCart(data_get($body, 'cart'));
+
+            if (!$cart) {
+                throw new \RuntimeException('No se pudo guardar uno de los paquetes internacionales en el carrito.');
+            }
+        }
+
+        return $cart ?: throw new \RuntimeException('No se pudo guardar los paquetes internacionales en el carrito.');
     }
 
     public function addScannedItemByCode(User $user, string $codigo, ?string $selectedType = null, ?int $selectedRecordId = null): array
@@ -1328,6 +1405,36 @@ class FacturacionCartService
 
         if (!$existingItem) {
             throw new ModelNotFoundException('Item de facturacion no encontrado.');
+        }
+
+        if (preg_match('/^(SRVE-(?:2|3|4))(?:\.\d+|\s*-)/i', trim((string) ($payload['codigo'] ?? '')), $matches)) {
+            $codigoPaquete = mb_strtoupper(trim((string) ($payload['codigo_paquete'] ?? '')));
+            $codigoServicio = strtoupper($matches[1]);
+            $duplicado = collect($draft?->items ?? [])->contains(function ($item) use ($itemId, $codigoPaquete, $codigoServicio) {
+                if ((int) data_get($item, 'id', 0) === $itemId) {
+                    return false;
+                }
+
+                return strtoupper(trim((string) data_get($item, 'resumen_origen.codigo_servicio', ''))) === $codigoServicio
+                    && mb_strtoupper(trim((string) data_get($item, 'resumen_origen.codigo_paquete', ''))) === $codigoPaquete;
+            });
+
+            if ($codigoPaquete !== '' && $duplicado) {
+                throw new \InvalidArgumentException('Ese codigo de paquete ya esta registrado para este servicio.');
+            }
+        }
+
+        if (
+            array_key_exists('descripcion_servicio', $payload)
+            && ltrim((string) data_get($existingItem, 'origen_tipo', ''), '\\') === ltrim(ConceptoFacturacion::class, '\\')
+        ) {
+            $concepto = ConceptoFacturacion::query()->find($this->resolveDraftConceptoFacturacionId($existingItem));
+            if ($concepto) {
+                $payload['descripcion_servicio'] = $this->normalizeConceptoFacturacionDescription(
+                    $payload['descripcion_servicio'] ?? null,
+                    $concepto
+                );
+            }
         }
 
         $effectiveQuantity = $this->resolveEffectiveDraftItemQuantity($existingItem);
@@ -2446,6 +2553,7 @@ class FacturacionCartService
             (string) ($conceptoNormalizado['descripcion_servicio'] ?? ''),
             $descripcionServicio
         );
+        $resolvedDescripcionServicio = $this->normalizeConceptoFacturacionDescription($resolvedDescripcionServicio, $concepto);
 
         return [
             'origen_tipo' => ConceptoFacturacion::class,
@@ -2458,7 +2566,6 @@ class FacturacionCartService
             'resumen_origen' => [
                 'codigo' => $resolvedCode,
                 'contenido' => 'COBRO ADICIONAL',
-                'peso' => 0,
                 'destinatario' => '',
                 'direccion' => '',
                 'ciudad' => '',
@@ -2634,11 +2741,16 @@ class FacturacionCartService
         $cantidad = max(1, (int) ($overrides['cantidad'] ?? data_get($item, 'cantidad', 1)));
         $codigo = trim((string) ($overrides['codigo'] ?? data_get($item, 'codigo', '')));
         $codigoDetalleEnviado = trim((string) ($overrides['codigo_detalle_enviado'] ?? $codigo));
+        $codigoPaquete = trim((string) ($overrides['codigo_paquete'] ?? ($resumen['codigo_paquete'] ?? $codigo)));
+
+        if (preg_match('/^SRVE-(?:2|3|4)\s*-\s*(.+)$/i', $codigoPaquete, $matches)) {
+            $codigoPaquete = trim((string) $matches[1]);
+        }
 
         if ($origenTipo === ltrim(ConceptoFacturacion::class, '\\') && $codigo !== '') {
             $resumen['codigo'] = $codigo;
             $resumen['codigo_producto'] = trim((string) ($overrides['codigo_producto'] ?? $codigo));
-            $resumen['codigo_paquete'] = trim((string) ($overrides['codigo_paquete'] ?? $codigo));
+            $resumen['codigo_paquete'] = $codigoPaquete;
             $resumen['codigo_detalle_enviado'] = trim((string) ($overrides['codigo_detalle_enviado'] ?? $codigo));
             $resumen['codigo_producto_fiscal'] = trim((string) ($overrides['codigo_producto_fiscal'] ?? $codigo));
         }
@@ -2662,7 +2774,7 @@ class FacturacionCartService
             'codigo_producto' => trim((string) ($resumen['codigo_producto'] ?? '')),
             'descripcion_servicio' => trim((string) ($resumen['descripcion_servicio'] ?? '')),
             'unidad_medida' => (int) ($resumen['unidad_medida'] ?? 58),
-            'codigo_paquete' => trim((string) ($resumen['codigo_paquete'] ?? $codigo)),
+            'codigo_paquete' => trim((string) ($resumen['codigo_paquete'] ?? $codigoPaquete)),
             'codigo_detalle_enviado' => $codigoDetalleEnviado,
             'codigo_servicio' => trim((string) ($resumen['codigo_servicio'] ?? '')),
             'servicio_nombre' => trim((string) ($resumen['servicio_nombre'] ?? data_get($item, 'nombre_servicio', ''))),
@@ -2689,6 +2801,7 @@ class FacturacionCartService
             'resumen_origen.concepto_facturacion_id',
             data_get($item, 'origen_id', 0)
         ));
+
 
         $resumen['contenido'] = trim((string) ($overrides['contenido'] ?? ($resumen['contenido'] ?? '')));
         $resumen['direccion'] = trim((string) ($overrides['direccion'] ?? ($resumen['direccion'] ?? '')));
@@ -2750,6 +2863,11 @@ class FacturacionCartService
         }
 
         if (ltrim((string) data_get($item, 'origen_tipo', ''), '\\') !== ltrim(ConceptoFacturacion::class, '\\')) {
+            return false;
+        }
+
+        // Service quantities are edited directly from their compact service form.
+        if (preg_match('/^SRVE-[0-9]+(?:\s*-|$)/i', trim((string) data_get($item, 'codigo', '')))) {
             return false;
         }
 
@@ -3463,7 +3581,8 @@ class FacturacionCartService
     {
         $variantGroups = collect($cart->items ?? [])
             ->filter(function ($item) {
-                return ltrim((string) data_get($item, 'origen_tipo', ''), '\\') === ltrim(ConceptoFacturacion::class, '\\');
+                return ltrim((string) data_get($item, 'origen_tipo', ''), '\\') === ltrim(ConceptoFacturacion::class, '\\')
+                    && !$this->isIndividualCasillaDraftItem($item);
             })
             ->groupBy(function ($item) {
                 return implode('|', [
@@ -3540,7 +3659,8 @@ class FacturacionCartService
     {
         $conceptoGroups = collect($cart->items ?? [])
             ->filter(function ($item) {
-                return ltrim((string) data_get($item, 'origen_tipo', ''), '\\') === ltrim(ConceptoFacturacion::class, '\\');
+                return ltrim((string) data_get($item, 'origen_tipo', ''), '\\') === ltrim(ConceptoFacturacion::class, '\\')
+                    && !$this->isIndividualCasillaDraftItem($item);
             })
             ->groupBy(function ($item) {
                 $conceptoId = $this->resolveDraftConceptoFacturacionId($item);
@@ -3640,6 +3760,27 @@ class FacturacionCartService
         $trimmedBase = substr($prefix, 0, $maxBaseLength);
 
         return $trimmedBase . $suffix;
+    }
+
+    private function isIndividualCasillaConcepto(ConceptoFacturacion $concepto): bool
+    {
+        return in_array(strtoupper(trim((string) ($concepto->codigo ?? ''))), ['SRVE-5', 'SRVE-8'], true);
+    }
+
+    private function isIndividualCasillaDraftItem(object $item): bool
+    {
+        if (ltrim((string) data_get($item, 'origen_tipo', ''), '\\') !== ltrim(ConceptoFacturacion::class, '\\')) {
+            return false;
+        }
+
+        // Casillas and EMS packages must always remain independent cart lines.
+        $codigo = strtoupper(trim((string) data_get($item, 'codigo', '')));
+
+        return preg_match('/^SRVE-(?:2|3|4)\s*-/i', $codigo) === 1 || in_array(
+            strtoupper($this->extractDraftItemCodeFamily($codigo)),
+            ['SRVE-2', 'SRVE-3', 'SRVE-4', 'SRVE-5'],
+            true
+        );
     }
 
     private function enforceCustomizedConceptGroupQuantities(
@@ -3846,6 +3987,7 @@ class FacturacionCartService
     private function composeConceptoFacturacionDescription(?string $baseDescription, ?string $customDescription): string
     {
         $base = trim((string) ($baseDescription ?? ''));
+        $base = preg_replace('/\s*-\s*$/', '', $base) ?? $base;
         $custom = trim((string) ($customDescription ?? ''));
 
         if ($base === '') {
@@ -3861,6 +4003,62 @@ class FacturacionCartService
         }
 
         return $base . ' - ' . $custom;
+    }
+
+    private function removeRedundantConceptoNameSuffix(?string $description, ConceptoFacturacion $concepto): ?string
+    {
+        $value = trim((string) $description);
+        $nombre = trim((string) ($concepto->nombre ?? ''));
+
+        if ($value === '' || $nombre === '') {
+            return $value !== '' ? $value : null;
+        }
+
+        $suffix = ' - ' . $nombre;
+        if (mb_strtolower($value) === mb_strtolower($suffix)) {
+            return $value;
+        }
+
+        if (!str_ends_with(mb_strtolower($value), mb_strtolower($suffix))) {
+            return $value;
+        }
+
+        $clean = trim(mb_substr($value, 0, mb_strlen($value) - mb_strlen($suffix)));
+
+        return $clean !== '' ? $clean : $value;
+    }
+
+    private function normalizeConceptoFacturacionDescription(?string $description, ConceptoFacturacion $concepto): ?string
+    {
+        $value = $this->removeRedundantConceptoNameSuffix($description, $concepto);
+        $catalogDescription = trim((string) ($concepto->descripcion ?? ''));
+
+        if ($value === null || $catalogDescription === '') {
+            return $value;
+        }
+
+        $catalogParts = array_map('trim', explode(' - ', $catalogDescription, 2));
+        $base = $catalogParts[0] ?? '';
+        $defaultDetail = $catalogParts[1] ?? '';
+        $valueParts = array_map('trim', explode(' - ', $value));
+
+        if ($base === '' || strcasecmp($valueParts[0] ?? '', $base) !== 0) {
+            return $value;
+        }
+
+        $detailParts = array_values(array_filter(
+            array_slice($valueParts, 1),
+            fn (string $part) => $part !== '' && strcasecmp($part, $base) !== 0
+        ));
+
+        // If the user adds a new detail after the catalog default, that new text replaces the default.
+        if ($defaultDetail !== '' && count($detailParts) > 1 && strcasecmp($detailParts[0], $defaultDetail) === 0) {
+            array_shift($detailParts);
+        }
+
+        $cleanDetail = implode(' - ', $detailParts);
+
+        return $cleanDetail !== '' ? $base . ' - ' . $cleanDetail : $base;
     }
 
     private function assertFacturacionPermission(User $user): void
