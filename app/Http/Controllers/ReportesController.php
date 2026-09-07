@@ -272,8 +272,8 @@ class ReportesController extends Controller
         $data['globalIngresoMode'] = true;
         $allRows = collect($data['rows'] ?? []);
         $data['pdfTotalRows'] = $allRows->count();
-        $data['pdfRowsLimit'] = 1000;
-        $data['rows'] = $allRows->take($data['pdfRowsLimit'])->values();
+        $data['pdfStatistics'] = $this->buildGlobalIngresoPdfStatistics($allRows);
+        unset($data['rows']);
         $pdf = Pdf::loadView('reportes.global-ingreso-pdf', $data)
             ->setPaper('A4', 'landscape')
             ->setOptions([
@@ -877,6 +877,128 @@ class ReportesController extends Controller
         return [
             'peso_total' => round((float) $rows->sum('peso'), 3),
             'precio_total' => round((float) $rows->sum('precio'), 2),
+        ];
+    }
+
+    private function buildGlobalIngresoPdfStatistics(Collection $rows): array
+    {
+        $total = $rows->count();
+        $percentage = static fn (int $value): float => $total > 0
+            ? round(($value / $total) * 100, 1)
+            : 0.0;
+        $normalizeLabel = static function (mixed $value, string $fallback): string {
+            $label = mb_strtoupper(trim((string) $value));
+
+            return $label === '' || $label === '-' ? $fallback : $label;
+        };
+
+        $statusDefinitions = [
+            ['key' => 'entregado', 'label' => 'Entregados'],
+            ['key' => 'correcto', 'label' => 'En plazo'],
+            ['key' => 'retraso', 'label' => 'Con retraso'],
+            ['key' => 'rezago', 'label' => 'En rezago'],
+            ['key' => 'sin_datos', 'label' => 'Sin datos de plazo'],
+        ];
+        $statusDistribution = collect($statusDefinitions)
+            ->map(function (array $definition) use ($rows, $percentage) {
+                $count = $rows->where('situacion_bucket', $definition['key'])->count();
+
+                return [
+                    'label' => $definition['label'],
+                    'cantidad' => $count,
+                    'porcentaje' => $percentage($count),
+                ];
+            })
+            ->values()
+            ->all();
+
+        $moduleStatistics = $rows
+            ->groupBy('modulo_key')
+            ->map(function (Collection $items) use ($percentage) {
+                $delivered = $items->where('is_entregado', true)->count();
+
+                return [
+                    'label' => (string) ($items->first()['modulo_label'] ?? 'SIN MODULO'),
+                    'cantidad' => $items->count(),
+                    'participacion' => $percentage($items->count()),
+                    'entregados' => $delivered,
+                    'pendientes' => $items->count() - $delivered,
+                    'peso' => round((float) $items->sum('peso'), 3),
+                ];
+            })
+            ->sortByDesc('cantidad')
+            ->values()
+            ->all();
+
+        $serviceGroups = $rows->groupBy(
+            fn (array $row) => $normalizeLabel($row['servicio'] ?? null, 'SIN SERVICIO')
+        );
+        $serviceStatistics = $serviceGroups
+            ->map(function (Collection $items, string $label) use ($percentage) {
+                return [
+                    'label' => $label,
+                    'cantidad' => $items->count(),
+                    'participacion' => $percentage($items->count()),
+                    'peso' => round((float) $items->sum('peso'), 3),
+                ];
+            })
+            ->sortByDesc('cantidad')
+            ->take(15)
+            ->values()
+            ->all();
+
+        $destinationGroups = $rows->groupBy(
+            fn (array $row) => $normalizeLabel($row['destino'] ?? null, 'SIN DESTINO')
+        );
+        $destinationStatistics = $destinationGroups
+            ->map(function (Collection $items, string $label) use ($percentage) {
+                return [
+                    'label' => $label,
+                    'cantidad' => $items->count(),
+                    'participacion' => $percentage($items->count()),
+                ];
+            })
+            ->sortByDesc('cantidad')
+            ->take(10)
+            ->values()
+            ->all();
+
+        $monthlyGroups = $rows
+            ->filter(fn (array $row) => (int) ($row['created_at_ts'] ?? 0) > 0)
+            ->groupBy(fn (array $row) => date('Y-m', (int) $row['created_at_ts']));
+        $monthlyStatistics = $monthlyGroups
+            ->map(function (Collection $items, string $period) {
+                $delivered = $items->where('is_entregado', true)->count();
+
+                return [
+                    'periodo' => $period,
+                    'cantidad' => $items->count(),
+                    'entregados' => $delivered,
+                    'pendientes' => $items->count() - $delivered,
+                    'peso' => round((float) $items->sum('peso'), 3),
+                ];
+            })
+            ->sortKeys()
+            ->take(-24)
+            ->values()
+            ->all();
+
+        $weights = $rows->pluck('peso')->map(fn ($weight) => (float) $weight);
+        $delivered = $rows->where('is_entregado', true)->count();
+
+        return [
+            'tasa_entrega' => $percentage($delivered),
+            'peso_promedio' => $total > 0 ? round((float) $weights->avg(), 3) : 0.0,
+            'peso_mediano' => $total > 0 ? round((float) $weights->median(), 3) : 0.0,
+            'peso_maximo' => $total > 0 ? round((float) $weights->max(), 3) : 0.0,
+            'situaciones' => $statusDistribution,
+            'modulos' => $moduleStatistics,
+            'servicios' => $serviceStatistics,
+            'servicios_total' => $serviceGroups->count(),
+            'destinos' => $destinationStatistics,
+            'destinos_total' => $destinationGroups->count(),
+            'meses' => $monthlyStatistics,
+            'meses_total' => $monthlyGroups->count(),
         ];
     }
 

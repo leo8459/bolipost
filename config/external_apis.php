@@ -379,7 +379,7 @@ return [
         ],
         'paquetes-contrato:pickup' => [
             'name' => 'RECOJO DE PAQUETES',
-            'description' => 'Recoge uno o varios paquetes de contrato en estado SOLICITUD, los pasa a ALMACEN y registra el evento de recojo. El alcance regional corresponde al usuario que creo la credencial.',
+            'description' => 'Recoge uno o varios paquetes de contrato o solicitudes Delivery Express en estado SOLICITUD, los pasa a ALMACEN y registra el evento de recojo correspondiente. El alcance regional corresponde al usuario que creo la credencial.',
             'access' => 'Escritura',
             'icon' => 'fas fa-dolly',
             'color' => 'warning',
@@ -391,13 +391,14 @@ return [
                     'body' => [
                         'codigos' => [
                             'CEMPRESA00001BO',
-                            'CEMPRESA00002BO',
+                            'SL00000001LP',
                         ],
                     ],
                     'response' => [
                         'message' => '2 envio(s) enviado(s) a ALMACEN.',
                         'actualizados' => 2,
-                        'codigos' => ['CEMPRESA00001BO', 'CEMPRESA00002BO'],
+                        'actualizados_por_tipo' => ['contrato' => 1, 'solicitud' => 1],
+                        'codigos' => ['CEMPRESA00001BO', 'SL00000001LP'],
                         'no_procesados' => [],
                     ],
                 ],

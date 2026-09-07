@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Models\Estado;
 use App\Models\Recojo;
+use App\Models\SolicitudCliente;
 use App\Models\User;
+use App\Support\TiktokerEvent;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -15,7 +17,7 @@ class ContratoPickupService
 
     /**
      * @param  array<int, int|string>  $identificadores
-     * @return array{actualizados: int, codigos: array<int, string>, no_procesados: array<int, int|string>}
+     * @return array{actualizados: int, actualizados_por_tipo: array{contrato: int, solicitud: int}, codigos: array<int, string>, no_procesados: array<int, int|string>}
      */
     public function recogerPorIds(User $actor, array $identificadores): array
     {
@@ -24,7 +26,7 @@ class ContratoPickupService
 
     /**
      * @param  array<int, string>  $identificadores
-     * @return array{actualizados: int, codigos: array<int, string>, no_procesados: array<int, string>}
+     * @return array{actualizados: int, actualizados_por_tipo: array{contrato: int, solicitud: int}, codigos: array<int, string>, no_procesados: array<int, string>}
      */
     public function recogerPorCodigos(User $actor, array $identificadores): array
     {
@@ -33,16 +35,12 @@ class ContratoPickupService
 
     /**
      * @param  array<int, int|string>  $identificadores
-     * @return array{actualizados: int, codigos: array<int, string>, no_procesados: array<int, int|string>}
+     * @return array{actualizados: int, actualizados_por_tipo: array{contrato: int, solicitud: int}, codigos: array<int, string>, no_procesados: array<int, int|string>}
      */
     private function recoger(User $actor, array $identificadores, string $campo): array
     {
         $solicitudId = $this->estadoId('SOLICITUD');
         $almacenId = $this->estadoId('ALMACEN');
-
-        if (! DB::table('eventos')->where('id', self::EVENTO_ID_CONTRATO_RECOGIDO)->exists()) {
-            throw new RuntimeException('No existe el evento con ID '.self::EVENTO_ID_CONTRATO_RECOGIDO.' en la tabla eventos.');
-        }
 
         $valores = collect($identificadores)
             ->map(fn ($valor) => $campo === 'id'
@@ -53,7 +51,12 @@ class ContratoPickupService
             ->values();
 
         if ($valores->isEmpty()) {
-            return ['actualizados' => 0, 'codigos' => [], 'no_procesados' => []];
+            return [
+                'actualizados' => 0,
+                'actualizados_por_tipo' => ['contrato' => 0, 'solicitud' => 0],
+                'codigos' => [],
+                'no_procesados' => [],
+            ];
         }
 
         $userCity = strtoupper(trim((string) $actor->ciudad));
@@ -84,9 +87,35 @@ class ContratoPickupService
             }
 
             $recojos = $query->lockForUpdate()->get(['id', 'codigo']);
+
+            $solicitudes = collect();
+
+            // Los IDs numericos no son globales entre tablas. El flujo web de
+            // contratos usa IDs, por lo que Delivery Express solo se incorpora
+            // cuando la integracion externa identifica los envios por codigo.
+            if ($campo === 'codigo') {
+                $solicitudesQuery = SolicitudCliente::query()
+                    ->where('estado_id', $solicitudId)
+                    ->when(! $hasGlobalDepartmentAccess, fn (Builder $query) => $query
+                        ->whereRaw('trim(upper(origen)) = ?', [$userCity]));
+
+                $solicitudesQuery->where(function (Builder $query) use ($valores): void {
+                    $query
+                        ->whereIn(DB::raw('upper(trim(codigo_solicitud))'), $valores->all())
+                        ->orWhereIn(DB::raw('upper(trim(barcode))'), $valores->all());
+                });
+
+                $solicitudes = $solicitudesQuery
+                    ->lockForUpdate()
+                    ->get(['id', 'cliente_id', 'codigo_solicitud', 'barcode']);
+            }
             $now = now();
 
             if ($recojos->isNotEmpty()) {
+                if (! DB::table('eventos')->where('id', self::EVENTO_ID_CONTRATO_RECOGIDO)->exists()) {
+                    throw new RuntimeException('No existe el evento con ID '.self::EVENTO_ID_CONTRATO_RECOGIDO.' en la tabla eventos.');
+                }
+
                 Recojo::query()
                     ->whereIn('id', $recojos->pluck('id')->all())
                     ->update([
@@ -106,16 +135,65 @@ class ContratoPickupService
                     ->all());
             }
 
+            if ($solicitudes->isNotEmpty()) {
+                SolicitudCliente::query()
+                    ->whereIn('id', $solicitudes->pluck('id')->all())
+                    ->update([
+                        'estado_id' => $almacenId,
+                        'updated_at' => $now,
+                    ]);
+
+                $eventoTiktokerId = TiktokerEvent::resolveId(TiktokerEvent::RECIBIDA_ALMACEN);
+
+                DB::table('eventos_tiktoker')->insert($solicitudes
+                    ->map(function (SolicitudCliente $solicitud) use ($actor, $eventoTiktokerId, $now): array {
+                        return [
+                            'codigo' => $this->codigoSolicitud($solicitud),
+                            'evento_id' => $eventoTiktokerId,
+                            'user_id' => (int) $actor->id,
+                            'cliente_id' => null,
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ];
+                    })
+                    ->all());
+            }
+
             $procesados = $campo === 'id'
-                ? $recojos->pluck('id')->map(fn ($id) => (int) $id)
-                : $recojos->pluck('codigo')->map(fn ($codigo) => strtoupper(trim((string) $codigo)));
+                ? $recojos->pluck('id')
+                    ->concat($solicitudes->pluck('id'))
+                    ->map(fn ($id) => (int) $id)
+                    ->unique()
+                : $recojos->pluck('codigo')
+                    ->concat($solicitudes->pluck('codigo_solicitud'))
+                    ->concat($solicitudes->pluck('barcode'))
+                    ->map(fn ($codigo) => strtoupper(trim((string) $codigo)))
+                    ->filter(fn ($codigo) => $codigo !== '')
+                    ->unique();
+
+            $codigos = $recojos->pluck('codigo')
+                ->map(fn ($codigo) => (string) $codigo)
+                ->concat($solicitudes->map(fn (SolicitudCliente $solicitud) => $this->codigoSolicitud($solicitud)))
+                ->values()
+                ->all();
 
             return [
-                'actualizados' => $recojos->count(),
-                'codigos' => $recojos->pluck('codigo')->map(fn ($codigo) => (string) $codigo)->values()->all(),
+                'actualizados' => $recojos->count() + $solicitudes->count(),
+                'actualizados_por_tipo' => [
+                    'contrato' => $recojos->count(),
+                    'solicitud' => $solicitudes->count(),
+                ],
+                'codigos' => $codigos,
                 'no_procesados' => $valores->diff($procesados)->values()->all(),
             ];
         });
+    }
+
+    private function codigoSolicitud(SolicitudCliente $solicitud): string
+    {
+        $codigo = trim((string) $solicitud->codigo_solicitud);
+
+        return $codigo !== '' ? $codigo : trim((string) $solicitud->barcode);
     }
 
     private function estadoId(string $nombre): int

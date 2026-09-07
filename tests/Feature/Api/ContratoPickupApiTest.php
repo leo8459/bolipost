@@ -84,6 +84,25 @@ class ContratoPickupApiTest extends TestCase
             $table->unsignedBigInteger('user_id');
             $table->timestamps();
         });
+
+        Schema::create('solicitud_clientes', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('cliente_id')->nullable();
+            $table->string('codigo_solicitud')->nullable();
+            $table->string('barcode')->nullable();
+            $table->unsignedBigInteger('estado_id');
+            $table->string('origen');
+            $table->timestamps();
+        });
+
+        Schema::create('eventos_tiktoker', function (Blueprint $table): void {
+            $table->id();
+            $table->string('codigo');
+            $table->unsignedBigInteger('evento_id');
+            $table->unsignedBigInteger('user_id')->nullable();
+            $table->unsignedBigInteger('cliente_id')->nullable();
+            $table->timestamps();
+        });
     }
 
     public function test_recoge_paquetes_en_solicitud_de_la_ciudad_del_propietario_del_token(): void
@@ -127,6 +146,8 @@ class ContratoPickupApiTest extends TestCase
             ])
             ->assertOk()
             ->assertJsonPath('actualizados', 1)
+            ->assertJsonPath('actualizados_por_tipo.contrato', 1)
+            ->assertJsonPath('actualizados_por_tipo.solicitud', 0)
             ->assertJsonPath('codigos.0', 'CTO-LP-001')
             ->assertJsonPath('no_procesados', ['CTO-CBBA-001', 'NO-EXISTE']);
 
@@ -145,6 +166,90 @@ class ContratoPickupApiTest extends TestCase
         ]);
         $this->assertDatabaseCount('eventos_contrato', 1);
         $this->assertNotNull(DB::table('paquetes_contrato')->where('codigo', 'CTO-LP-001')->value('fecha_recojo'));
+    }
+
+    public function test_recoge_contratos_y_solicitudes_delivery_express_en_la_misma_peticion(): void
+    {
+        $now = now();
+        $solicitudId = DB::table('estados')->insertGetId([
+            'nombre_estado' => 'SOLICITUD', 'created_at' => $now, 'updated_at' => $now,
+        ]);
+        $almacenId = DB::table('estados')->insertGetId([
+            'nombre_estado' => 'ALMACEN', 'created_at' => $now, 'updated_at' => $now,
+        ]);
+        DB::table('eventos')->insert([
+            [
+                'id' => 295,
+                'nombre_evento' => 'Paquete recibido del cliente.',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+            [
+                'id' => 296,
+                'nombre_evento' => 'Delivery Express recibido en almacen.',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+        ]);
+        $userId = DB::table('users')->insertGetId([
+            'name' => 'Operador La Paz',
+            'email' => 'operador.mixto@example.com',
+            'password' => bcrypt('password'),
+            'ciudad' => 'LA PAZ',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        DB::table('paquetes_contrato')->insert([
+            'codigo' => 'CTO-LP-002',
+            'estados_id' => $solicitudId,
+            'origen' => 'LA PAZ',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        DB::table('solicitud_clientes')->insert([
+            [
+                'codigo_solicitud' => 'SL00000001LP',
+                'barcode' => 'SL00000001LP',
+                'estado_id' => $solicitudId,
+                'origen' => 'LA PAZ',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+            [
+                'codigo_solicitud' => 'SL00000002CB',
+                'barcode' => 'SL00000002CB',
+                'estado_id' => $solicitudId,
+                'origen' => 'COCHABAMBA',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+        ]);
+
+        $this->withToken($this->issueToken($userId))
+            ->postJson('/api/paquetes-contrato/recoger', [
+                'codigos' => ['CTO-LP-002', 'sl00000001lp', 'SL00000002CB'],
+            ])
+            ->assertOk()
+            ->assertJsonPath('actualizados', 2)
+            ->assertJsonPath('actualizados_por_tipo.contrato', 1)
+            ->assertJsonPath('actualizados_por_tipo.solicitud', 1)
+            ->assertJsonPath('codigos', ['CTO-LP-002', 'SL00000001LP'])
+            ->assertJsonPath('no_procesados', ['SL00000002CB']);
+
+        $this->assertDatabaseHas('solicitud_clientes', [
+            'codigo_solicitud' => 'SL00000001LP',
+            'estado_id' => $almacenId,
+        ]);
+        $this->assertDatabaseHas('solicitud_clientes', [
+            'codigo_solicitud' => 'SL00000002CB',
+            'estado_id' => $solicitudId,
+        ]);
+        $this->assertDatabaseHas('eventos_tiktoker', [
+            'codigo' => 'SL00000001LP',
+            'evento_id' => 296,
+            'user_id' => $userId,
+        ]);
     }
 
     public function test_rechaza_un_token_sin_permiso_de_recojo(): void

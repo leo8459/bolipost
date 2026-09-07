@@ -44,6 +44,7 @@ class ContratoPickupApiController extends Controller
                 ? $resultado['actualizados'].' envio(s) enviado(s) a ALMACEN.'
                 : 'No se actualizo ningun envio. Verifica codigo, estado y ciudad.',
             'actualizados' => $resultado['actualizados'],
+            'actualizados_por_tipo' => $resultado['actualizados_por_tipo'],
             'codigos' => $resultado['codigos'],
             'no_procesados' => $resultado['no_procesados'],
         ]);
