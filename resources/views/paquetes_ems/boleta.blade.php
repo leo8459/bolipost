@@ -234,7 +234,7 @@
         default => '',
     };
 
-    $logoPath = public_path('images/AGBClogo1.png');
+    $logoPath = public_path('images/LOGO 19-2-26.png');
     $logoB64 = file_exists($logoPath) ? base64_encode(file_get_contents($logoPath)) : null;
 @endphp
 <body>

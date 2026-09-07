@@ -250,7 +250,7 @@
     $esReimpresion = (bool) ($esReimpresion ?? request()->boolean('reimpreso'));
     $copiasDisponibles = ['ORIGINAL', 'COPIA 1', 'COPIA 2'];
     $copias = array_slice($copiasDisponibles, 0, $numeroCopias);
-    $logoPath = public_path('images/AGBClogo1.png');
+    $logoPath = public_path('images/LOGO 19-2-26.png');
     $logoB64 = file_exists($logoPath) ? base64_encode(file_get_contents($logoPath)) : null;
 @endphp
 <body>

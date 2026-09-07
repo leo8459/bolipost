@@ -240,7 +240,7 @@
     $precio = $paquete->precio !== null && $paquete->precio !== '' ? number_format((float) $paquete->precio, 2, '.', '') . ' Bs' : '-';
     $fecha = \Carbon\Carbon::parse($paquete->created_at ?? now())->format('d/m/Y H:i:s');
     $usuario = trim((string) (Auth::user()->name ?? ''));
-    $logoPath = public_path('images/AGBClogo1.png');
+    $logoPath = public_path('images/LOGO 19-2-26.png');
     $logoB64 = file_exists($logoPath) ? base64_encode(file_get_contents($logoPath)) : null;
 @endphp
 <body>
