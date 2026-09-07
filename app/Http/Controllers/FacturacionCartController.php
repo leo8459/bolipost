@@ -202,7 +202,7 @@ class FacturacionCartController extends Controller
                 $payload['cantidad'] = 1;
                 $payload['total_linea'] = round((float) $payload['precio'], 2);
                 $payload['codigo_paquete'] = $codigoPaquete;
-                $payload['codigo'] = strtoupper($matches[1]) . ' - ' . $codigoPaquete;
+                $payload['codigo'] = strtoupper($matches[1]) . '-' . $codigoPaquete;
                 $payload['codigo_producto'] = $payload['codigo'];
                 $payload['codigo_detalle_enviado'] = $payload['codigo'];
                 $payload['codigo_producto_fiscal'] = $payload['codigo'];

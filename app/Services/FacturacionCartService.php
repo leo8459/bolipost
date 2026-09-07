@@ -815,7 +815,7 @@ class FacturacionCartService
             }
             $codigosRegistrados[$codigoNormalizado] = true;
 
-            $codigoCompleto = $codigoServicio . ' - ' . $codigoPaquete;
+            $codigoCompleto = $codigoServicio . '-' . $codigoPaquete;
 
             $payload = $this->buildConceptoDraftPayload(
                 $concepto,
