@@ -191,7 +191,7 @@ class FacturacionCartController extends Controller
             $payload['total_linea'] = round((float) $payload['precio'] * $cantidad, 2);
             $payload['precio'] = (float) $payload['precio'];
 
-            if (preg_match('/^(SRVE-(?:2|3|4))(?:\.\d+|\s*-)/i', trim((string) $payload['codigo']), $matches)) {
+            if (preg_match('/^(SRVE-(?:2|3|4|11|12))(?:\.\d+|\s*-)/i', trim((string) $payload['codigo']), $matches)) {
                 $codigoPaquete = trim((string) ($payload['codigo_paquete'] ?? ''));
                 if ($codigoPaquete === '' || (float) ($payload['peso'] ?? 0) <= 0 || (float) $payload['precio'] <= 0) {
                     throw ValidationException::withMessages([
@@ -698,7 +698,8 @@ class FacturacionCartController extends Controller
             $downloadPdf = null;
             if ($pdfUrl !== '' && strtoupper((string) ($respuesta['estado'] ?? '')) === 'FACTURADA') {
                 $downloadPdf = [
-                    'url' => $pdfUrl,
+                    'url' => $this->signaturePdfUrl($pdfUrl),
+                    'filename' => basename((string) parse_url($pdfUrl, PHP_URL_PATH)),
                     'key' => (string) ($respuesta['codigoOrden'] ?? $resultado['carrito']->codigo_orden ?? now()->timestamp),
                 ];
                 $redirect->with('facturacion_download_pdf', $downloadPdf);
@@ -791,7 +792,8 @@ class FacturacionCartController extends Controller
             $downloadPdf = null;
             if ($pdfUrl !== '' && strtoupper((string) ($respuesta['estado'] ?? '')) === 'FACTURADA') {
                 $downloadPdf = [
-                    'url' => $pdfUrl,
+                    'url' => $this->signaturePdfUrl($pdfUrl),
+                    'filename' => basename((string) parse_url($pdfUrl, PHP_URL_PATH)),
                     'key' => (string) ($respuesta['codigoOrden'] ?? data_get($resultado, 'carrito.codigo_orden', now()->timestamp)),
                 ];
                 $redirect->with('facturacion_download_pdf', $downloadPdf);
@@ -1168,10 +1170,17 @@ class FacturacionCartController extends Controller
             $meta[] = ['label' => $trackingLabel, 'value' => $codigoSeguimiento];
         }
         if ($pdfUrl !== '') {
-            $meta[] = ['label' => 'PDF', 'value' => $pdfUrl, 'type' => 'link'];
+            $meta[] = ['label' => 'PDF', 'value' => $this->signaturePdfUrl($pdfUrl), 'type' => 'link'];
         }
 
         return $meta;
+    }
+
+    private function signaturePdfUrl(string $url): string
+    {
+        return \Illuminate\Support\Facades\URL::temporarySignedRoute(
+            'facturacion.factura-con-firma', now()->addDay(), ['url' => $url]
+        );
     }
 
     private function normalizeSefePublicUrl(?string $url): string
@@ -1546,7 +1555,7 @@ class FacturacionCartController extends Controller
             if (trim((string) $concepto->codigo) === 'SRVE-0') {
                 $precioUnitario = round(max(0, (float) ($concepto->precio_base ?? 0)), 2);
             }
-            $codigosPaqueteInternacional = ['SRVE-2', 'SRVE-3', 'SRVE-4'];
+            $codigosPaqueteInternacional = ['SRVE-2', 'SRVE-3', 'SRVE-4', 'SRVE-11', 'SRVE-12'];
             if (!in_array(trim((string) $concepto->codigo), $codigosPaqueteInternacional, true) && ($precioUnitario === null || $precioUnitario <= 0)) {
                 throw ValidationException::withMessages([
                     'precio' => 'Debes indicar un precio mayor que 0.',
@@ -1771,3 +1780,4 @@ class FacturacionCartController extends Controller
     }
 
 }
+

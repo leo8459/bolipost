@@ -778,7 +778,7 @@ class FacturacionCartService
     {
         $this->assertFacturacionPermission($user);
 
-        if (!in_array(strtoupper(trim((string) ($concepto->codigo ?? ''))), ['SRVE-2', 'SRVE-3', 'SRVE-4'], true)) {
+        if (!in_array(strtoupper(trim((string) ($concepto->codigo ?? ''))), ['SRVE-2', 'SRVE-3', 'SRVE-4', 'SRVE-11', 'SRVE-12'], true)) {
             throw new \InvalidArgumentException('El concepto no corresponde a un servicio internacional con paquetes.');
         }
 
@@ -1407,7 +1407,7 @@ class FacturacionCartService
             throw new ModelNotFoundException('Item de facturacion no encontrado.');
         }
 
-        if (preg_match('/^(SRVE-(?:2|3|4))(?:\.\d+|\s*-)/i', trim((string) ($payload['codigo'] ?? '')), $matches)) {
+        if (preg_match('/^(SRVE-(?:2|3|4|11|12))(?:\.\d+|\s*-)/i', trim((string) ($payload['codigo'] ?? '')), $matches)) {
             $codigoPaquete = mb_strtoupper(trim((string) ($payload['codigo_paquete'] ?? '')));
             $codigoServicio = strtoupper($matches[1]);
             $duplicado = collect($draft?->items ?? [])->contains(function ($item) use ($itemId, $codigoPaquete, $codigoServicio) {
@@ -2175,6 +2175,40 @@ class FacturacionCartService
         ];
     }
 
+    public function fetchKardexRegionales(array $filters): array
+    {
+        $estadoSufe = $this->mapEstadoEmisionToSufe((string) ($filters['estado_emision'] ?? 'all'));
+        $requestedLimit = (int) ($filters['limite'] ?? (($filters['per_page'] ?? 20) * 25));
+        $requestedLimit = max(1, $requestedLimit);
+        $limite = min(1000, max(50, $requestedLimit));
+        $payload = array_filter([
+            'fechaInicio' => $filters['from'] ?? null,
+            'fechaFin' => $filters['to'] ?? null,
+            'q' => trim((string) ($filters['q'] ?? '')) ?: null,
+            'estado_sufe' => $estadoSufe,
+            'limite' => $limite,
+        ], fn ($value) => $value !== null && $value !== '');
+
+        try {
+            $body = $this->request('GET', '/ventas/reportes/kardex-regionales', $payload);
+        } catch (\RuntimeException $e) {
+            if (! str_starts_with($e->getMessage(), '404')) {
+                throw $e;
+            }
+
+            $body = $this->request('GET', '/reportes/kardex-regionales', $payload);
+        }
+
+        return [
+            'detalle' => collect((array) data_get($body, 'detalle', []))
+                ->map(fn ($row) => is_array($row) ? (object) $row : $row)
+                ->filter()
+                ->values(),
+            'resumen' => (array) data_get($body, 'resumen', []),
+            'filters' => (array) data_get($body, 'filters', $payload),
+        ];
+    }
+
     public function fetchVentaById(User $user, int $cartId): ?object
     {
         try {
@@ -2743,7 +2777,7 @@ class FacturacionCartService
         $codigoDetalleEnviado = trim((string) ($overrides['codigo_detalle_enviado'] ?? $codigo));
         $codigoPaquete = trim((string) ($overrides['codigo_paquete'] ?? ($resumen['codigo_paquete'] ?? $codigo)));
 
-        if (preg_match('/^SRVE-(?:2|3|4)\s*-\s*(.+)$/i', $codigoPaquete, $matches)) {
+        if (preg_match('/^SRVE-(?:2|3|4|11|12)\s*-\s*(.+)$/i', $codigoPaquete, $matches)) {
             $codigoPaquete = trim((string) $matches[1]);
         }
 
@@ -3776,9 +3810,9 @@ class FacturacionCartService
         // Casillas and EMS packages must always remain independent cart lines.
         $codigo = strtoupper(trim((string) data_get($item, 'codigo', '')));
 
-        return preg_match('/^SRVE-(?:2|3|4)\s*-/i', $codigo) === 1 || in_array(
+        return preg_match('/^SRVE-(?:2|3|4|11|12)\s*-/i', $codigo) === 1 || in_array(
             strtoupper($this->extractDraftItemCodeFamily($codigo)),
-            ['SRVE-2', 'SRVE-3', 'SRVE-4', 'SRVE-5'],
+            ['SRVE-2', 'SRVE-3', 'SRVE-4', 'SRVE-11', 'SRVE-12', 'SRVE-5'],
             true
         );
     }
@@ -4068,3 +4102,4 @@ class FacturacionCartService
         }
     }
 }
+

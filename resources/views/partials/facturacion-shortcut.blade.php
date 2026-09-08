@@ -1037,7 +1037,7 @@
                         </div>
                         <div class="facturacion-item-edit-code-summary__metric">
                             <label for="facturacionEditItemCodePeso">Peso (kg)</label>
-                            <input type="number" id="facturacionEditItemCodePeso" min="0" step="0.01" inputmode="decimal" placeholder="0.00" readonly>
+                            <input type="number" id="facturacionEditItemCodePeso" min="0" step="0.001" inputmode="decimal" placeholder="0.000" readonly>
                         </div>
                         <div class="facturacion-item-edit-code-summary__metric">
                             <label for="facturacionEditItemCodePrecio">Precio unitario</label>
@@ -1148,7 +1148,7 @@
                         </div>
                         <div class="global-shortcut-field">
                             <label for="facturacionEditItemEmsPeso">Peso (kg)</label>
-                            <input type="number" id="facturacionEditItemEmsPeso" name="peso" min="0.01" step="0.01" inputmode="decimal" required>
+                            <input type="number" id="facturacionEditItemEmsPeso" name="peso" min="0.001" step="0.001" inputmode="decimal" required>
                         </div>
                         <div class="global-shortcut-field">
                             <label for="facturacionEditItemEmsPrecio">Precio unitario</label>
@@ -5998,7 +5998,7 @@
                                 </div>
                                 <div class="global-shortcut-field">
                                     <label for="facturacionEmsPackageWeight${position}">Peso (kg)</label>
-                                    <input type="number" id="facturacionEmsPackageWeight${position}" name="paquetes[${index}][peso]" min="0.01" step="0.01" inputmode="decimal" required placeholder="0.01">
+                                    <input type="number" id="facturacionEmsPackageWeight${position}" name="paquetes[${index}][peso]" min="0.001" step="0.001" inputmode="decimal" required placeholder="0.001">
                                 </div>
                                 <div class="global-shortcut-field">
                                     <label for="facturacionEmsPackagePrice${position}">Precio unitario</label>
@@ -6162,7 +6162,7 @@
                 const isCasilla = codigo === 'SRVE-5';
                 const isContratos = codigo === 'SRVE-7';
                 const isEcaInternacional = codigo === 'SRVE-8';
-                const isEmsInternacional = ['SRVE-2', 'SRVE-3', 'SRVE-4'].includes(codigo);
+                const isEmsInternacional = ['SRVE-2', 'SRVE-3', 'SRVE-4', 'SRVE-11', 'SRVE-12'].includes(codigo);
                 const isEncomienda = codigo === 'SRVE-9';
                 const isEstampillas = codigo === 'SRVE-6';
                 const isTarjetaPostal = codigo === 'SRVE-1';
@@ -6485,7 +6485,7 @@
 
                         const selected = selectedFacturacionConceptoOption();
                         const serviceCode = String(selected?.dataset.conceptoCodigo || '').trim();
-                        if (['SRVE-2', 'SRVE-3', 'SRVE-4'].includes(serviceCode)) {
+                        if (['SRVE-2', 'SRVE-3', 'SRVE-4', 'SRVE-11', 'SRVE-12'].includes(serviceCode)) {
                             configureFacturacionEmsPackages(
                                 true,
                                 facturacionConceptoCantidad.value,
@@ -6630,7 +6630,7 @@
                     }
 
                     const selectedConcepto = selectedFacturacionConceptoOption();
-                    const isEmsInternacional = ['SRVE-2', 'SRVE-3', 'SRVE-4'].includes(
+                    const isEmsInternacional = ['SRVE-2', 'SRVE-3', 'SRVE-4', 'SRVE-11', 'SRVE-12'].includes(
                         String(selectedConcepto?.dataset.conceptoCodigo || '').trim()
                     );
                     const precioTexto = facturacionConceptoPrecio.value.trim();
@@ -8607,18 +8607,17 @@
                 );
                 const itemCode = String(trigger.dataset.itemCodigo || '').trim();
                 const serviceCode = String(trigger.dataset.itemCodigoServicio || '').trim().toUpperCase();
-                const resolvedItemServiceCode = /^SRVE-(?:0|1|2|3|4|5|6|7|8|9)(?:\.|\s*-|$)/i.test(itemCode)
-                    ? (itemCode.match(/^SRVE-[0-9]/i)?.[0]?.toUpperCase() || serviceCode)
+                const resolvedItemServiceCode = /^SRVE-[0-9]+(?:\.|\s*-|$)/i.test(itemCode)
+                    ? (itemCode.match(/^SRVE-[0-9]+/i)?.[0]?.toUpperCase() || serviceCode)
                     : serviceCode;
-                const isServiceItem = /^SRVE-[0-9]$/.test(resolvedItemServiceCode);
-                const isEmsItem = ['SRVE-2', 'SRVE-3', 'SRVE-4'].includes(serviceCode)
-                    || (/^SRVE-(?:2|3|4)(?:\.\d+|\s*-)?/i.test(itemCode)
-                        && /internacional/i.test(String(trigger.dataset.itemServicio || trigger.dataset.itemTitulo || '')));
+                const isServiceItem = /^SRVE-[0-9]+$/.test(resolvedItemServiceCode);
+                const isEmsItem = ['SRVE-2', 'SRVE-3', 'SRVE-4', 'SRVE-11', 'SRVE-12'].includes(serviceCode)
+                    || /^SRVE-(?:2|3|4|11|12)(?:\.\d+|\s*-)?/i.test(itemCode);
                 const isCasillaItem = resolvedItemServiceCode === 'SRVE-5';
                 const isCodeItem = !isServiceItem && groupedQuantity <= 1;
-                const resolvedServiceCode = ['SRVE-2', 'SRVE-3', 'SRVE-4'].includes(serviceCode)
+                const resolvedServiceCode = ['SRVE-2', 'SRVE-3', 'SRVE-4', 'SRVE-11', 'SRVE-12'].includes(serviceCode)
                     ? serviceCode
-                    : (itemCode.match(/^SRVE-(?:2|3|4)/i)?.[0]?.toUpperCase() || 'SRVE-3');
+                    : (itemCode.match(/^SRVE-(?:2|3|4|11|12)/i)?.[0]?.toUpperCase() || 'SRVE-3');
 
                 const fieldMap = {
                     facturacionEditItemCodigo: trigger.dataset.itemCodigo || '',
@@ -8759,9 +8758,9 @@
                     facturacionItemEditServiceIcon.innerHTML = '<i class="fas ' + iconClass + '" aria-hidden="true"></i>';
                 }
                 if (facturacionEditItemEmsCodigoPaquete instanceof HTMLInputElement) {
-                    const packageCodeFromItem = itemCode.match(/^SRVE-(?:2|3|4)\s*-\s*(.+)$/i)?.[1]?.trim() || '';
+                    const packageCodeFromItem = itemCode.match(/^SRVE-(?:2|3|4|11|12)\s*-\s*(.+)$/i)?.[1]?.trim() || '';
                     const packageCodeSource = String(trigger.dataset.itemCodigoPaquete || '').trim();
-                    const packageCodeFromSource = packageCodeSource.match(/^SRVE-(?:2|3|4)\s*-\s*(.+)$/i)?.[1]?.trim()
+                    const packageCodeFromSource = packageCodeSource.match(/^SRVE-(?:2|3|4|11|12)\s*-\s*(.+)$/i)?.[1]?.trim()
                         || packageCodeSource;
                     facturacionEditItemEmsCodigoPaquete.value = packageCodeFromSource || packageCodeFromItem;
                     facturacionEditItemEmsCodigoPaquete.disabled = !isEmsItem;
@@ -10215,6 +10214,7 @@
 
 
 @endonce
+
 
 
 
