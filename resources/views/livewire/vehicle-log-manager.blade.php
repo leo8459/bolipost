@@ -726,7 +726,7 @@
                                         <td>{{ $log->driver?->nombre ?? 'N/A' }}</td>
                                         <td>{{ optional($log->fecha)->format('d/m/Y') }}</td>
                                         <td>{{ $log->kilometraje_salida }}</td>
-                                        <td>{{ $log->kilometraje_recorrido ?? (($log->kilometraje_llegada !== null && $log->kilometraje_salida !== null) ? number_format((float) $log->kilometraje_llegada - (float) $log->kilometraje_salida, 2) : '-') }}</td>
+                                        <td>{{ $log->kilometraje_recorrido ?? (($log->kilometraje_llegada !== null && $log->kilometraje_salida !== null) ? \App\Support\BolivianNumber::format((float) $log->kilometraje_llegada - (float) $log->kilometraje_salida, 2) : '-') }}</td>
                                         <td>{{ $log->recorrido_inicio ?: '-' }}</td>
                                         <td>{{ $log->recorrido_destino ?: '-' }}</td>
                                         <td>{{ $log->fuel_log_id ? 'Si' : 'No' }}</td>
@@ -831,7 +831,7 @@
                         </div>
                         <div class="col-12 col-md-4">
                             <strong>Km recorrido:</strong><br>
-                            <span>{{ $detailDistance !== null ? number_format((float) $detailDistance, 2) : '-' }}</span>
+                            <span>{{ $detailDistance !== null ? \App\Support\BolivianNumber::format((float) $detailDistance, 2) : '-' }}</span>
                         </div>
                         <div class="col-12 col-md-4">
                             <strong>Combustible:</strong><br>
@@ -1457,7 +1457,7 @@
                         lng,
                         name: placeName || 'Ubicacion seleccionada (Bolivia)'
                     };
-                    updatePreview(`${selected.name} (${lat.toFixed(6)}, ${lng.toFixed(6)})`);
+                    updatePreview(`${selected.name} (${window.BolivianNumber.format(lat, 6)}, ${window.BolivianNumber.format(lng, 6)})`);
                 });
             }
 
@@ -1729,7 +1729,7 @@
                     }
 
                     if (helpEl) {
-                        helpEl.textContent = `${targetLabel}: ${name} (${lat.toFixed(6)}, ${lng.toFixed(6)})`;
+                        helpEl.textContent = `${targetLabel}: ${name} (${window.BolivianNumber.format(lat, 6)}, ${window.BolivianNumber.format(lng, 6)})`;
                     }
 
                     if (target.inputId === 'recorrido_inicio') {

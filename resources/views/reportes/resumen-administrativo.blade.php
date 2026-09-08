@@ -146,25 +146,25 @@
                 <div class="col-lg-3 col-md-6 mb-3">
                     <div class="admin-kpi">
                         <span>Total paquetes</span>
-                        <strong>{{ number_format($administrativeSummary['total_admisiones'] ?? 0) }}</strong>
+                        <strong>{{ \App\Support\BolivianNumber::format($administrativeSummary['total_admisiones'] ?? 0) }}</strong>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6 mb-3">
                     <div class="admin-kpi">
                         <span>Usuarios activos</span>
-                        <strong>{{ number_format($administrativeSummary['usuarios_activos'] ?? 0) }}</strong>
+                        <strong>{{ \App\Support\BolivianNumber::format($administrativeSummary['usuarios_activos'] ?? 0) }}</strong>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6 mb-3">
                     <div class="admin-kpi">
                         <span>Peso total</span>
-                        <strong>{{ number_format((float) ($administrativeSummary['peso_total'] ?? 0), 3) }}</strong>
+                        <strong>{{ \App\Support\BolivianNumber::format((float) ($administrativeSummary['peso_total'] ?? 0), 3) }}</strong>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6 mb-3">
                     <div class="admin-kpi">
                         <span>Costo total Bs</span>
-                        <strong>{{ number_format((float) ($administrativeSummary['costo_total'] ?? 0), 2) }}</strong>
+                        <strong>{{ \App\Support\BolivianNumber::format((float) ($administrativeSummary['costo_total'] ?? 0), 2) }}</strong>
                         <small class="price-note">Nota: contratos no sumados por tema tarifario.</small>
                     </div>
                 </div>
@@ -177,7 +177,7 @@
                         </div>
                         <div class="text-right">
                             <span>Paquetes</span>
-                            <strong>{{ number_format($topOrigen['total'] ?? 0) }}</strong>
+                            <strong>{{ \App\Support\BolivianNumber::format($topOrigen['total'] ?? 0) }}</strong>
                         </div>
                     </div>
                 </div>
@@ -190,7 +190,7 @@
                         </div>
                         <div class="text-right">
                             <span>Paquetes</span>
-                            <strong>{{ number_format($topDestino['total'] ?? 0) }}</strong>
+                            <strong>{{ \App\Support\BolivianNumber::format($topDestino['total'] ?? 0) }}</strong>
                         </div>
                     </div>
                 </div>
@@ -214,8 +214,8 @@
                             @forelse($pesoPorModulo as $pesoModulo)
                                 <tr>
                                     <td class="font-weight-bold">{{ $pesoModulo['servicio'] }}</td>
-                                    <td class="text-right">{{ number_format((int) $pesoModulo['total']) }}</td>
-                                    <td class="text-right">{{ number_format((float) $pesoModulo['peso'], 3) }}</td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $pesoModulo['total']) }}</td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $pesoModulo['peso'], 3) }}</td>
                                 </tr>
                             @empty
                                 <tr>
@@ -250,8 +250,8 @@
                                         <td>{{ $loop->iteration }}</td>
                                         <td class="font-weight-bold">{{ $entregaRow['usuario'] }}</td>
                                         <td>{{ $entregaRow['servicio'] }}</td>
-                                        <td class="text-right">{{ number_format((int) $entregaRow['total']) }}</td>
-                                        <td class="text-right">{{ number_format((float) $entregaRow['peso'], 3) }}</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $entregaRow['total']) }}</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $entregaRow['peso'], 3) }}</td>
                                     </tr>
                                 @empty
                                     <tr>
@@ -284,8 +284,8 @@
                                         <td>{{ $loop->iteration }}</td>
                                         <td class="font-weight-bold">{{ $entregaRow['usuario'] }}</td>
                                         <td>{{ $entregaRow['servicio'] }}</td>
-                                        <td class="text-right">{{ number_format((int) $entregaRow['total']) }}</td>
-                                        <td class="text-right">{{ number_format((float) $entregaRow['peso'], 3) }}</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $entregaRow['total']) }}</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $entregaRow['peso'], 3) }}</td>
                                     </tr>
                                 @empty
                                     <tr>
@@ -303,7 +303,7 @@
                     <div class="admin-kpi">
                         <span>Mayor en ventanilla</span>
                         <strong>{{ $topVentanilla['servicio'] ?? 'SIN DATOS' }}</strong>
-                        <small class="price-note">{{ number_format((int) ($topVentanilla['total'] ?? 0)) }} paquetes en ventanilla/almacen.</small>
+                        <small class="price-note">{{ \App\Support\BolivianNumber::format((int) ($topVentanilla['total'] ?? 0)) }} paquetes en ventanilla/almacen.</small>
                     </div>
                 </div>
                 <div class="col-lg-8">
@@ -324,8 +324,8 @@
                                 @forelse($ventanillaPorModulo as $ventanillaModulo)
                                     <tr>
                                         <td class="font-weight-bold">{{ $ventanillaModulo['servicio'] }}</td>
-                                        <td class="text-right">{{ number_format((int) $ventanillaModulo['total']) }}</td>
-                                        <td class="text-right">{{ number_format((float) $ventanillaModulo['peso'], 3) }}</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $ventanillaModulo['total']) }}</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $ventanillaModulo['peso'], 3) }}</td>
                                     </tr>
                                 @empty
                                     <tr>
@@ -342,7 +342,7 @@
                 <div class="col-lg-4 mb-3 mb-lg-0">
                     <div class="admin-kpi">
                         <span>Malencaminados corregidos</span>
-                        <strong>{{ number_format((int) ($malencaminados['total'] ?? 0)) }}</strong>
+                        <strong>{{ \App\Support\BolivianNumber::format((int) ($malencaminados['total'] ?? 0)) }}</strong>
                         <small class="price-note">Cambios de destino registrados.</small>
                     </div>
                 </div>
@@ -364,8 +364,8 @@
                                 @forelse($malencaminadosPorModulo as $malModulo)
                                     <tr>
                                         <td class="font-weight-bold">{{ $malModulo['servicio'] }}</td>
-                                        <td class="text-right">{{ number_format((int) $malModulo['total']) }}</td>
-                                        <td class="text-right">{{ number_format((int) $malModulo['malencaminamientos']) }}</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $malModulo['total']) }}</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $malModulo['malencaminamientos']) }}</td>
                                     </tr>
                                 @empty
                                     <tr>
@@ -435,7 +435,7 @@
                                     <tr>
                                         <td>{{ $loop->iteration }}</td>
                                         <td class="font-weight-bold">{{ $origenRow['nombre'] }}</td>
-                                        <td class="text-right">{{ number_format((int) $origenRow['total']) }}</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $origenRow['total']) }}</td>
                                     </tr>
                                 @empty
                                     <tr>
@@ -465,7 +465,7 @@
                                     <tr>
                                         <td>{{ $loop->iteration }}</td>
                                         <td class="font-weight-bold">{{ $destinoRow['nombre'] }}</td>
-                                        <td class="text-right">{{ number_format((int) $destinoRow['total']) }}</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $destinoRow['total']) }}</td>
                                     </tr>
                                 @empty
                                     <tr>
@@ -502,14 +502,14 @@
                                 <tr>
                                     <td>{{ $loop->iteration }}</td>
                                     <td class="font-weight-bold">{{ $servicioRow['servicio'] }}</td>
-                                    <td class="text-right">{{ number_format((int) $servicioRow['total']) }}</td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $servicioRow['total']) }}</td>
                                     <td class="text-right">
                                         <span class="efficiency-pill">{{ $servicioRow['promedio'] }}</span>
                                     </td>
                                     <td class="text-right">{{ $servicioRow['mejor_tiempo'] }}</td>
                                     <td class="text-right">{{ $servicioRow['mayor_tiempo'] }}</td>
-                                    <td class="text-right">{{ number_format((float) $servicioRow['peso'], 3) }}</td>
-                                    <td class="text-right">{{ number_format((float) $servicioRow['costo'], 2) }}</td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $servicioRow['peso'], 3) }}</td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $servicioRow['costo'], 2) }}</td>
                                 </tr>
                             @empty
                                 <tr>
@@ -554,7 +554,7 @@
                                         @foreach(($adminRow['servicios'] ?? []) as $servicioItem)
                                             <span class="service-badge">
                                                 <span>{{ $servicioItem['nombre'] }}</span>
-                                                <strong>{{ number_format((int) $servicioItem['cantidad']) }}</strong>
+                                                <strong>{{ \App\Support\BolivianNumber::format((int) $servicioItem['cantidad']) }}</strong>
                                             </span>
                                         @endforeach
                                     </div>
@@ -564,7 +564,7 @@
                                         @foreach(($adminRow['entregadores'] ?? []) as $entregadorItem)
                                             <span class="summary-badge delivery-badge">
                                                 <span>{{ $entregadorItem['nombre'] }}</span>
-                                                <strong>{{ number_format((int) $entregadorItem['cantidad']) }}</strong>
+                                                <strong>{{ \App\Support\BolivianNumber::format((int) $entregadorItem['cantidad']) }}</strong>
                                             </span>
                                         @endforeach
                                     </div>
@@ -575,14 +575,14 @@
                                         @foreach(($adminRow['destinos'] ?? []) as $destinoItem)
                                             <span class="summary-badge destination-badge">
                                                 <span>{{ $destinoItem['nombre'] }}</span>
-                                                <strong>{{ number_format((int) $destinoItem['cantidad']) }}</strong>
+                                                <strong>{{ \App\Support\BolivianNumber::format((int) $destinoItem['cantidad']) }}</strong>
                                             </span>
                                         @endforeach
                                     </div>
                                 </td>
-                                <td class="text-right">{{ number_format($adminRow['total']) }}</td>
-                                <td class="text-right">{{ number_format((float) $adminRow['peso'], 3) }}</td>
-                                <td class="text-right">{{ number_format((float) $adminRow['precio'], 2) }}</td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format($adminRow['total']) }}</td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $adminRow['peso'], 3) }}</td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $adminRow['precio'], 2) }}</td>
                                 <td>{{ $adminRow['primera_admision'] }}</td>
                                 <td>{{ $adminRow['ultima_admision'] }}</td>
                             </tr>

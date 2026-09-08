@@ -40,19 +40,19 @@
 @if($leader)
     <div class="leader">
         <strong>Departamento lider:</strong> {{ $leader->departamento }}
-        tiene <strong>{{ number_format((float) $leader->cumplimiento, 1) }}%</strong>
+        tiene <strong>{{ \App\Support\BolivianNumber::format((float) $leader->cumplimiento, 1) }}%</strong>
         de cumplimiento.
         Mejor entregador: <strong>{{ $leader->top_entregador }}</strong>
-        ({{ number_format((int) $leader->top_entregador_total) }} entregas).
+        ({{ \App\Support\BolivianNumber::format((int) $leader->top_entregador_total) }} entregas).
     </div>
 @endif
 
 <table class="kpis">
     <tr>
-        <td><div class="k">Total registrados</div><div class="v">{{ number_format((int) ($totales['paquetes'] ?? 0)) }}</div></td>
-        <td><div class="k">Total entregados</div><div class="v">{{ number_format((int) ($totales['entregados'] ?? 0)) }}</div></td>
-        <td><div class="k">Total pendientes</div><div class="v">{{ number_format((int) ($totales['pendientes'] ?? 0)) }}</div></td>
-        <td><div class="k">Cumplimiento global</div><div class="v">{{ number_format((float) ($totales['porcentaje_entrega'] ?? 0), 1) }}%</div></td>
+        <td><div class="k">Total registrados</div><div class="v">{{ \App\Support\BolivianNumber::format((int) ($totales['paquetes'] ?? 0)) }}</div></td>
+        <td><div class="k">Total entregados</div><div class="v">{{ \App\Support\BolivianNumber::format((int) ($totales['entregados'] ?? 0)) }}</div></td>
+        <td><div class="k">Total pendientes</div><div class="v">{{ \App\Support\BolivianNumber::format((int) ($totales['pendientes'] ?? 0)) }}</div></td>
+        <td><div class="k">Cumplimiento global</div><div class="v">{{ \App\Support\BolivianNumber::format((float) ($totales['porcentaje_entrega'] ?? 0), 1) }}%</div></td>
     </tr>
 </table>
 
@@ -76,17 +76,17 @@
             <tr>
                 <td class="num rank">{{ $item->puesto }}</td>
                 <td><strong>{{ $item->departamento }}</strong></td>
-                <td class="num">{{ number_format((int) $item->total) }}</td>
-                <td class="num">{{ number_format((int) $item->entregados) }}</td>
-                <td class="num">{{ number_format((int) ($item->transito ?? 0)) }}</td>
-                <td class="num">{{ number_format((int) $item->pendientes) }}</td>
-                <td class="num">{{ number_format((float) $item->cumplimiento, 1) }}%</td>
-                <td>{{ $item->top_entregador }} ({{ number_format((int) $item->top_entregador_total) }})</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $item->total) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $item->entregados) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) ($item->transito ?? 0)) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $item->pendientes) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((float) $item->cumplimiento, 1) }}%</td>
+                <td>{{ $item->top_entregador }} ({{ \App\Support\BolivianNumber::format((int) $item->top_entregador_total) }})</td>
                 <td>
-                    EMS: {{ number_format((int) ($mods['EMS'] ?? 0)) }},
-                    Contratos: {{ number_format((int) ($mods['CONTRATOS'] ?? 0)) }},
-                    Certificados: {{ number_format((int) ($mods['CERTIFICADOS'] ?? 0)) }},
-                    Ordinarios: {{ number_format((int) ($mods['ORDINARIOS'] ?? 0)) }}
+                    EMS: {{ \App\Support\BolivianNumber::format((int) ($mods['EMS'] ?? 0)) }},
+                    Contratos: {{ \App\Support\BolivianNumber::format((int) ($mods['CONTRATOS'] ?? 0)) }},
+                    Certificados: {{ \App\Support\BolivianNumber::format((int) ($mods['CERTIFICADOS'] ?? 0)) }},
+                    Ordinarios: {{ \App\Support\BolivianNumber::format((int) ($mods['ORDINARIOS'] ?? 0)) }}
                 </td>
             </tr>
         @empty

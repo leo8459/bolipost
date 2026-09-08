@@ -212,12 +212,12 @@
 
 <table class="kpi">
     <tr>
-        <td class="b1"><div class="k">Total registrados</div><div class="v">{{ number_format($totales['paquetes']) }}</div></td>
-        <td class="b2"><div class="k">Total entregados</div><div class="v">{{ number_format($totales['entregados']) }}</div></td>
-        <td class="b3"><div class="k">Pendientes</div><div class="v">{{ number_format($totales['pendientes']) }}</div></td>
-        <td class="b4"><div class="k">Rezago</div><div class="v">{{ number_format($totales['rezago']) }}</div></td>
-        <td class="b5"><div class="k">Atrasados</div><div class="v">{{ number_format($totales['atrasados']) }}</div></td>
-        <td class="b6"><div class="k">Ingresos (Bs)</div><div class="v">{{ number_format($totales['ingresos'], 2) }}</div></td>
+        <td class="b1"><div class="k">Total registrados</div><div class="v">{{ \App\Support\BolivianNumber::format($totales['paquetes']) }}</div></td>
+        <td class="b2"><div class="k">Total entregados</div><div class="v">{{ \App\Support\BolivianNumber::format($totales['entregados']) }}</div></td>
+        <td class="b3"><div class="k">Pendientes</div><div class="v">{{ \App\Support\BolivianNumber::format($totales['pendientes']) }}</div></td>
+        <td class="b4"><div class="k">Rezago</div><div class="v">{{ \App\Support\BolivianNumber::format($totales['rezago']) }}</div></td>
+        <td class="b5"><div class="k">Atrasados</div><div class="v">{{ \App\Support\BolivianNumber::format($totales['atrasados']) }}</div></td>
+        <td class="b6"><div class="k">Ingresos (Bs)</div><div class="v">{{ \App\Support\BolivianNumber::format($totales['ingresos'], 2) }}</div></td>
     </tr>
 </table>
 
@@ -225,14 +225,14 @@
     <tr>
         <td class="score-cell">
             <span class="score-pill" style="background: {{ $scoreColor }};">
-                <div class="n">{{ number_format($score, 1) }}%</div>
+                <div class="n">{{ \App\Support\BolivianNumber::format($score, 1) }}%</div>
                 <div class="t">Salud Operativa {{ $scoreLabel }}</div>
             </span>
         </td>
         <td class="desc-cell">
-            El comportamiento global presenta <strong>{{ number_format($score, 1) }}%</strong> de cumplimiento de entrega.
-            Rezago en <strong>{{ number_format($rezagoPct, 1) }}%</strong> del flujo y retraso en
-            <strong>{{ number_format($atrasoPct, 1) }}%</strong>, lo que determina prioridad sobre capacidad de salida y cierre de ciclo.
+            El comportamiento global presenta <strong>{{ \App\Support\BolivianNumber::format($score, 1) }}%</strong> de cumplimiento de entrega.
+            Rezago en <strong>{{ \App\Support\BolivianNumber::format($rezagoPct, 1) }}%</strong> del flujo y retraso en
+            <strong>{{ \App\Support\BolivianNumber::format($atrasoPct, 1) }}%</strong>, lo que determina prioridad sobre capacidad de salida y cierre de ciclo.
         </td>
     </tr>
 </table>
@@ -253,8 +253,8 @@
         <td width="20%"><div class="title">Mejor modulo</div><div class="val">{{ $modMejor }}</div></td>
         <td width="20%"><div class="title">Modulo de riesgo</div><div class="val">{{ $modRiesgo }}</div></td>
         <td width="20%"><div class="title">Mayor carga</div><div class="val">{{ $modCarga }}</div></td>
-        <td width="20%"><div class="title">Var. registros</div><div class="val">{{ $varReg !== null ? (($varReg >= 0 ? '+' : '') . number_format($varReg, 1) . '%') : 'N/D' }}</div></td>
-        <td width="20%"><div class="title">Var. entregas</div><div class="val">{{ $varEnt !== null ? (($varEnt >= 0 ? '+' : '') . number_format($varEnt, 1) . '%') : 'N/D' }}</div></td>
+        <td width="20%"><div class="title">Var. registros</div><div class="val">{{ $varReg !== null ? (($varReg >= 0 ? '+' : '') . \App\Support\BolivianNumber::format($varReg, 1) . '%') : 'N/D' }}</div></td>
+        <td width="20%"><div class="title">Var. entregas</div><div class="val">{{ $varEnt !== null ? (($varEnt >= 0 ? '+' : '') . \App\Support\BolivianNumber::format($varEnt, 1) . '%') : 'N/D' }}</div></td>
     </tr>
 </table>
 
@@ -265,10 +265,10 @@
             @php($topDepartamento = ($rankingDepartamentos ?? collect())->first())
             <p style="margin-top:0;">
                 <strong>#1 {{ $topDepartamento->departamento }}</strong> tiene
-                <strong>{{ number_format((float) $topDepartamento->cumplimiento, 1) }}%</strong>
+                <strong>{{ \App\Support\BolivianNumber::format((float) $topDepartamento->cumplimiento, 1) }}%</strong>
                 de cumplimiento.
                 Mejor entregador: <strong>{{ $topDepartamento->top_entregador }}</strong>
-                ({{ number_format((int) $topDepartamento->top_entregador_total) }} entregas).
+                ({{ \App\Support\BolivianNumber::format((int) $topDepartamento->top_entregador_total) }} entregas).
             </p>
         @endif
         <table class="table">
@@ -288,11 +288,11 @@
                     <tr>
                         <td class="num">{{ $item->puesto }}</td>
                         <td>{{ $item->departamento }}</td>
-                        <td class="num">{{ number_format((int) $item->total) }}</td>
-                        <td class="num">{{ number_format((int) $item->entregados) }}</td>
-                        <td class="num">{{ number_format((int) $item->pendientes) }}</td>
-                        <td class="num">{{ number_format((float) $item->cumplimiento, 1) }}%</td>
-                        <td>{{ $item->top_entregador }} ({{ number_format((int) $item->top_entregador_total) }})</td>
+                        <td class="num">{{ \App\Support\BolivianNumber::format((int) $item->total) }}</td>
+                        <td class="num">{{ \App\Support\BolivianNumber::format((int) $item->entregados) }}</td>
+                        <td class="num">{{ \App\Support\BolivianNumber::format((int) $item->pendientes) }}</td>
+                        <td class="num">{{ \App\Support\BolivianNumber::format((float) $item->cumplimiento, 1) }}%</td>
+                        <td>{{ $item->top_entregador }} ({{ \App\Support\BolivianNumber::format((int) $item->top_entregador_total) }})</td>
                     </tr>
                 @empty
                     <tr><td colspan="7" class="muted">Sin datos por departamento.</td></tr>
@@ -304,8 +304,8 @@
 
 <table class="grid2">
     <tr>
-        <td width="50%"><div class="mini"><div class="k">Registros hoy / semana / mes</div><div class="v">{{ number_format($kpisPeriodo['registros']['dia']) }} / {{ number_format($kpisPeriodo['registros']['semana']) }} / {{ number_format($kpisPeriodo['registros']['mes']) }}</div></div></td>
-        <td width="50%"><div class="mini"><div class="k">Entregas hoy / semana / mes</div><div class="v">{{ number_format($kpisPeriodo['entregas']['dia']) }} / {{ number_format($kpisPeriodo['entregas']['semana']) }} / {{ number_format($kpisPeriodo['entregas']['mes']) }}</div></div></td>
+        <td width="50%"><div class="mini"><div class="k">Registros hoy / semana / mes</div><div class="v">{{ \App\Support\BolivianNumber::format($kpisPeriodo['registros']['dia']) }} / {{ \App\Support\BolivianNumber::format($kpisPeriodo['registros']['semana']) }} / {{ \App\Support\BolivianNumber::format($kpisPeriodo['registros']['mes']) }}</div></div></td>
+        <td width="50%"><div class="mini"><div class="k">Entregas hoy / semana / mes</div><div class="v">{{ \App\Support\BolivianNumber::format($kpisPeriodo['entregas']['dia']) }} / {{ \App\Support\BolivianNumber::format($kpisPeriodo['entregas']['semana']) }} / {{ \App\Support\BolivianNumber::format($kpisPeriodo['entregas']['mes']) }}</div></div></td>
     </tr>
 </table>
 
@@ -331,14 +331,14 @@
                 @php $tasa = (float) $fila['tasa_entrega']; @endphp
                 <tr>
                     <td><strong>{{ $fila['label'] }}</strong></td>
-                    <td class="num">{{ number_format($fila['total']) }}</td>
-                    <td class="num">{{ number_format($fila['entregados']) }}</td>
-                    <td class="num">{{ number_format($fila['pendientes']) }}</td>
-                    <td class="num">{{ number_format($fila['rezago']) }}</td>
-                    <td class="num">{{ number_format($fila['atrasados']) }}</td>
-                    <td class="num"><span class="tag {{ $tasa >= 80 ? 'ok' : ($tasa >= 50 ? 'warn' : 'bad') }}">{{ number_format($tasa,1) }}%</span></td>
+                    <td class="num">{{ \App\Support\BolivianNumber::format($fila['total']) }}</td>
+                    <td class="num">{{ \App\Support\BolivianNumber::format($fila['entregados']) }}</td>
+                    <td class="num">{{ \App\Support\BolivianNumber::format($fila['pendientes']) }}</td>
+                    <td class="num">{{ \App\Support\BolivianNumber::format($fila['rezago']) }}</td>
+                    <td class="num">{{ \App\Support\BolivianNumber::format($fila['atrasados']) }}</td>
+                    <td class="num"><span class="tag {{ $tasa >= 80 ? 'ok' : ($tasa >= 50 ? 'warn' : 'bad') }}">{{ \App\Support\BolivianNumber::format($tasa,1) }}%</span></td>
                     <td><div class="bar-wrap"><div class="bar" style="width: {{ max(0,min(100,$tasa)) }}%;"></div></div></td>
-                    <td class="num">{{ number_format($fila['ingresos'], 2) }}</td>
+                    <td class="num">{{ \App\Support\BolivianNumber::format($fila['ingresos'], 2) }}</td>
                 </tr>
             @empty
                 <tr><td colspan="9" class="muted">Sin datos para el periodo seleccionado.</td></tr>
@@ -387,9 +387,9 @@
                 @endphp
                 <tr>
                     <td>{{ $label }}</td>
-                    <td class="num">{{ number_format($reg) }}</td>
-                    <td class="num">{{ number_format($ent) }}</td>
-                    <td class="num">{{ number_format($pct, 1) }}%</td>
+                    <td class="num">{{ \App\Support\BolivianNumber::format($reg) }}</td>
+                    <td class="num">{{ \App\Support\BolivianNumber::format($ent) }}</td>
+                    <td class="num">{{ \App\Support\BolivianNumber::format($pct, 1) }}%</td>
                 </tr>
             @endforeach
             </tbody>
@@ -409,7 +409,7 @@
                         @forelse($rankingEntregadores as $item)
                             <tr>
                                 <td>{{ $item->name }}</td>
-                                <td class="num">{{ number_format((int) $item->total_entregados) }}</td>
+                                <td class="num">{{ \App\Support\BolivianNumber::format((int) $item->total_entregados) }}</td>
                                 <td>E:{{ (int) $item->ems }} C:{{ (int) $item->contrato }} Ce:{{ (int) $item->certi }} O:{{ (int) $item->ordi }}</td>
                             </tr>
                         @empty
@@ -430,7 +430,7 @@
                         @forelse($rankingRegistradores as $item)
                             <tr>
                                 <td>{{ $item->name }}</td>
-                                <td class="num">{{ number_format((int) $item->total_registrados) }}</td>
+                                <td class="num">{{ \App\Support\BolivianNumber::format((int) $item->total_registrados) }}</td>
                                 <td>E:{{ (int) $item->ems }} C:{{ (int) $item->contrato }} Ce:{{ (int) $item->certi }} O:{{ (int) $item->ordi }}</td>
                             </tr>
                         @empty

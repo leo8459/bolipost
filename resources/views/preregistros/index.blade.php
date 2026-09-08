@@ -69,8 +69,8 @@
                                     <td>{{ optional($preregistro->destino)->nombre_preregistro ?: $preregistro->ciudad }}</td>
                                     <td>{{ $preregistro->nombre_remitente }}</td>
                                     <td>{{ $preregistro->nombre_destinatario }}</td>
-                                    <td>{{ $preregistro->peso !== null ? number_format((float) $preregistro->peso, 3) : 'Por verificar' }}</td>
-                                    <td>{{ $preregistro->precio !== null ? number_format((float) $preregistro->precio, 2) : '-' }}</td>
+                                    <td>{{ $preregistro->peso !== null ? \App\Support\BolivianNumber::format((float) $preregistro->peso, 3) : 'Por verificar' }}</td>
+                                    <td>{{ $preregistro->precio !== null ? \App\Support\BolivianNumber::format((float) $preregistro->precio, 2) : '-' }}</td>
                                     <td>{{ optional($preregistro->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>{{ $preregistro->codigo_generado ?: '-' }}</td>
                                     <td class="text-nowrap">

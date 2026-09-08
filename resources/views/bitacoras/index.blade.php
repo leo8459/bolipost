@@ -420,14 +420,14 @@
                             <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center">
                                 <div>
                                     <strong>Registrar bitacora de envio nacional.</strong>
-                                    Hay {{ number_format((int) data_get($pendingCn33Alert, 'count', 0)) }} CN-33 sin registrar en bitacora por mas de {{ (int) data_get($pendingCn33Alert, 'grace_hours', 24) }} horas desde su dia y hora de despacho.
+                                    Hay {{ \App\Support\BolivianNumber::format((int) data_get($pendingCn33Alert, 'count', 0)) }} CN-33 sin registrar en bitacora por mas de {{ (int) data_get($pendingCn33Alert, 'grace_hours', 24) }} horas desde su dia y hora de despacho.
                                     @if((string) data_get($pendingCn33Alert, 'regional', '') !== '')
                                         Solo se muestran registros de {{ data_get($pendingCn33Alert, 'regional') }}.
                                     @else
                                         Se muestran registros a nivel nacional.
                                     @endif
                                     Se consideran despachos desde {{ optional(data_get($pendingCn33Alert, 'alert_start_date'))->format('d/m/Y') ?? '17/07/2026' }}.
-                                    Retraso maximo: {{ number_format((int) data_get($pendingCn33Alert, 'max_days_delay', 0)) }} dia(s).
+                                    Retraso maximo: {{ \App\Support\BolivianNumber::format((int) data_get($pendingCn33Alert, 'max_days_delay', 0)) }} dia(s).
                                     @if($pendingCn33Departments->isNotEmpty())
                                         <div class="mt-2 d-flex flex-wrap">
                                             @foreach($pendingCn33Departments as $index => $department)
@@ -437,7 +437,7 @@
                                                     data-toggle="modal"
                                                     data-target="#bitacoraPendingCn33DepartmentModal{{ $index }}"
                                                 >
-                                                    {{ $department->department }}: {{ number_format((int) ($department->total_cn33 ?? 0)) }}
+                                                    {{ $department->department }}: {{ \App\Support\BolivianNumber::format((int) ($department->total_cn33 ?? 0)) }}
                                                 </button>
                                             @endforeach
                                         </div>
@@ -467,9 +467,9 @@
                                         </div>
                                         <div class="modal-body">
                                             <div class="alert alert-light border">
-                                                <strong>Total CN-33 sin bitacora:</strong> {{ number_format((int) ($department->total_cn33 ?? 0)) }}
+                                                <strong>Total CN-33 sin bitacora:</strong> {{ \App\Support\BolivianNumber::format((int) ($department->total_cn33 ?? 0)) }}
                                                 |
-                                                <strong>Retraso maximo:</strong> {{ number_format((int) ($department->max_days_delay ?? 0)) }} dia(s)
+                                                <strong>Retraso maximo:</strong> {{ \App\Support\BolivianNumber::format((int) ($department->max_days_delay ?? 0)) }} dia(s)
                                             </div>
                                             <div class="table-responsive">
                                                 <table class="table table-sm table-hover mb-0">
@@ -486,9 +486,9 @@
                                                         @foreach(($department->rows ?? collect()) as $row)
                                                             <tr>
                                                                 <td>{{ $row->numero_despacho ?? $row->cod_especial }}</td>
-                                                                <td class="text-right">{{ number_format((int) ($row->days_delay ?? 0)) }}</td>
-                                                                <td class="text-right">{{ number_format((float) ($row->peso_total ?? 0), 3) }}</td>
-                                                                <td class="text-right">{{ number_format((int) ($row->total_registros ?? 0)) }}</td>
+                                                                <td class="text-right">{{ \App\Support\BolivianNumber::format((int) ($row->days_delay ?? 0)) }}</td>
+                                                                <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($row->peso_total ?? 0), 3) }}</td>
+                                                                <td class="text-right">{{ \App\Support\BolivianNumber::format((int) ($row->total_registros ?? 0)) }}</td>
                                                                 <td>{{ optional($row->dispatch_created_at ?? $row->first_created_at)->format('d/m/Y H:i') }}</td>
                                                             </tr>
                                                         @endforeach
@@ -616,35 +616,35 @@
                                     <div class="col-lg-3 col-md-6 mb-3">
                                         <div class="bitacoras-metric-card">
                                             <div class="bitacoras-metric-label">Precio total acumulado</div>
-                                            <div class="bitacoras-metric-value">Bs {{ number_format((float) data_get($reportTotals, 'total_precio', 0), 2) }}</div>
+                                            <div class="bitacoras-metric-value">Bs {{ \App\Support\BolivianNumber::format((float) data_get($reportTotals, 'total_precio', 0), 2) }}</div>
                                             <div class="bitacoras-metric-note">Total consolidado del reporte actual</div>
                                         </div>
                                     </div>
                                     <div class="col-lg-3 col-md-6 mb-3">
                                         <div class="bitacoras-metric-card">
                                             <div class="bitacoras-metric-label">Registros agrupados</div>
-                                            <div class="bitacoras-metric-value">{{ number_format((int) data_get($reportTotals, 'total_registros', 0)) }}</div>
+                                            <div class="bitacoras-metric-value">{{ \App\Support\BolivianNumber::format((int) data_get($reportTotals, 'total_registros', 0)) }}</div>
                                             <div class="bitacoras-metric-note">Bitacoras finales consideradas</div>
                                         </div>
                                     </div>
                                     <div class="col-lg-3 col-md-6 mb-3">
                                         <div class="bitacoras-metric-card">
                                             <div class="bitacoras-metric-label">Departamentos origen</div>
-                                            <div class="bitacoras-metric-value">{{ number_format((int) data_get($reportTotals, 'origenes', 0)) }}</div>
+                                            <div class="bitacoras-metric-value">{{ \App\Support\BolivianNumber::format((int) data_get($reportTotals, 'origenes', 0)) }}</div>
                                             <div class="bitacoras-metric-note">Orígenes únicos detectados</div>
                                         </div>
                                     </div>
                                     <div class="col-lg-3 col-md-6 mb-3">
                                         <div class="bitacoras-metric-card">
                                             <div class="bitacoras-metric-label">Departamentos destino</div>
-                                            <div class="bitacoras-metric-value">{{ number_format((int) data_get($reportTotals, 'destinos', 0)) }}</div>
+                                            <div class="bitacoras-metric-value">{{ \App\Support\BolivianNumber::format((int) data_get($reportTotals, 'destinos', 0)) }}</div>
                                             <div class="bitacoras-metric-note">Destinos únicos detectados</div>
                                         </div>
                                     </div>
                                     <div class="col-lg-3 col-md-6 mb-3">
                                         <div class="bitacoras-metric-card">
                                             <div class="bitacoras-metric-label">Transportadoras</div>
-                                            <div class="bitacoras-metric-value">{{ number_format((int) data_get($reportTotals, 'transportadoras', 0)) }}</div>
+                                            <div class="bitacoras-metric-value">{{ \App\Support\BolivianNumber::format((int) data_get($reportTotals, 'transportadoras', 0)) }}</div>
                                             <div class="bitacoras-metric-note">Transportadoras únicas en el reporte</div>
                                         </div>
                                     </div>
@@ -668,8 +668,8 @@
                                                         @forelse($reportByTransportadora as $row)
                                                             <tr>
                                                                 <td>{{ strtoupper((string) $row->transportadora) }}</td>
-                                                                <td class="text-right">{{ number_format((int) $row->total_registros) }}</td>
-                                                                <td class="text-right">Bs {{ number_format((float) $row->total_precio, 2) }}</td>
+                                                                <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $row->total_registros) }}</td>
+                                                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) $row->total_precio, 2) }}</td>
                                                             </tr>
                                                         @empty
                                                             <tr>
@@ -699,8 +699,8 @@
                                                         @forelse($reportByOrigin as $row)
                                                             <tr>
                                                                 <td>{{ $row->departamento }}</td>
-                                                                <td class="text-right">{{ number_format((int) $row->total_registros) }}</td>
-                                                                <td class="text-right">Bs {{ number_format((float) $row->total_precio, 2) }}</td>
+                                                                <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $row->total_registros) }}</td>
+                                                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) $row->total_precio, 2) }}</td>
                                                             </tr>
                                                         @empty
                                                             <tr>
@@ -730,8 +730,8 @@
                                                         @forelse($reportByDestination as $row)
                                                             <tr>
                                                                 <td>{{ $row->departamento }}</td>
-                                                                <td class="text-right">{{ number_format((int) $row->total_registros) }}</td>
-                                                                <td class="text-right">Bs {{ number_format((float) $row->total_precio, 2) }}</td>
+                                                                <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $row->total_registros) }}</td>
+                                                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) $row->total_precio, 2) }}</td>
                                                             </tr>
                                                         @empty
                                                             <tr>
@@ -761,8 +761,8 @@
                                                         @forelse($reportRows as $row)
                                                             <tr>
                                                                 <td>{{ $row->origen_departamento }} <span class="text-muted">→</span> {{ $row->destino_departamento }}</td>
-                                                                <td class="text-right">{{ number_format((int) $row->total_registros) }}</td>
-                                                                <td class="text-right">Bs {{ number_format((float) $row->total_precio, 2) }}</td>
+                                                                <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $row->total_registros) }}</td>
+                                                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) $row->total_precio, 2) }}</td>
                                                             </tr>
                                                         @empty
                                                             <tr>
@@ -820,15 +820,15 @@
                                                     </td>
                                                     <td>
                                                         <span class="badge badge-light border">
-                                                            {{ number_format($detallesCodigo->count()) }}
+                                                            {{ \App\Support\BolivianNumber::format($detallesCodigo->count()) }}
                                                         </span>
                                                     </td>
                                                     <td>{{ $bitacora->user->name ?? '-' }}</td>
                                                     <td>{{ $bitacora->transportadora ? strtoupper((string) $bitacora->transportadora) : '-' }}</td>
                                                     <td>{{ $bitacora->provincia ?: '-' }}</td>
                                                     <td>{{ $bitacora->factura ?: '-' }}</td>
-                                                    <td>{{ $bitacora->precio_total !== null ? number_format((float) $bitacora->precio_total, 2) : '-' }}</td>
-                                                    <td>{{ $bitacora->peso !== null ? number_format((float) $bitacora->peso, 3) : '-' }}</td>
+                                                    <td>{{ $bitacora->precio_total !== null ? \App\Support\BolivianNumber::format((float) $bitacora->precio_total, 2) : '-' }}</td>
+                                                    <td>{{ $bitacora->peso !== null ? \App\Support\BolivianNumber::format((float) $bitacora->peso, 3) : '-' }}</td>
                                                     <td>
                                                         @if($bitacora->imagen_factura)
                                                             @php
@@ -908,20 +908,20 @@
                                                         <div class="col-md-3 col-6 mb-2">
                                                             <div class="bitacora-summary-pill">
                                                                 <div class="label">Registros</div>
-                                                                <div class="value">{{ number_format($detallesCodigo->count()) }}</div>
-                                                                <small class="text-muted">{{ number_format($totalPaquetesCn33) }} paquete(s) CN-33</small>
+                                                                <div class="value">{{ \App\Support\BolivianNumber::format($detallesCodigo->count()) }}</div>
+                                                                <small class="text-muted">{{ \App\Support\BolivianNumber::format($totalPaquetesCn33) }} paquete(s) CN-33</small>
                                                             </div>
                                                         </div>
                                                         <div class="col-md-3 col-6 mb-2">
                                                             <div class="bitacora-summary-pill">
                                                                 <div class="label">Precio total</div>
-                                                                <div class="value">Bs {{ $bitacora->precio_total !== null ? number_format((float) $bitacora->precio_total, 2) : '-' }}</div>
+                                                                <div class="value">Bs {{ $bitacora->precio_total !== null ? \App\Support\BolivianNumber::format((float) $bitacora->precio_total, 2) : '-' }}</div>
                                                             </div>
                                                         </div>
                                                         <div class="col-md-3 col-6 mb-2">
                                                             <div class="bitacora-summary-pill">
                                                                 <div class="label">Peso total</div>
-                                                                <div class="value">{{ $pesoTotalDetalle !== null ? number_format((float) $pesoTotalDetalle, 3) : '-' }}</div>
+                                                                <div class="value">{{ $pesoTotalDetalle !== null ? \App\Support\BolivianNumber::format((float) $pesoTotalDetalle, 3) : '-' }}</div>
                                                             </div>
                                                         </div>
                                                         <div class="col-md-3 col-6 mb-2">
@@ -975,7 +975,7 @@
                                                                                 #{{ $detalle->paqueteEms->id }} - {{ $detalle->paqueteEms->codigo }}
                                                                             @elseif($cn33EmsPackages->isNotEmpty())
                                                                                 @foreach($cn33EmsPackages as $paqueteCn33)
-                                                                                    <div>#{{ $paqueteCn33->id }} - {{ $paqueteCn33->codigo }} <small class="text-muted">({{ number_format((float) $paqueteCn33->peso, 3) }} kg)</small></div>
+                                                                                    <div>#{{ $paqueteCn33->id }} - {{ $paqueteCn33->codigo }} <small class="text-muted">({{ \App\Support\BolivianNumber::format((float) $paqueteCn33->peso, 3) }} kg)</small></div>
                                                                                 @endforeach
                                                                             @else
                                                                                 -
@@ -986,7 +986,7 @@
                                                                                 #{{ $detalle->paqueteContrato->id }} - {{ $detalle->paqueteContrato->codigo }}
                                                                             @elseif($cn33ContratoPackages->isNotEmpty())
                                                                                 @foreach($cn33ContratoPackages as $paqueteCn33)
-                                                                                    <div>#{{ $paqueteCn33->id }} - {{ $paqueteCn33->codigo }} <small class="text-muted">({{ number_format((float) $paqueteCn33->peso, 3) }} kg)</small></div>
+                                                                                    <div>#{{ $paqueteCn33->id }} - {{ $paqueteCn33->codigo }} <small class="text-muted">({{ \App\Support\BolivianNumber::format((float) $paqueteCn33->peso, 3) }} kg)</small></div>
                                                                                 @endforeach
                                                                             @else
                                                                                 -
@@ -997,7 +997,7 @@
                                                                                 #{{ $detalle->paqueteOrdi->id }} - {{ $detalle->paqueteOrdi->codigo }}
                                                                             @elseif($cn33OrdinarioPackages->isNotEmpty())
                                                                                 @foreach($cn33OrdinarioPackages as $paqueteCn33)
-                                                                                    <div>#{{ $paqueteCn33->id }} - {{ $paqueteCn33->codigo }} <small class="text-muted">({{ number_format((float) $paqueteCn33->peso, 3) }} kg)</small></div>
+                                                                                    <div>#{{ $paqueteCn33->id }} - {{ $paqueteCn33->codigo }} <small class="text-muted">({{ \App\Support\BolivianNumber::format((float) $paqueteCn33->peso, 3) }} kg)</small></div>
                                                                                 @endforeach
                                                                             @else
                                                                                 -
@@ -1008,7 +1008,7 @@
                                                                                 #{{ $detalle->paqueteCerti->id }} - {{ $detalle->paqueteCerti->codigo }}
                                                                             @elseif($cn33CertificadoPackages->isNotEmpty())
                                                                                 @foreach($cn33CertificadoPackages as $paqueteCn33)
-                                                                                    <div>#{{ $paqueteCn33->id }} - {{ $paqueteCn33->codigo }} <small class="text-muted">({{ number_format((float) $paqueteCn33->peso, 3) }} kg)</small></div>
+                                                                                    <div>#{{ $paqueteCn33->id }} - {{ $paqueteCn33->codigo }} <small class="text-muted">({{ \App\Support\BolivianNumber::format((float) $paqueteCn33->peso, 3) }} kg)</small></div>
                                                                                 @endforeach
                                                                             @else
                                                                                 -
@@ -1017,8 +1017,8 @@
                                                                         <td>{{ $detalleOrigenCn33 }}</td>
                                                                         <td>{{ $detalle->transportadora ? strtoupper((string) $detalle->transportadora) : '-' }}</td>
                                                                         <td>{{ $detalle->factura ?: '-' }}</td>
-                                                                        <td>{{ $detalle->precio_total !== null ? number_format((float) $detalle->precio_total, 2) : '-' }}</td>
-                                                                        <td>{{ $detallePeso !== null ? number_format((float) $detallePeso, 3) : '-' }}</td>
+                                                                        <td>{{ $detalle->precio_total !== null ? \App\Support\BolivianNumber::format((float) $detalle->precio_total, 2) : '-' }}</td>
+                                                                        <td>{{ $detallePeso !== null ? \App\Support\BolivianNumber::format((float) $detallePeso, 3) : '-' }}</td>
                                                                         <td>
                                                                             @if($detalle->imagen_factura)
                                                                                 @php

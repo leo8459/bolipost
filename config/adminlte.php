@@ -1360,6 +1360,11 @@ return [
                 [
                     'type' => 'js',
                     'asset' => true,
+                    'location' => 'js/bolivian-number.js',
+                ],
+                [
+                    'type' => 'js',
+                    'asset' => true,
                     'location' => 'js/acl-ui.js',
                 ],
             ],

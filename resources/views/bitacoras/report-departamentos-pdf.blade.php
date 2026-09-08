@@ -39,23 +39,23 @@
         <tr>
             <td>
                 <div class="metric-label">Precio total acumulado</div>
-                <div class="metric-value">Bs {{ number_format((float) data_get($reportTotals, 'total_precio', 0), 2) }}</div>
+                <div class="metric-value">Bs {{ \App\Support\BolivianNumber::format((float) data_get($reportTotals, 'total_precio', 0), 2) }}</div>
             </td>
             <td>
                 <div class="metric-label">Registros agrupados</div>
-                <div class="metric-value">{{ number_format((int) data_get($reportTotals, 'total_registros', 0)) }}</div>
+                <div class="metric-value">{{ \App\Support\BolivianNumber::format((int) data_get($reportTotals, 'total_registros', 0)) }}</div>
             </td>
             <td>
                 <div class="metric-label">Departamentos origen</div>
-                <div class="metric-value">{{ number_format((int) data_get($reportTotals, 'origenes', 0)) }}</div>
+                <div class="metric-value">{{ \App\Support\BolivianNumber::format((int) data_get($reportTotals, 'origenes', 0)) }}</div>
             </td>
             <td>
                 <div class="metric-label">Departamentos destino</div>
-                <div class="metric-value">{{ number_format((int) data_get($reportTotals, 'destinos', 0)) }}</div>
+                <div class="metric-value">{{ \App\Support\BolivianNumber::format((int) data_get($reportTotals, 'destinos', 0)) }}</div>
             </td>
             <td>
                 <div class="metric-label">Transportadoras</div>
-                <div class="metric-value">{{ number_format((int) data_get($reportTotals, 'transportadoras', 0)) }}</div>
+                <div class="metric-value">{{ \App\Support\BolivianNumber::format((int) data_get($reportTotals, 'transportadoras', 0)) }}</div>
             </td>
         </tr>
     </table>
@@ -74,9 +74,9 @@
             @forelse($reportByTransportadora as $row)
                 <tr>
                     <td>{{ strtoupper((string) $row->transportadora) }}</td>
-                    <td class="right">{{ number_format((int) $row->total_registros) }}</td>
-                    <td class="right">Bs {{ number_format((float) $row->total_precio, 2) }}</td>
-                    <td class="right">{{ number_format((float) $row->total_peso, 3) }}</td>
+                    <td class="right">{{ \App\Support\BolivianNumber::format((int) $row->total_registros) }}</td>
+                    <td class="right">Bs {{ \App\Support\BolivianNumber::format((float) $row->total_precio, 2) }}</td>
+                    <td class="right">{{ \App\Support\BolivianNumber::format((float) $row->total_peso, 3) }}</td>
                 </tr>
             @empty
                 <tr>
@@ -100,9 +100,9 @@
             @forelse($reportByOrigin as $row)
                 <tr>
                     <td>{{ $row->departamento }}</td>
-                    <td class="right">{{ number_format((int) $row->total_registros) }}</td>
-                    <td class="right">Bs {{ number_format((float) $row->total_precio, 2) }}</td>
-                    <td class="right">{{ number_format((float) $row->total_peso, 3) }}</td>
+                    <td class="right">{{ \App\Support\BolivianNumber::format((int) $row->total_registros) }}</td>
+                    <td class="right">Bs {{ \App\Support\BolivianNumber::format((float) $row->total_precio, 2) }}</td>
+                    <td class="right">{{ \App\Support\BolivianNumber::format((float) $row->total_peso, 3) }}</td>
                 </tr>
             @empty
                 <tr>
@@ -126,9 +126,9 @@
             @forelse($reportByDestination as $row)
                 <tr>
                     <td>{{ $row->departamento }}</td>
-                    <td class="right">{{ number_format((int) $row->total_registros) }}</td>
-                    <td class="right">Bs {{ number_format((float) $row->total_precio, 2) }}</td>
-                    <td class="right">{{ number_format((float) $row->total_peso, 3) }}</td>
+                    <td class="right">{{ \App\Support\BolivianNumber::format((int) $row->total_registros) }}</td>
+                    <td class="right">Bs {{ \App\Support\BolivianNumber::format((float) $row->total_precio, 2) }}</td>
+                    <td class="right">{{ \App\Support\BolivianNumber::format((float) $row->total_peso, 3) }}</td>
                 </tr>
             @empty
                 <tr>
@@ -154,9 +154,9 @@
                 <tr>
                     <td>{{ $row->origen_departamento }}</td>
                     <td>{{ $row->destino_departamento }}</td>
-                    <td class="right">{{ number_format((int) $row->total_registros) }}</td>
-                    <td class="right">Bs {{ number_format((float) $row->total_precio, 2) }}</td>
-                    <td class="right">{{ number_format((float) $row->total_peso, 3) }}</td>
+                    <td class="right">{{ \App\Support\BolivianNumber::format((int) $row->total_registros) }}</td>
+                    <td class="right">Bs {{ \App\Support\BolivianNumber::format((float) $row->total_precio, 2) }}</td>
+                    <td class="right">{{ \App\Support\BolivianNumber::format((float) $row->total_peso, 3) }}</td>
                 </tr>
             @empty
                 <tr>

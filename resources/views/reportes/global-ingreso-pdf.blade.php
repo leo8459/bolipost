@@ -191,21 +191,21 @@
 </table>
 
 <div class="note">
-    Estadísticas calculadas sobre los {{ number_format($pdfTotalRows ?? ($summary['total_filtrado'] ?? 0)) }}
+    Estadísticas calculadas sobre los {{ \App\Support\BolivianNumber::format($pdfTotalRows ?? ($summary['total_filtrado'] ?? 0)) }}
     registros filtrados. El detalle individual de los envíos está disponible en el Excel.
 </div>
 
 <table class="kpi">
     <tr>
-        <td><div class="k">Registrados</div><div class="v">{{ number_format($summary['registrados'] ?? ($summary['total'] ?? 0)) }}</div></td>
-        <td><div class="k">Filtrados</div><div class="v">{{ number_format($summary['total_filtrado'] ?? ($summary['total'] ?? 0)) }}</div></td>
-        <td><div class="k">Entregados</div><div class="v">{{ number_format($summary['entregados'] ?? 0) }}</div></td>
-        <td><div class="k">No entregados</div><div class="v">{{ number_format($summary['no_entregados'] ?? 0) }}</div></td>
-        <td><div class="k">Tasa de entrega</div><div class="v">{{ number_format((float) ($stats['tasa_entrega'] ?? 0), 1) }}%</div></td>
-        <td><div class="k">Peso total</div><div class="v">{{ number_format((float) ($totals['peso_total'] ?? 0), 3) }}</div></td>
-        <td><div class="k">Peso promedio</div><div class="v">{{ number_format((float) ($stats['peso_promedio'] ?? 0), 3) }}</div></td>
-        <td><div class="k">Peso mediano</div><div class="v">{{ number_format((float) ($stats['peso_mediano'] ?? 0), 3) }}</div></td>
-        <td><div class="k">Peso máximo</div><div class="v">{{ number_format((float) ($stats['peso_maximo'] ?? 0), 3) }}</div></td>
+        <td><div class="k">Registrados</div><div class="v">{{ \App\Support\BolivianNumber::format($summary['registrados'] ?? ($summary['total'] ?? 0)) }}</div></td>
+        <td><div class="k">Filtrados</div><div class="v">{{ \App\Support\BolivianNumber::format($summary['total_filtrado'] ?? ($summary['total'] ?? 0)) }}</div></td>
+        <td><div class="k">Entregados</div><div class="v">{{ \App\Support\BolivianNumber::format($summary['entregados'] ?? 0) }}</div></td>
+        <td><div class="k">No entregados</div><div class="v">{{ \App\Support\BolivianNumber::format($summary['no_entregados'] ?? 0) }}</div></td>
+        <td><div class="k">Tasa de entrega</div><div class="v">{{ \App\Support\BolivianNumber::format((float) ($stats['tasa_entrega'] ?? 0), 1) }}%</div></td>
+        <td><div class="k">Peso total</div><div class="v">{{ \App\Support\BolivianNumber::format((float) ($totals['peso_total'] ?? 0), 3) }}</div></td>
+        <td><div class="k">Peso promedio</div><div class="v">{{ \App\Support\BolivianNumber::format((float) ($stats['peso_promedio'] ?? 0), 3) }}</div></td>
+        <td><div class="k">Peso mediano</div><div class="v">{{ \App\Support\BolivianNumber::format((float) ($stats['peso_mediano'] ?? 0), 3) }}</div></td>
+        <td><div class="k">Peso máximo</div><div class="v">{{ \App\Support\BolivianNumber::format((float) ($stats['peso_maximo'] ?? 0), 3) }}</div></td>
     </tr>
 </table>
 
@@ -225,7 +225,7 @@
                                     <div class="bar-fill" style="width: {{ $statusWidth }}%; background: {{ $statusColors[$index] ?? '#6b7280' }};"></div>
                                 </div>
                             </td>
-                            <td class="bar-value">{{ number_format((float) $statusRow['porcentaje'], 1) }}%</td>
+                            <td class="bar-value">{{ \App\Support\BolivianNumber::format((float) $statusRow['porcentaje'], 1) }}%</td>
                         </tr>
                     @empty
                         <tr><td>Sin datos.</td></tr>
@@ -246,7 +246,7 @@
                                     <div class="bar-fill" style="width: {{ $monthWidth }}%; background: #2563eb;"></div>
                                 </div>
                             </td>
-                            <td class="bar-value">{{ number_format((int) $monthRow['cantidad']) }}</td>
+                            <td class="bar-value">{{ \App\Support\BolivianNumber::format((int) $monthRow['cantidad']) }}</td>
                         </tr>
                     @empty
                         <tr><td>Sin datos.</td></tr>
@@ -267,7 +267,7 @@
                                     <div class="bar-fill" style="width: {{ $destinationWidth }}%; background: #fbbf24;"></div>
                                 </div>
                             </td>
-                            <td class="bar-value">{{ number_format((int) $destinationRow['cantidad']) }}</td>
+                            <td class="bar-value">{{ \App\Support\BolivianNumber::format((int) $destinationRow['cantidad']) }}</td>
                         </tr>
                     @empty
                         <tr><td>Sin datos.</td></tr>
@@ -291,8 +291,8 @@
                         @forelse(($stats['situaciones'] ?? []) as $statusRow)
                             <tr>
                                 <td>{{ $statusRow['label'] }}</td>
-                                <td class="num">{{ number_format((int) $statusRow['cantidad']) }}</td>
-                                <td class="num">{{ number_format((float) $statusRow['porcentaje'], 1) }}%</td>
+                                <td class="num">{{ \App\Support\BolivianNumber::format((int) $statusRow['cantidad']) }}</td>
+                                <td class="num">{{ \App\Support\BolivianNumber::format((float) $statusRow['porcentaje'], 1) }}%</td>
                             </tr>
                         @empty
                             <tr><td colspan="3">Sin datos de situación.</td></tr>
@@ -315,11 +315,11 @@
                         @forelse(($stats['modulos'] ?? []) as $moduleRow)
                             <tr>
                                 <td>{{ $moduleRow['label'] }}</td>
-                                <td class="num">{{ number_format((int) $moduleRow['cantidad']) }}</td>
-                                <td class="num">{{ number_format((float) $moduleRow['participacion'], 1) }}%</td>
-                                <td class="num">{{ number_format((int) $moduleRow['entregados']) }}</td>
-                                <td class="num">{{ number_format((int) $moduleRow['pendientes']) }}</td>
-                                <td class="num">{{ number_format((float) $moduleRow['peso'], 3) }}</td>
+                                <td class="num">{{ \App\Support\BolivianNumber::format((int) $moduleRow['cantidad']) }}</td>
+                                <td class="num">{{ \App\Support\BolivianNumber::format((float) $moduleRow['participacion'], 1) }}%</td>
+                                <td class="num">{{ \App\Support\BolivianNumber::format((int) $moduleRow['entregados']) }}</td>
+                                <td class="num">{{ \App\Support\BolivianNumber::format((int) $moduleRow['pendientes']) }}</td>
+                                <td class="num">{{ \App\Support\BolivianNumber::format((float) $moduleRow['peso'], 3) }}</td>
                             </tr>
                         @empty
                             <tr><td colspan="6">Sin datos por módulo.</td></tr>
@@ -334,7 +334,7 @@
 <div class="avoid-break">
     <div class="section-title">Evolución mensual</div>
     @if(($stats['meses_total'] ?? 0) > count($stats['meses'] ?? []))
-        <div class="small-note">Se muestran los últimos {{ count($stats['meses'] ?? []) }} meses de {{ number_format((int) $stats['meses_total']) }} meses con actividad.</div>
+        <div class="small-note">Se muestran los últimos {{ count($stats['meses'] ?? []) }} meses de {{ \App\Support\BolivianNumber::format((int) $stats['meses_total']) }} meses con actividad.</div>
     @endif
     <table class="table">
         <thead>
@@ -347,10 +347,10 @@
             @forelse(($stats['meses'] ?? []) as $monthRow)
                 <tr>
                     <td>{{ $monthRow['periodo'] }}</td>
-                    <td class="num">{{ number_format((int) $monthRow['cantidad']) }}</td>
-                    <td class="num">{{ number_format((int) $monthRow['entregados']) }}</td>
-                    <td class="num">{{ number_format((int) $monthRow['pendientes']) }}</td>
-                    <td class="num">{{ number_format((float) $monthRow['peso'], 3) }}</td>
+                    <td class="num">{{ \App\Support\BolivianNumber::format((int) $monthRow['cantidad']) }}</td>
+                    <td class="num">{{ \App\Support\BolivianNumber::format((int) $monthRow['entregados']) }}</td>
+                    <td class="num">{{ \App\Support\BolivianNumber::format((int) $monthRow['pendientes']) }}</td>
+                    <td class="num">{{ \App\Support\BolivianNumber::format((float) $monthRow['peso'], 3) }}</td>
                 </tr>
             @empty
                 <tr><td colspan="5">Sin datos mensuales.</td></tr>
@@ -374,9 +374,9 @@
                     @forelse(($stats['servicios'] ?? []) as $serviceRow)
                         <tr>
                             <td>{{ $serviceRow['label'] }}</td>
-                            <td class="num">{{ number_format((int) $serviceRow['cantidad']) }}</td>
-                            <td class="num">{{ number_format((float) $serviceRow['participacion'], 1) }}%</td>
-                            <td class="num">{{ number_format((float) $serviceRow['peso'], 3) }}</td>
+                            <td class="num">{{ \App\Support\BolivianNumber::format((int) $serviceRow['cantidad']) }}</td>
+                            <td class="num">{{ \App\Support\BolivianNumber::format((float) $serviceRow['participacion'], 1) }}%</td>
+                            <td class="num">{{ \App\Support\BolivianNumber::format((float) $serviceRow['peso'], 3) }}</td>
                         </tr>
                     @empty
                         <tr><td colspan="4">Sin datos por servicio.</td></tr>
@@ -397,8 +397,8 @@
                     @forelse(($stats['destinos'] ?? []) as $destinationRow)
                         <tr>
                             <td>{{ $destinationRow['label'] }}</td>
-                            <td class="num">{{ number_format((int) $destinationRow['cantidad']) }}</td>
-                            <td class="num">{{ number_format((float) $destinationRow['participacion'], 1) }}%</td>
+                            <td class="num">{{ \App\Support\BolivianNumber::format((int) $destinationRow['cantidad']) }}</td>
+                            <td class="num">{{ \App\Support\BolivianNumber::format((float) $destinationRow['participacion'], 1) }}%</td>
                         </tr>
                     @empty
                         <tr><td colspan="3">Sin datos por destino.</td></tr>

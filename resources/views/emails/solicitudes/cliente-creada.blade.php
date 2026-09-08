@@ -81,7 +81,7 @@
                     </tr>
                     <tr>
                         <td style="padding:8px 0;color:#526075;">Precio</td>
-                        <td style="padding:8px 0;color:#172033;font-weight:700;">Bs {{ $solicitud->precio !== null ? number_format((float) $solicitud->precio, 2, '.', '') : '0.00' }}</td>
+                        <td style="padding:8px 0;color:#172033;font-weight:700;">Bs {{ $solicitud->precio !== null ? \App\Support\BolivianNumber::format((float) $solicitud->precio, 2, '.', '') : '0.00' }}</td>
                     </tr>
                 </table>
             </div>

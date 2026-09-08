@@ -221,7 +221,7 @@
                                     @foreach($scheduledMaintenances as $maintenance)
                                         <tr>
                                             <td>{{ $maintenance['nombre'] }}</td>
-                                            <td>{{ $maintenance['cada_km'] ? number_format($maintenance['cada_km']) . ' km' : '-' }}</td>
+                                            <td>{{ $maintenance['cada_km'] ? \App\Support\BolivianNumber::format($maintenance['cada_km']) . ' km' : '-' }}</td>
                                             <td>{{ $maintenance['fecha_programada'] ?? '-' }}</td>
                                             <td>
                                                 @if($maintenance['fuente'] === 'programado')
@@ -382,7 +382,7 @@
                         <div class="card-body">
                             <p class="mb-2">
                                 Estas registrando el vehiculo con kilometraje inicial
-                                <strong>{{ number_format((float) ($kilometraje ?? 0), 2) }} km</strong>.
+                                <strong>{{ \App\Support\BolivianNumber::format((float) ($kilometraje ?? 0), 2) }} km</strong>.
                             </p>
                             <p class="mb-0 text-muted">
                                 Verifica que este valor sea correcto antes de guardar.
@@ -435,9 +435,9 @@
                                                         </div>
                                                     </td>
                                                     <td>{{ $item['nombre'] ?? '-' }}</td>
-                                                    <td>{{ number_format((float) ($item['interval_km'] ?? 0), 0) }}</td>
-                                                    <td>{{ number_format((float) ($item['target_km'] ?? 0), 0) }}</td>
-                                                    <td>{{ number_format((float) ($item['overdue_km'] ?? 0), 2) }}</td>
+                                                    <td>{{ \App\Support\BolivianNumber::format((float) ($item['interval_km'] ?? 0), 0) }}</td>
+                                                    <td>{{ \App\Support\BolivianNumber::format((float) ($item['target_km'] ?? 0), 0) }}</td>
+                                                    <td>{{ \App\Support\BolivianNumber::format((float) ($item['overdue_km'] ?? 0), 2) }}</td>
                                                 </tr>
                                             @endforeach
                                         </tbody>
@@ -516,7 +516,7 @@
                                                 {{ ($vehicle->tacometro_danado ?? false) ? 'Danado' : 'Operativo' }}
                                             </span>
                                         </td>
-                                        <td>{{ number_format((float) ($vehicle->kilometraje_actual ?? $vehicle->kilometraje_inicial ?? $vehicle->kilometraje ?? 0), 2) }}</td>
+                                        <td>{{ \App\Support\BolivianNumber::format((float) ($vehicle->kilometraje_actual ?? $vehicle->kilometraje_inicial ?? $vehicle->kilometraje ?? 0), 2) }}</td>
                                         <td>{{ $vehicle->tipo_combustible }}</td>
                                         <td>
                                             @if(!$vehicle->activo)

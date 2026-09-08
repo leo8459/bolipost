@@ -362,7 +362,7 @@
                     return '';
                 }
 
-                return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+                return window.BolivianNumber.format(bytes / (1024 * 1024), 2) + ' MB';
             };
 
             descripcion.addEventListener('input', syncDescripcion);

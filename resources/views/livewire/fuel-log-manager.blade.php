@@ -894,7 +894,7 @@
                                                     <div class="col-12 col-md-4">
                                                         <div class="small text-muted">Monto total</div>
                                                         <div class="fw-semibold">
-                                                            {{ $scannedInvoicePreview['monto_total'] !== null && $scannedInvoicePreview['monto_total'] !== '' ? 'Bs ' . number_format((float) $scannedInvoicePreview['monto_total'], 2) : 'Sin dato' }}
+                                                            {{ $scannedInvoicePreview['monto_total'] !== null && $scannedInvoicePreview['monto_total'] !== '' ? 'Bs ' . \App\Support\BolivianNumber::format((float) $scannedInvoicePreview['monto_total'], 2) : 'Sin dato' }}
                                                         </div>
                                                     </div>
                                                     <div class="col-12 col-md-6">
@@ -963,9 +963,9 @@
                                                                 <div class="fw-bold text-center mb-1">DETALLE</div>
                                                                 <div>{{ $scannedInvoicePreview['producto_codigo'] ?: '' }}{{ $scannedInvoicePreview['producto_codigo'] ? ' - ' : '' }}{{ $scannedInvoicePreview['producto_descripcion'] ?: 'Combustible' }}</div>
                                                                 <div class="small text-muted">Unidad de Medida: Litro</div>
-                                                                <div>{{ $scannedInvoicePreview['cantidad'] !== null && $scannedInvoicePreview['cantidad'] !== '' ? $scannedInvoicePreview['cantidad'] : '0' }} X {{ $scannedInvoicePreview['precio_unitario'] !== null && $scannedInvoicePreview['precio_unitario'] !== '' ? $scannedInvoicePreview['precio_unitario'] : '0' }} - {{ $scannedInvoicePreview['monto_total'] !== null && $scannedInvoicePreview['monto_total'] !== '' ? number_format((float) $scannedInvoicePreview['monto_total'], 2) : '0.00' }}</div>
+                                                                <div>{{ $scannedInvoicePreview['cantidad'] !== null && $scannedInvoicePreview['cantidad'] !== '' ? $scannedInvoicePreview['cantidad'] : '0' }} X {{ $scannedInvoicePreview['precio_unitario'] !== null && $scannedInvoicePreview['precio_unitario'] !== '' ? $scannedInvoicePreview['precio_unitario'] : '0' }} - {{ $scannedInvoicePreview['monto_total'] !== null && $scannedInvoicePreview['monto_total'] !== '' ? \App\Support\BolivianNumber::format((float) $scannedInvoicePreview['monto_total'], 2) : '0.00' }}</div>
                                                                 <hr class="my-2">
-                                                                <div><strong>TOTAL Bs:</strong> {{ $scannedInvoicePreview['monto_total'] !== null && $scannedInvoicePreview['monto_total'] !== '' ? number_format((float) $scannedInvoicePreview['monto_total'], 2) : '0.00' }}</div>
+                                                                <div><strong>TOTAL Bs:</strong> {{ $scannedInvoicePreview['monto_total'] !== null && $scannedInvoicePreview['monto_total'] !== '' ? \App\Support\BolivianNumber::format((float) $scannedInvoicePreview['monto_total'], 2) : '0.00' }}</div>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -1220,10 +1220,10 @@
                                         $fuelMeterPhotoPath = data_get($log->invoice?->antifraud_payload_json, 'evidence.fuel_meter_photo_path');
                                         $hasFuelMeterPhoto = !empty($fuelMeterPhotoPath);
                                     @endphp
-                                    <div>{{ number_format((float) ($log->galones ?? 0), 2) }} L</div>
+                                    <div>{{ \App\Support\BolivianNumber::format((float) ($log->galones ?? 0), 2) }} L</div>
                                     <div class="small text-muted">Factura: {{ optional($log->invoice)->numero_factura ?? '-' }}</div>
-                                    <div class="small text-muted">Total: BOB{{ number_format((float) $log->total_calculado, 2) }}</div>
-                                    <div class="small text-muted">Rendimiento: {{ $kmPorLitro !== null ? number_format($kmPorLitro, 3) . ' km/l' : '-' }}</div>
+                                    <div class="small text-muted">Total: BOB{{ \App\Support\BolivianNumber::format((float) $log->total_calculado, 2) }}</div>
+                                    <div class="small text-muted">Rendimiento: {{ $kmPorLitro !== null ? \App\Support\BolivianNumber::format($kmPorLitro, 3) . ' km/l' : '-' }}</div>
                                     <div class="small text-muted">Foto factura: {{ $hasInvoicePhoto ? 'registrada' : 'no registrada' }}</div>
                                     <div class="small text-muted">Foto medidor: {{ $hasFuelMeterPhoto ? 'registrada' : 'no registrada' }}</div>
                                     @if(!$hasInvoicePhoto && $canViewSiatPdf)
@@ -2509,7 +2509,7 @@
                         lng: lng,
                         name: placeName || 'Ubicacion seleccionada (Bolivia)'
                     };
-                    updatePreview(`${state.selected.name} (${lat.toFixed(6)}, ${lng.toFixed(6)})`);
+                    updatePreview(`${state.selected.name} (${window.BolivianNumber.format(lat, 6)}, ${window.BolivianNumber.format(lng, 6)})`);
                 });
             }
 
@@ -2593,7 +2593,7 @@
                     if (helpEl) {
                         const label = resolveTargetLabel(target.inputId);
                         const nextLabel = resolveTargetLabel(state.activeTarget?.inputId);
-                        helpEl.textContent = `${label}: ${name} (${lat.toFixed(6)}, ${lng.toFixed(6)}). Siguiente: ${nextLabel}.`;
+                        helpEl.textContent = `${label}: ${name} (${window.BolivianNumber.format(lat, 6)}, ${window.BolivianNumber.format(lng, 6)}). Siguiente: ${nextLabel}.`;
                     }
                     updateFormMapStatus();
                 });

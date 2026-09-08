@@ -340,13 +340,13 @@
 
 <table class="summary-grid" style="margin-bottom: 10px;">
     <tr>
-        <td style="width: 25%;"><strong>Total ventas: {{ number_format((int) $preSummary['total_ventas']) }}</strong></td>
-        <td style="width: 25%;"><strong>Efectivo: {{ number_format((int) $preSummary['efectivo_cantidad']) }} &nbsp; Bs {{ number_format((float) $preSummary['efectivo_total'], 2) }}</strong></td>
-        <td style="width: 25%;"><strong>Pago QR: {{ number_format((int) $preSummary['qr_cantidad']) }} &nbsp; Bs {{ number_format((float) $preSummary['qr_total'], 2) }}</strong></td>
-        <td style="width: 25%;"><strong>Anuladas: {{ number_format((int) $preSummary['anuladas_cantidad']) }} &nbsp; Bs {{ number_format((float) $preSummary['anuladas_total'], 2) }}</strong></td>
+        <td style="width: 25%;"><strong>Total ventas: {{ \App\Support\BolivianNumber::format((int) $preSummary['total_ventas']) }}</strong></td>
+        <td style="width: 25%;"><strong>Efectivo: {{ \App\Support\BolivianNumber::format((int) $preSummary['efectivo_cantidad']) }} &nbsp; Bs {{ \App\Support\BolivianNumber::format((float) $preSummary['efectivo_total'], 2) }}</strong></td>
+        <td style="width: 25%;"><strong>Pago QR: {{ \App\Support\BolivianNumber::format((int) $preSummary['qr_cantidad']) }} &nbsp; Bs {{ \App\Support\BolivianNumber::format((float) $preSummary['qr_total'], 2) }}</strong></td>
+        <td style="width: 25%;"><strong>Anuladas: {{ \App\Support\BolivianNumber::format((int) $preSummary['anuladas_cantidad']) }} &nbsp; Bs {{ \App\Support\BolivianNumber::format((float) $preSummary['anuladas_total'], 2) }}</strong></td>
     </tr>
     <tr>
-        <td colspan="4"><strong>Total en caja: Bs {{ number_format((float) $preSummary['total_caja'], 2) }}</strong></td>
+        <td colspan="4"><strong>Total en caja: Bs {{ \App\Support\BolivianNumber::format((float) $preSummary['total_caja'], 2) }}</strong></td>
     </tr>
 </table>
 
@@ -366,10 +366,10 @@
             @forelse($branchGroups as $group)
                 <tr>
                     <td>{{ $group['nombre'] }}</td>
-                    <td class="center">{{ number_format((int) $group['ventas']) }}</td>
-                    <td class="right">Bs {{ number_format((float) $group['total'], 2) }}</td>
-                    <td class="right">Bs {{ number_format((float) $group['total_caja'], 2) }}</td>
-                    <td class="right">Bs {{ number_format((float) $group['total_qr'], 2) }}</td>
+                    <td class="center">{{ \App\Support\BolivianNumber::format((int) $group['ventas']) }}</td>
+                    <td class="right">Bs {{ \App\Support\BolivianNumber::format((float) $group['total'], 2) }}</td>
+                    <td class="right">Bs {{ \App\Support\BolivianNumber::format((float) $group['total_caja'], 2) }}</td>
+                    <td class="right">Bs {{ \App\Support\BolivianNumber::format((float) $group['total_qr'], 2) }}</td>
                 </tr>
             @empty
                 <tr>
@@ -400,10 +400,10 @@
             <div class="section-title">Cajero {{ $cashierIndex + 1 }}: {{ strtoupper($group['nombre']) }}</div>
             <table class="summary-grid" style="margin-bottom: 10px;">
                 <tr>
-                    <td style="width: 25%;"><strong>Total ventas: {{ number_format((int) $group['ventas']) }}</strong></td>
-                    <td style="width: 25%;"><strong>Efectivo: {{ number_format((int) $groupEffectiveRows->count()) }} &nbsp; Bs {{ number_format((float) $group['total_caja'], 2) }}</strong></td>
-                    <td style="width: 25%;"><strong>Pago QR: {{ number_format((int) $groupQrRows->count()) }} &nbsp; Bs {{ number_format((float) $group['total_qr'], 2) }}</strong></td>
-                    <td style="width: 25%;"><strong>Total en caja: Bs {{ number_format((float) $group['total_caja'], 2) }}</strong></td>
+                    <td style="width: 25%;"><strong>Total ventas: {{ \App\Support\BolivianNumber::format((int) $group['ventas']) }}</strong></td>
+                    <td style="width: 25%;"><strong>Efectivo: {{ \App\Support\BolivianNumber::format((int) $groupEffectiveRows->count()) }} &nbsp; Bs {{ \App\Support\BolivianNumber::format((float) $group['total_caja'], 2) }}</strong></td>
+                    <td style="width: 25%;"><strong>Pago QR: {{ \App\Support\BolivianNumber::format((int) $groupQrRows->count()) }} &nbsp; Bs {{ \App\Support\BolivianNumber::format((float) $group['total_qr'], 2) }}</strong></td>
+                    <td style="width: 25%;"><strong>Total en caja: Bs {{ \App\Support\BolivianNumber::format((float) $group['total_caja'], 2) }}</strong></td>
                 </tr>
             </table>
 
@@ -413,7 +413,7 @@
                 'Ventas anuladas' => [$groupAnnulledRows, (float) $groupAnnulledRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0))],
             ] as $detailTitle => [$detailRows, $detailTotal])
                 @continue($detailRows->isEmpty())
-                <div class="section-title">{{ strtoupper($detailTitle) }} - {{ number_format((int) $detailRows->count()) }} - Bs {{ number_format($detailTotal, 2) }}</div>
+                <div class="section-title">{{ strtoupper($detailTitle) }} - {{ \App\Support\BolivianNumber::format((int) $detailRows->count()) }} - Bs {{ \App\Support\BolivianNumber::format($detailTotal, 2) }}</div>
                 <table class="grid" style="margin-bottom: 10px;">
                     <thead>
                         <tr>
@@ -431,7 +431,7 @@
                             <tr>
                                 <td class="center">{{ $index + 1 }}</td>
                                 <td class="center">{{ data_get($row, 'fecha_hora', data_get($row, 'fecha', '-')) }}</td>
-                                <td class="right">{{ number_format((float) data_get($row, 'peso', 0), 3) }}</td>
+                                <td class="right">{{ \App\Support\BolivianNumber::format((float) data_get($row, 'peso', 0), 3) }}</td>
                                 <td>
                                     @if(collect(data_get($row, 'detalle_codigos', []))->isNotEmpty())
                                         <div class="detalle-codes">
@@ -447,7 +447,7 @@
                                 <td class="center" style="white-space: pre-line;">
                                     {{ strtoupper(trim((string) data_get($row, 'estado_label', data_get($row, 'estado_emision', 'PENDIENTE')))) }}
                                 </td>
-                                <td class="right">Bs {{ number_format((float) data_get($row, 'importe_general', 0), 2) }}</td>
+                                <td class="right">Bs {{ \App\Support\BolivianNumber::format((float) data_get($row, 'importe_general', 0), 2) }}</td>
                             </tr>
                         @endforeach
                     </tbody>
@@ -467,19 +467,19 @@
     <table class="totals" style="margin-top: 4px;">
         <tr>
             <td style="width: 89%;" class="right">TOTAL EN CAJA SUCURSAL</td>
-            <td style="width: 11%;" class="right">Bs {{ number_format((float) $preSummary['total_caja'], 2) }}</td>
+            <td style="width: 11%;" class="right">Bs {{ \App\Support\BolivianNumber::format((float) $preSummary['total_caja'], 2) }}</td>
         </tr>
         <tr>
             <td class="right">TOTAL PENDIENTE / NO COBRADO</td>
-            <td class="right">Bs {{ number_format((float) $preSummary['total_no_cobrado'], 2) }}</td>
+            <td class="right">Bs {{ \App\Support\BolivianNumber::format((float) $preSummary['total_no_cobrado'], 2) }}</td>
         </tr>
         <tr>
             <td class="right">TOTAL VENTAS ANULADAS</td>
-            <td class="right">Bs {{ number_format((float) $preSummary['anuladas_total'], 2) }}</td>
+            <td class="right">Bs {{ \App\Support\BolivianNumber::format((float) $preSummary['anuladas_total'], 2) }}</td>
         </tr>
         <tr>
             <td class="right">TOTAL GENERAL SUCURSAL</td>
-            <td class="right">Bs {{ number_format((float) ($preSummary['total_caja'] + $preSummary['qr_total']), 2) }}</td>
+            <td class="right">Bs {{ \App\Support\BolivianNumber::format((float) ($preSummary['total_caja'] + $preSummary['qr_total']), 2) }}</td>
         </tr>
     </table>
 @else
@@ -512,7 +512,7 @@
                         <tr>
                             <td class="center">{{ $index + 1 }}</td>
                             <td class="center">{{ data_get($row, 'fecha_hora', data_get($row, 'fecha', '-')) }}</td>
-                            <td class="right">{{ number_format((float) data_get($row, 'peso', 0), 3) }}</td>
+                            <td class="right">{{ \App\Support\BolivianNumber::format((float) data_get($row, 'peso', 0), 3) }}</td>
                             <td>
                                 @if(collect(data_get($row, 'detalle_codigos', []))->isNotEmpty())
                                     <div class="detalle-codes">
@@ -528,12 +528,12 @@
                             <td class="center" style="white-space: pre-line;">
                                 {{ strtoupper(trim((string) data_get($row, 'estado_label', data_get($row, 'estado_emision', 'PENDIENTE')))) }}
                             </td>
-                            <td class="right">Bs {{ number_format((float) data_get($row, 'importe_general', 0), 2) }}</td>
+                            <td class="right">Bs {{ \App\Support\BolivianNumber::format((float) data_get($row, 'importe_general', 0), 2) }}</td>
                         </tr>
                     @endforeach
                     <tr>
                         <td colspan="6" class="right" style="font-weight: 700;">TOTAL {{ strtoupper($detailTitle) }}</td>
-                        <td class="right" style="font-weight: 700;">Bs {{ number_format((float) $detailRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
+                        <td class="right" style="font-weight: 700;">Bs {{ \App\Support\BolivianNumber::format((float) $detailRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
                     </tr>
                 </tbody>
             </table>
@@ -551,23 +551,23 @@
     <table class="totals" style="margin-top: 0;">
         <tr>
             <td style="width: 89%;" class="right">TOTAL PARCIAL EN CAJA</td>
-            <td style="width: 11%;" class="right">Bs {{ number_format((float) $preSummary['total_caja'], 2) }}</td>
+            <td style="width: 11%;" class="right">Bs {{ \App\Support\BolivianNumber::format((float) $preSummary['total_caja'], 2) }}</td>
         </tr>
         <tr>
             <td class="right">TOTAL GENERAL EN CAJA</td>
-            <td class="right">Bs {{ number_format((float) $preSummary['total_caja'], 2) }}</td>
+            <td class="right">Bs {{ \App\Support\BolivianNumber::format((float) $preSummary['total_caja'], 2) }}</td>
         </tr>
         <tr>
             <td class="right">TOTAL QR REFERENCIAL NO SUMADO A CAJA</td>
-            <td class="right">Bs {{ number_format((float) $preSummary['qr_total'], 2) }}</td>
+            <td class="right">Bs {{ \App\Support\BolivianNumber::format((float) $preSummary['qr_total'], 2) }}</td>
         </tr>
         <tr>
             <td class="right">TOTAL VENTAS ANULADAS</td>
-            <td class="right">Bs {{ number_format((float) $annulledRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
+            <td class="right">Bs {{ \App\Support\BolivianNumber::format((float) $annulledRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
         </tr>
         <tr>
             <td style="width: 89%;" class="right">TOTAL VENTAS NO COBRADAS</td>
-            <td style="width: 11%;" class="right">Bs {{ number_format((float) $unpaidRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
+            <td style="width: 11%;" class="right">Bs {{ \App\Support\BolivianNumber::format((float) $unpaidRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2) }}</td>
         </tr>
     </table>
 @endif

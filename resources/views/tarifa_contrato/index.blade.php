@@ -211,12 +211,12 @@
                                             <td>{{ $tarifa->destino }}</td>
                                             <td>{{ $tarifa->direccion ?: '-' }}</td>
                                             <td>{{ $tarifa->zona ?: '-' }}</td>
-                                            <td>{{ $tarifa->peso !== null ? number_format((float) $tarifa->peso, 2) : '-' }}</td>
+                                            <td>{{ $tarifa->peso !== null ? \App\Support\BolivianNumber::format((float) $tarifa->peso, 2) : '-' }}</td>
                                             <td>{{ $tarifa->kilo }}</td>
                                             <td>{{ $tarifa->kilo_extra }}</td>
                                             <td>{{ $tarifa->provincia ?: '-' }}</td>
                                             <td>{{ $tarifa->provincia_origen ?: '-' }}</td>
-                                            <td>{{ number_format((float) $tarifa->retencion, 2) }}%</td>
+                                            <td>{{ \App\Support\BolivianNumber::format((float) $tarifa->retencion, 2) }}%</td>
                                             <td>{{ $tarifa->horas_entrega }}</td>
                                             <td>
                                                 <form action="{{ route('tarifa-contrato.destroy', $tarifa->id) }}" method="POST">

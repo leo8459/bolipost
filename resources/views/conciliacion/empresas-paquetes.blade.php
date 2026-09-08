@@ -63,7 +63,7 @@
             <div class="col-lg-4 col-md-6">
                 <div class="small-box bg-primary">
                     <div class="inner">
-                        <h3>{{ number_format($empresas->count()) }}</h3>
+                        <h3>{{ \App\Support\BolivianNumber::format($empresas->count()) }}</h3>
                         <p>Empresas</p>
                     </div>
                     <div class="icon"><i class="fas fa-building"></i></div>
@@ -72,7 +72,7 @@
             <div class="col-lg-4 col-md-6">
                 <div class="small-box bg-info">
                     <div class="inner">
-                        <h3>{{ number_format($totalRegistrados) }}</h3>
+                        <h3>{{ \App\Support\BolivianNumber::format($totalRegistrados) }}</h3>
                         <p>Contratos registrados</p>
                     </div>
                     <div class="icon"><i class="fas fa-boxes"></i></div>
@@ -81,7 +81,7 @@
             <div class="col-lg-4 col-md-12">
                 <div class="small-box bg-success">
                     <div class="inner">
-                        <h3>{{ number_format($totalEntregados) }}</h3>
+                        <h3>{{ \App\Support\BolivianNumber::format($totalEntregados) }}</h3>
                         <p>Contratos entregados</p>
                     </div>
                     <div class="icon"><i class="fas fa-check-circle"></i></div>
@@ -97,7 +97,7 @@
                         {{ collect($mesesSeleccionados)->map(fn ($mes) => $nombresMeses[$mes])->implode(', ') }} {{ $anio }}
                     </small>
                 </h3>
-                <span class="badge badge-primary resumen-total">{{ number_format($empresas->count()) }} empresas</span>
+                <span class="badge badge-primary resumen-total">{{ \App\Support\BolivianNumber::format($empresas->count()) }} empresas</span>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -121,10 +121,10 @@
                                             @if(filled($empresa->sigla)){{ $empresa->sigla }}@endif
                                         </small>
                                     </td>
-                                    <td class="text-center"><span class="count-value">{{ number_format($empresa->contratos_registrados) }}</span></td>
-                                    <td class="text-center"><span class="count-value delivered">{{ number_format($empresa->contratos_entregados) }}</span></td>
+                                    <td class="text-center"><span class="count-value">{{ \App\Support\BolivianNumber::format($empresa->contratos_registrados) }}</span></td>
+                                    <td class="text-center"><span class="count-value delivered">{{ \App\Support\BolivianNumber::format($empresa->contratos_entregados) }}</span></td>
                                     <td class="text-right text-nowrap font-weight-bold">
-                                        {{ $empresa->presupuesto !== null ? 'Bs '.number_format((float) $empresa->presupuesto, 2) : '-' }}
+                                        {{ $empresa->presupuesto !== null ? 'Bs '.\App\Support\BolivianNumber::format((float) $empresa->presupuesto, 2) : '-' }}
                                     </td>
                                 </tr>
                             @empty
@@ -137,9 +137,9 @@
                             <tfoot>
                                 <tr>
                                     <th>Total</th>
-                                    <th class="text-center">{{ number_format($totalRegistrados) }}</th>
-                                    <th class="text-center">{{ number_format($totalEntregados) }}</th>
-                                    <th class="text-right text-nowrap">Bs {{ number_format($totalPresupuesto, 2) }}</th>
+                                    <th class="text-center">{{ \App\Support\BolivianNumber::format($totalRegistrados) }}</th>
+                                    <th class="text-center">{{ \App\Support\BolivianNumber::format($totalEntregados) }}</th>
+                                    <th class="text-right text-nowrap">Bs {{ \App\Support\BolivianNumber::format($totalPresupuesto, 2) }}</th>
                                 </tr>
                             </tfoot>
                         @endif

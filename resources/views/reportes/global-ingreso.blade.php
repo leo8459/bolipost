@@ -163,7 +163,7 @@
                 <span class="info-box-icon bg-primary"><i class="fas fa-hashtag"></i></span>
                 <div class="info-box-content">
                     <span class="info-box-text">Cantidad</span>
-                    <span class="info-box-number">{{ number_format($summary['total_filtrado'] ?? ($summary['total'] ?? 0)) }}</span>
+                    <span class="info-box-number">{{ \App\Support\BolivianNumber::format($summary['total_filtrado'] ?? ($summary['total'] ?? 0)) }}</span>
                 </div>
             </div>
         </div>
@@ -172,7 +172,7 @@
                 <span class="info-box-icon bg-info"><i class="fas fa-weight-hanging"></i></span>
                 <div class="info-box-content">
                     <span class="info-box-text">Peso total</span>
-                    <span class="info-box-number">{{ number_format((float) ($totals['peso_total'] ?? 0), 3) }}</span>
+                    <span class="info-box-number">{{ \App\Support\BolivianNumber::format((float) ($totals['peso_total'] ?? 0), 3) }}</span>
                 </div>
             </div>
         </div>
@@ -181,7 +181,7 @@
                 <span class="info-box-icon bg-success"><i class="fas fa-money-bill-wave"></i></span>
                 <div class="info-box-content">
                     <span class="info-box-text">Bs total</span>
-                    <span class="info-box-number">Bs {{ number_format((float) ($totals['precio_total'] ?? 0), 2) }}</span>
+                    <span class="info-box-number">Bs {{ \App\Support\BolivianNumber::format((float) ($totals['precio_total'] ?? 0), 2) }}</span>
                 </div>
             </div>
         </div>
@@ -206,9 +206,9 @@
                         @forelse(($moduleSummary ?? []) as $moduleRow)
                             <tr>
                                 <td class="font-weight-bold">{{ $moduleRow['label'] }}</td>
-                                <td class="text-right">{{ number_format((int) $moduleRow['total']) }}</td>
-                                <td class="text-right">{{ number_format((float) $moduleRow['peso'], 3) }}</td>
-                                <td class="text-right">Bs {{ number_format((float) $moduleRow['precio'], 2) }}</td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $moduleRow['total']) }}</td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $moduleRow['peso'], 3) }}</td>
+                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) $moduleRow['precio'], 2) }}</td>
                             </tr>
                         @empty
                             <tr>
@@ -255,8 +255,8 @@
                                 <td>{{ $row['destino'] }}</td>
                                 <td>{{ $row['destinatario'] }}</td>
                                 <td class="text-right">1</td>
-                                <td class="text-right">{{ number_format((float) $row['peso'], 3) }}</td>
-                                <td class="text-right">Bs {{ number_format((float) $row['precio'], 2) }}</td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $row['peso'], 3) }}</td>
+                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) $row['precio'], 2) }}</td>
                                 <td>{{ $row['created_at'] }}</td>
                             </tr>
                         @empty

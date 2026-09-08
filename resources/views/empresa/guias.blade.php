@@ -69,7 +69,7 @@
             <div class="card-header d-flex align-items-center justify-content-between">
                 <h3 class="card-title"><i class="fas fa-boxes mr-2"></i>Paquetes de empresas</h3>
                 <div class="d-flex align-items-center">
-                    <span class="badge badge-primary guias-total mr-2">{{ number_format($guias->total()) }} registros</span>
+                    <span class="badge badge-primary guias-total mr-2">{{ \App\Support\BolivianNumber::format($guias->total()) }} registros</span>
                     @aclcan('export', null, 'empresa.guias.index')
                         <a href="{{ route('empresa.guias.excel', request()->query()) }}" class="btn btn-success btn-sm">
                             <i class="fas fa-file-excel mr-1"></i> Descargar reporte Excel

@@ -78,7 +78,7 @@
                 <span class="info-box-icon bg-primary"><i class="fas fa-sitemap"></i></span>
                 <div class="info-box-content">
                     <span class="info-box-text">Líneas</span>
-                    <span class="info-box-number">{{ number_format((int) ($commercialTotals['lineas'] ?? 0)) }}</span>
+                    <span class="info-box-number">{{ \App\Support\BolivianNumber::format((int) ($commercialTotals['lineas'] ?? 0)) }}</span>
                 </div>
             </div>
         </div>
@@ -87,7 +87,7 @@
                 <span class="info-box-icon bg-info"><i class="fas fa-hashtag"></i></span>
                 <div class="info-box-content">
                     <span class="info-box-text">Registros</span>
-                    <span class="info-box-number">{{ number_format((int) ($commercialTotals['registros'] ?? 0)) }}</span>
+                    <span class="info-box-number">{{ \App\Support\BolivianNumber::format((int) ($commercialTotals['registros'] ?? 0)) }}</span>
                 </div>
             </div>
         </div>
@@ -96,7 +96,7 @@
                 <span class="info-box-icon bg-warning"><i class="fas fa-weight-hanging"></i></span>
                 <div class="info-box-content">
                     <span class="info-box-text">Peso total</span>
-                    <span class="info-box-number">{{ number_format((float) ($commercialTotals['peso_total'] ?? 0), 3) }}</span>
+                    <span class="info-box-number">{{ \App\Support\BolivianNumber::format((float) ($commercialTotals['peso_total'] ?? 0), 3) }}</span>
                 </div>
             </div>
         </div>
@@ -105,7 +105,7 @@
                 <span class="info-box-icon bg-success"><i class="fas fa-money-bill-wave"></i></span>
                 <div class="info-box-content">
                     <span class="info-box-text">Ingresos</span>
-                    <span class="info-box-number">Bs {{ number_format((float) ($commercialTotals['precio_total'] ?? 0), 2) }}</span>
+                    <span class="info-box-number">Bs {{ \App\Support\BolivianNumber::format((float) ($commercialTotals['precio_total'] ?? 0), 2) }}</span>
                 </div>
             </div>
         </div>
@@ -137,12 +137,12 @@
                             <tr>
                                 <td>{{ $loop->iteration }}</td>
                                 <td class="font-weight-bold">{{ $lineRow['linea'] }}</td>
-                                <td class="text-right">{{ number_format((int) $lineRow['cantidad']) }}</td>
-                                <td class="text-right">{{ number_format((int) $lineRow['entregados']) }}</td>
-                                <td class="text-right">{{ number_format((int) $lineRow['no_entregados']) }}</td>
-                                <td class="text-right">{{ number_format((float) $lineRow['peso'], 3) }}</td>
-                                <td class="text-right">Bs {{ number_format((float) $lineRow['precio'], 2) }}</td>
-                                <td>{{ $lineRow['top_servicio'] }} ({{ number_format((int) $lineRow['top_servicio_cantidad']) }})</td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $lineRow['cantidad']) }}</td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $lineRow['entregados']) }}</td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $lineRow['no_entregados']) }}</td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $lineRow['peso'], 3) }}</td>
+                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) $lineRow['precio'], 2) }}</td>
+                                <td>{{ $lineRow['top_servicio'] }} ({{ \App\Support\BolivianNumber::format((int) $lineRow['top_servicio_cantidad']) }})</td>
                                 <td>{{ $lineRow['ultimo_registro'] }}</td>
                             </tr>
                         @empty
@@ -178,11 +178,11 @@
                                 <td>{{ $loop->iteration }}</td>
                                 <td>{{ $serviceRow['linea'] }}</td>
                                 <td class="font-weight-bold">{{ $serviceRow['servicio'] }}</td>
-                                <td class="text-right">{{ number_format((int) $serviceRow['cantidad']) }}</td>
-                                <td class="text-right">{{ number_format((int) $serviceRow['entregados']) }}</td>
-                                <td class="text-right">{{ number_format((int) $serviceRow['no_entregados']) }}</td>
-                                <td class="text-right">{{ number_format((float) $serviceRow['peso'], 3) }}</td>
-                                <td class="text-right">Bs {{ number_format((float) $serviceRow['precio'], 2) }}</td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $serviceRow['cantidad']) }}</td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $serviceRow['entregados']) }}</td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $serviceRow['no_entregados']) }}</td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $serviceRow['peso'], 3) }}</td>
+                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) $serviceRow['precio'], 2) }}</td>
                                 <td>{{ $serviceRow['ultimo_registro'] }}</td>
                             </tr>
                         @empty
@@ -223,11 +223,11 @@
                                 @forelse(collect($effectiveness['rows'] ?? [])->take(10) as $row)
                                     <tr>
                                         <td>{{ $row['linea'] }}</td>
-                                        <td class="text-right">{{ number_format((int) $row['total']) }}</td>
-                                        <td class="text-right">{{ number_format((int) $row['entregados']) }}</td>
-                                        <td class="text-right">{{ number_format((int) $row['devoluciones']) }}</td>
-                                        <td class="text-right">{{ number_format((int) $row['rezago']) }}</td>
-                                        <td class="text-right">{{ number_format((float) $row['efectividad_pct'], 2) }}%</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $row['total']) }}</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $row['entregados']) }}</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $row['devoluciones']) }}</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $row['rezago']) }}</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $row['efectividad_pct'], 2) }}%</td>
                                     </tr>
                                 @empty
                                     <tr><td colspan="6" class="text-center text-muted py-3">Sin datos.</td></tr>
@@ -265,7 +265,7 @@
                                 @forelse(collect($sla['rows'] ?? [])->take(10) as $row)
                                     <tr>
                                         <td>{{ $row['linea'] }}</td>
-                                        <td class="text-right">{{ number_format((int) $row['entregados']) }}</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $row['entregados']) }}</td>
                                         <td>{{ $row['promedio'] }}</td>
                                         <td>{{ $row['minimo'] }}</td>
                                         <td>{{ $row['maximo'] }}</td>
@@ -310,10 +310,10 @@
                                 @forelse(collect($budget['rows'] ?? [])->take(10) as $row)
                                     <tr>
                                         <td>{{ $row['empresa'] }}</td>
-                                        <td class="text-right">Bs {{ number_format((float) $row['presupuesto'], 2) }}</td>
-                                        <td class="text-right">Bs {{ number_format((float) $row['consumido'], 2) }}</td>
-                                        <td class="text-right">Bs {{ number_format((float) $row['saldo'], 2) }}</td>
-                                        <td class="text-right">{{ number_format((float) $row['ejecucion_pct'], 2) }}%</td>
+                                        <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) $row['presupuesto'], 2) }}</td>
+                                        <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) $row['consumido'], 2) }}</td>
+                                        <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) $row['saldo'], 2) }}</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $row['ejecucion_pct'], 2) }}%</td>
                                         <td>{{ $row['alerta'] }}</td>
                                     </tr>
                                 @empty
@@ -352,10 +352,10 @@
                                 @forelse(collect($collections['rows'] ?? [])->take(10) as $row)
                                     <tr>
                                         <td>{{ $row['empresa'] }}</td>
-                                        <td class="text-right">Bs {{ number_format((float) $row['facturado'], 2) }}</td>
-                                        <td class="text-right">Bs {{ number_format((float) $row['cobrado'], 2) }}</td>
-                                        <td class="text-right">Bs {{ number_format((float) $row['pendiente'], 2) }}</td>
-                                        <td class="text-right">{{ number_format((float) $row['cobranza_pct'], 2) }}%</td>
+                                        <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) $row['facturado'], 2) }}</td>
+                                        <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) $row['cobrado'], 2) }}</td>
+                                        <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) $row['pendiente'], 2) }}</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $row['cobranza_pct'], 2) }}%</td>
                                     </tr>
                                 @empty
                                     <tr><td colspan="5" class="text-center text-muted py-3">Sin datos.</td></tr>
@@ -405,7 +405,7 @@
                             @forelse(collect($heatmap['origenes'] ?? [])->take(8) as $row)
                                 <tr>
                                     <td>{{ $row['ubicacion'] }}</td>
-                                    <td class="text-right">{{ number_format((int) $row['cantidad']) }}</td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $row['cantidad']) }}</td>
                                 </tr>
                             @empty
                                 <tr><td colspan="2" class="text-center text-muted py-3">Sin datos.</td></tr>
@@ -426,7 +426,7 @@
                             @forelse(collect($heatmap['destinos'] ?? [])->take(8) as $row)
                                 <tr>
                                     <td>{{ $row['ubicacion'] }}</td>
-                                    <td class="text-right">{{ number_format((int) $row['cantidad']) }}</td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $row['cantidad']) }}</td>
                                 </tr>
                             @empty
                                 <tr><td colspan="2" class="text-center text-muted py-3">Sin datos.</td></tr>
@@ -447,7 +447,7 @@
                             @forelse(collect($heatmap['rutas'] ?? [])->take(8) as $row)
                                 <tr>
                                     <td>{{ $row['ruta'] }}</td>
-                                    <td class="text-right">{{ number_format((int) $row['cantidad']) }}</td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $row['cantidad']) }}</td>
                                 </tr>
                             @empty
                                 <tr><td colspan="2" class="text-center text-muted py-3">Sin datos.</td></tr>

@@ -27,7 +27,7 @@
         @foreach(['ems' => ['EMS', 'box'], 'contratos' => ['Contratos', 'file-contract'], 'certificados' => ['Certificados', 'certificate'], 'ordinarios' => ['Ordinarios', 'box-open']] as $clave => [$nombre, $icono])
             <div class="col-xl-3 col-md-6">
                 <div class="small-box bg-white shadow-sm border">
-                    <div class="inner"><h3>{{ number_format($totales[$clave]) }}</h3><p>{{ $nombre }}</p></div>
+                    <div class="inner"><h3>{{ \App\Support\BolivianNumber::format($totales[$clave]) }}</h3><p>{{ $nombre }}</p></div>
                     <div class="icon"><i class="fas fa-{{ $icono }} text-warning"></i></div>
                 </div>
             </div>

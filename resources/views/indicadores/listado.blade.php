@@ -13,13 +13,13 @@
                     @if (!empty($showSla))
                         <div class="sla-summary-group">
                             <span class="sla-summary-pill sla-summary-green">
-                                En plazo: {{ number_format((int) ($slaResumen['correcto'] ?? 0)) }}
+                                En plazo: {{ \App\Support\BolivianNumber::format((int) ($slaResumen['correcto'] ?? 0)) }}
                             </span>
                             <span class="sla-summary-pill sla-summary-yellow">
-                                Atraso: {{ number_format((int) ($slaResumen['retraso'] ?? 0)) }}
+                                Atraso: {{ \App\Support\BolivianNumber::format((int) ($slaResumen['retraso'] ?? 0)) }}
                             </span>
                             <span class="sla-summary-pill sla-summary-red">
-                                Rezago: {{ number_format((int) ($slaResumen['rezago'] ?? 0)) }}
+                                Rezago: {{ \App\Support\BolivianNumber::format((int) ($slaResumen['rezago'] ?? 0)) }}
                             </span>
                         </div>
                     @endif

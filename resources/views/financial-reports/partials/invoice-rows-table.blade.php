@@ -8,9 +8,9 @@
         </div>
         <div class="text-right">
             @if(isset($salesCount))
-                <span class="badge badge-success mr-1">{{ number_format((int) $salesCount) }} ventas</span>
+                <span class="badge badge-success mr-1">{{ \App\Support\BolivianNumber::format((int) $salesCount) }} ventas</span>
             @endif
-            <span class="badge badge-primary">{{ number_format($rows->total()) }} registros</span>
+            <span class="badge badge-primary">{{ \App\Support\BolivianNumber::format($rows->total()) }} registros</span>
         </div>
     </div>
     <div class="card-body p-0">
@@ -43,7 +43,7 @@
                             <td class="code-cell">{{ $row['codigoOrden'] ?? '-' }}</td>
                             <td class="font-weight-bold code-cell">{{ $row['codigoSeguimiento'] ?? '-' }}</td>
                             <td class="text-nowrap">{{ $row['fecha'] ?? '-' }}</td>
-                            <td class="text-right font-weight-bold">Bs {{ number_format((float) ($row['totalLinea'] ?? 0), 2) }}</td>
+                            <td class="text-right font-weight-bold">Bs {{ \App\Support\BolivianNumber::format((float) ($row['totalLinea'] ?? 0), 2) }}</td>
                             @if($showReceivableActions ?? false)
                                 @php($asociacion = $facturasAsociadas->get((string) ($row['ventaId'] ?? '')))
                                 <td class="text-center text-nowrap">

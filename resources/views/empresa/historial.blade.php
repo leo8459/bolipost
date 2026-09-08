@@ -79,7 +79,7 @@
                                 <td>{{ optional($historial->inicio_contrato)->format('d/m/Y') ?: '-' }}</td>
                                 <td>{{ optional($historial->fin_contrato)->format('d/m/Y') ?: '-' }}</td>
                                 <td>{{ $historial->cobertura ?: '-' }}</td>
-                                <td>{{ $historial->presupuesto !== null ? number_format((float) $historial->presupuesto, 2) : '-' }}</td>
+                                <td>{{ $historial->presupuesto !== null ? \App\Support\BolivianNumber::format((float) $historial->presupuesto, 2) : '-' }}</td>
                                 <td>
                                     @if($historial->documento_pdf_path)
                                         @can('feature.empresas.historial.view-pdf')

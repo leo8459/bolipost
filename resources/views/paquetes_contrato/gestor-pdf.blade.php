@@ -75,9 +75,9 @@
 
     <table class="summary">
         <tr>
-            <td><div class="summary-label">Registros</div><div class="summary-value">{{ number_format($contratos->count()) }}</div></td>
-            <td><div class="summary-label">Peso total</div><div class="summary-value">{{ number_format($totalPeso, 3) }} kg</div></td>
-            <td><div class="summary-label">Con imagen</div><div class="summary-value">{{ number_format($totalImagenes) }}</div></td>
+            <td><div class="summary-label">Registros</div><div class="summary-value">{{ \App\Support\BolivianNumber::format($contratos->count()) }}</div></td>
+            <td><div class="summary-label">Peso total</div><div class="summary-value">{{ \App\Support\BolivianNumber::format($totalPeso, 3) }} kg</div></td>
+            <td><div class="summary-label">Con imagen</div><div class="summary-value">{{ \App\Support\BolivianNumber::format($totalImagenes) }}</div></td>
             <td><div class="summary-label">Filtro</div><div class="summary-value">{{ $estadoLabel }}</div></td>
         </tr>
     </table>
@@ -127,7 +127,7 @@
                         <span class="muted">{{ $contrato->direccion_d ?: '-' }}</span>
                     </td>
                     <td>{{ $contrato->contenido ?: '-' }}</td>
-                    <td class="weight">{{ number_format((float) ($contrato->peso ?? 0), 3) }} kg</td>
+                    <td class="weight">{{ \App\Support\BolivianNumber::format((float) ($contrato->peso ?? 0), 3) }} kg</td>
                     <td class="evidence">
                         @if($contrato->imagen_pdf)
                             <a href="{{ $contrato->imagen_descarga_url }}">

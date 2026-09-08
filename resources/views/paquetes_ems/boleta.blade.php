@@ -211,8 +211,8 @@
     $telefonoRemitente = (string) ($paquete->telefono_remitente ?? '');
     $telefonoDestinatario = (string) ($paquete->telefono_destinatario ?? '');
     $contenido = (string) ($paquete->contenido ?? '');
-    $peso = $paquete->peso !== null && $paquete->peso !== '' ? number_format((float) $paquete->peso, 3, '.', '') . ' kg' : '-';
-    $precio = $paquete->precio !== null && $paquete->precio !== '' ? number_format((float) $paquete->precio, 2, '.', '') . ' Bs' : '-';
+    $peso = $paquete->peso !== null && $paquete->peso !== '' ? \App\Support\BolivianNumber::format((float) $paquete->peso, 3, '.', '') . ' kg' : '-';
+    $precio = $paquete->precio !== null && $paquete->precio !== '' ? \App\Support\BolivianNumber::format((float) $paquete->precio, 2, '.', '') . ' Bs' : '-';
     $fecha = $paquete->created_at ?? now();
     $destinoTarifa = (string) (optional(optional($paquete->tarifario)->destino)->nombre_destino ?? '');
     $direccion = (string) ($paquete->direccion ?? optional($paquete->formulario)->direccion ?? '');

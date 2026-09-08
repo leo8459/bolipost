@@ -53,7 +53,7 @@
                     <tr><td style="padding:7px 0;color:#526075;">Origen</td><td style="padding:7px 0;font-weight:600;">{{ $paquete->origen }}</td></tr>
                     <tr><td style="padding:7px 0;color:#526075;">Destino</td><td style="padding:7px 0;font-weight:600;">{{ $destino }}</td></tr>
                     <tr><td style="padding:7px 0;color:#526075;">Contenido</td><td style="padding:7px 0;font-weight:600;">{{ $paquete->contenido }}</td></tr>
-                    <tr><td style="padding:7px 0;color:#526075;">Peso</td><td style="padding:7px 0;font-weight:600;">{{ number_format((float) $paquete->peso, 3, ',', '.') }} kg</td></tr>
+                    <tr><td style="padding:7px 0;color:#526075;">Peso</td><td style="padding:7px 0;font-weight:600;">{{ \App\Support\BolivianNumber::format((float) $paquete->peso, 3, ',', '.') }} kg</td></tr>
                 </table>
             </div>
 

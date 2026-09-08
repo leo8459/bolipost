@@ -293,7 +293,7 @@
                 function formatSpeed(speedKmh) {
                     const speed = Number(speedKmh);
                     if (!Number.isFinite(speed) || speed < 0) return '-';
-                    return `${speed.toFixed(1)} km/h`;
+                    return `${window.BolivianNumber.format(speed, 1)} km/h`;
                 }
 
                 function clearOverlays() {

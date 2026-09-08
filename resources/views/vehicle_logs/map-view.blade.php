@@ -216,15 +216,15 @@
                         </div>
                         <div class="vehicle-log-info-card">
                             <div class="vehicle-log-info-card__label">Km salida</div>
-                            <div class="vehicle-log-info-card__value">{{ number_format((float) ($vehicleLog->kilometraje_salida ?? 0), 2) }}</div>
+                            <div class="vehicle-log-info-card__value">{{ \App\Support\BolivianNumber::format((float) ($vehicleLog->kilometraje_salida ?? 0), 2) }}</div>
                         </div>
                         <div class="vehicle-log-info-card">
                             <div class="vehicle-log-info-card__label">Km recorrido</div>
-                            <div class="vehicle-log-info-card__value">{{ number_format((float) ($vehicleLog->kilometraje_recorrido ?? 0), 2) }}</div>
+                            <div class="vehicle-log-info-card__value">{{ \App\Support\BolivianNumber::format((float) ($vehicleLog->kilometraje_recorrido ?? 0), 2) }}</div>
                         </div>
                         <div class="vehicle-log-info-card">
                             <div class="vehicle-log-info-card__label">Km llegada</div>
-                            <div class="vehicle-log-info-card__value">{{ number_format((float) ($vehicleLog->kilometraje_llegada ?? 0), 2) }}</div>
+                            <div class="vehicle-log-info-card__value">{{ \App\Support\BolivianNumber::format((float) ($vehicleLog->kilometraje_llegada ?? 0), 2) }}</div>
                         </div>
                         <div class="vehicle-log-info-card">
                             <div class="vehicle-log-info-card__label">Gasolina</div>

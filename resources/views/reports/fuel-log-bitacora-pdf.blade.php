@@ -78,11 +78,11 @@
                 <tr>
                     @foreach($visibleColumns as $column)
                         @if($column === 'litros')
-                            <td class="num">{{ ($row['litros'] ?? 0) > 0 ? number_format((float) $row['litros'], 3) : '-' }}</td>
+                            <td class="num">{{ ($row['litros'] ?? 0) > 0 ? \App\Support\BolivianNumber::format((float) $row['litros'], 3) : '-' }}</td>
                         @elseif($column === 'importe_bs')
-                            <td class="num">{{ ($row['importe_bs'] ?? 0) > 0 ? number_format((float) $row['importe_bs'], 2) : '-' }}</td>
+                            <td class="num">{{ ($row['importe_bs'] ?? 0) > 0 ? \App\Support\BolivianNumber::format((float) $row['importe_bs'], 2) : '-' }}</td>
                         @elseif($column === 'total_km')
-                            <td class="num">{{ ($row['total_km'] ?? null) !== null ? number_format((float) $row['total_km'], 3) : '-' }}</td>
+                            <td class="num">{{ ($row['total_km'] ?? null) !== null ? \App\Support\BolivianNumber::format((float) $row['total_km'], 3) : '-' }}</td>
                         @elseif($column === 'driver_name')
                             <td>{{ strtoupper($row['driver_name'] ?: 'SIN CONDUCTOR') }}</td>
                         @else
@@ -101,11 +101,11 @@
                         @if($index === 0)
                             <td>Totales</td>
                         @elseif($column === 'litros')
-                            <td class="num">{{ number_format((float) ($totals['litros'] ?? 0), 3) }}</td>
+                            <td class="num">{{ \App\Support\BolivianNumber::format((float) ($totals['litros'] ?? 0), 3) }}</td>
                         @elseif($column === 'importe_bs')
-                            <td class="num">{{ number_format((float) ($totals['importe_bs'] ?? 0), 2) }}</td>
+                            <td class="num">{{ \App\Support\BolivianNumber::format((float) ($totals['importe_bs'] ?? 0), 2) }}</td>
                         @elseif($column === 'total_km')
-                            <td class="num">{{ number_format((float) ($totals['total_km'] ?? 0), 3) }}</td>
+                            <td class="num">{{ \App\Support\BolivianNumber::format((float) ($totals['total_km'] ?? 0), 3) }}</td>
                         @else
                             <td></td>
                         @endif
@@ -303,11 +303,11 @@
                                 @endphp
                                 <tr>
                                     <td class="text-center">{{ $showFecha ? (optional($row->fecha)->format('d/m/y') ?? '-') : '' }}</td>
-                                    <td class="text-right">{{ $showCombustible && $litros !== null ? number_format((float) $litros, 2) : '' }}</td>
+                                    <td class="text-right">{{ $showCombustible && $litros !== null ? \App\Support\BolivianNumber::format((float) $litros, 2) : '' }}</td>
                                     <td class="text-center">{{ $showCombustible ? ($invoiceNumber !== '' ? $invoiceNumber : '') : '' }}</td>
-                                    <td class="text-right">{{ $showKmSalida && $kmSalida !== null ? number_format($kmSalida, 2) : '' }}</td>
-                                    <td class="text-right">{{ $showKmLlegada && $kmLlegada !== null ? number_format($kmLlegada, 2) : '' }}</td>
-                                    <td class="text-right">{{ $showKmRecorrido && $kmRecorrido !== null ? number_format($kmRecorrido, 2) : '0' }}</td>
+                                    <td class="text-right">{{ $showKmSalida && $kmSalida !== null ? \App\Support\BolivianNumber::format($kmSalida, 2) : '' }}</td>
+                                    <td class="text-right">{{ $showKmLlegada && $kmLlegada !== null ? \App\Support\BolivianNumber::format($kmLlegada, 2) : '' }}</td>
+                                    <td class="text-right">{{ $showKmRecorrido && $kmRecorrido !== null ? \App\Support\BolivianNumber::format($kmRecorrido, 2) : '0' }}</td>
                                     <td class="route-cell">{{ $showRecorrido ? (trim((string) ($row->recorrido_inicio ?? '')) !== '' ? $row->recorrido_inicio : '') : '' }}</td>
                                     <td class="route-cell">{{ $showRecorrido ? (trim((string) ($row->recorrido_destino ?? '')) !== '' ? $row->recorrido_destino : '') : '' }}</td>
                                     <td class="text-center">{{ $packageCount !== null ? $packageCount : '' }}</td>

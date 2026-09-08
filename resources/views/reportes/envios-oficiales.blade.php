@@ -23,7 +23,7 @@
                 <span class="info-box-icon bg-primary"><i class="fas fa-stamp"></i></span>
                 <div class="info-box-content">
                     <span class="info-box-text">Envios oficiales</span>
-                    <span class="info-box-number">{{ number_format((int) $totalOficiales) }}</span>
+                    <span class="info-box-number">{{ \App\Support\BolivianNumber::format((int) $totalOficiales) }}</span>
                 </div>
             </div>
         </div>
@@ -32,7 +32,7 @@
                 <span class="info-box-icon bg-warning"><i class="fas fa-weight-hanging"></i></span>
                 <div class="info-box-content">
                     <span class="info-box-text">Peso total</span>
-                    <span class="info-box-number">{{ number_format((float) $pesoTotal, 3) }}</span>
+                    <span class="info-box-number">{{ \App\Support\BolivianNumber::format((float) $pesoTotal, 3) }}</span>
                 </div>
             </div>
         </div>
@@ -41,7 +41,7 @@
                 <span class="info-box-icon bg-success"><i class="fas fa-money-bill-wave"></i></span>
                 <div class="info-box-content">
                     <span class="info-box-text">Importe total</span>
-                    <span class="info-box-number">Bs {{ number_format((float) $precioTotal, 2) }}</span>
+                    <span class="info-box-number">Bs {{ \App\Support\BolivianNumber::format((float) $precioTotal, 2) }}</span>
                 </div>
             </div>
         </div>
@@ -138,8 +138,8 @@
                                 <td>{{ $envio->destinatario ?: '-' }}</td>
                                 <td>{{ $envio->direccion ?: '-' }}</td>
                                 <td>{{ $envio->usuario ?: '-' }}</td>
-                                <td class="text-right">{{ number_format((float) $envio->peso, 3) }}</td>
-                                <td class="text-right">Bs {{ number_format((float) $envio->precio, 2) }}</td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $envio->peso, 3) }}</td>
+                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) $envio->precio, 2) }}</td>
                                 <td>{{ optional($envio->created_at ? \Carbon\Carbon::parse($envio->created_at) : null)->format('d/m/Y H:i') ?? '-' }}</td>
                             </tr>
                         @empty

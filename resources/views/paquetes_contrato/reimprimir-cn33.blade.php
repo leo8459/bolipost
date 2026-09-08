@@ -87,7 +87,7 @@
                     <div class="d-flex flex-wrap justify-content-between align-items-center">
                         <div class="text-muted mb-2 mb-md-0">
                             Total cantidad: <strong>{{ $totalCantidad }}</strong> |
-                            Peso total: <strong>{{ number_format($totalPeso, 3) }} Kg</strong>
+                            Peso total: <strong>{{ \App\Support\BolivianNumber::format($totalPeso, 3) }} Kg</strong>
                         </div>
                         <div class="d-flex flex-wrap">
                             <a
@@ -131,7 +131,7 @@
                                     <td>{{ $paquete->origen ?: '-' }}</td>
                                     <td>{{ $paquete->destino ?: '-' }}</td>
                                     <td>{{ $paquete->cantidad ?: 1 }}</td>
-                                    <td>{{ number_format((float) ($paquete->peso ?? 0), 3) }}</td>
+                                    <td>{{ \App\Support\BolivianNumber::format((float) ($paquete->peso ?? 0), 3) }}</td>
                                     <td>{{ $paquete->nombre_remitente ?: '-' }}</td>
                                     <td>{{ $paquete->observacion ?: '-' }}</td>
                                 </tr>

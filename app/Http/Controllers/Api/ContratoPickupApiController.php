@@ -15,8 +15,14 @@ class ContratoPickupApiController extends Controller
     public function store(Request $request, ContratoPickupService $pickupService): JsonResponse
     {
         $data = $request->validate([
-            'codigos' => ['required', 'array', 'min:1', 'max:100'],
-            'codigos.*' => ['required', 'string', 'max:50', 'distinct:ignore_case'],
+            'envios' => ['required', 'array', 'min:1', 'max:100'],
+            'envios.*.codigo' => ['required', 'string', 'max:50', 'distinct:ignore_case'],
+            'envios.*.peso' => ['nullable', 'numeric', 'min:0.001', 'max:'.ContratoPickupService::PESO_MAXIMO_KG],
+        ], [
+            'envios.required' => 'Debe enviar al menos un envio con su codigo.',
+            'envios.*.peso.numeric' => 'El peso de cada paquete debe ser numerico.',
+            'envios.*.peso.min' => 'El peso minimo permitido es 0,001 kg.',
+            'envios.*.peso.max' => 'El peso maximo permitido es 150,000 kg.',
         ]);
 
         /** @var ExternalApiToken|null $apiToken */
@@ -31,8 +37,22 @@ class ContratoPickupApiController extends Controller
             ], 403);
         }
 
+        $envios = collect($data['envios']);
+        $codigos = $envios
+            ->pluck('codigo')
+            ->map(fn ($codigo) => trim((string) $codigo))
+            ->values()
+            ->all();
+        $pesosPorCodigo = $envios
+            ->mapWithKeys(fn ($envio) => [
+                strtoupper(trim((string) $envio['codigo'])) => isset($envio['peso'])
+                    ? round((float) $envio['peso'], 3)
+                    : null,
+            ])
+            ->all();
+
         try {
-            $resultado = $pickupService->recogerPorCodigos($actor, $data['codigos']);
+            $resultado = $pickupService->recogerPorCodigosConPesos($actor, $codigos, $pesosPorCodigo);
         } catch (RuntimeException $exception) {
             return response()->json([
                 'message' => $exception->getMessage(),

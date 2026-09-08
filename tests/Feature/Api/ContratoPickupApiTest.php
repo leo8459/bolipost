@@ -3,6 +3,8 @@
 namespace Tests\Feature\Api;
 
 use App\Models\ExternalApiToken;
+use App\Models\User;
+use App\Services\ContratoPickupService;
 use App\Support\ExternalApiJwt;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -73,6 +75,7 @@ class ContratoPickupApiTest extends TestCase
             $table->string('codigo');
             $table->unsignedBigInteger('estados_id');
             $table->string('origen');
+            $table->decimal('peso', 10, 3)->nullable();
             $table->dateTime('fecha_recojo')->nullable();
             $table->timestamps();
         });
@@ -92,6 +95,7 @@ class ContratoPickupApiTest extends TestCase
             $table->string('barcode')->nullable();
             $table->unsignedBigInteger('estado_id');
             $table->string('origen');
+            $table->decimal('peso', 10, 3)->nullable();
             $table->timestamps();
         });
 
@@ -142,7 +146,11 @@ class ContratoPickupApiTest extends TestCase
 
         $this->withToken($this->issueToken($userId))
             ->postJson('/api/paquetes-contrato/recoger', [
-                'codigos' => ['cto-lp-001', 'CTO-CBBA-001', 'NO-EXISTE'],
+                'envios' => [
+                    ['codigo' => 'cto-lp-001', 'peso' => 150],
+                    ['codigo' => 'CTO-CBBA-001', 'peso' => 2.350],
+                    ['codigo' => 'NO-EXISTE', 'peso' => 0.500],
+                ],
             ])
             ->assertOk()
             ->assertJsonPath('actualizados', 1)
@@ -154,6 +162,7 @@ class ContratoPickupApiTest extends TestCase
         $this->assertDatabaseHas('paquetes_contrato', [
             'codigo' => 'CTO-LP-001',
             'estados_id' => $almacenId,
+            'peso' => 150.000,
         ]);
         $this->assertDatabaseHas('paquetes_contrato', [
             'codigo' => 'CTO-CBBA-001',
@@ -228,7 +237,11 @@ class ContratoPickupApiTest extends TestCase
 
         $this->withToken($this->issueToken($userId))
             ->postJson('/api/paquetes-contrato/recoger', [
-                'codigos' => ['CTO-LP-002', 'sl00000001lp', 'SL00000002CB'],
+                'envios' => [
+                    ['codigo' => 'CTO-LP-002', 'peso' => 1.250],
+                    ['codigo' => 'sl00000001lp'],
+                    ['codigo' => 'SL00000002CB'],
+                ],
             ])
             ->assertOk()
             ->assertJsonPath('actualizados', 2)
@@ -240,6 +253,7 @@ class ContratoPickupApiTest extends TestCase
         $this->assertDatabaseHas('solicitud_clientes', [
             'codigo_solicitud' => 'SL00000001LP',
             'estado_id' => $almacenId,
+            'peso' => null,
         ]);
         $this->assertDatabaseHas('solicitud_clientes', [
             'codigo_solicitud' => 'SL00000002CB',
@@ -258,6 +272,170 @@ class ContratoPickupApiTest extends TestCase
             ->postJson('/api/paquetes-contrato/recoger', ['codigos' => ['CTO-001']])
             ->assertForbidden()
             ->assertJsonPath('permiso_requerido', 'paquetes-contrato:pickup');
+    }
+
+    public function test_la_api_aplica_el_rango_valido_cuando_se_envia_un_peso(): void
+    {
+        $userId = DB::table('users')->insertGetId([
+            'name' => 'Operador La Paz',
+            'email' => 'operador.validacion.peso@example.com',
+            'password' => bcrypt('password'),
+            'ciudad' => 'LA PAZ',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $token = $this->issueToken($userId);
+
+        $this->withToken($token)
+            ->postJson('/api/paquetes-contrato/recoger', [
+                'envios' => [['codigo' => 'CTO-PESO-CERO', 'peso' => 0]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['envios.0.peso']);
+
+        $this->withToken($token)
+            ->postJson('/api/paquetes-contrato/recoger', [
+                'envios' => [['codigo' => 'CTO-PESO-ALTO', 'peso' => 150.001]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['envios.0.peso']);
+    }
+
+    public function test_la_api_exige_peso_para_contrato_pero_no_para_delivery_express(): void
+    {
+        $now = now();
+        $solicitudId = DB::table('estados')->insertGetId([
+            'nombre_estado' => 'SOLICITUD', 'created_at' => $now, 'updated_at' => $now,
+        ]);
+        DB::table('estados')->insert([
+            'nombre_estado' => 'ALMACEN', 'created_at' => $now, 'updated_at' => $now,
+        ]);
+        $userId = DB::table('users')->insertGetId([
+            'name' => 'Operador La Paz',
+            'email' => 'operador.peso.condicional@example.com',
+            'password' => bcrypt('password'),
+            'ciudad' => 'LA PAZ',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        DB::table('paquetes_contrato')->insert([
+            'codigo' => 'CTO-PESO-REQUERIDO',
+            'estados_id' => $solicitudId,
+            'origen' => 'LA PAZ',
+            'peso' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $this->withToken($this->issueToken($userId))
+            ->postJson('/api/paquetes-contrato/recoger', [
+                'envios' => [['codigo' => 'CTO-PESO-REQUERIDO']],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Por favor ingrese un peso entre 0,001 y 150,000 kg para los paquetes: CTO-PESO-REQUERIDO.');
+
+        $this->assertDatabaseHas('paquetes_contrato', [
+            'codigo' => 'CTO-PESO-REQUERIDO',
+            'estados_id' => $solicitudId,
+            'peso' => null,
+        ]);
+    }
+
+    public function test_el_recojo_web_guarda_el_peso_obligatorio_antes_de_mover_a_almacen(): void
+    {
+        $now = now();
+        $solicitudId = DB::table('estados')->insertGetId([
+            'nombre_estado' => 'SOLICITUD', 'created_at' => $now, 'updated_at' => $now,
+        ]);
+        $almacenId = DB::table('estados')->insertGetId([
+            'nombre_estado' => 'ALMACEN', 'created_at' => $now, 'updated_at' => $now,
+        ]);
+        DB::table('eventos')->insert([
+            'id' => ContratoPickupService::EVENTO_ID_CONTRATO_RECOGIDO,
+            'nombre_evento' => 'Paquete recibido del cliente.',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $userId = DB::table('users')->insertGetId([
+            'name' => 'Operador La Paz',
+            'email' => 'operador.peso@example.com',
+            'password' => bcrypt('password'),
+            'ciudad' => 'LA PAZ',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $packageId = DB::table('paquetes_contrato')->insertGetId([
+            'codigo' => 'CTO-PESO-001',
+            'estados_id' => $solicitudId,
+            'origen' => 'LA PAZ',
+            'peso' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $result = app(ContratoPickupService::class)->recogerPorIdsConPesos(
+            User::query()->findOrFail($userId),
+            [$packageId],
+            [$packageId => '1,250']
+        );
+
+        $this->assertSame(1, $result['actualizados']);
+        $this->assertDatabaseHas('paquetes_contrato', [
+            'id' => $packageId,
+            'estados_id' => $almacenId,
+            'peso' => 1.250,
+        ]);
+        $this->assertDatabaseHas('eventos_contrato', [
+            'codigo' => 'CTO-PESO-001',
+            'evento_id' => ContratoPickupService::EVENTO_ID_CONTRATO_RECOGIDO,
+            'user_id' => $userId,
+        ]);
+    }
+
+    public function test_el_recojo_web_rechaza_paquetes_sin_peso_e_informa_su_codigo(): void
+    {
+        $now = now();
+        $solicitudId = DB::table('estados')->insertGetId([
+            'nombre_estado' => 'SOLICITUD', 'created_at' => $now, 'updated_at' => $now,
+        ]);
+        DB::table('estados')->insert([
+            'nombre_estado' => 'ALMACEN', 'created_at' => $now, 'updated_at' => $now,
+        ]);
+        $userId = DB::table('users')->insertGetId([
+            'name' => 'Operador La Paz',
+            'email' => 'operador.sinpeso@example.com',
+            'password' => bcrypt('password'),
+            'ciudad' => 'LA PAZ',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $packageId = DB::table('paquetes_contrato')->insertGetId([
+            'codigo' => 'CTO-SIN-PESO',
+            'estados_id' => $solicitudId,
+            'origen' => 'LA PAZ',
+            'peso' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        try {
+            app(ContratoPickupService::class)->recogerPorIdsConPesos(
+                User::query()->findOrFail($userId),
+                [$packageId],
+                [$packageId => '']
+            );
+            $this->fail('El servicio debio rechazar el recojo sin peso.');
+        } catch (\RuntimeException $exception) {
+            $this->assertStringContainsString('Por favor ingrese un peso', $exception->getMessage());
+            $this->assertStringContainsString('CTO-SIN-PESO', $exception->getMessage());
+        }
+
+        $this->assertDatabaseHas('paquetes_contrato', [
+            'id' => $packageId,
+            'estados_id' => $solicitudId,
+            'peso' => null,
+        ]);
+        $this->assertDatabaseCount('eventos_contrato', 0);
     }
 
     /**

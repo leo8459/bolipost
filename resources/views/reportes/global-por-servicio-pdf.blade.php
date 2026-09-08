@@ -115,12 +115,12 @@
 
 <table class="kpi">
     <tr>
-        <td><div class="k">Servicios</div><div class="v">{{ number_format((int) ($serviceTotals['servicios'] ?? 0)) }}</div></td>
-        <td><div class="k">Registros</div><div class="v">{{ number_format((int) ($serviceTotals['registros'] ?? 0)) }}</div></td>
-        <td><div class="k">Empresa</div><div class="v">{{ number_format((int) ($serviceTotals['empresa_count'] ?? 0)) }}</div></td>
-        <td><div class="k">Admisión</div><div class="v">{{ number_format((int) ($serviceTotals['admision_count'] ?? 0)) }}</div></td>
-        <td><div class="k">Peso total</div><div class="v">{{ number_format((float) ($serviceTotals['peso_total'] ?? 0), 3) }}</div></td>
-        <td><div class="k">Ingreso Bs</div><div class="v">{{ number_format((float) ($serviceTotals['precio_total'] ?? 0), 2) }}</div></td>
+        <td><div class="k">Servicios</div><div class="v">{{ \App\Support\BolivianNumber::format((int) ($serviceTotals['servicios'] ?? 0)) }}</div></td>
+        <td><div class="k">Registros</div><div class="v">{{ \App\Support\BolivianNumber::format((int) ($serviceTotals['registros'] ?? 0)) }}</div></td>
+        <td><div class="k">Empresa</div><div class="v">{{ \App\Support\BolivianNumber::format((int) ($serviceTotals['empresa_count'] ?? 0)) }}</div></td>
+        <td><div class="k">Admisión</div><div class="v">{{ \App\Support\BolivianNumber::format((int) ($serviceTotals['admision_count'] ?? 0)) }}</div></td>
+        <td><div class="k">Peso total</div><div class="v">{{ \App\Support\BolivianNumber::format((float) ($serviceTotals['peso_total'] ?? 0), 3) }}</div></td>
+        <td><div class="k">Ingreso Bs</div><div class="v">{{ \App\Support\BolivianNumber::format((float) ($serviceTotals['precio_total'] ?? 0), 2) }}</div></td>
     </tr>
 </table>
 
@@ -145,11 +145,11 @@
             <tr>
                 <td>{{ $idx + 1 }}</td>
                 <td>{{ $serviceRow['servicio'] }}</td>
-                <td class="num">{{ number_format((int) $serviceRow['cantidad']) }}</td>
-                <td class="num">{{ number_format((int) $serviceRow['entregados']) }}</td>
-                <td class="num">{{ number_format((int) $serviceRow['no_entregados']) }}</td>
-                <td class="num">{{ number_format((float) $serviceRow['peso'], 3) }}</td>
-                <td class="num">{{ number_format((float) $serviceRow['precio'], 2) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $serviceRow['cantidad']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $serviceRow['entregados']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $serviceRow['no_entregados']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((float) $serviceRow['peso'], 3) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((float) $serviceRow['precio'], 2) }}</td>
                 <td>{{ $serviceRow['canales_texto'] ?: '-' }}</td>
                 <td>{{ $serviceRow['modulos_texto'] ?: '-' }}</td>
                 <td>{{ $serviceRow['ultimo_registro'] }}</td>

@@ -159,7 +159,7 @@
                                     <div><strong>Quien vendra:</strong> {{ $contactName }}</div>
                                     <div><strong>Celular taller:</strong> {{ $contactPhone !== '' ? $contactPhone : 'No registrado' }}</div>
                                     <div><strong>Fecha programada diagnostico:</strong> {{ optional($reviewRequest->attention_started_at)->format('d/m/Y') ?: 'Pendiente de programacion' }}</div>
-                                    <div><strong>Costo diagnostico:</strong> {{ $reviewRequest->fixed_catalog_cost !== null ? 'Bs ' . number_format((float) $reviewRequest->fixed_catalog_cost, 2) : 'Pendiente de cotizacion' }}</div>
+                                    <div><strong>Costo diagnostico:</strong> {{ $reviewRequest->fixed_catalog_cost !== null ? 'Bs ' . \App\Support\BolivianNumber::format((float) $reviewRequest->fixed_catalog_cost, 2) : 'Pendiente de cotizacion' }}</div>
                                     <div><strong>Fecha solicitud:</strong> {{ optional($reviewRequest->created_at)->format('d/m/Y H:i') ?: 'Sin fecha' }}</div>
                                 </div>
                             </div>
@@ -483,7 +483,7 @@
                             </button>
                             <div class="btn btn-light border px-3 disabled">
                                 Total estimado: Bs
-                                {{ number_format((float) collect($partChanges)->sum(fn ($row) => (float) (($row['costo'] ?? '') !== '' && ($row['costo'] ?? null) !== null ? $row['costo'] : 0)) + (float) ($fixed_catalog_cost ?: 0) + (float) ($labor_cost ?: 0) + (float) ($additional_cost ?: 0), 2) }}
+                                {{ \App\Support\BolivianNumber::format((float) collect($partChanges)->sum(fn ($row) => (float) (($row['costo'] ?? '') !== '' && ($row['costo'] ?? null) !== null ? $row['costo'] : 0)) + (float) ($fixed_catalog_cost ?: 0) + (float) ($labor_cost ?: 0) + (float) ($additional_cost ?: 0), 2) }}
                             </div>
                             <button type="button" wire:click="cancelForm" class="btn btn-secondary">Volver al listado</button>
                         </div>
@@ -615,7 +615,7 @@
                                         <div><strong>Ingreso:</strong> {{ optional($workshop->fecha_ingreso)->format('d/m/Y') ?: 'Pendiente' }}</div>
                                         <div><strong>Entrega estimada:</strong> {{ optional($workshop->fecha_prometida_entrega)->format('d/m/Y') ?: 'Pendiente' }}</div>
                                         <div><strong>Flujo:</strong> {{ $workshop->workflow_kind }}</div>
-                                        <div><strong>Costo actual:</strong> Bs {{ number_format((float) ($workshop->total_cost ?? 0), 2) }}</div>
+                                        <div><strong>Costo actual:</strong> Bs {{ \App\Support\BolivianNumber::format((float) ($workshop->total_cost ?? 0), 2) }}</div>
                                     </div>
 
                                     @if(trim((string) ($workshop->observaciones_tecnicas ?: $workshop->diagnostico)) !== '')
@@ -694,7 +694,7 @@
                                                 </span>
                                             </td>
                                             <td>{{ optional($historyItem->fecha_salida)->format('d/m/Y') ?: optional($historyItem->updated_at)->format('d/m/Y') }}</td>
-                                            <td>Bs {{ number_format((float) ($historyItem->total_cost ?? 0), 2) }}</td>
+                                            <td>Bs {{ \App\Support\BolivianNumber::format((float) ($historyItem->total_cost ?? 0), 2) }}</td>
                                         </tr>
                                     @endforeach
                                 </tbody>
@@ -833,7 +833,7 @@
                                                     {{ $workshop->estado }}
                                                 </span>
                                             </td>
-                                            <td>Bs {{ number_format((float) ($workshop->total_cost ?? 0), 2) }}</td>
+                                            <td>Bs {{ \App\Support\BolivianNumber::format((float) ($workshop->total_cost ?? 0), 2) }}</td>
                                             <td class="text-end">
                                                 <button wire:click="edit({{ $workshop->id }})" class="btn btn-sm btn-outline-warning">
                                                     <i class="fas fa-edit"></i>
@@ -897,12 +897,12 @@
                                                     <div class="small text-muted">Con aprobacion</div>
                                                 @endif
                                             </td>
-                                            <td>Bs {{ number_format((float) ($workshop->total_cost ?? 0), 2) }}</td>
+                                            <td>Bs {{ \App\Support\BolivianNumber::format((float) ($workshop->total_cost ?? 0), 2) }}</td>
                                             <td><small class="text-muted">{{ \Illuminate\Support\Str::limit($workshop->observaciones_tecnicas ?: $workshop->diagnostico, 90) }}</small></td>
                                             <td>
                                                 @if($workshop->partChanges->count() > 0)
                                                     <div class="small">{{ $workshop->partChanges->count() }} item(s)</div>
-                                                    <div class="small text-muted">Bs {{ number_format((float) $workshop->partChanges->sum('costo'), 2) }}</div>
+                                                    <div class="small text-muted">Bs {{ \App\Support\BolivianNumber::format((float) $workshop->partChanges->sum('costo'), 2) }}</div>
                                                 @else
                                                     <span class="text-muted">Sin repuestos</span>
                                                 @endif

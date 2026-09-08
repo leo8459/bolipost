@@ -11,7 +11,7 @@
         <div class="col-md-6 col-xl-3">
             <div class="small-box bg-info">
                 <div class="inner">
-                    <h3>{{ number_format($totalLogs) }}</h3>
+                    <h3>{{ \App\Support\BolivianNumber::format($totalLogs) }}</h3>
                     <p>Ingresos registrados</p>
                 </div>
                 <div class="icon">
@@ -22,7 +22,7 @@
         <div class="col-md-6 col-xl-3">
             <div class="small-box bg-success">
                 <div class="inner">
-                    <h3>{{ number_format($uniqueUsers) }}</h3>
+                    <h3>{{ \App\Support\BolivianNumber::format($uniqueUsers) }}</h3>
                     <p>Usuarios que ingresaron</p>
                 </div>
                 <div class="icon">
@@ -33,7 +33,7 @@
         <div class="col-md-6 col-xl-3">
             <div class="small-box {{ $unregisteredCount > 0 ? 'bg-danger' : 'bg-secondary' }}">
                 <div class="inner">
-                    <h3>{{ number_format($unregisteredCount) }}</h3>
+                    <h3>{{ \App\Support\BolivianNumber::format($unregisteredCount) }}</h3>
                     <p>Sesiones sin usuario registrado</p>
                 </div>
                 <div class="icon">

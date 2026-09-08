@@ -45,7 +45,7 @@
                 <div class="item"><span class="label">Origen</span><span class="value">{{ $paquete->origen ?: '-' }}</span></div>
                 <div class="item"><span class="label">Destino</span><span class="value">{{ $paquete->ciudad ?: '-' }}</span></div>
                 <div class="item"><span class="label">Cantidad</span><span class="value">{{ $paquete->cantidad ?: '-' }}</span></div>
-                <div class="item"><span class="label">Peso</span><span class="value">{{ $paquete->peso !== null ? number_format((float) $paquete->peso, 3) . ' kg' : '-' }}</span></div>
+                <div class="item"><span class="label">Peso</span><span class="value">{{ $paquete->peso !== null ? \App\Support\BolivianNumber::format((float) $paquete->peso, 3) . ' kg' : '-' }}</span></div>
                 <div class="item"><span class="label">Fecha</span><span class="value">{{ optional($paquete->created_at)->format('d/m/Y H:i') ?: '-' }}</span></div>
                 <div class="item"><span class="label">Servicio</span><span class="value">{{ optional(optional($paquete->tarifario)->servicio)->nombre_servicio ?: ($paquete->tipo_correspondencia ?: '-') }}</span></div>
             </div>

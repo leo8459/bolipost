@@ -123,19 +123,19 @@
         <tr>
             <td class="metric">
                 <div class="metric-label">Total de tarifas</div>
-                <div class="metric-value">{{ number_format((int) $totalTarifas) }}</div>
+                <div class="metric-value">{{ \App\Support\BolivianNumber::format((int) $totalTarifas) }}</div>
             </td>
             <td class="metric">
                 <div class="metric-label">Empresas con tarifa</div>
-                <div class="metric-value">{{ number_format((int) $totalEmpresasConTarifa) }}</div>
+                <div class="metric-value">{{ \App\Support\BolivianNumber::format((int) $totalEmpresasConTarifa) }}</div>
             </td>
             <td class="metric">
                 <div class="metric-label">Servicios tarifados</div>
-                <div class="metric-value">{{ number_format((int) $totalServicios) }}</div>
+                <div class="metric-value">{{ \App\Support\BolivianNumber::format((int) $totalServicios) }}</div>
             </td>
             <td class="metric">
                 <div class="metric-label">Rutas origen-destino</div>
-                <div class="metric-value">{{ number_format((int) $totalRutas) }}</div>
+                <div class="metric-value">{{ \App\Support\BolivianNumber::format((int) $totalRutas) }}</div>
             </td>
         </tr>
     </table>
@@ -153,7 +153,7 @@
                 @foreach ($tarifasPorEmpresa as $row)
                     <tr>
                         <td>{{ $row->empresa_nombre }}</td>
-                        <td class="num">{{ number_format((int) $row->total) }}</td>
+                        <td class="num">{{ \App\Support\BolivianNumber::format((int) $row->total) }}</td>
                     </tr>
                 @endforeach
             </tbody>
@@ -175,7 +175,7 @@
                 @foreach ($tarifasPorServicio as $row)
                     <tr>
                         <td>{{ $row->servicio_nombre }}</td>
-                        <td class="num">{{ number_format((int) $row->total) }}</td>
+                        <td class="num">{{ \App\Support\BolivianNumber::format((int) $row->total) }}</td>
                     </tr>
                 @endforeach
             </tbody>
@@ -199,7 +199,7 @@
                     <tr>
                         <td>{{ $row->origen_nombre }}</td>
                         <td>{{ $row->destino_nombre }}</td>
-                        <td class="num">{{ number_format((int) $row->total) }}</td>
+                        <td class="num">{{ \App\Support\BolivianNumber::format((int) $row->total) }}</td>
                     </tr>
                 @endforeach
             </tbody>

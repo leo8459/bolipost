@@ -238,7 +238,7 @@
                         $despachoEtiqueta = strtoupper((string) data_get($row, 'despacho_etiqueta', data_get($row, 'despacho', '-')));
                         $origenAbreviado = mb_strtoupper(mb_substr((string) data_get($row, 'origen', '-'), 0, 3));
                         $destinoAbreviado = mb_strtoupper(mb_substr((string) data_get($row, 'destino', '-'), 0, 3));
-                        $pesoTotal = number_format((float) data_get($row, 'peso_total', 0), 1);
+                        $pesoTotal = \App\Support\BolivianNumber::format((float) data_get($row, 'peso_total', 0), 1);
                     ?>
                     <tr>
                         <td class="c-despacho">{{ $despachoEtiqueta }}</td>
@@ -275,7 +275,7 @@
                         <td style="width:10%;" class="text-center">0.0</td>
                         <td style="width:10%;" class="text-center">{{ $rows->count() }}</td>
                         <td style="width:10%;" class="text-center">0.0</td>
-                        <td style="width:10%;" class="text-right">{{ number_format((float) $totalPeso, 1) }}</td>
+                        <td style="width:10%;" class="text-right">{{ \App\Support\BolivianNumber::format((float) $totalPeso, 1) }}</td>
                         <td style="width:4%;"></td>
                     </tr>
                 </table>

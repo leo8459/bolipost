@@ -306,7 +306,7 @@
                                         <td>{{ $workshop->workshopCatalog?->nombre ?? $workshop->nombre_taller ?? 'Sin taller' }}</td>
                                         <td>{{ $workshop->maintenanceAlert?->maintenanceType?->nombre ?? $workshop->maintenanceAppointment?->tipoMantenimiento?->nombre ?? 'Mantenimiento realizado' }}</td>
                                         <td>{{ optional($workshop->fecha_salida)->format('d/m/Y') ?: optional($workshop->fecha_listo)->format('d/m/Y') ?: 'Pendiente' }}</td>
-                                        <td class="text-end">BOB{{ number_format((float) ($workshop->total_cost ?? 0), 2) }}</td>
+                                        <td class="text-end">BOB{{ \App\Support\BolivianNumber::format((float) ($workshop->total_cost ?? 0), 2) }}</td>
                                         <td class="text-center">
                                             <button type="button" wire:click="registerFromWorkshop({{ $workshop->id }})" class="btn btn-sm btn-outline-primary" title="{{ $workshop->maintenance_log_id ? 'Editar' : 'Registrar' }} mantenimiento de {{ $workshop->vehicle?->display_name ?? ($workshop->vehicle?->placa ?? 'N/A') }}">
                                                 <i class="fas fa-file-medical me-1"></i>{{ $workshop->maintenance_log_id ? 'Editar mantenimiento' : 'Registrar mantenimiento' }}
@@ -381,7 +381,7 @@
                                                 <span class="text-muted">Sin archivo</span>
                                             @endif
                                         </td>
-                                        <td class="text-end">BOB{{ number_format($log->costo, 2) }}</td>
+                                        <td class="text-end">BOB{{ \App\Support\BolivianNumber::format($log->costo, 2) }}</td>
                                         <td class="text-center">
                                             <div class="btn-group">
                                                 @if($log->workshops->isNotEmpty())

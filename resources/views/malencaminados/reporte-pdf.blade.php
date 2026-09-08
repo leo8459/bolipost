@@ -34,15 +34,15 @@
     <div class="kpi-wrap">
         <div class="kpi">
             <div class="label">Total envios</div>
-            <div class="value">{{ number_format($totalEnvios) }}</div>
+            <div class="value">{{ \App\Support\BolivianNumber::format($totalEnvios) }}</div>
         </div>
         <div class="kpi">
             <div class="label">Total malencaminados</div>
-            <div class="value">{{ number_format($totalMalencaminados) }}</div>
+            <div class="value">{{ \App\Support\BolivianNumber::format($totalMalencaminados) }}</div>
         </div>
         <div class="kpi">
             <div class="label">% error general</div>
-            <div class="value">{{ number_format($porcentajeErrorGeneral, 2) }}%</div>
+            <div class="value">{{ \App\Support\BolivianNumber::format($porcentajeErrorGeneral, 2) }}%</div>
         </div>
     </div>
 
@@ -66,15 +66,15 @@
             @forelse($resumen as $row)
                 <tr>
                     <td>{{ $row->departamento }}</td>
-                    <td>{{ number_format((int) $row->total_envios) }}</td>
-                    <td>{{ number_format((int) $row->total_registros) }}</td>
-                    <td>{{ number_format((float) $row->porcentaje_error, 2) }}%</td>
-                    <td>{{ number_format((int) $row->total_registros) }}</td>
-                    <td>{{ number_format((int) $row->total_malencaminamientos) }}</td>
-                    <td>{{ number_format((int) $row->ems) }}</td>
-                    <td>{{ number_format((int) $row->contratos) }}</td>
-                    <td>{{ number_format((int) $row->certificados) }}</td>
-                    <td>{{ number_format((int) $row->ordinarios) }}</td>
+                    <td>{{ \App\Support\BolivianNumber::format((int) $row->total_envios) }}</td>
+                    <td>{{ \App\Support\BolivianNumber::format((int) $row->total_registros) }}</td>
+                    <td>{{ \App\Support\BolivianNumber::format((float) $row->porcentaje_error, 2) }}%</td>
+                    <td>{{ \App\Support\BolivianNumber::format((int) $row->total_registros) }}</td>
+                    <td>{{ \App\Support\BolivianNumber::format((int) $row->total_malencaminamientos) }}</td>
+                    <td>{{ \App\Support\BolivianNumber::format((int) $row->ems) }}</td>
+                    <td>{{ \App\Support\BolivianNumber::format((int) $row->contratos) }}</td>
+                    <td>{{ \App\Support\BolivianNumber::format((int) $row->certificados) }}</td>
+                    <td>{{ \App\Support\BolivianNumber::format((int) $row->ordinarios) }}</td>
                 </tr>
             @empty
                 <tr>

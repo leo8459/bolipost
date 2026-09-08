@@ -102,10 +102,10 @@
 
     <table class="kpis">
         <tr>
-            <td><div class="k">Paquetes generados</div><div class="v">{{ number_format($admin['total_admisiones'] ?? 0) }}</div></td>
-            <td><div class="k">Usuarios activos</div><div class="v">{{ number_format($admin['usuarios_activos'] ?? 0) }}</div></td>
-            <td><div class="k">Peso total</div><div class="v">{{ number_format((float) ($admin['peso_total'] ?? 0), 3) }}</div></td>
-            <td><div class="k">Costo total Bs</div><div class="v">{{ number_format((float) ($admin['costo_total'] ?? 0), 2) }}</div><div class="note">Contratos no sumados por tema tarifario.</div></td>
+            <td><div class="k">Paquetes generados</div><div class="v">{{ \App\Support\BolivianNumber::format($admin['total_admisiones'] ?? 0) }}</div></td>
+            <td><div class="k">Usuarios activos</div><div class="v">{{ \App\Support\BolivianNumber::format($admin['usuarios_activos'] ?? 0) }}</div></td>
+            <td><div class="k">Peso total</div><div class="v">{{ \App\Support\BolivianNumber::format((float) ($admin['peso_total'] ?? 0), 3) }}</div></td>
+            <td><div class="k">Costo total Bs</div><div class="v">{{ \App\Support\BolivianNumber::format((float) ($admin['costo_total'] ?? 0), 2) }}</div><div class="note">Contratos no sumados por tema tarifario.</div></td>
         </tr>
     </table>
 </div>
@@ -115,12 +115,12 @@
         <td>
             <div class="label">Departamento que genero mas</div>
             <div class="name">{{ $topOrigen['nombre'] ?? 'SIN ORIGEN' }}</div>
-            <div class="count">{{ number_format($topOrigen['total'] ?? 0) }} paquetes registrados en los 4 modulos</div>
+            <div class="count">{{ \App\Support\BolivianNumber::format($topOrigen['total'] ?? 0) }} paquetes registrados en los 4 modulos</div>
         </td>
         <td>
             <div class="label">Departamento que recibio mas como destino</div>
             <div class="name">{{ $topDestino['nombre'] ?? 'SIN DESTINO' }}</div>
-            <div class="count">{{ number_format($topDestino['total'] ?? 0) }} paquetes recibidos</div>
+            <div class="count">{{ \App\Support\BolivianNumber::format($topDestino['total'] ?? 0) }} paquetes recibidos</div>
         </td>
     </tr>
 </table>
@@ -138,8 +138,8 @@
         @forelse($pesoPorModulo as $pesoModulo)
             <tr>
                 <td><strong>{{ $pesoModulo['servicio'] }}</strong></td>
-                <td class="num">{{ number_format((int) $pesoModulo['total']) }}</td>
-                <td class="num">{{ number_format((float) $pesoModulo['peso'], 3) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $pesoModulo['total']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((float) $pesoModulo['peso'], 3) }}</td>
             </tr>
         @empty
             <tr>
@@ -161,14 +161,14 @@
     <tbody>
         <tr>
             <td><strong>Mayor en ventanilla/almacen: {{ $topVentanilla['servicio'] ?? 'SIN DATOS' }}</strong></td>
-            <td class="num"><strong>{{ number_format((int) ($topVentanilla['total'] ?? 0)) }}</strong></td>
-            <td class="num"><strong>{{ number_format((float) ($topVentanilla['peso'] ?? 0), 3) }}</strong></td>
+            <td class="num"><strong>{{ \App\Support\BolivianNumber::format((int) ($topVentanilla['total'] ?? 0)) }}</strong></td>
+            <td class="num"><strong>{{ \App\Support\BolivianNumber::format((float) ($topVentanilla['peso'] ?? 0), 3) }}</strong></td>
         </tr>
         @forelse($ventanillaPorModulo as $ventanillaModulo)
             <tr>
                 <td><strong>{{ $ventanillaModulo['servicio'] }}</strong></td>
-                <td class="num">{{ number_format((int) $ventanillaModulo['total']) }}</td>
-                <td class="num">{{ number_format((float) $ventanillaModulo['peso'], 3) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $ventanillaModulo['total']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((float) $ventanillaModulo['peso'], 3) }}</td>
             </tr>
         @empty
             <tr>
@@ -197,7 +197,7 @@
                             <td>{{ $loop->iteration }}</td>
                             <td><strong>{{ $entregaRow['usuario'] }}</strong></td>
                             <td>{{ $entregaRow['servicio'] }}</td>
-                            <td class="num">{{ number_format((int) $entregaRow['total']) }}</td>
+                            <td class="num">{{ \App\Support\BolivianNumber::format((int) $entregaRow['total']) }}</td>
                         </tr>
                     @empty
                         <tr>
@@ -224,7 +224,7 @@
                             <td>{{ $loop->iteration }}</td>
                             <td><strong>{{ $entregaRow['usuario'] }}</strong></td>
                             <td>{{ $entregaRow['servicio'] }}</td>
-                            <td class="num">{{ number_format((int) $entregaRow['total']) }}</td>
+                            <td class="num">{{ \App\Support\BolivianNumber::format((int) $entregaRow['total']) }}</td>
                         </tr>
                     @empty
                         <tr>
@@ -250,8 +250,8 @@
         @forelse($malencaminadosPorModulo as $malModulo)
             <tr>
                 <td><strong>{{ $malModulo['servicio'] }}</strong></td>
-                <td class="num">{{ number_format((int) $malModulo['total']) }}</td>
-                <td class="num">{{ number_format((int) $malModulo['malencaminamientos']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $malModulo['total']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $malModulo['malencaminamientos']) }}</td>
             </tr>
         @empty
             <tr>
@@ -307,7 +307,7 @@
                         <tr>
                             <td>{{ $loop->iteration }}</td>
                             <td><strong>{{ $origenRow['nombre'] }}</strong></td>
-                            <td class="num">{{ number_format((int) $origenRow['total']) }}</td>
+                            <td class="num">{{ \App\Support\BolivianNumber::format((int) $origenRow['total']) }}</td>
                         </tr>
                     @empty
                         <tr>
@@ -332,7 +332,7 @@
                         <tr>
                             <td>{{ $loop->iteration }}</td>
                             <td><strong>{{ $destinoRow['nombre'] }}</strong></td>
-                            <td class="num">{{ number_format((int) $destinoRow['total']) }}</td>
+                            <td class="num">{{ \App\Support\BolivianNumber::format((int) $destinoRow['total']) }}</td>
                         </tr>
                     @empty
                         <tr>
@@ -362,7 +362,7 @@
             <tr>
                 <td>{{ $loop->iteration }}</td>
                 <td><strong>{{ $servicioRow['servicio'] }}</strong></td>
-                <td class="num">{{ number_format((int) $servicioRow['total']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $servicioRow['total']) }}</td>
                 <td class="num avg">{{ $servicioRow['promedio'] }}</td>
                 <td class="num">{{ $servicioRow['mejor_tiempo'] }}</td>
                 <td class="num">{{ $servicioRow['mayor_tiempo'] }}</td>
@@ -402,15 +402,15 @@
             <td class="user-metrics">
                 <div class="mini-metric">
                     <div class="mini-label">Paquetes</div>
-                    <div class="mini-value">{{ number_format($item['total']) }}</div>
+                    <div class="mini-value">{{ \App\Support\BolivianNumber::format($item['total']) }}</div>
                 </div>
                 <div class="mini-metric">
                     <div class="mini-label">Peso total</div>
-                    <div class="mini-value">{{ number_format((float) $item['peso'], 3) }}</div>
+                    <div class="mini-value">{{ \App\Support\BolivianNumber::format((float) $item['peso'], 3) }}</div>
                 </div>
                 <div class="mini-metric" style="margin-bottom:0;">
                     <div class="mini-label">Costo Bs</div>
-                    <div class="mini-value">{{ number_format((float) $item['precio'], 2) }}</div>
+                    <div class="mini-value">{{ \App\Support\BolivianNumber::format((float) $item['precio'], 2) }}</div>
                 </div>
             </td>
         </tr>

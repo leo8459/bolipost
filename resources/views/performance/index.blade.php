@@ -143,7 +143,7 @@
                 <div class="card border-0 shadow-sm h-100 performance-stat">
                     <div class="card-body">
                         <div class="performance-stat-label">Registros encontrados</div>
-                        <div class="performance-stat-value">{{ number_format($summary['total_registros']) }}</div>
+                        <div class="performance-stat-value">{{ \App\Support\BolivianNumber::format($summary['total_registros']) }}</div>
                     </div>
                 </div>
             </div>
@@ -151,7 +151,7 @@
                 <div class="card border-0 shadow-sm h-100 performance-stat">
                     <div class="card-body">
                         <div class="performance-stat-label">Orígenes visibles</div>
-                        <div class="performance-stat-value">{{ number_format($summary['origenes']) }}</div>
+                        <div class="performance-stat-value">{{ \App\Support\BolivianNumber::format($summary['origenes']) }}</div>
                     </div>
                 </div>
             </div>
@@ -159,7 +159,7 @@
                 <div class="card border-0 shadow-sm h-100 performance-stat">
                     <div class="card-body">
                         <div class="performance-stat-label">Destinos visibles</div>
-                        <div class="performance-stat-value">{{ number_format($summary['destinos']) }}</div>
+                        <div class="performance-stat-value">{{ \App\Support\BolivianNumber::format($summary['destinos']) }}</div>
                     </div>
                 </div>
             </div>
@@ -167,7 +167,7 @@
                 <div class="card border-0 shadow-sm h-100 performance-stat">
                     <div class="card-body">
                         <div class="performance-stat-label">Eventos en tabla</div>
-                        <div class="performance-stat-value">{{ number_format($summary['eventos']) }}</div>
+                        <div class="performance-stat-value">{{ \App\Support\BolivianNumber::format($summary['eventos']) }}</div>
                     </div>
                 </div>
             </div>
@@ -229,9 +229,9 @@
                                     <td class="text-center">{{ $matrixRow['anio'] }}</td>
                                     <td class="text-center">{{ $matrixRow['mes_label'] }}</td>
                                     @foreach($eventColumns as $eventColumn)
-                                        <td class="text-right">{{ number_format((int) ($matrixRow['counts'][$eventColumn] ?? 0)) }}</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((int) ($matrixRow['counts'][$eventColumn] ?? 0)) }}</td>
                                     @endforeach
-                                    <td class="text-right font-weight-bold">{{ number_format((int) $matrixRow['total']) }}</td>
+                                    <td class="text-right font-weight-bold">{{ \App\Support\BolivianNumber::format((int) $matrixRow['total']) }}</td>
                                 </tr>
                             @empty
                                 <tr>
@@ -246,9 +246,9 @@
                                 <tr>
                                     <th colspan="4" class="text-right">Totales</th>
                                     @foreach($eventColumns as $eventColumn)
-                                        <th class="text-right">{{ number_format((int) ($matrixTotals['events'][$eventColumn] ?? 0)) }}</th>
+                                        <th class="text-right">{{ \App\Support\BolivianNumber::format((int) ($matrixTotals['events'][$eventColumn] ?? 0)) }}</th>
                                     @endforeach
-                                    <th class="text-right">{{ number_format((int) ($matrixTotals['grand_total'] ?? 0)) }}</th>
+                                    <th class="text-right">{{ \App\Support\BolivianNumber::format((int) ($matrixTotals['grand_total'] ?? 0)) }}</th>
                                 </tr>
                             </tfoot>
                         @endif
@@ -262,7 +262,7 @@
                 <div class="card border-0 shadow-sm h-100 performance-stat">
                     <div class="card-body">
                         <div class="performance-stat-label">Transiciones analizadas</div>
-                        <div class="performance-stat-value">{{ number_format($transitionSummary['total_transiciones'] ?? 0) }}</div>
+                        <div class="performance-stat-value">{{ \App\Support\BolivianNumber::format($transitionSummary['total_transiciones'] ?? 0) }}</div>
                     </div>
                 </div>
             </div>
@@ -270,7 +270,7 @@
                 <div class="card border-0 shadow-sm h-100 performance-stat">
                     <div class="card-body">
                         <div class="performance-stat-label">Promedio general entre eventos</div>
-                        <div class="performance-stat-value">{{ number_format((float) ($transitionSummary['promedio_general_dias'] ?? 0), 2) }} días</div>
+                        <div class="performance-stat-value">{{ \App\Support\BolivianNumber::format((float) ($transitionSummary['promedio_general_dias'] ?? 0), 2) }} días</div>
                     </div>
                 </div>
             </div>
@@ -278,7 +278,7 @@
                 <div class="card border-0 shadow-sm h-100 performance-stat">
                     <div class="card-body">
                         <div class="performance-stat-label">Rutas evento a evento</div>
-                        <div class="performance-stat-value">{{ number_format($transitionSummary['rutas'] ?? 0) }}</div>
+                        <div class="performance-stat-value">{{ \App\Support\BolivianNumber::format($transitionSummary['rutas'] ?? 0) }}</div>
                     </div>
                 </div>
             </div>
@@ -315,10 +315,10 @@
                                     <td>{{ $transitionRow['destino'] }}</td>
                                     <td>{{ $transitionRow['evento_origen'] }}</td>
                                     <td>{{ $transitionRow['evento_destino'] }}</td>
-                                    <td class="text-right">{{ number_format((int) $transitionRow['total_transiciones']) }}</td>
-                                    <td class="text-right font-weight-bold">{{ number_format((float) $transitionRow['promedio_dias'], 2) }}</td>
-                                    <td class="text-right">{{ number_format((float) $transitionRow['minimo_dias'], 2) }}</td>
-                                    <td class="text-right">{{ number_format((float) $transitionRow['maximo_dias'], 2) }}</td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $transitionRow['total_transiciones']) }}</td>
+                                    <td class="text-right font-weight-bold">{{ \App\Support\BolivianNumber::format((float) $transitionRow['promedio_dias'], 2) }}</td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $transitionRow['minimo_dias'], 2) }}</td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $transitionRow['maximo_dias'], 2) }}</td>
                                 </tr>
                             @empty
                                 <tr>

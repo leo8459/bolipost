@@ -72,7 +72,7 @@
     <p>
         De acuerdo con el estado de cuenta del mes de {{ mb_strtolower($mesNombre) }} de la gestión {{ $conciliacion->anio }},
         remitido por la Dirección de Operaciones de nuestra entidad, la deuda de su Institución asciende a
-        <strong>Bs {{ number_format($monto, 2, ',', '.') }}</strong>
+        <strong>Bs {{ \App\Support\BolivianNumber::format($monto, 2, ',', '.') }}</strong>
         ({{ $montoLiteral }}), conforme al siguiente detalle:
     </p>
 
@@ -88,7 +88,7 @@
             <tr>
                 <td>{{ $conciliacion->factura_descripcion ?: 'Servicios de correo y courier por contrato' }}</td>
                 <td style="text-align:center">{{ $mesNombre }} {{ $conciliacion->anio }}</td>
-                <td>Bs {{ number_format($monto, 2, ',', '.') }}</td>
+                <td>Bs {{ \App\Support\BolivianNumber::format($monto, 2, ',', '.') }}</td>
             </tr>
         </tbody>
     </table>

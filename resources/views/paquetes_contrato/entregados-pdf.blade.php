@@ -58,15 +58,15 @@
     <div class="chips">
         <span class="chip">Desde: {{ $fechaDesde ? \Illuminate\Support\Carbon::parse($fechaDesde)->format('d/m/Y') : 'Inicio' }}</span>
         <span class="chip">Hasta: {{ $fechaHasta ? \Illuminate\Support\Carbon::parse($fechaHasta)->format('d/m/Y') : 'Hoy' }}</span>
-        <span class="chip">Registros: {{ number_format($stats['total'] ?? 0) }}</span>
+        <span class="chip">Registros: {{ \App\Support\BolivianNumber::format($stats['total'] ?? 0) }}</span>
     </div>
 
     <table class="summary">
         <tr>
-            <td><div class="k">Total entregados</div><div class="v">{{ number_format($stats['total'] ?? 0) }}</div></td>
-            <td><div class="k">Peso total</div><div class="v">{{ number_format((float) ($stats['peso_total'] ?? 0), 3) }} kg</div></td>
-            <td><div class="k">Dias con entregas</div><div class="v">{{ number_format($stats['dias_cubiertos'] ?? 0) }}</div></td>
-            <td><div class="k">Promedio diario</div><div class="v">{{ number_format((float) ($stats['promedio_diario'] ?? 0), 2) }}</div></td>
+            <td><div class="k">Total entregados</div><div class="v">{{ \App\Support\BolivianNumber::format($stats['total'] ?? 0) }}</div></td>
+            <td><div class="k">Peso total</div><div class="v">{{ \App\Support\BolivianNumber::format((float) ($stats['peso_total'] ?? 0), 3) }} kg</div></td>
+            <td><div class="k">Dias con entregas</div><div class="v">{{ \App\Support\BolivianNumber::format($stats['dias_cubiertos'] ?? 0) }}</div></td>
+            <td><div class="k">Promedio diario</div><div class="v">{{ \App\Support\BolivianNumber::format((float) ($stats['promedio_diario'] ?? 0), 2) }}</div></td>
         </tr>
     </table>
 
@@ -84,8 +84,8 @@
             @forelse(($stats['por_dia'] ?? collect()) as $row)
                 <tr>
                     <td>{{ $row['label'] }}</td>
-                    <td class="num">{{ number_format((int) $row['total']) }}</td>
-                    <td class="num">{{ number_format((float) $row['peso'], 3) }}</td>
+                    <td class="num">{{ \App\Support\BolivianNumber::format((int) $row['total']) }}</td>
+                    <td class="num">{{ \App\Support\BolivianNumber::format((float) $row['peso'], 3) }}</td>
                     <td class="muted">Distribucion diaria de contratos entregados.</td>
                 </tr>
             @empty
@@ -121,7 +121,7 @@
                     <td>{{ $contrato->nombre_d ?: '-' }}</td>
                     <td>{{ $contrato->contenido ?: '-' }}</td>
                     <td class="num">{{ $contrato->cantidad ?: '-' }}</td>
-                    <td class="num">{{ number_format((float) ($contrato->peso ?? 0), 3) }}</td>
+                    <td class="num">{{ \App\Support\BolivianNumber::format((float) ($contrato->peso ?? 0), 3) }}</td>
                     <td>{{ optional($contrato->user)->name ?: '-' }}</td>
                 </tr>
             @empty

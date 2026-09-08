@@ -9,9 +9,9 @@
             <small class="text-muted">Configura los criterios y pulsa Aplicar filtros para actualizar el reporte.</small>
         </div>
         <div class="mt-2 mt-lg-0 text-lg-right">
-            <span class="badge badge-pill badge-primary mr-2">Registrados: {{ number_format($summary['registrados'] ?? 0) }}</span>
-            <span class="badge badge-pill badge-success mr-2">Entregados: {{ number_format($summary['entregados'] ?? 0) }}</span>
-            <span class="badge badge-pill badge-warning">Pendientes: {{ number_format($summary['no_entregados'] ?? 0) }}</span>
+            <span class="badge badge-pill badge-primary mr-2">Registrados: {{ \App\Support\BolivianNumber::format($summary['registrados'] ?? 0) }}</span>
+            <span class="badge badge-pill badge-success mr-2">Entregados: {{ \App\Support\BolivianNumber::format($summary['entregados'] ?? 0) }}</span>
+            <span class="badge badge-pill badge-warning">Pendientes: {{ \App\Support\BolivianNumber::format($summary['no_entregados'] ?? 0) }}</span>
         </div>
     </div>
 @stop
@@ -321,7 +321,7 @@
                     <span class="info-box-icon bg-primary"><i class="fas fa-hashtag"></i></span>
                     <div class="info-box-content">
                         <span class="info-box-text">Cantidad nacional</span>
-                        <span class="info-box-number">{{ number_format($summary['total_filtrado'] ?? ($summary['total'] ?? 0)) }}</span>
+                        <span class="info-box-number">{{ \App\Support\BolivianNumber::format($summary['total_filtrado'] ?? ($summary['total'] ?? 0)) }}</span>
                     </div>
                 </div>
             </div>
@@ -330,7 +330,7 @@
                     <span class="info-box-icon bg-info"><i class="fas fa-weight-hanging"></i></span>
                     <div class="info-box-content">
                         <span class="info-box-text">Peso total</span>
-                        <span class="info-box-number">{{ number_format((float) ($totals['peso_total'] ?? 0), 3) }}</span>
+                        <span class="info-box-number">{{ \App\Support\BolivianNumber::format((float) ($totals['peso_total'] ?? 0), 3) }}</span>
                     </div>
                 </div>
             </div>
@@ -339,7 +339,7 @@
                     <span class="info-box-icon bg-success"><i class="fas fa-money-bill-wave"></i></span>
                     <div class="info-box-content">
                         <span class="info-box-text">Bs total</span>
-                        <span class="info-box-number">Bs {{ number_format((float) ($totals['precio_total'] ?? 0), 2) }}</span>
+                        <span class="info-box-number">Bs {{ \App\Support\BolivianNumber::format((float) ($totals['precio_total'] ?? 0), 2) }}</span>
                     </div>
                 </div>
             </div>
@@ -364,9 +364,9 @@
                             @forelse(($serviceSummary ?? []) as $serviceRow)
                                 <tr>
                                     <td class="font-weight-bold">{{ $serviceRow['servicio'] }}</td>
-                                    <td class="text-right">{{ number_format((int) $serviceRow['cantidad']) }}</td>
-                                    <td class="text-right">{{ number_format((float) $serviceRow['peso'], 3) }}</td>
-                                    <td class="text-right">Bs {{ number_format((float) $serviceRow['precio'], 2) }}</td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $serviceRow['cantidad']) }}</td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $serviceRow['peso'], 3) }}</td>
+                                    <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) $serviceRow['precio'], 2) }}</td>
                                 </tr>
                             @empty
                                 <tr>
@@ -384,7 +384,7 @@
         <div class="col-lg-2 col-md-4 col-6 mb-3">
             <div class="small-box bg-primary mb-0">
                 <div class="inner">
-                    <h3>{{ number_format($summary['total'] ?? 0) }}</h3>
+                    <h3>{{ \App\Support\BolivianNumber::format($summary['total'] ?? 0) }}</h3>
                     <p>Total</p>
                 </div>
                 <div class="icon"><i class="fas fa-boxes"></i></div>
@@ -393,7 +393,7 @@
         <div class="col-lg-2 col-md-4 col-6 mb-3">
             <div class="small-box bg-success mb-0">
                 <div class="inner">
-                    <h3>{{ number_format($summary['entregados'] ?? 0) }}</h3>
+                    <h3>{{ \App\Support\BolivianNumber::format($summary['entregados'] ?? 0) }}</h3>
                     <p>Entregados</p>
                 </div>
                 <div class="icon"><i class="fas fa-check-circle"></i></div>
@@ -402,7 +402,7 @@
         <div class="col-lg-2 col-md-4 col-6 mb-3">
             <div class="small-box bg-warning mb-0">
                 <div class="inner">
-                    <h3>{{ number_format($summary['no_entregados'] ?? 0) }}</h3>
+                    <h3>{{ \App\Support\BolivianNumber::format($summary['no_entregados'] ?? 0) }}</h3>
                     <p>No entregados</p>
                 </div>
                 <div class="icon"><i class="fas fa-clock"></i></div>
@@ -411,7 +411,7 @@
         <div class="col-lg-2 col-md-4 col-6 mb-3">
             <div class="small-box bg-teal mb-0">
                 <div class="inner">
-                    <h3>{{ number_format($summary['correcto'] ?? 0) }}</h3>
+                    <h3>{{ \App\Support\BolivianNumber::format($summary['correcto'] ?? 0) }}</h3>
                     <p>En plazo</p>
                 </div>
                 <div class="icon"><i class="fas fa-thumbs-up"></i></div>
@@ -420,7 +420,7 @@
         <div class="col-lg-2 col-md-4 col-6 mb-3">
             <div class="small-box bg-orange mb-0">
                 <div class="inner">
-                    <h3>{{ number_format($summary['retraso'] ?? 0) }}</h3>
+                    <h3>{{ \App\Support\BolivianNumber::format($summary['retraso'] ?? 0) }}</h3>
                     <p>Retraso</p>
                 </div>
                 <div class="icon"><i class="fas fa-exclamation-triangle"></i></div>
@@ -429,7 +429,7 @@
         <div class="col-lg-2 col-md-4 col-6 mb-3">
             <div class="small-box bg-danger mb-0">
                 <div class="inner">
-                    <h3>{{ number_format($summary['rezago'] ?? 0) }}</h3>
+                    <h3>{{ \App\Support\BolivianNumber::format($summary['rezago'] ?? 0) }}</h3>
                     <p>Rezago</p>
                 </div>
                 <div class="icon"><i class="fas fa-fire"></i></div>
@@ -441,7 +441,7 @@
         <div class="card-header d-flex justify-content-between align-items-center">
             <strong>Resultados encontrados</strong>
             <span class="text-muted small">
-                Mostrando {{ $rows->total() }} registros segun filtros (de {{ number_format($summary['registrados'] ?? 0) }} registrados totales)
+                Mostrando {{ $rows->total() }} registros segun filtros (de {{ \App\Support\BolivianNumber::format($summary['registrados'] ?? 0) }} registrados totales)
             </span>
         </div>
 
@@ -494,8 +494,8 @@
                                 <td>{{ $row['destinatario'] }}</td>
                                 <td>{{ $row['empresa'] }}</td>
                                 <td>{{ $row['usuario'] }}</td>
-                                <td class="text-right">{{ number_format((float) $row['peso'], 3) }}</td>
-                                <td class="text-right">Bs {{ number_format((float) $row['precio'], 2) }}</td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $row['peso'], 3) }}</td>
+                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) $row['precio'], 2) }}</td>
                                 <td>{{ $row['created_at'] }}</td>
                                 <td>{{ $row['updated_at'] }}</td>
                             </tr>

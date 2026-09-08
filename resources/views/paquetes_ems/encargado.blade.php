@@ -16,7 +16,7 @@
                     </div>
                     <div class="ems-encargado-total">
                         <span>Registros encontrados</span>
-                        <strong>{{ number_format($paquetes->total()) }}</strong>
+                        <strong>{{ \App\Support\BolivianNumber::format($paquetes->total()) }}</strong>
                     </div>
                 </div>
             </div>
@@ -147,7 +147,7 @@
                                     </td>
                                     <td>
                                         <div class="ems-value-stack">
-                                            <div><span class="ems-value-label">Peso</span> {{ $paquete->peso !== null ? number_format((float) $paquete->peso, 3) . ' kg' : '-' }}</div>
+                                            <div><span class="ems-value-label">Peso</span> {{ $paquete->peso !== null ? \App\Support\BolivianNumber::format((float) $paquete->peso, 3) . ' kg' : '-' }}</div>
                                             @if ($canUpdateWeightEncargado)
                                                 <form method="POST" action="{{ route('paquetes-ems.encargado.actualizar-peso') }}" class="ems-weight-form">
                                                     @csrf
@@ -160,13 +160,17 @@
                                                     <input type="hidden" name="page" value="{{ $paquetes->currentPage() }}">
                                                     <div class="ems-weight-form__row">
                                                         <input
-                                                            type="number"
+                                                            type="text"
                                                             name="peso"
-                                                            step="0.001"
-                                                            min="0"
-                                                            value="{{ $paquete->peso !== null ? number_format((float) $paquete->peso, 3, '.', '') : '' }}"
+                                                            inputmode="decimal"
+                                                            maxlength="7"
+                                                            data-fixed-weight-input
+                                                            data-weight-min="0.001"
+                                                            data-weight-max="150"
+                                                            value="{{ $paquete->peso !== null ? \App\Support\BolivianNumber::format((float) $paquete->peso, 3) : '' }}"
                                                             class="form-control ems-weight-input"
-                                                            placeholder="Peso"
+                                                            placeholder="0,000"
+                                                            required
                                                         >
                                                         <button type="submit" class="btn btn-sm ems-btn-save-weight">Guardar</button>
                                                     </div>
@@ -279,7 +283,7 @@
 
                                             @if (in_array($paquete->servicio, ['EMS', 'CONTRATO', 'SOLICITUD'], true))
                                                 @if ($canReturnOriginEncargado)
-                                                    <form method="POST" action="{{ route('paquetes-ems.encargado.devolver-envio') }}" class="ems-action-form" data-confirm-form data-confirm-variant="warning" data-confirm-title="Devolver a origen" data-confirm-message="Este envio volvera a ALMACEN de origen y se registrara el evento con tu usuario.">
+                                                    <form method="POST" action="{{ route('paquetes-ems.encargado.devolver-envio') }}" class="ems-action-form" data-confirm-form data-confirm-variant="warning" data-confirm-title="Devolver a origen" data-confirm-message="Este envio volvera a ALMACEN de origen y se registrara el evento con tu usuario." data-requires-contract-weight="{{ $paquete->servicio === 'CONTRATO' && (float) $paquete->peso < 0.001 ? '1' : '0' }}" data-package-code="{{ $paquete->codigo ?: 'SIN CODIGO' }}">
                                                         @csrf
                                                         <input type="hidden" name="id" value="{{ $paquete->id }}">
                                                         <input type="hidden" name="servicio" value="{{ $paquete->servicio }}">
@@ -289,6 +293,7 @@
                                                         <input type="hidden" name="from" value="{{ $fechaDesde }}">
                                                         <input type="hidden" name="to" value="{{ $fechaHasta }}">
                                                         <input type="hidden" name="page" value="{{ $paquetes->currentPage() }}">
+                                                        <input type="hidden" name="peso" value="">
                                                         <button type="submit" class="btn btn-sm ems-btn-warning ems-action-btn">
                                                             <span>Devolver a origen</span>
                                                             <small>Registra quien lo hizo</small>
@@ -296,7 +301,7 @@
                                                     </form>
                                                 @endif
                                                 @if ($canReturnDestinationEncargado)
-                                                    <form method="POST" action="{{ route('paquetes-ems.encargado.devolver-envio') }}" class="ems-action-form" data-confirm-form data-confirm-variant="info" data-confirm-title="Devolver a destino" data-confirm-message="Este envio volvera a ALMACEN de destino en estado RECIBIDO y se registrara el evento con tu usuario.">
+                                                    <form method="POST" action="{{ route('paquetes-ems.encargado.devolver-envio') }}" class="ems-action-form" data-confirm-form data-confirm-variant="info" data-confirm-title="Devolver a destino" data-confirm-message="Este envio volvera a ALMACEN de destino en estado RECIBIDO y se registrara el evento con tu usuario." data-requires-contract-weight="{{ $paquete->servicio === 'CONTRATO' && (float) $paquete->peso < 0.001 ? '1' : '0' }}" data-package-code="{{ $paquete->codigo ?: 'SIN CODIGO' }}">
                                                         @csrf
                                                         <input type="hidden" name="id" value="{{ $paquete->id }}">
                                                         <input type="hidden" name="servicio" value="{{ $paquete->servicio }}">
@@ -306,6 +311,7 @@
                                                         <input type="hidden" name="from" value="{{ $fechaDesde }}">
                                                         <input type="hidden" name="to" value="{{ $fechaHasta }}">
                                                         <input type="hidden" name="page" value="{{ $paquetes->currentPage() }}">
+                                                        <input type="hidden" name="peso" value="">
                                                         <button type="submit" class="btn btn-sm ems-btn-info ems-action-btn">
                                                             <span>Devolver a destino</span>
                                                             <small>Registra quien lo hizo</small>
@@ -358,6 +364,31 @@
             <div class="ems-confirm-modal__eyebrow">Confirmacion</div>
             <h4 class="ems-confirm-modal__title" id="emsConfirmTitle">Confirmar accion</h4>
             <p class="ems-confirm-modal__message" id="emsConfirmMessage">Confirma si deseas continuar con esta accion.</p>
+            <div class="ems-confirm-modal__field ems-return-weight-field" id="emsReturnWeightField" hidden>
+                <div class="ems-return-weight-alert">
+                    <strong>Este paquete de contrato no tiene peso.</strong>
+                    Ingrese el peso antes de devolverlo a almacen.
+                </div>
+                <div class="ems-return-weight-code">Codigo: <strong id="emsReturnWeightCode">-</strong></div>
+                <label for="emsReturnWeight" class="ems-confirm-modal__label">Peso obligatorio (kg)</label>
+                <div class="input-group">
+                    <input
+                        type="text"
+                        id="emsReturnWeight"
+                        class="form-control"
+                        inputmode="decimal"
+                        maxlength="7"
+                        placeholder="Ej. 1,000"
+                        data-fixed-weight-input
+                        data-weight-min="0.001"
+                        data-weight-max="150"
+                    >
+                    <div class="input-group-append">
+                        <span class="input-group-text">kg</span>
+                    </div>
+                </div>
+                <small class="ems-confirm-modal__hint" id="emsReturnWeightHint">Permitido: 0,001 a 150,000 kg.</small>
+            </div>
             <div class="ems-confirm-modal__field" id="emsCancelJustificationField" hidden>
                 <label for="emsCancelJustification" class="ems-confirm-modal__label">Justificacion</label>
                 <textarea id="emsCancelJustification" class="form-control ems-confirm-modal__textarea" rows="4" maxlength="1000" placeholder="Escriba por que esta cancelando este envio"></textarea>
@@ -1050,6 +1081,35 @@
             font-weight: 900;
         }
 
+        .ems-return-weight-alert {
+            margin-bottom: 0.8rem;
+            padding: 0.8rem 0.9rem;
+            border: 1px solid #f3cf72;
+            border-radius: 12px;
+            background: #fff7dc;
+            color: #71520c;
+        }
+
+        .ems-return-weight-alert strong {
+            display: block;
+        }
+
+        .ems-return-weight-code {
+            margin-bottom: 0.65rem;
+            color: #38507e;
+        }
+
+        .ems-return-weight-field .form-control {
+            min-height: 44px;
+            border-radius: 12px 0 0 12px;
+            font-weight: 800;
+        }
+
+        .ems-return-weight-field .input-group-text {
+            border-radius: 0 12px 12px 0;
+            font-weight: 800;
+        }
+
         .ems-confirm-modal__textarea {
             min-height: 108px;
             resize: vertical;
@@ -1204,6 +1264,10 @@
             const cancelJustificationField = document.getElementById('emsCancelJustificationField');
             const cancelJustificationInput = document.getElementById('emsCancelJustification');
             const cancelJustificationHint = document.getElementById('emsCancelJustificationHint');
+            const returnWeightField = document.getElementById('emsReturnWeightField');
+            const returnWeightInput = document.getElementById('emsReturnWeight');
+            const returnWeightCode = document.getElementById('emsReturnWeightCode');
+            const returnWeightHint = document.getElementById('emsReturnWeightHint');
             const changeCarteroModal = document.getElementById('emsChangeCarteroModal');
             const changeCarteroButtons = Array.from(document.querySelectorAll('[data-change-cartero]'));
             const changeCarteroCloseButtons = Array.from(document.querySelectorAll('[data-change-cartero-close]'));
@@ -1262,6 +1326,32 @@
                     cancelJustificationHint.textContent = 'Este campo es obligatorio para cancelar.';
                     cancelJustificationHint.classList.remove('is-error');
                 }
+                if (returnWeightField) {
+                    returnWeightField.hidden = true;
+                }
+                if (returnWeightInput) {
+                    returnWeightInput.value = '';
+                    returnWeightInput.classList.remove('is-invalid');
+                    returnWeightInput.setCustomValidity('');
+                }
+                if (returnWeightHint) {
+                    returnWeightHint.textContent = 'Permitido: 0,001 a 150,000 kg.';
+                    returnWeightHint.classList.remove('is-error');
+                }
+            }
+
+            function parseReturnWeight(value) {
+                const raw = String(value || '').trim().replace(/\s+/g, '');
+                if (raw === '') {
+                    return null;
+                }
+
+                const normalized = raw.includes(',')
+                    ? raw.replace(/\./g, '').replace(',', '.')
+                    : raw;
+                const numeric = Number(normalized);
+
+                return Number.isFinite(numeric) ? Math.round(numeric * 1000) / 1000 : null;
             }
 
             function openConfirmModal(form) {
@@ -1288,6 +1378,24 @@
                     cancelJustificationInput.classList.remove('is-invalid');
                     window.setTimeout(function () {
                         cancelJustificationInput.focus();
+                    }, 80);
+                }
+
+                const requiresContractWeight = form.getAttribute('data-requires-contract-weight') === '1';
+                if (returnWeightField) {
+                    returnWeightField.hidden = !requiresContractWeight;
+                }
+                if (returnWeightCode) {
+                    returnWeightCode.textContent = form.getAttribute('data-package-code') || 'SIN CODIGO';
+                }
+                if (returnWeightInput) {
+                    returnWeightInput.value = '';
+                    returnWeightInput.classList.remove('is-invalid');
+                    returnWeightInput.setCustomValidity('');
+                }
+                if (requiresContractWeight && returnWeightInput) {
+                    window.setTimeout(function () {
+                        returnWeightInput.focus();
                     }, 80);
                 }
 
@@ -1332,6 +1440,29 @@
                         }
 
                         targetJustification.value = justification;
+                    }
+
+                    const targetWeight = targetForm.querySelector('input[name="peso"]');
+                    const requiresContractWeight = targetForm.getAttribute('data-requires-contract-weight') === '1';
+                    if (requiresContractWeight) {
+                        const weight = parseReturnWeight(returnWeightInput?.value);
+                        if (weight === null || weight < 0.001 || weight > 150) {
+                            if (returnWeightInput) {
+                                returnWeightInput.classList.add('is-invalid');
+                                returnWeightInput.setCustomValidity('Ingrese un peso entre 0,001 y 150,000 kg.');
+                                returnWeightInput.focus();
+                                returnWeightInput.reportValidity();
+                            }
+                            if (returnWeightHint) {
+                                returnWeightHint.textContent = 'El peso es obligatorio y debe estar entre 0,001 y 150,000 kg.';
+                                returnWeightHint.classList.add('is-error');
+                            }
+                            return;
+                        }
+
+                        if (targetWeight) {
+                            targetWeight.value = weight.toFixed(3);
+                        }
                     }
                     closeConfirmModal();
                     targetForm.submit();
@@ -1441,4 +1572,7 @@
             });
         });
     </script>
+
+    @php($fixedWeightJsVersion = file_exists(public_path('js/fixed-weight-input.js')) ? filemtime(public_path('js/fixed-weight-input.js')) : time())
+    <script src="{{ asset('js/fixed-weight-input.js') }}?v={{ $fixedWeightJsVersion }}" defer></script>
 @endsection

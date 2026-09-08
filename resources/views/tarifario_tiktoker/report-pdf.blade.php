@@ -147,12 +147,12 @@
                         <tr>
                             <td>{{ $regionalLabel(optional($item->destino)->nombre_destino) }}</td>
                             <td>{{ $item->servicioExtra?->nombre ?? 'General' }}</td>
-                            <td class="text-right">{{ number_format((float) $item->peso1, 2, '.', ',') }}</td>
-                            <td class="text-right">{{ number_format((float) $item->peso2, 2, '.', ',') }}</td>
-                            <td class="text-right">{{ $item->peso3 !== null ? number_format((float) $item->peso3, 2, '.', ',') : '-' }}</td>
-                            <td class="text-right">{{ number_format((float) $item->peso_extra, 2, '.', ',') }}</td>
+                            <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $item->peso1, 2, '.', ',') }}</td>
+                            <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $item->peso2, 2, '.', ',') }}</td>
+                            <td class="text-right">{{ $item->peso3 !== null ? \App\Support\BolivianNumber::format((float) $item->peso3, 2, '.', ',') : '-' }}</td>
+                            <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $item->peso_extra, 2, '.', ',') }}</td>
                             <td class="text-center">{{ (int) $item->tiempo_entrega }} h</td>
-                            <td class="text-right">{{ number_format((float) $item->peso2 + (float) $item->peso_extra, 2, '.', ',') }}</td>
+                            <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $item->peso2 + (float) $item->peso_extra, 2, '.', ',') }}</td>
                         </tr>
                     @endforeach
                 </tbody>

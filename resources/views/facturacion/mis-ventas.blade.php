@@ -1,4 +1,4 @@
-﻿@extends('adminlte::page')
+@extends('adminlte::page')
 
 @section('title', ($pageContext['page_title'] ?? 'Mis ventas'))
 
@@ -73,7 +73,7 @@
         $summaryCards = [
             [
                 'label' => 'Total ventas',
-                'value' => number_format($summary['totalVentas'] ?? 0),
+                'value' => \App\Support\BolivianNumber::format($summary['totalVentas'] ?? 0),
                 'meta' => 'Ventas emitidas del rango seleccionado',
                 'params' => array_merge($baseFilterParams, ['estado' => 'emitido', 'estado_emision' => 'all']),
                 'active' => $filters['estado'] === 'emitido' && $filters['estado_emision'] === 'all',
@@ -81,41 +81,41 @@
             ],
             [
                 'label' => 'Efectivo',
-                'value' => number_format($summary['efectivoCount'] ?? 0),
-                'meta' => 'Bs ' . number_format((float) ($summary['montoEfectivo'] ?? 0), 2),
+                'value' => \App\Support\BolivianNumber::format($summary['efectivoCount'] ?? 0),
+                'meta' => 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['montoEfectivo'] ?? 0), 2),
                 'params' => $baseFilterParams,
                 'active' => false,
                 'accent' => false,
             ],
             [
                 'label' => 'Pago QR',
-                'value' => number_format($summary['qrPagados'] ?? 0),
-                'meta' => 'Bs ' . number_format((float) ($summary['montoQr'] ?? 0), 2),
+                'value' => \App\Support\BolivianNumber::format($summary['qrPagados'] ?? 0),
+                'meta' => 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['montoQr'] ?? 0), 2),
                 'params' => $baseFilterParams,
                 'active' => false,
                 'accent' => false,
             ],
             [
                 'label' => 'Pendientes',
-                'value' => number_format($summary['pendientesOperativas'] ?? 0),
-                'meta' => 'QR pendientes: ' . number_format($summary['qrPendientes'] ?? 0)
-                    . ' | QR no facturados: ' . number_format($summary['qrNoFacturados'] ?? 0)
-                    . ' | Ventas pendientes: ' . number_format($summary['pendientes'] ?? 0),
+                'value' => \App\Support\BolivianNumber::format($summary['pendientesOperativas'] ?? 0),
+                'meta' => 'QR pendientes: ' . \App\Support\BolivianNumber::format($summary['qrPendientes'] ?? 0)
+                    . ' | QR no facturados: ' . \App\Support\BolivianNumber::format($summary['qrNoFacturados'] ?? 0)
+                    . ' | Ventas pendientes: ' . \App\Support\BolivianNumber::format($summary['pendientes'] ?? 0),
                 'params' => $baseFilterParams,
                 'active' => false,
                 'accent' => false,
             ],
             [
                 'label' => 'Anuladas',
-                'value' => number_format($summary['anuladas'] ?? 0),
-                'meta' => 'Bs ' . number_format((float) ($summary['montoAnulado'] ?? 0), 2),
+                'value' => \App\Support\BolivianNumber::format($summary['anuladas'] ?? 0),
+                'meta' => 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['montoAnulado'] ?? 0), 2),
                 'params' => array_merge($baseFilterParams, ['estado' => 'all', 'estado_emision' => 'ANULADA']),
                 'active' => $filters['estado'] === 'all' && $filters['estado_emision'] === 'ANULADA',
                 'accent' => false,
             ],
             [
                 'label' => 'Total en caja',
-                'value' => 'Bs ' . number_format($summary['montoTotal'], 2),
+                'value' => 'Bs ' . \App\Support\BolivianNumber::format($summary['montoTotal'], 2),
                 'meta' => 'Suma solo ventas en efectivo',
                 'params' => array_merge($baseFilterParams, ['estado' => 'emitido', 'estado_emision' => 'all']),
                 'active' => $filters['estado'] === 'emitido' && $filters['estado_emision'] === 'all',
@@ -286,9 +286,9 @@
                                 @endif
                                 <div class="ventas-branch-cashier-card__stats">
                                     <span>{{ $cashier['cantidad_ventas'] }} venta(s)</span>
-                                    <strong>Bs {{ number_format((float) $cashier['total_caja'], 2) }}</strong>
+                                    <strong>Bs {{ \App\Support\BolivianNumber::format((float) $cashier['total_caja'], 2) }}</strong>
                                 </div>
-                                <div class="ventas-branch-cashier-card__meta">Emitido total: Bs {{ number_format((float) $cashier['total_vendido'], 2) }}</div>
+                                <div class="ventas-branch-cashier-card__meta">Emitido total: Bs {{ \App\Support\BolivianNumber::format((float) $cashier['total_vendido'], 2) }}</div>
                             </div>
                         </div>
                     @endforeach
@@ -623,7 +623,7 @@
                                     @endif
                                 </td>
                                 <td class="text-right">
-                                    <div class="ventas-table__amount">Bs {{ number_format($totalCart, 2) }}</div>
+                                    <div class="ventas-table__amount">Bs {{ \App\Support\BolivianNumber::format($totalCart, 2) }}</div>
                                     @if($isQrPayment)
                                         <div class="ventas-table__secondary ventas-table__secondary--hint">
                                             Origen de cobro: QR
@@ -803,9 +803,9 @@
                                                 <td class="text-center">
                                                     <span class="ventas-items-table__qty">{{ $itemCantidad }}</span>
                                                 </td>
-                                                <td class="text-right">Bs {{ number_format($itemMontoBase, 2) }}</td>
-                                                <td class="text-right">Bs {{ number_format($itemMontoExtras, 2) }}</td>
-                                                <td class="text-right ventas-items-table__total">Bs {{ number_format($itemTotalLinea, 2) }}</td>
+                                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format($itemMontoBase, 2) }}</td>
+                                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format($itemMontoExtras, 2) }}</td>
+                                                <td class="text-right ventas-items-table__total">Bs {{ \App\Support\BolivianNumber::format($itemTotalLinea, 2) }}</td>
                                             </tr>
                                         @endforeach
                                     </tbody>
@@ -814,7 +814,7 @@
                         </div>
                         <div class="modal-footer ventas-items-modal__footer">
                             <div class="ventas-items-modal__summary" data-ventas-items-summary="true">
-                                Total venta: Bs {{ number_format($totalCart, 2) }}
+                                Total venta: Bs {{ \App\Support\BolivianNumber::format($totalCart, 2) }}
                             </div>
                             <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Cerrar</button>
                         </div>
@@ -1621,9 +1621,9 @@
                 const itemService = String(item.nombre_servicio || '').trim();
                 const itemDest = String(item.nombre_destinatario || '').trim();
                 const itemReference = resolveItemReference(item);
-                const base = Number(item.monto_base || 0).toFixed(2);
-                const extras = Number(item.monto_extras || 0).toFixed(2);
-                const total = Number(item.total_linea || 0).toFixed(2);
+                const base = window.BolivianNumber.format(item.monto_base || 0, 2);
+                const extras = window.BolivianNumber.format(item.monto_extras || 0, 2);
+                const total = window.BolivianNumber.format(item.total_linea || 0, 2);
                 const qty = Number(item.cantidad || 0);
 
                 return `
@@ -1668,7 +1668,7 @@
                     const cached = detailCache.get(detailUrl);
                     tbody.innerHTML = renderDetailRows(cached.items || []);
                     if (summary) {
-                        summary.textContent = `Total venta: Bs ${Number(cached.cart?.total || 0).toFixed(2)}`;
+                        summary.textContent = `Total venta: Bs ${window.BolivianNumber.format(cached.cart?.total || 0, 2)}`;
                     }
                     if (loadingNode) {
                         loadingNode.hidden = true;
@@ -1707,7 +1707,7 @@
                     detailCache.set(detailUrl, payload);
                     tbody.innerHTML = renderDetailRows(payload.items || []);
                     if (summary) {
-                        summary.textContent = `Total venta: Bs ${Number(payload.cart?.total || 0).toFixed(2)}`;
+                        summary.textContent = `Total venta: Bs ${window.BolivianNumber.format(payload.cart?.total || 0, 2)}`;
                     }
                     tableWrap.hidden = false;
                 } catch (error) {

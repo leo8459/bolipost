@@ -38,14 +38,14 @@
             ['Ventas', $service['cantidadVentas'] ?? 0, 'fa-file-invoice', 'primary'],
             ['Detalles', $service['cantidadDetalles'] ?? 0, 'fa-list', 'info'],
             ['Cantidad total', $service['totalCantidad'] ?? 0, 'fa-boxes', 'warning'],
-            ['Monto total', 'Bs ' . number_format((float) ($service['totalMonto'] ?? 0), 2), 'fa-money-bill-wave', 'success'],
+            ['Monto total', 'Bs ' . \App\Support\BolivianNumber::format((float) ($service['totalMonto'] ?? 0), 2), 'fa-money-bill-wave', 'success'],
         ] as [$label, $value, $icon, $color])
             <div class="col-sm-6 col-xl-3 mb-3">
                 <div class="info-box bg-white border mb-0">
                     <span class="info-box-icon bg-{{ $color }}"><i class="fas {{ $icon }}"></i></span>
                     <div class="info-box-content">
                         <span class="info-box-text">{{ $label }}</span>
-                        <span class="info-box-number">{{ is_numeric($value) ? number_format((float) $value) : $value }}</span>
+                        <span class="info-box-number">{{ is_numeric($value) ? \App\Support\BolivianNumber::format((float) $value) : $value }}</span>
                     </div>
                 </div>
             </div>
@@ -55,7 +55,7 @@
     <div class="card card-outline card-secondary">
         <div class="card-header d-flex justify-content-between align-items-center">
             <strong><i class="fas fa-table mr-1"></i> Resultado combinado</strong>
-            <span class="badge badge-light">{{ number_format($rows->total()) }} registros</span>
+            <span class="badge badge-light">{{ \App\Support\BolivianNumber::format($rows->total()) }} registros</span>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
@@ -86,7 +86,7 @@
                                 <td class="code-cell">{{ $row['codigoOrden'] ?? '-' }}</td>
                                 <td class="font-weight-bold code-cell">{{ $row['codigoSeguimiento'] ?? '-' }}</td>
                                 <td class="text-nowrap">{{ $row['fecha'] ?? '-' }}</td>
-                                <td class="text-right font-weight-bold">Bs {{ number_format((float) ($row['totalLinea'] ?? 0), 2) }}</td>
+                                <td class="text-right font-weight-bold">Bs {{ \App\Support\BolivianNumber::format((float) ($row['totalLinea'] ?? 0), 2) }}</td>
                             </tr>
                         @empty
                             <tr><td colspan="10" class="text-center text-muted py-4">No se encontraron movimientos para los servicios y meses seleccionados.</td></tr>

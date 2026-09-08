@@ -119,7 +119,7 @@
                     </div>
                 </div>
                 <div class="tp-results-tools">
-                    <span class="tp-total-pill"><strong>{{ number_format($paquetes->total()) }}</strong> registros</span>
+                    <span class="tp-total-pill"><strong>{{ \App\Support\BolivianNumber::format($paquetes->total()) }}</strong> registros</span>
                     @aclcan('print', null, 'todos-paquetes.index')
                         <a
                             href="{{ route('todos-paquetes.export.excel', request()->except(['page', 'create', 'edit_type', 'edit_id'])) }}"
@@ -183,8 +183,8 @@
                                     </td>
                                     <td>
                                         <div class="tp-metrics">
-                                            <span><small>Peso</small>{{ $paquete->peso !== '' ? $paquete->peso : '-' }}</span>
-                                            <span><small>Precio</small>{{ $paquete->precio !== '' ? $paquete->precio : '-' }}</span>
+                                            <span><small>Peso</small>{{ $paquete->peso !== '' ? \App\Support\BolivianNumber::format($paquete->peso, 3) : '-' }}</span>
+                                            <span><small>Precio</small>{{ $paquete->precio !== '' ? \App\Support\BolivianNumber::format($paquete->precio, 2) : '-' }}</span>
                                         </div>
                                     </td>
                                     <td>
@@ -304,7 +304,7 @@
                                 <div><small>Empresa</small><strong>{{ $paquete->empresa ?: '-' }}</strong></div>
                                 <div><small>Destinatario</small><strong>{{ $paquete->destinatario ?: '-' }}</strong></div>
                                 <div><small>Telefono</small><strong>{{ $paquete->telefono ?: '-' }}</strong></div>
-                                <div><small>Peso / Precio</small><strong>{{ $paquete->peso !== '' ? $paquete->peso : '-' }} / {{ $paquete->precio !== '' ? $paquete->precio : '-' }}</strong></div>
+                                <div><small>Peso / Precio</small><strong>{{ $paquete->peso !== '' ? \App\Support\BolivianNumber::format($paquete->peso, 3) : '-' }} / {{ $paquete->precio !== '' ? \App\Support\BolivianNumber::format($paquete->precio, 2) : '-' }}</strong></div>
                             </div>
                             <form method="POST" action="{{ route('todos-paquetes.estado', ['type' => $paquete->type_key, 'id' => $paquete->record_id]) }}" class="tp-mobile-state">
                                 @csrf

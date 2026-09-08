@@ -148,12 +148,12 @@
 
 <table class="kpi">
     <tr>
-        <td><div class="k">Total de paquetes</div><div class="v">{{ number_format($summary['registrados'] ?? ($summary['total'] ?? 0)) }}</div></td>
-        <td><div class="k">Paquetes mostrados</div><div class="v">{{ number_format($summary['total_filtrado'] ?? ($summary['total'] ?? 0)) }}</div></td>
-        <td><div class="k">Entregados</div><div class="v">{{ number_format($summary['entregados'] ?? 0) }}</div></td>
-        <td><div class="k">Pendientes</div><div class="v">{{ number_format($summary['no_entregados'] ?? 0) }}</div></td>
-        <td><div class="k">Peso total</div><div class="v">{{ number_format((float) ($totals['peso_total'] ?? 0), 3) }}</div></td>
-        <td><div class="k">Ingreso total (Bs)</div><div class="v">{{ number_format((float) ($totals['precio_total'] ?? 0), 2) }}</div></td>
+        <td><div class="k">Total de paquetes</div><div class="v">{{ \App\Support\BolivianNumber::format($summary['registrados'] ?? ($summary['total'] ?? 0)) }}</div></td>
+        <td><div class="k">Paquetes mostrados</div><div class="v">{{ \App\Support\BolivianNumber::format($summary['total_filtrado'] ?? ($summary['total'] ?? 0)) }}</div></td>
+        <td><div class="k">Entregados</div><div class="v">{{ \App\Support\BolivianNumber::format($summary['entregados'] ?? 0) }}</div></td>
+        <td><div class="k">Pendientes</div><div class="v">{{ \App\Support\BolivianNumber::format($summary['no_entregados'] ?? 0) }}</div></td>
+        <td><div class="k">Peso total</div><div class="v">{{ \App\Support\BolivianNumber::format((float) ($totals['peso_total'] ?? 0), 3) }}</div></td>
+        <td><div class="k">Ingreso total (Bs)</div><div class="v">{{ \App\Support\BolivianNumber::format((float) ($totals['precio_total'] ?? 0), 2) }}</div></td>
     </tr>
 </table>
 
@@ -178,11 +178,11 @@
         @forelse($moduleSummary as $mod)
             <tr>
                 <td>{{ $mod['label'] }}</td>
-                <td class="num">{{ number_format($mod['total']) }}</td>
-                <td class="num">{{ number_format($mod['entregados']) }}</td>
-                <td class="num">{{ number_format($mod['no_entregados']) }}</td>
-                <td class="num">{{ number_format((float) $mod['peso'], 3) }}</td>
-                <td class="num">Bs {{ number_format((float) $mod['precio'], 2) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format($mod['total']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format($mod['entregados']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format($mod['no_entregados']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((float) $mod['peso'], 3) }}</td>
+                <td class="num">Bs {{ \App\Support\BolivianNumber::format((float) $mod['precio'], 2) }}</td>
             </tr>
         @empty
             <tr>
@@ -206,9 +206,9 @@
         @forelse(($serviceSummary ?? []) as $serviceRow)
             <tr>
                 <td>{{ $serviceRow['servicio'] }}</td>
-                <td class="num">{{ number_format((int) $serviceRow['cantidad']) }}</td>
-                <td class="num">{{ number_format((float) $serviceRow['peso'], 3) }}</td>
-                <td class="num">Bs {{ number_format((float) $serviceRow['precio'], 2) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $serviceRow['cantidad']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((float) $serviceRow['peso'], 3) }}</td>
+                <td class="num">Bs {{ \App\Support\BolivianNumber::format((float) $serviceRow['precio'], 2) }}</td>
             </tr>
         @empty
             <tr>
@@ -255,8 +255,8 @@
                 <td>{{ $row['destinatario'] }}</td>
                 <td>{{ $row['empresa'] }}</td>
                 <td>{{ $row['usuario'] }}</td>
-                <td class="num">{{ number_format((float) $row['peso'], 3) }}</td>
-                <td class="num">Bs {{ number_format((float) $row['precio'], 2) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((float) $row['peso'], 3) }}</td>
+                <td class="num">Bs {{ \App\Support\BolivianNumber::format((float) $row['precio'], 2) }}</td>
                 <td>{{ $row['created_at'] }}</td>
                 <td>{{ $row['updated_at'] }}</td>
             </tr>
@@ -269,8 +269,8 @@
     <tfoot class="tfoot">
         <tr>
             <td colspan="12">Totales generales</td>
-            <td class="num">{{ number_format((float) ($totals['peso_total'] ?? 0), 3) }}</td>
-            <td class="num">Bs {{ number_format((float) ($totals['precio_total'] ?? 0), 2) }}</td>
+            <td class="num">{{ \App\Support\BolivianNumber::format((float) ($totals['peso_total'] ?? 0), 3) }}</td>
+            <td class="num">Bs {{ \App\Support\BolivianNumber::format((float) ($totals['precio_total'] ?? 0), 2) }}</td>
             <td colspan="2"></td>
         </tr>
     </tfoot>

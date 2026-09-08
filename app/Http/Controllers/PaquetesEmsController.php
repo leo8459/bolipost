@@ -1065,10 +1065,18 @@ class PaquetesEmsController extends Controller
 
     public function devolverEnvioEncargado(Request $request)
     {
+        $pesoIngresado = trim((string) $request->input('peso', ''));
+        if (str_contains($pesoIngresado, ',')) {
+            $pesoIngresado = str_replace('.', '', $pesoIngresado);
+            $pesoIngresado = str_replace(',', '.', $pesoIngresado);
+        }
+        $request->merge(['peso' => $pesoIngresado !== '' ? $pesoIngresado : null]);
+
         $data = $request->validate([
             'id' => ['required', 'integer', 'min:1'],
             'servicio' => ['required', 'string', Rule::in(['EMS', 'CONTRATO', 'CERTI', 'ORDI', 'SOLICITUD'])],
             'destino_accion' => ['required', 'string', Rule::in(['origen', 'destino', 'ventanilla'])],
+            'peso' => ['nullable', 'numeric', 'min:0.001', 'max:150'],
             'q' => ['nullable', 'string'],
             'from' => ['nullable', 'string'],
             'to' => ['nullable', 'string'],
@@ -1077,6 +1085,7 @@ class PaquetesEmsController extends Controller
         $id = (int) $data['id'];
         $servicio = mb_strtoupper(trim((string) $data['servicio']));
         $destinoAccion = trim((string) $data['destino_accion']);
+        $pesoRetorno = isset($data['peso']) ? round((float) $data['peso'], 3) : null;
 
         $this->authorizeAnyPermission($request, [
             match ($destinoAccion) {
@@ -1117,6 +1126,7 @@ class PaquetesEmsController extends Controller
             $estadoRecibidoId,
             $estadoVentanillaId,
             $actorName,
+            $pesoRetorno,
             &$updated
         ) {
             if ($servicio === 'EMS') {
@@ -1146,9 +1156,21 @@ class PaquetesEmsController extends Controller
             }
 
             if ($servicio === 'CONTRATO') {
+                $contrato = RecojoContrato::query()->whereKey($id)->lockForUpdate()->first();
+
+                if ($contrato && (float) $contrato->peso < 0.001) {
+                    if ($pesoRetorno === null || $pesoRetorno < 0.001 || $pesoRetorno > 150) {
+                        throw ValidationException::withMessages([
+                            'peso' => 'Ingrese un peso entre 0,001 y 150,000 kg para el paquete '.$contrato->codigo.'.',
+                        ]);
+                    }
+
+                    $contrato->forceFill(['peso' => $pesoRetorno])->save();
+                }
+
                 $updated = $destinoAccion === 'origen'
                     ? $this->moveEncargadoRecordAndRegisterEvent(
-                        RecojoContrato::query()->whereKey($id)->first(),
+                        $contrato,
                         'estados_id',
                         (int) $estadoAlmacenId,
                         $servicio,
@@ -1158,7 +1180,7 @@ class PaquetesEmsController extends Controller
                         'Devuelto a almacen origen por '.$actorName.'.'
                     )
                     : $this->moveEncargadoRecordAndRegisterEvent(
-                        RecojoContrato::query()->whereKey($id)->first(),
+                        $contrato,
                         'estados_id',
                         (int) $estadoRecibidoId,
                         $servicio,
@@ -1248,10 +1270,17 @@ class PaquetesEmsController extends Controller
             'feature.paquetes-ems.encargado.updateweight',
         ]);
 
+        $pesoIngresado = trim((string) $request->input('peso', ''));
+        if (str_contains($pesoIngresado, ',')) {
+            $pesoIngresado = str_replace('.', '', $pesoIngresado);
+            $pesoIngresado = str_replace(',', '.', $pesoIngresado);
+        }
+        $request->merge(['peso' => $pesoIngresado]);
+
         $data = $request->validate([
             'id' => ['required', 'integer', 'min:1'],
             'servicio' => ['required', 'string', Rule::in(['EMS', 'CONTRATO', 'CERTI', 'ORDI', 'SOLICITUD'])],
-            'peso' => ['required', 'numeric', 'min:0'],
+            'peso' => ['required', 'numeric', 'min:0.001', 'max:150'],
             'q' => ['nullable', 'string'],
             'from' => ['nullable', 'string'],
             'to' => ['nullable', 'string'],

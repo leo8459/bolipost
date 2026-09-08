@@ -26,6 +26,12 @@ class RecojoRecogerEnvios extends Component
 
     public $selectedRecojos = [];
 
+    public $pickupRows = [];
+
+    public $pickupWeights = [];
+
+    public $missingWeightCodes = [];
+
     protected $paginationTheme = 'bootstrap';
 
     public function mount()
@@ -39,12 +45,91 @@ class RecojoRecogerEnvios extends Component
             ->value('id') ?? 0);
     }
 
+    public function abrirModalRecojo(): void
+    {
+        $this->authorizePermission('feature.paquetes-contrato.recoger-envios.assign');
+        $ids = collect($this->selectedRecojos)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($ids)) {
+            session()->flash('error', 'Selecciona al menos un envio para mandar a ALMACEN.');
+
+            return;
+        }
+
+        $hasGlobalDepartmentAccess = (bool) optional(Auth::user())->hasGlobalDepartmentAccess();
+        $recojos = RecojoModel::query()
+            ->when(! $hasGlobalDepartmentAccess && $this->userCity !== '', function ($query) {
+                $query->whereRaw('trim(upper(origen)) = ?', [$this->userCity]);
+            }, function ($query) use ($hasGlobalDepartmentAccess) {
+                if (! $hasGlobalDepartmentAccess) {
+                    $query->whereRaw('1 = 0');
+                }
+            })
+            ->when(! empty($this->estadoSolicitudId), function ($query) {
+                $query->where('estados_id', (int) $this->estadoSolicitudId);
+            }, function ($query) {
+                $query->whereRaw('1 = 0');
+            })
+            ->whereIn('id', $ids)
+            ->get([
+                'id',
+                'codigo',
+                'origen',
+                'destino',
+                'nombre_r',
+                'nombre_d',
+                'peso',
+            ])
+            ->sortBy(fn ($recojo) => array_search((int) $recojo->id, $ids, true))
+            ->values();
+
+        if ($recojos->isEmpty()) {
+            session()->flash('error', 'Los envios seleccionados ya no estan disponibles para recoger.');
+
+            return;
+        }
+
+        $this->resetValidation();
+        $this->pickupRows = $recojos
+            ->map(fn ($recojo) => [
+                'id' => (int) $recojo->id,
+                'codigo' => (string) $recojo->codigo,
+                'origen' => (string) $recojo->origen,
+                'destino' => (string) $recojo->destino,
+                'remitente' => (string) $recojo->nombre_r,
+                'destinatario' => (string) $recojo->nombre_d,
+            ])
+            ->all();
+        $this->pickupWeights = $recojos
+            ->mapWithKeys(fn ($recojo) => [
+                (string) $recojo->id => (float) $recojo->peso > 0
+                    ? number_format((float) $recojo->peso, 3, ',', '')
+                    : '',
+            ])
+            ->all();
+        $this->missingWeightCodes = $recojos
+            ->filter(fn ($recojo) => (float) $recojo->peso < 0.001
+                || (float) $recojo->peso > ContratoPickupService::PESO_MAXIMO_KG)
+            ->pluck('codigo')
+            ->map(fn ($codigo) => (string) $codigo)
+            ->values()
+            ->all();
+
+        $this->dispatch('openPickupConfirmationModal');
+    }
+
     public function mandarSeleccionadosAlmacen(ContratoPickupService $pickupService)
     {
         $this->authorizePermission('feature.paquetes-contrato.recoger-envios.assign');
         $actor = Auth::user();
-        $ids = collect($this->selectedRecojos)
-            ->filter()
+        $ids = collect($this->pickupRows)
+            ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->filter(fn ($id) => $id > 0)
             ->unique()
@@ -63,8 +148,35 @@ class RecojoRecogerEnvios extends Component
             return;
         }
 
+        $codesById = collect($this->pickupRows)
+            ->mapWithKeys(fn ($row) => [(int) ($row['id'] ?? 0) => (string) ($row['codigo'] ?? 'SIN CODIGO')]);
+        $weights = [];
+        $missingCodes = [];
+
+        foreach ($ids as $id) {
+            $rawWeight = str_replace(',', '.', trim((string) ($this->pickupWeights[$id] ?? '')));
+            $normalizedWeight = is_numeric($rawWeight) ? round((float) $rawWeight, 3) : 0;
+
+            if ($normalizedWeight < 0.001 || $normalizedWeight > ContratoPickupService::PESO_MAXIMO_KG) {
+                $missingCodes[] = $codesById->get($id, 'SIN CODIGO');
+
+                continue;
+            }
+
+            $weights[$id] = $normalizedWeight;
+        }
+
+        if (! empty($missingCodes)) {
+            $this->missingWeightCodes = array_values(array_unique($missingCodes));
+            $this->dispatch('openPickupConfirmationModal');
+
+            return;
+        }
+
+        $this->missingWeightCodes = [];
+
         try {
-            $resultado = $pickupService->recogerPorIds($actor, $ids);
+            $resultado = $pickupService->recogerPorIdsConPesos($actor, $ids, $weights);
             $actualizados = $resultado['actualizados'];
         } catch (RuntimeException $exception) {
             session()->flash('error', $exception->getMessage());
@@ -73,6 +185,9 @@ class RecojoRecogerEnvios extends Component
         }
 
         $this->selectedRecojos = [];
+        $this->pickupRows = [];
+        $this->pickupWeights = [];
+        $this->missingWeightCodes = [];
         $this->resetPage();
 
         if ($actualizados <= 0) {
@@ -81,6 +196,7 @@ class RecojoRecogerEnvios extends Component
             return;
         }
 
+        $this->dispatch('closePickupConfirmationModal');
         session()->flash('success', $actualizados.' envio(s) enviado(s) a ALMACEN.');
     }
 

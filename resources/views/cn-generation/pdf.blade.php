@@ -54,7 +54,7 @@
     <table class="meta">
         <tr>
             <td width="55%"><span class="label">Itinerario:</span> <span class="value">{{ strtoupper($itinerario ?: '-') }}</span></td>
-            <td><span class="label">Peso bruto:</span> <span class="value">{{ number_format($totalPeso, 3, ',', '.') }} kg</span></td>
+            <td><span class="label">Peso bruto:</span> <span class="value">{{ \App\Support\BolivianNumber::format($totalPeso, 3, ',', '.') }} kg</span></td>
             <td><span class="label">Boletin:</span> <span class="value">{{ strtoupper($boletin ?: '-') }}</span></td>
         </tr>
     </table>
@@ -66,7 +66,7 @@
                 <tr>
                     <td>{{ $destination['pais'] }} ({{ $destination['codigo'] }})</td>
                     <td>{{ $destination['oficina'] }}</td>
-                    <td>{{ $destination['cantidad'] }} / {{ number_format($destination['peso'], 3, ',', '.') }} kg</td>
+                    <td>{{ $destination['cantidad'] }} / {{ \App\Support\BolivianNumber::format($destination['peso'], 3, ',', '.') }} kg</td>
                     <td>0</td><td>0</td><td>LISTA</td>
                 </tr>
             @endforeach
@@ -87,18 +87,18 @@
                 <tr>
                     <td class="center">{{ $index + 1 }}</td><td>{{ $row['envio'] }}</td><td class="center">{{ $row['origen'] }}</td>
                     <td class="center">{{ $row['destino'] }}</td><td class="center">{{ $row['pais_codigo'] }}</td>
-                    <td class="number">{{ number_format($row['peso'], 3, ',', '.') }}</td>
-                    <td class="number">{{ number_format($row['valor_declarado'], 2, ',', '.') }}</td>
-                    <td class="number">{{ number_format($row['porte_expedidor'], 2, ',', '.') }}</td>
-                    <td class="number">{{ number_format($row['porte_destinatario'], 2, ',', '.') }}</td><td>{{ $row['observacion'] ?: '-' }}</td>
+                    <td class="number">{{ \App\Support\BolivianNumber::format($row['peso'], 3, ',', '.') }}</td>
+                    <td class="number">{{ \App\Support\BolivianNumber::format($row['valor_declarado'], 2, ',', '.') }}</td>
+                    <td class="number">{{ \App\Support\BolivianNumber::format($row['porte_expedidor'], 2, ',', '.') }}</td>
+                    <td class="number">{{ \App\Support\BolivianNumber::format($row['porte_destinatario'], 2, ',', '.') }}</td><td>{{ $row['observacion'] ?: '-' }}</td>
                 </tr>
             @endforeach
             <tr class="totals">
                 <td colspan="5">TOTAL DE LISTA ({{ $rows->count() }} encomienda(s))</td>
-                <td class="number">{{ number_format($totalPeso, 3, ',', '.') }}</td>
-                <td class="number">{{ number_format($totalValor, 2, ',', '.') }}</td>
-                <td class="number">{{ number_format($totalPorteExpedidor, 2, ',', '.') }}</td>
-                <td class="number">{{ number_format($totalPorteDestinatario, 2, ',', '.') }}</td><td></td>
+                <td class="number">{{ \App\Support\BolivianNumber::format($totalPeso, 3, ',', '.') }}</td>
+                <td class="number">{{ \App\Support\BolivianNumber::format($totalValor, 2, ',', '.') }}</td>
+                <td class="number">{{ \App\Support\BolivianNumber::format($totalPorteExpedidor, 2, ',', '.') }}</td>
+                <td class="number">{{ \App\Support\BolivianNumber::format($totalPorteDestinatario, 2, ',', '.') }}</td><td></td>
             </tr>
         </tbody>
     </table>

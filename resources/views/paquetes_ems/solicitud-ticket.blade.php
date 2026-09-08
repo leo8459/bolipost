@@ -415,7 +415,7 @@
                     </div>
                     <div class="field">
                         <span class="label">Peso</span>
-                        <span class="value">{{ $solicitud->peso !== null ? number_format((float) $solicitud->peso, 3, '.', '') . ' kg' : '-' }}</span>
+                        <span class="value">{{ $solicitud->peso !== null ? \App\Support\BolivianNumber::format((float) $solicitud->peso, 3, '.', '') . ' kg' : '-' }}</span>
                     </div>
                     <div class="field full">
                         <span class="label">Contenido</span>
@@ -426,7 +426,7 @@
 
             <div class="total-box">
                 <span class="total-label">Precio</span>
-                <span class="price">Bs {{ $solicitud->precio !== null ? number_format((float) $solicitud->precio, 2, '.', '') : '0.00' }}</span>
+                <span class="price">Bs {{ $solicitud->precio !== null ? \App\Support\BolivianNumber::format((float) $solicitud->precio, 2, '.', '') : '0.00' }}</span>
             </div>
 
             <div class="volume-notice">

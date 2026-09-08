@@ -580,7 +580,7 @@
                 </div>
                 <div class="global-shortcut-cart-summary__metric">
                     <span>Total</span>
-                    <strong>Bs {{ number_format($facturacionCartTotal, 2) }}</strong>
+                    <strong>Bs {{ \App\Support\BolivianNumber::format($facturacionCartTotal, 2) }}</strong>
                 </div>
             </div>
 
@@ -629,7 +629,7 @@
                                     @if($itemCantidad > 1)
                                         <span class="global-shortcut-cart-item__quantity">x{{ $itemCantidad }}</span>
                                     @endif
-                                    <span class="global-shortcut-cart-item__amount">Bs {{ number_format((float) $item->total_linea, 2) }}</span>
+                                    <span class="global-shortcut-cart-item__amount">Bs {{ \App\Support\BolivianNumber::format((float) $item->total_linea, 2) }}</span>
                                 </div>
                                 <div class="global-shortcut-cart-item__meta">
                                     <span>{{ $item->codigo ?: 'Sin codigo' }}</span>
@@ -653,7 +653,7 @@
                                     <div class="global-shortcut-cart-item__extras">
                                         @foreach ($visibleExtras as $extra)
                                             <span class="global-shortcut-chip">
-                                                {{ $extra['name'] ?? 'Extra' }} | Bs {{ number_format((float) ($extra['amount'] ?? 0), 2) }}
+                                                {{ $extra['name'] ?? 'Extra' }} | Bs {{ \App\Support\BolivianNumber::format((float) ($extra['amount'] ?? 0), 2) }}
                                             </span>
                                         @endforeach
                                     </div>
@@ -783,7 +783,7 @@
                                                 data-concepto-codigo="{{ $conceptoFacturable->codigo }}"
                                                 data-concepto-descripcion="{{ $conceptoFacturable->descripcion ?? $conceptoFacturable->nombre }}"
                                             >
-                                                {{ $conceptoFacturable->nombre }} | {{ $conceptoFacturable->codigo }} | Bs {{ number_format((float) $conceptoFacturable->precio_base, 2) }}
+                                                {{ $conceptoFacturable->nombre }} | {{ $conceptoFacturable->codigo }} | Bs {{ \App\Support\BolivianNumber::format((float) $conceptoFacturable->precio_base, 2) }}
                                             </option>
                                         @endforeach
                                     </select>
@@ -5916,10 +5916,10 @@
                     facturacionEmsSummaryCount.textContent = String(packageCards.length);
                 }
                 if (facturacionEmsSummaryWeight instanceof HTMLElement) {
-                    facturacionEmsSummaryWeight.textContent = totalWeight.toFixed(2) + ' kg';
+                    facturacionEmsSummaryWeight.textContent = window.BolivianNumber.format(totalWeight, 2) + ' kg';
                 }
                 if (facturacionEmsSummaryTotal instanceof HTMLElement) {
-                    facturacionEmsSummaryTotal.textContent = 'Bs ' + totalPrice.toFixed(2);
+                    facturacionEmsSummaryTotal.textContent = 'Bs ' + window.BolivianNumber.format(totalPrice, 2);
                 }
             };
 
@@ -6321,7 +6321,7 @@
                     facturacionConceptoModalResumenCodigo.textContent = codigo || '-';
                 }
                 if (facturacionConceptoModalResumenPrecio instanceof HTMLElement) {
-                    facturacionConceptoModalResumenPrecio.textContent = 'Bs ' + Number(basePrice || 0).toFixed(2);
+                    facturacionConceptoModalResumenPrecio.textContent = 'Bs ' + window.BolivianNumber.format(basePrice || 0, 2);
                 }
                 if (facturacionConceptoModal instanceof HTMLElement) {
                     facturacionConceptoModal.classList.add('is-open');
@@ -6853,7 +6853,7 @@
             };
 
             const formatFacturacionMoney = (value) => {
-                return 'Bs ' + Number(value || 0).toFixed(2);
+                return 'Bs ' + window.BolivianNumber.format(value || 0, 2);
             };
 
             const buildFacturacionDeleteFormHtml = (itemId, quantityValue = 1) => {

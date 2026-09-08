@@ -156,7 +156,7 @@
                     <td>{{ $package->telefono }}</td>
                     <td>{{ $package->ciudad }}</td>
                     <td>{{ optional($package->ventanillaRef)->nombre_ventanilla ?? '-' }}</td>
-                    <td>{{ number_format((float) $package->peso, 3) }} gr.</td>
+                    <td>{{ \App\Support\BolivianNumber::format((float) $package->peso, 3) }} gr.</td>
                     <td>{{ $package->aduana }}</td>
                     <td>{{ optional($package->created_at)->format('Y-m-d H:i') }}</td>
                 </tr>

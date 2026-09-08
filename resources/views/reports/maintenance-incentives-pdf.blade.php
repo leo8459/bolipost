@@ -29,7 +29,7 @@
     <div class="hero">
         <div class="score">
             <div class="muted" style="color:#dbe6fb;">Score global</div>
-            <div class="value">{{ number_format($scoreGlobal, 1) }}</div>
+            <div class="value">{{ \App\Support\BolivianNumber::format($scoreGlobal, 1) }}</div>
         </div>
         <div style="font-size:11px; letter-spacing:0.18em; text-transform:uppercase;">Inteligencia de flota</div>
         <h1>Incentivos {{ $from->translatedFormat('F Y') }}</h1>
@@ -77,11 +77,11 @@
                     <div class="section-title">Impacto Economico</div>
                     <div class="box green">
                         <div class="muted">Ahorro estimado</div>
-                        <div style="font-size:24px; font-weight:700; color:#159c57;">${{ number_format((float) $estimatedSavings, 0) }}</div>
+                        <div style="font-size:24px; font-weight:700; color:#159c57;">${{ \App\Support\BolivianNumber::format((float) $estimatedSavings, 0) }}</div>
                     </div>
                     <div class="box blue">
                         <div class="muted">Bonos a pagar</div>
-                        <div style="font-size:24px; font-weight:700; color:#2458a6;">${{ number_format((float) $pendingBonuses, 0) }}</div>
+                        <div style="font-size:24px; font-weight:700; color:#2458a6;">${{ \App\Support\BolivianNumber::format((float) $pendingBonuses, 0) }}</div>
                     </div>
                 </td>
                 <td width="50%" style="vertical-align:top;">

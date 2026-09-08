@@ -21,15 +21,15 @@
                 <td>{{ $row['tipo_envio'] }}</td>
                 <td style="white-space: pre-line;">{{ $row['estado_label'] }}{{ !empty($row['estado_detalle']) ? "\n" . $row['estado_detalle'] : '' }}</td>
                 <td style="white-space: pre-line;">{{ $row['codigo_referencia'] ?? $row['codigo_item'] }}</td>
-                <td class="right">{{ number_format((float) $row['peso'], 3) }}</td>
+                <td class="right">{{ \App\Support\BolivianNumber::format((float) $row['peso'], 3) }}</td>
                 <td class="center">{{ $row['cantidad'] }}</td>
                 <td class="center">{{ $row['numero_factura'] }}</td>
-                <td class="right">{{ number_format((float) $row['importe_general'], 2) }}</td>
+                <td class="right">{{ \App\Support\BolivianNumber::format((float) $row['importe_general'], 2) }}</td>
             </tr>
         @endforeach
         <tr>
             <td colspan="8" class="right" style="font-weight: 700;">{{ $section['total_label'] }}</td>
-            <td class="right" style="font-weight: 700;">Bs {{ number_format((float) $sectionRows->sum(fn ($row) => (float) data_get($row, 'contabiliza_en_caja', true) ? (float) data_get($row, 'importe_general', 0) : 0), 2) }}</td>
+            <td class="right" style="font-weight: 700;">Bs {{ \App\Support\BolivianNumber::format((float) $sectionRows->sum(fn ($row) => (float) data_get($row, 'contabiliza_en_caja', true) ? (float) data_get($row, 'importe_general', 0) : 0), 2) }}</td>
         </tr>
     </tbody>
 </table>

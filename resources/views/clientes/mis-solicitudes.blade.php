@@ -139,7 +139,7 @@
                                             <span class="text-muted">Sin tarifa</span>
                                         @endif
                                         <span class="d-block mt-1 font-weight-bold text-primary">
-                                            Precio: {{ $solicitud->precio !== null ? 'Bs ' . number_format((float) $solicitud->precio, 2, '.', '') : 'No disponible' }}
+                                            Precio: {{ $solicitud->precio !== null ? 'Bs ' . \App\Support\BolivianNumber::format((float) $solicitud->precio, 2, '.', '') : 'No disponible' }}
                                         </span>
                                     </td>
                                     <td>{{ $solicitud->origen }}</td>

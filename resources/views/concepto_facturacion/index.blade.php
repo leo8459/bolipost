@@ -67,7 +67,7 @@
                                             <td>{{ $concepto->codigo }}</td>
                                             <td>{{ $concepto->unidad_medida }}</td>
                                             <td>{{ $concepto->descripcion }}</td>
-                                            <td>Bs {{ number_format((float) $concepto->precio_base, 2) }}</td>
+                                            <td>Bs {{ \App\Support\BolivianNumber::format((float) $concepto->precio_base, 2) }}</td>
                                             <td>{{ $concepto->activo ? 'Si' : 'No' }}</td>
                                             <td>
                                                 <div class="d-flex" style="gap:8px;">

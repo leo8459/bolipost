@@ -68,7 +68,7 @@
             </div>
 
             <div class="facts">
-                <div><i class="fas fa-weight-hanging"></i><span><small>Peso</small><strong>{{ is_numeric(data_get($package,'peso')) ? number_format((float)data_get($package,'peso'),3,',','.').' kg' : 'No disponible' }}</strong></span></div>
+                <div><i class="fas fa-weight-hanging"></i><span><small>Peso</small><strong>{{ is_numeric(data_get($package,'peso')) ? \App\Support\BolivianNumber::format((float)data_get($package,'peso'),3,',','.').' kg' : 'No disponible' }}</strong></span></div>
                 <div><i class="fas fa-envelope"></i><span><small>Clase de correo</small><strong>{{ $value(data_get($package,'clase_correo')) }}</strong></span></div>
                 <div><i class="fas fa-calendar-alt"></i><span><small>Registrado</small><strong>{{ $date(data_get($package,'fecha_registro'),'d/m/Y H:i') }}</strong></span></div>
                 <div><i class="fas fa-list-ol"></i><span><small>Movimientos</small><strong>{{ $eventos->count() }} evento(s)</strong></span></div>

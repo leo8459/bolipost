@@ -1617,7 +1617,7 @@
                                 |
                                 <strong>CN-33 seleccionados:</strong> {{ $cn38DispatchRows->count() }}
                                 |
-                                <strong>Peso total:</strong> {{ number_format($cn38TotalPeso, 3) }} Kg
+                                <strong>Peso total:</strong> {{ \App\Support\BolivianNumber::format($cn38TotalPeso, 3) }} Kg
                             </div>
                         @endif
                         @if ($cn38SelectedTotal > 0)
@@ -1644,7 +1644,7 @@
                                                 <tr wire:key="cn38-cn33-{{ md5((string) ($item->despacho ?? '')) }}">
                                                     <td><span class="pill-id">{{ $item->despacho ?? '-' }}</span></td>
                                                     <td>{{ $item->registros ?? 0 }}</td>
-                                                    <td>{{ number_format((float) ($item->peso_total ?? 0), 3) }} Kg</td>
+                                                    <td>{{ \App\Support\BolivianNumber::format((float) ($item->peso_total ?? 0), 3) }} Kg</td>
                                                 </tr>
                                             @empty
                                                 <tr>
@@ -2104,7 +2104,7 @@
                                         <td>{{ $paqueteInt->destino ?: '-' }}</td>
                                         <td>PAQUETE INTERNACIONAL</td>
                                         <td>1</td>
-                                        <td>{{ number_format((float) $paqueteInt->peso, 3) }}</td>
+                                        <td>{{ \App\Support\BolivianNumber::format((float) $paqueteInt->peso, 3) }}</td>
                                         <td>-</td>
                                         <td>-</td>
                                         <td>-</td>
@@ -2690,7 +2690,7 @@
                                 @if (!$this->isAlmacenEms)
                                     <div class="confirm-summary-item">
                                         <span class="confirm-summary-label">Precio</span>
-                                        <span class="confirm-summary-value">Bs {{ number_format((float) ($precio_confirm ?? $precio), 2, ',', '.') }}</span>
+                                        <span class="confirm-summary-value">Bs {{ \App\Support\BolivianNumber::format((float) ($precio_confirm ?? $precio), 2, ',', '.') }}</span>
                                     </div>
                                     <div class="confirm-summary-item">
                                         <span class="confirm-summary-label">Recargo 30 %</span>
@@ -3243,7 +3243,7 @@
                                         <span class="text-muted">| Tipo: {{ strtoupper($item['type'] ?? '-') }}</span>
                                     </div>
                                     <div class="small text-muted">
-                                        Peso actual: {{ number_format((float) ($item['peso'] ?? 0), 3) }} Kg
+                                        Peso actual: {{ \App\Support\BolivianNumber::format((float) ($item['peso'] ?? 0), 3) }} Kg
                                     </div>
                                 </div>
                                 <x-peso-qz-field

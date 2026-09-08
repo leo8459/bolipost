@@ -78,6 +78,14 @@
         .preview-meta{
             font-size:.8rem;
         }
+        .pickup-modal-code{
+            color:var(--azul);
+            font-weight:900;
+            white-space:nowrap;
+        }
+        .pickup-weight-input{
+            min-width:150px;
+        }
 
         @media (max-width: 991.98px){
             .header-shell{ flex-direction:column; }
@@ -123,7 +131,7 @@
                     </div>
                     <div class="header-action-row">
                         @if ($canContratoRecogerAssign)
-                        <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosAlmacen">
+                        <button class="btn btn-outline-light2" type="button" wire:click="abrirModalRecojo">
                             Mandar seleccionados a ALMACEN
                         </button>
                         @endif
@@ -265,5 +273,161 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="pickupConfirmationModal" tabindex="-1" aria-labelledby="pickupConfirmationModalLabel" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title font-weight-bold" id="pickupConfirmationModalLabel">Confirmar recojo de envios</h5>
+                        <div class="text-muted small">Revisa todos los paquetes e ingresa su peso en kilogramos (maximo 150,000 kg).</div>
+                    </div>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    @if (!empty($missingWeightCodes))
+                        <div class="alert alert-warning" role="alert">
+                            <div class="font-weight-bold mb-2">
+                                <i class="fas fa-exclamation-triangle mr-1"></i>
+                                Por favor ingrese el peso de los paquetes:
+                            </div>
+                            <div>
+                                @foreach ($missingWeightCodes as $codigo)
+                                    <span class="badge badge-warning border mr-1 mb-1">{{ $codigo }}</span>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+
+                    <div class="d-flex justify-content-between align-items-center flex-wrap mb-3">
+                        <div class="font-weight-bold" style="color:var(--azul);">Paquetes que se recogeran</div>
+                        <div class="text-muted">Total: <strong>{{ count($pickupRows) }}</strong></div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Codigo</th>
+                                    <th>Origen</th>
+                                    <th>Destino</th>
+                                    <th>Remitente</th>
+                                    <th>Destinatario</th>
+                                    <th style="min-width:180px;">Peso (kg) <span class="text-danger">*</span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse ($pickupRows as $index => $row)
+                                    @php
+                                        $rowId = (int) ($row['id'] ?? 0);
+                                        $rowCode = (string) ($row['codigo'] ?? 'SIN CODIGO');
+                                        $weightMissing = in_array($rowCode, $missingWeightCodes, true);
+                                    @endphp
+                                    <tr wire:key="pickup-row-{{ $rowId }}">
+                                        <td>{{ $index + 1 }}</td>
+                                        <td><span class="pickup-modal-code">{{ $rowCode }}</span></td>
+                                        <td>{{ $row['origen'] ?: '-' }}</td>
+                                        <td>{{ $row['destino'] ?: '-' }}</td>
+                                        <td>{{ $row['remitente'] ?: '-' }}</td>
+                                        <td>{{ $row['destinatario'] ?: '-' }}</td>
+                                        <td>
+                                            <div class="input-group input-group-sm pickup-weight-input">
+                                                <input
+                                                    type="text"
+                                                    class="form-control @if($weightMissing) is-invalid @endif"
+                                                    wire:model.defer="pickupWeights.{{ $rowId }}"
+                                                    inputmode="decimal"
+                                                    placeholder="Ej. 1,250"
+                                                    maxlength="7"
+                                                    data-fixed-weight-input
+                                                    data-weight-min="0.001"
+                                                    data-weight-max="150"
+                                                    required
+                                                    aria-label="Peso del paquete {{ $rowCode }} en kilogramos"
+                                                >
+                                                <div class="input-group-append">
+                                                    <span class="input-group-text">kg</span>
+                                                </div>
+                                            </div>
+                                            @if ($weightMissing)
+                                                <small class="text-danger font-weight-bold">Ingrese un peso entre 0,001 y 150,000 kg</small>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="7" class="text-center text-muted py-4">No hay paquetes seleccionados.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    @if ($canContratoRecogerAssign)
+                        <button
+                            type="button"
+                            class="btn btn-primary"
+                            wire:click="mandarSeleccionadosAlmacen"
+                            wire:loading.attr="disabled"
+                            wire:target="mandarSeleccionadosAlmacen"
+                        >
+                            <span wire:loading.remove wire:target="mandarSeleccionadosAlmacen">
+                                <i class="fas fa-box-open mr-1"></i> Confirmar recojo
+                            </span>
+                            <span wire:loading wire:target="mandarSeleccionadosAlmacen">Procesando...</span>
+                        </button>
+                    @endif
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
+
+@once
+<script>
+    (() => {
+        if (window.__pickupConfirmationModalInit) {
+            return;
+        }
+        window.__pickupConfirmationModalInit = true;
+
+        const togglePickupModal = (action) => {
+            if (window.jQuery && $('#pickupConfirmationModal').length) {
+                $('#pickupConfirmationModal').modal(action);
+            }
+        };
+
+        const registerPickupModalEvents = () => {
+            window.addEventListener('openPickupConfirmationModal', () => togglePickupModal('show'));
+            window.addEventListener('closePickupConfirmationModal', () => togglePickupModal('hide'));
+            document.addEventListener('openPickupConfirmationModal', () => togglePickupModal('show'));
+            document.addEventListener('closePickupConfirmationModal', () => togglePickupModal('hide'));
+
+            if (window.Livewire && typeof window.Livewire.on === 'function') {
+                window.Livewire.on('openPickupConfirmationModal', () => togglePickupModal('show'));
+                window.Livewire.on('closePickupConfirmationModal', () => togglePickupModal('hide'));
+            }
+        };
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', registerPickupModalEvents, { once: true });
+        } else {
+            registerPickupModalEvents();
+        }
+
+    })();
+</script>
+@endonce
+
+@once
+    @php($fixedWeightJsVersion = file_exists(public_path('js/fixed-weight-input.js')) ? filemtime(public_path('js/fixed-weight-input.js')) : time())
+    <script src="{{ asset('js/fixed-weight-input.js') }}?v={{ $fixedWeightJsVersion }}" defer></script>
+@endonce
 

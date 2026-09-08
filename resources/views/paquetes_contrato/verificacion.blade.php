@@ -155,7 +155,7 @@
                 </div>
                 <div class="item">
                     <span class="label">Peso</span>
-                    <span class="value">{{ $contrato->peso !== null ? number_format((float) $contrato->peso, 3) . ' kg' : '-' }}</span>
+                    <span class="value">{{ $contrato->peso !== null ? \App\Support\BolivianNumber::format((float) $contrato->peso, 3) . ' kg' : '-' }}</span>
                 </div>
                 <div class="item">
                     <span class="label">Fecha</span>

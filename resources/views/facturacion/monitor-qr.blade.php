@@ -980,7 +980,9 @@
 
             const formatAmount = (amount) => {
                 const numeric = Number(amount || 0);
-                return Number.isFinite(numeric) && numeric > 0 ? 'Bs ' + numeric.toFixed(2) : 'Bs 0.00';
+                return Number.isFinite(numeric) && numeric > 0
+                    ? 'Bs ' + window.BolivianNumber.format(numeric, 2)
+                    : 'Bs 0,00';
             };
 
             const normalizeImageSrc = (value) => {

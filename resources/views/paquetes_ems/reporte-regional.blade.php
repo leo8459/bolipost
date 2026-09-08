@@ -192,7 +192,7 @@
                     <td>{{ $destinationDisplay }}</td>
                     <td>{{ $cantidad }}</td>
                     <td></td>
-                    <td>{{ number_format($peso, 3) }}</td>
+                    <td>{{ \App\Support\BolivianNumber::format($peso, 3) }}</td>
                     <td>{{ $paquete->nombre_remitente }}</td>
                     <td></td>
                     <td>X</td>
@@ -207,7 +207,7 @@
                 <td></td>
                 <td><strong>{{ $totalCantidad }}</strong></td>
                 <td></td>
-                <td><strong>{{ number_format($totalPeso, 3) }} Kg</strong></td>
+                <td><strong>{{ \App\Support\BolivianNumber::format($totalPeso, 3) }} Kg</strong></td>
                 <td colspan="4"></td>
             </tr>
         </tfoot>

@@ -18,7 +18,7 @@
         <div>
             <div class="font-weight-bold text-uppercase">Alerta Delivery Express</div>
             <div>
-                Hay <strong>{{ number_format($deliveryPickupCount) }}</strong>
+                Hay <strong>{{ \App\Support\BolivianNumber::format($deliveryPickupCount) }}</strong>
                 {{ $deliveryPickupCount === 1 ? 'solicitud pendiente' : 'solicitudes pendientes' }}
                 para recoger {{ $deliveryPickupIsNational ? 'a nivel nacional' : 'en ' . $deliveryPickupScope }}.
             </div>
@@ -26,7 +26,7 @@
                 <div class="mt-2 d-flex flex-wrap">
                     @foreach($deliveryPickupDepartments as $department)
                         <span class="badge badge-light border mr-2 mb-1 px-2 py-1">
-                            {{ $department->departamento }}: {{ number_format((int) $department->total) }}
+                            {{ $department->departamento }}: {{ \App\Support\BolivianNumber::format((int) $department->total) }}
                         </span>
                     @endforeach
                 </div>
@@ -59,13 +59,13 @@
             </div>
             <div class="modal-body">
                 <div class="alert alert-warning border mb-3">
-                    <strong>Atencion:</strong> existen {{ number_format($deliveryPickupCount) }}
+                    <strong>Atencion:</strong> existen {{ \App\Support\BolivianNumber::format($deliveryPickupCount) }}
                     {{ $deliveryPickupCount === 1 ? 'solicitud que debe ser recogida' : 'solicitudes que deben ser recogidas' }}.
                     Coordina el recojo y actualiza su estado desde el modulo de Delivery Express.
                 </div>
 
                 @if($deliveryPickupCount > $deliveryPickupRequests->count())
-                    <p class="small text-muted">Se muestran las {{ number_format($deliveryPickupRequests->count()) }} solicitudes mas recientes.</p>
+                    <p class="small text-muted">Se muestran las {{ \App\Support\BolivianNumber::format($deliveryPickupRequests->count()) }} solicitudes mas recientes.</p>
                 @endif
 
                 <div class="table-responsive">
@@ -178,14 +178,14 @@
 <div class="alert alert-danger d-flex flex-column flex-md-row align-items-md-center justify-content-between mb-3">
     <div>
         <strong>Tienes paquetes por recoger:</strong>
-        {{ number_format((int) $contratosPorRecoger) }}
+        {{ \App\Support\BolivianNumber::format((int) $contratosPorRecoger) }}
         @if(($pickupAlertIsNational ?? false) === true)
             a nivel nacional.
             @if(collect($contratosPorRecogerPorDepartamento ?? [])->isNotEmpty())
                 <div class="mt-2 d-flex flex-wrap">
                     @foreach($contratosPorRecogerPorDepartamento as $departamento)
                         <span class="btn btn-sm btn-light border mr-2 mb-2">
-                            {{ $departamento->departamento }}: {{ number_format((int) $departamento->total) }}
+                            {{ $departamento->departamento }}: {{ \App\Support\BolivianNumber::format((int) $departamento->total) }}
                         </span>
                     @endforeach
                 </div>
@@ -211,7 +211,7 @@
 <div class="alert alert-warning d-flex flex-column flex-md-row align-items-md-center justify-content-between mb-3">
     <div>
         <strong>Tiene paquetes pendientes:</strong>
-        {{ number_format((int) data_get($regionalPendingAlert, 'count', 0)) }}
+        {{ \App\Support\BolivianNumber::format((int) data_get($regionalPendingAlert, 'count', 0)) }}
         con mas de {{ (int) data_get($regionalPendingAlert, 'hours', 72) }} horas habiles
         @if(data_get($regionalPendingAlert, 'scope') === 'nacional')
             a nivel nacional.
@@ -219,7 +219,7 @@
                 <div class="mt-2 d-flex flex-wrap">
                     @foreach(data_get($regionalPendingAlert, 'departments', []) as $departamento)
                         <span class="btn btn-sm btn-light border mr-2 mb-2">
-                            {{ $departamento->departamento }}: {{ number_format((int) $departamento->total) }}
+                            {{ $departamento->departamento }}: {{ \App\Support\BolivianNumber::format((int) $departamento->total) }}
                         </span>
                     @endforeach
                 </div>
@@ -237,7 +237,7 @@
 @if(((int) data_get($carteroPendingAlert ?? [], 'count', 0)) > 0)
 <div class="alert alert-info d-flex flex-column flex-md-row align-items-md-center justify-content-between mb-3">
     <div>
-        <strong>El cartero {{ data_get($carteroPendingAlert, 'name', 'Sin nombre') }} tiene {{ number_format((int) data_get($carteroPendingAlert, 'count', 0)) }} paquetes.</strong>
+        <strong>El cartero {{ data_get($carteroPendingAlert, 'name', 'Sin nombre') }} tiene {{ \App\Support\BolivianNumber::format((int) data_get($carteroPendingAlert, 'count', 0)) }} paquetes.</strong>
         Pendientes por entregar en su bandeja CARTERO.
     </div>
     <a href="{{ route('carteros.cartero') }}" class="btn btn-sm btn-outline-primary mt-2 mt-md-0">
@@ -270,14 +270,14 @@
 <div class="alert alert-danger d-flex flex-column flex-md-row align-items-md-center justify-content-between mb-3">
     <div>
         <strong>Registrar bitacora de envio nacional.</strong>
-        Hay {{ number_format((int) data_get($pendingCn33Alert, 'count', 0)) }} CN-33 sin bitacora por mas de {{ (int) data_get($pendingCn33Alert, 'grace_hours', 24) }} horas desde su dia y hora de despacho.
+        Hay {{ \App\Support\BolivianNumber::format((int) data_get($pendingCn33Alert, 'count', 0)) }} CN-33 sin bitacora por mas de {{ (int) data_get($pendingCn33Alert, 'grace_hours', 24) }} horas desde su dia y hora de despacho.
         @if((string) data_get($pendingCn33Alert, 'regional', '') !== '')
         Solo se muestran registros de {{ data_get($pendingCn33Alert, 'regional') }}.
         @else
         Se muestran registros a nivel nacional.
         @endif
         Se consideran despachos desde {{ optional(data_get($pendingCn33Alert, 'alert_start_date'))->format('d/m/Y') ?? '17/07/2026' }}.
-        Retraso maximo: {{ number_format((int) data_get($pendingCn33Alert, 'max_days_delay', 0)) }} dia(s).
+        Retraso maximo: {{ \App\Support\BolivianNumber::format((int) data_get($pendingCn33Alert, 'max_days_delay', 0)) }} dia(s).
         @if($dashboardPendingCn33Departments->isNotEmpty())
             <div class="mt-2 d-flex flex-wrap">
                 @foreach($dashboardPendingCn33Departments as $index => $department)
@@ -287,7 +287,7 @@
                         data-toggle="modal"
                         data-target="#pendingCn33DepartmentModal{{ $index }}"
                     >
-                        {{ $department->department }}: {{ number_format((int) ($department->total_cn33 ?? 0)) }}
+                        {{ $department->department }}: {{ \App\Support\BolivianNumber::format((int) ($department->total_cn33 ?? 0)) }}
                     </button>
                 @endforeach
             </div>
@@ -314,9 +314,9 @@
                 </div>
                 <div class="modal-body">
                     <div class="alert alert-light border">
-                        <strong>Total CN-33 sin bitacora:</strong> {{ number_format((int) ($department->total_cn33 ?? 0)) }}
+                        <strong>Total CN-33 sin bitacora:</strong> {{ \App\Support\BolivianNumber::format((int) ($department->total_cn33 ?? 0)) }}
                         |
-                        <strong>Retraso maximo:</strong> {{ number_format((int) ($department->max_days_delay ?? 0)) }} dia(s)
+                        <strong>Retraso maximo:</strong> {{ \App\Support\BolivianNumber::format((int) ($department->max_days_delay ?? 0)) }} dia(s)
                     </div>
                     <div class="table-responsive">
                         <table class="table table-sm table-hover mb-0">
@@ -343,9 +343,9 @@
                                                 {{ $row->numero_despacho ?? $row->cod_especial }}
                                             </button>
                                         </td>
-                                        <td class="text-right">{{ number_format((int) ($row->days_delay ?? 0)) }}</td>
-                                        <td class="text-right">{{ number_format((float) ($row->peso_total ?? 0), 3) }}</td>
-                                        <td class="text-right">{{ number_format((int) ($row->total_registros ?? 0)) }}</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((int) ($row->days_delay ?? 0)) }}</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($row->peso_total ?? 0), 3) }}</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((int) ($row->total_registros ?? 0)) }}</td>
                                         <td>{{ optional($row->dispatch_created_at ?? $row->first_created_at)->format('d/m/Y H:i') }}</td>
                                     </tr>
                                 @endforeach
@@ -379,8 +379,8 @@
                     <div class="modal-body">
                         <div class="alert alert-light border d-flex flex-wrap justify-content-between">
                             <span><strong>Regional:</strong> {{ $row->regional ?: 'Sin regional' }}</span>
-                            <span><strong>Total paquetes:</strong> {{ number_format(collect($row->packages ?? [])->count()) }}</span>
-                            <span><strong>Peso total:</strong> {{ number_format((float) ($row->peso_total ?? 0), 3) }}</span>
+                            <span><strong>Total paquetes:</strong> {{ \App\Support\BolivianNumber::format(collect($row->packages ?? [])->count()) }}</span>
+                            <span><strong>Peso total:</strong> {{ \App\Support\BolivianNumber::format((float) ($row->peso_total ?? 0), 3) }}</span>
                         </div>
                         <div class="table-responsive">
                             <table class="table table-sm table-striped table-hover mb-0">
@@ -405,7 +405,7 @@
                                             <td>{{ $package->origen ?: '-' }}</td>
                                             <td>{{ $package->destino ?: '-' }}</td>
                                             <td>{{ $package->destinatario ?: '-' }}</td>
-                                            <td class="text-right">{{ number_format((float) $package->peso, 3) }}</td>
+                                            <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $package->peso, 3) }}</td>
                                             <td>{{ optional($package->dispatch_created_at ?? $package->created_at)->format('d/m/Y H:i') ?: '-' }}</td>
                                         </tr>
                                     @empty
@@ -483,7 +483,7 @@
                 data-toggle="modal"
                 data-target="#carteroPendingDepartmentModal{{ $index }}"
             >
-                {{ $department->department }}: {{ number_format((int) ($department->total_pendientes ?? 0)) }}
+                {{ $department->department }}: {{ \App\Support\BolivianNumber::format((int) ($department->total_pendientes ?? 0)) }}
             </button>
         @endforeach
     </div>
@@ -503,9 +503,9 @@
                 </div>
                 <div class="modal-body">
                     <div class="alert alert-light border">
-                        <strong>Total carteros:</strong> {{ number_format((int) ($department->total_carteros ?? 0)) }}
+                        <strong>Total carteros:</strong> {{ \App\Support\BolivianNumber::format((int) ($department->total_carteros ?? 0)) }}
                         |
-                        <strong>Total pendientes:</strong> {{ number_format((int) ($department->total_pendientes ?? 0)) }}
+                        <strong>Total pendientes:</strong> {{ \App\Support\BolivianNumber::format((int) ($department->total_pendientes ?? 0)) }}
                     </div>
                     <div class="table-responsive">
                         <table class="table table-sm table-hover mb-0">
@@ -519,7 +519,7 @@
                                 @foreach(($department->rows ?? collect()) as $row)
                                     <tr>
                                         <td>{{ $row->name }}</td>
-                                        <td class="text-right">{{ number_format((int) ($row->pendientes ?? 0)) }}</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((int) ($row->pendientes ?? 0)) }}</td>
                                     </tr>
                                 @endforeach
                             </tbody>

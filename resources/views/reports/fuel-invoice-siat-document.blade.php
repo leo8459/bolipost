@@ -34,7 +34,7 @@
             </tr>
             <tr>
                 <td><strong>Fecha de emision:</strong> {{ $snapshot['fecha_emision'] ?? '-' }}</td>
-                <td><strong>Monto total:</strong> Bs {{ number_format((float) ($snapshot['monto_total'] ?? 0), 2) }}</td>
+                <td><strong>Monto total:</strong> Bs {{ \App\Support\BolivianNumber::format((float) ($snapshot['monto_total'] ?? 0), 2) }}</td>
             </tr>
         </table>
     </div>
@@ -80,8 +80,8 @@
                         <td>{{ $detail['codigo'] ?: '-' }}</td>
                         <td>{{ $detail['descripcion'] ?: 'Combustible' }}</td>
                         <td class="text-right">{{ $detail['cantidad'] ?? '-' }}</td>
-                        <td class="text-right">Bs {{ number_format((float) ($detail['precio_unitario'] ?? 0), 2) }}</td>
-                        <td class="text-right">Bs {{ number_format((float) ($detail['subtotal'] ?? 0), 2) }}</td>
+                        <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) ($detail['precio_unitario'] ?? 0), 2) }}</td>
+                        <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) ($detail['subtotal'] ?? 0), 2) }}</td>
                     </tr>
                 @endforeach
             </tbody>

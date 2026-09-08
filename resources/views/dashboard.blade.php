@@ -322,7 +322,7 @@
             <div class="metric-card metric-navy">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <div class="metric-value js-counter" data-counter-target="{{ $totales['paquetes'] }}" data-counter-format="int">{{ number_format($totales['paquetes']) }}</div>
+                        <div class="metric-value js-counter" data-counter-target="{{ $totales['paquetes'] }}" data-counter-format="int">{{ \App\Support\BolivianNumber::format($totales['paquetes']) }}</div>
                         <div class="metric-label">Registrados</div>
                     </div>
                     <div class="metric-icon"><i class="fas fa-boxes"></i></div>
@@ -333,8 +333,8 @@
             <div class="metric-card metric-green">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <div class="metric-value js-counter" data-counter-target="{{ $totales['entregados'] }}" data-counter-format="int">{{ number_format($totales['entregados']) }}</div>
-                        <div class="metric-label">Entregados ({{ number_format($totales['porcentaje_entrega'], 1) }}%)</div>
+                        <div class="metric-value js-counter" data-counter-target="{{ $totales['entregados'] }}" data-counter-format="int">{{ \App\Support\BolivianNumber::format($totales['entregados']) }}</div>
+                        <div class="metric-label">Entregados ({{ \App\Support\BolivianNumber::format($totales['porcentaje_entrega'], 1) }}%)</div>
                     </div>
                     <div class="metric-icon"><i class="fas fa-check-circle"></i></div>
                 </div>
@@ -347,7 +347,7 @@
             <div class="metric-card metric-orange">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <div class="metric-value js-counter" data-counter-target="{{ $totales['pendientes'] }}" data-counter-format="int">{{ number_format($totales['pendientes']) }}</div>
+                        <div class="metric-value js-counter" data-counter-target="{{ $totales['pendientes'] }}" data-counter-format="int">{{ \App\Support\BolivianNumber::format($totales['pendientes']) }}</div>
                         <div class="metric-label">Pendientes</div>
                     </div>
                     <div class="metric-icon"><i class="fas fa-hourglass-half"></i></div>
@@ -361,7 +361,7 @@
             <div class="metric-card metric-blue">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <div class="metric-value">Bs <span class="js-counter" data-counter-target="{{ $totales['ingresos'] }}" data-counter-format="money">{{ number_format($totales['ingresos'], 2) }}</span></div>
+                        <div class="metric-value">Bs <span class="js-counter" data-counter-target="{{ $totales['ingresos'] }}" data-counter-format="money">{{ \App\Support\BolivianNumber::format($totales['ingresos'], 2) }}</span></div>
                         <div class="metric-label">Ingresos</div>
                         <small class="metric-note">Contratos no sumados por tema tarifario.</small>
                     </div>
@@ -375,37 +375,37 @@
         <div class="col-lg-2 col-md-4 col-6">
             <div class="kpi-mini">
                 <small>Registrados Hoy</small>
-                <h4 class="js-counter" data-counter-target="{{ $kpisPeriodo['registros']['dia'] }}" data-counter-format="int">{{ number_format($kpisPeriodo['registros']['dia']) }}</h4>
+                <h4 class="js-counter" data-counter-target="{{ $kpisPeriodo['registros']['dia'] }}" data-counter-format="int">{{ \App\Support\BolivianNumber::format($kpisPeriodo['registros']['dia']) }}</h4>
             </div>
         </div>
         <div class="col-lg-2 col-md-4 col-6">
             <div class="kpi-mini">
                 <small>Registrados Semana</small>
-                <h4 class="js-counter" data-counter-target="{{ $kpisPeriodo['registros']['semana'] }}" data-counter-format="int">{{ number_format($kpisPeriodo['registros']['semana']) }}</h4>
+                <h4 class="js-counter" data-counter-target="{{ $kpisPeriodo['registros']['semana'] }}" data-counter-format="int">{{ \App\Support\BolivianNumber::format($kpisPeriodo['registros']['semana']) }}</h4>
             </div>
         </div>
         <div class="col-lg-2 col-md-4 col-6">
             <div class="kpi-mini">
                 <small>Registrados Mes</small>
-                <h4 class="js-counter" data-counter-target="{{ $kpisPeriodo['registros']['mes'] }}" data-counter-format="int">{{ number_format($kpisPeriodo['registros']['mes']) }}</h4>
+                <h4 class="js-counter" data-counter-target="{{ $kpisPeriodo['registros']['mes'] }}" data-counter-format="int">{{ \App\Support\BolivianNumber::format($kpisPeriodo['registros']['mes']) }}</h4>
             </div>
         </div>
         <div class="col-lg-2 col-md-4 col-6">
             <div class="kpi-mini kpi-ok">
                 <small>Entregados Hoy</small>
-                <h4 class="js-counter" data-counter-target="{{ $kpisPeriodo['entregas']['dia'] }}" data-counter-format="int">{{ number_format($kpisPeriodo['entregas']['dia']) }}</h4>
+                <h4 class="js-counter" data-counter-target="{{ $kpisPeriodo['entregas']['dia'] }}" data-counter-format="int">{{ \App\Support\BolivianNumber::format($kpisPeriodo['entregas']['dia']) }}</h4>
             </div>
         </div>
         <div class="col-lg-2 col-md-4 col-6">
             <div class="kpi-mini kpi-ok">
                 <small>Entregados Semana</small>
-                <h4 class="js-counter" data-counter-target="{{ $kpisPeriodo['entregas']['semana'] }}" data-counter-format="int">{{ number_format($kpisPeriodo['entregas']['semana']) }}</h4>
+                <h4 class="js-counter" data-counter-target="{{ $kpisPeriodo['entregas']['semana'] }}" data-counter-format="int">{{ \App\Support\BolivianNumber::format($kpisPeriodo['entregas']['semana']) }}</h4>
             </div>
         </div>
         <div class="col-lg-2 col-md-4 col-6">
             <div class="kpi-mini kpi-ok">
                 <small>Entregados Mes</small>
-                <h4 class="js-counter" data-counter-target="{{ $kpisPeriodo['entregas']['mes'] }}" data-counter-format="int">{{ number_format($kpisPeriodo['entregas']['mes']) }}</h4>
+                <h4 class="js-counter" data-counter-target="{{ $kpisPeriodo['entregas']['mes'] }}" data-counter-format="int">{{ \App\Support\BolivianNumber::format($kpisPeriodo['entregas']['mes']) }}</h4>
             </div>
         </div>
     </div>
@@ -413,17 +413,17 @@
     <div class="row mt-1" data-widget="alertas_operativas">
         <div class="col-md-4">
             <div class="alert alert-success mb-2">
-                <strong>En plazo:</strong> {{ number_format($totales['correctos']) }}
+                <strong>En plazo:</strong> {{ \App\Support\BolivianNumber::format($totales['correctos']) }}
             </div>
         </div>
         <div class="col-md-4">
             <div class="alert alert-warning mb-2">
-                <strong>En retraso:</strong> {{ number_format($totales['atrasados']) }}
+                <strong>En retraso:</strong> {{ \App\Support\BolivianNumber::format($totales['atrasados']) }}
             </div>
         </div>
         <div class="col-md-4">
             <div class="alert alert-danger mb-2">
-                <strong>Ya en rezago:</strong> {{ number_format($totales['rezago']) }}
+                <strong>Ya en rezago:</strong> {{ \App\Support\BolivianNumber::format($totales['rezago']) }}
             </div>
         </div>
     </div>
@@ -534,9 +534,9 @@
                 <div class="text-muted small">Comparativo directo del total filtrado</div>
                 <div class="chart-helper">Lectura rapida del cumplimiento general.</div>
                 <div class="d-flex flex-wrap mt-1">
-                    <span class="badge badge-success mr-2 mb-1">Entregados: {{ number_format($totales['entregados']) }}</span>
-                    <span class="badge badge-warning mr-2 mb-1">Pendientes: {{ number_format($totales['pendientes']) }}</span>
-                    <span class="badge badge-primary mb-1">Cumplimiento: {{ number_format($totales['porcentaje_entrega'], 1) }}%</span>
+                    <span class="badge badge-success mr-2 mb-1">Entregados: {{ \App\Support\BolivianNumber::format($totales['entregados']) }}</span>
+                    <span class="badge badge-warning mr-2 mb-1">Pendientes: {{ \App\Support\BolivianNumber::format($totales['pendientes']) }}</span>
+                    <span class="badge badge-primary mb-1">Cumplimiento: {{ \App\Support\BolivianNumber::format($totales['porcentaje_entrega'], 1) }}%</span>
                 </div>
             </div>
             <div class="chart-type-wrap">
@@ -588,7 +588,7 @@
                             <i class="fas fa-file-excel mr-1"></i> Reporte rendimiento Excel
                         </a>
                         <span class="badge badge-success">
-                            #1 {{ $topDepartamento->departamento }} - cumplimiento {{ number_format((float) $topDepartamento->cumplimiento, 1) }}%
+                            #1 {{ $topDepartamento->departamento }} - cumplimiento {{ \App\Support\BolivianNumber::format((float) $topDepartamento->cumplimiento, 1) }}%
                         </span>
                     @endif
                 </div>
@@ -615,8 +615,8 @@
                             <tr>
                                 <td><strong>{{ $item->puesto }}</strong></td>
                                 <td><strong>{{ $item->departamento }}</strong></td>
-                                <td class="text-right">{{ number_format((int) $item->total) }}</td>
-                                <td class="text-right text-success">{{ number_format((int) $item->entregados) }}</td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $item->total) }}</td>
+                                <td class="text-right text-success">{{ \App\Support\BolivianNumber::format((int) $item->entregados) }}</td>
                                 <td class="text-right">
                                     <button
                                         type="button"
@@ -625,7 +625,7 @@
                                         data-target="#departamentoTransitoModal{{ $item->puesto }}"
                                         title="Ver paquetes en transito de {{ $item->departamento }}"
                                     >
-                                        {{ number_format((int) ($item->transito ?? 0)) }}
+                                        {{ \App\Support\BolivianNumber::format((int) ($item->transito ?? 0)) }}
                                     </button>
                                 </td>
                                 <td class="text-right">
@@ -636,12 +636,12 @@
                                         data-target="#departamentoPendientesModal{{ $item->puesto }}"
                                         title="Ver paquetes pendientes de {{ $item->departamento }}"
                                     >
-                                        {{ number_format((int) $item->pendientes) }}
+                                        {{ \App\Support\BolivianNumber::format((int) $item->pendientes) }}
                                     </button>
                                 </td>
                                 <td class="text-right">
                                     <div class="tasa-entrega-wrap">
-                                        <span>{{ number_format((float) $item->cumplimiento, 1) }}%</span>
+                                        <span>{{ \App\Support\BolivianNumber::format((float) $item->cumplimiento, 1) }}%</span>
                                         <div class="tasa-entrega-bar">
                                             <div class="tasa-entrega-fill" style="width: {{ min(100, max(0, (float) $item->cumplimiento)) }}%;"></div>
                                         </div>
@@ -649,7 +649,7 @@
                                 </td>
                                 <td>
                                     <strong>{{ $item->top_entregador }}</strong><br>
-                                    <small class="text-muted">{{ number_format((int) $item->top_entregador_total) }} entregas</small>
+                                    <small class="text-muted">{{ \App\Support\BolivianNumber::format((int) $item->top_entregador_total) }} entregas</small>
                                 </td>
                                 <td class="text-center">
                                     <button
@@ -697,21 +697,21 @@
                                 <div class="col-6 col-md-3 mb-3">
                                     <div class="border rounded p-3 h-100">
                                         <div class="text-muted small">{{ $moduloDetalle }}</div>
-                                        <div class="h4 mb-0 text-info">{{ number_format((int) ($totalesTransitoModulo[$moduloDetalle] ?? 0)) }}</div>
+                                        <div class="h4 mb-0 text-info">{{ \App\Support\BolivianNumber::format((int) ($totalesTransitoModulo[$moduloDetalle] ?? 0)) }}</div>
                                     </div>
                                 </div>
                             @endforeach
                         </div>
 
                         <div class="alert alert-light border">
-                            <strong>Total en transito:</strong> {{ number_format((int) ($item->transito ?? 0)) }}
+                            <strong>Total en transito:</strong> {{ \App\Support\BolivianNumber::format((int) ($item->transito ?? 0)) }}
                             <span class="mx-2">|</span>
                             <strong>Criterio:</strong> se toma el origen del envio
                             <span class="mx-2">|</span>
                             <strong>Rango:</strong> {{ $rangoLabel }}
                             <span class="mx-2">|</span>
                             <strong>Codigos filtrados:</strong>
-                            <span data-transit-filter-count>{{ number_format(collect($transitoAgrupado)->count()) }}</span>
+                            <span data-transit-filter-count>{{ \App\Support\BolivianNumber::format(collect($transitoAgrupado)->count()) }}</span>
                         </div>
 
                         <div class="border rounded p-3 mb-3" data-transit-filter-panel>
@@ -780,7 +780,7 @@
                                                 </span>
                                             </td>
                                             <td>{{ $grupo['modulos_label'] ?? '-' }}</td>
-                                            <td class="font-weight-bold text-info">{{ number_format((int) ($grupo['total'] ?? 0)) }}</td>
+                                            <td class="font-weight-bold text-info">{{ \App\Support\BolivianNumber::format((int) ($grupo['total'] ?? 0)) }}</td>
                                             <td>
                                                 <button
                                                     type="button"
@@ -826,7 +826,7 @@
                         </div>
                         <div class="modal-body">
                             <div class="alert alert-light border">
-                                <strong>Total paquetes:</strong> {{ number_format((int) ($grupo['total'] ?? 0)) }}
+                                <strong>Total paquetes:</strong> {{ \App\Support\BolivianNumber::format((int) ($grupo['total'] ?? 0)) }}
                                 <span class="mx-2">|</span>
                                 <strong>Modulos:</strong> {{ $grupo['modulos_label'] ?? '-' }}
                             </div>
@@ -890,14 +890,14 @@
                                 <div class="col-6 col-md-3 mb-3">
                                     <div class="border rounded p-3 h-100">
                                         <div class="text-muted small">{{ $moduloDetalle }}</div>
-                                        <div class="h4 mb-0 text-warning">{{ number_format((int) ($totalesPendientesModulo[$moduloDetalle] ?? 0)) }}</div>
+                                        <div class="h4 mb-0 text-warning">{{ \App\Support\BolivianNumber::format((int) ($totalesPendientesModulo[$moduloDetalle] ?? 0)) }}</div>
                                     </div>
                                 </div>
                             @endforeach
                         </div>
 
                         <div class="alert alert-light border">
-                            <strong>Total pendiente:</strong> {{ number_format((int) $item->pendientes) }}
+                            <strong>Total pendiente:</strong> {{ \App\Support\BolivianNumber::format((int) $item->pendientes) }}
                             <span class="mx-2">|</span>
                             <strong>En transito:</strong> no incluidos
                             <span class="mx-2">|</span>
@@ -906,7 +906,7 @@
                             <strong>Rango:</strong> {{ $rangoLabel }}
                             <span class="mx-2">|</span>
                             <strong>Estados filtrados:</strong>
-                            <span data-pending-filter-count>{{ number_format(collect($pendientesAgrupado)->count()) }}</span>
+                            <span data-pending-filter-count>{{ \App\Support\BolivianNumber::format(collect($pendientesAgrupado)->count()) }}</span>
                         </div>
 
                         <div class="border rounded p-3 mb-3" data-pending-filter-panel>
@@ -973,7 +973,7 @@
                                                 </span>
                                             </td>
                                             <td>{{ $grupo['modulos_label'] ?? '-' }}</td>
-                                            <td class="font-weight-bold text-warning">{{ number_format((int) ($grupo['total'] ?? 0)) }}</td>
+                                            <td class="font-weight-bold text-warning">{{ \App\Support\BolivianNumber::format((int) ($grupo['total'] ?? 0)) }}</td>
                                             <td>
                                                 <button
                                                     type="button"
@@ -1019,7 +1019,7 @@
                         </div>
                         <div class="modal-body">
                             <div class="alert alert-light border">
-                                <strong>Total paquetes:</strong> {{ number_format((int) ($grupo['total'] ?? 0)) }}
+                                <strong>Total paquetes:</strong> {{ \App\Support\BolivianNumber::format((int) ($grupo['total'] ?? 0)) }}
                                 <span class="mx-2">|</span>
                                 <strong>Modulos:</strong> {{ $grupo['modulos_label'] ?? '-' }}
                             </div>
@@ -1083,18 +1083,18 @@
                                 <div class="col-6 col-md-3 mb-3">
                                     <div class="border rounded p-3 h-100">
                                         <div class="text-muted small">{{ $moduloDetalle }}</div>
-                                        <div class="h4 mb-0 text-primary">{{ number_format((int) ($totalesModulo[$moduloDetalle] ?? 0)) }}</div>
+                                        <div class="h4 mb-0 text-primary">{{ \App\Support\BolivianNumber::format((int) ($totalesModulo[$moduloDetalle] ?? 0)) }}</div>
                                     </div>
                                 </div>
                             @endforeach
                         </div>
 
                         <div class="alert alert-light border">
-                            <strong>Total entregado:</strong> {{ number_format((int) $item->entregados) }}
+                            <strong>Total entregado:</strong> {{ \App\Support\BolivianNumber::format((int) $item->entregados) }}
                             <span class="mx-2">|</span>
                             <strong>Mejor entregador:</strong> {{ $item->top_entregador }}
                             <span class="mx-2">|</span>
-                            <strong>Cumplimiento:</strong> {{ number_format((float) $item->cumplimiento, 1) }}%
+                            <strong>Cumplimiento:</strong> {{ \App\Support\BolivianNumber::format((float) $item->cumplimiento, 1) }}%
                         </div>
 
                         <div class="table-responsive" style="max-height: 430px; overflow:auto;">
@@ -1168,22 +1168,22 @@
                             @forelse($resumenPorModulo as $fila)
                                 <tr>
                                     <td><strong>{{ $fila['label'] }}</strong></td>
-                                    <td class="text-right" data-col="registrados">{{ number_format($fila['total']) }}</td>
-                                    <td class="text-right text-success" data-col="entregados">{{ number_format($fila['entregados']) }}</td>
-                                    <td class="text-right" data-col="pendientes">{{ number_format($fila['pendientes']) }}</td>
-                                    <td class="text-right text-success" data-col="correctos">{{ number_format($fila['correctos']) }}</td>
-                                    <td class="text-right text-warning" data-col="atrasados">{{ number_format($fila['atrasados']) }}</td>
-                                    <td class="text-right text-danger" data-col="rezago">{{ number_format($fila['rezago']) }}</td>
+                                    <td class="text-right" data-col="registrados">{{ \App\Support\BolivianNumber::format($fila['total']) }}</td>
+                                    <td class="text-right text-success" data-col="entregados">{{ \App\Support\BolivianNumber::format($fila['entregados']) }}</td>
+                                    <td class="text-right" data-col="pendientes">{{ \App\Support\BolivianNumber::format($fila['pendientes']) }}</td>
+                                    <td class="text-right text-success" data-col="correctos">{{ \App\Support\BolivianNumber::format($fila['correctos']) }}</td>
+                                    <td class="text-right text-warning" data-col="atrasados">{{ \App\Support\BolivianNumber::format($fila['atrasados']) }}</td>
+                                    <td class="text-right text-danger" data-col="rezago">{{ \App\Support\BolivianNumber::format($fila['rezago']) }}</td>
                                     <td class="text-right" data-col="tasa_entrega">
                                         <div class="tasa-entrega-wrap">
-                                            <span>{{ number_format($fila['tasa_entrega'], 1) }}%</span>
+                                            <span>{{ \App\Support\BolivianNumber::format($fila['tasa_entrega'], 1) }}%</span>
                                             <div class="tasa-entrega-bar">
                                                 <div class="tasa-entrega-fill" style="width: {{ min(100, max(0, $fila['tasa_entrega'])) }}%;"></div>
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="text-right" data-col="peso_total">{{ number_format($fila['peso_total'], 3) }}</td>
-                                    <td class="text-right" data-col="ingresos">Bs {{ number_format($fila['ingresos'], 2) }}</td>
+                                    <td class="text-right" data-col="peso_total">{{ \App\Support\BolivianNumber::format($fila['peso_total'], 3) }}</td>
+                                    <td class="text-right" data-col="ingresos">Bs {{ \App\Support\BolivianNumber::format($fila['ingresos'], 2) }}</td>
                                 </tr>
                             @empty
                                 <tr>
@@ -1221,7 +1221,7 @@
                                             E:{{ (int) $item->ems }} C:{{ (int) $item->contrato }} Ce:{{ (int) $item->certi }} O:{{ (int) $item->ordi }}
                                         </small>
                                     </td>
-                                    <td class="text-right">{{ number_format((int) $item->total_entregados) }}</td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $item->total_entregados) }}</td>
                                 </tr>
                             @empty
                                 <tr>
@@ -1254,7 +1254,7 @@
                                             E:{{ (int) $item->ems }} C:{{ (int) $item->contrato }} Ce:{{ (int) $item->certi }} O:{{ (int) $item->ordi }}
                                         </small>
                                     </td>
-                                    <td class="text-right">{{ number_format((int) $item->total_registrados) }}</td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $item->total_registrados) }}</td>
                                 </tr>
                             @empty
                                 <tr>

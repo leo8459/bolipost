@@ -33,12 +33,12 @@
 
 <table class="kpi">
     <tr>
-        <td><div class="k">Lineas</div><div class="v">{{ number_format((int) ($commercialTotals['lineas'] ?? 0)) }}</div></td>
-        <td><div class="k">Registros</div><div class="v">{{ number_format((int) ($commercialTotals['registros'] ?? 0)) }}</div></td>
-        <td><div class="k">Peso total</div><div class="v">{{ number_format((float) ($commercialTotals['peso_total'] ?? 0), 3) }}</div></td>
-        <td><div class="k">Ingresos</div><div class="v">{{ number_format((float) ($commercialTotals['precio_total'] ?? 0), 2) }}</div></td>
+        <td><div class="k">Lineas</div><div class="v">{{ \App\Support\BolivianNumber::format((int) ($commercialTotals['lineas'] ?? 0)) }}</div></td>
+        <td><div class="k">Registros</div><div class="v">{{ \App\Support\BolivianNumber::format((int) ($commercialTotals['registros'] ?? 0)) }}</div></td>
+        <td><div class="k">Peso total</div><div class="v">{{ \App\Support\BolivianNumber::format((float) ($commercialTotals['peso_total'] ?? 0), 3) }}</div></td>
+        <td><div class="k">Ingresos</div><div class="v">{{ \App\Support\BolivianNumber::format((float) ($commercialTotals['precio_total'] ?? 0), 2) }}</div></td>
         <td><div class="k">Top línea</div><div class="v">{{ $commercialTotals['top_linea'] ?? '-' }}</div></td>
-        <td><div class="k">Top cantidad</div><div class="v">{{ number_format((int) ($commercialTotals['top_linea_cantidad'] ?? 0)) }}</div></td>
+        <td><div class="k">Top cantidad</div><div class="v">{{ \App\Support\BolivianNumber::format((int) ($commercialTotals['top_linea_cantidad'] ?? 0)) }}</div></td>
     </tr>
 </table>
 
@@ -61,11 +61,11 @@
             <tr>
                 <td>{{ $idx + 1 }}</td>
                 <td>{{ $lineRow['linea'] }}</td>
-                <td class="num">{{ number_format((int) $lineRow['cantidad']) }}</td>
-                <td class="num">{{ number_format((int) $lineRow['entregados']) }}</td>
-                <td class="num">{{ number_format((int) $lineRow['no_entregados']) }}</td>
-                <td class="num">{{ number_format((float) $lineRow['peso'], 3) }}</td>
-                <td class="num">{{ number_format((float) $lineRow['precio'], 2) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $lineRow['cantidad']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $lineRow['entregados']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $lineRow['no_entregados']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((float) $lineRow['peso'], 3) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((float) $lineRow['precio'], 2) }}</td>
                 <td>{{ $lineRow['top_servicio'] }}</td>
             </tr>
         @empty
@@ -93,9 +93,9 @@
                 <td>{{ $idx + 1 }}</td>
                 <td>{{ $serviceRow['linea'] }}</td>
                 <td>{{ $serviceRow['servicio'] }}</td>
-                <td class="num">{{ number_format((int) $serviceRow['cantidad']) }}</td>
-                <td class="num">{{ number_format((float) $serviceRow['peso'], 3) }}</td>
-                <td class="num">{{ number_format((float) $serviceRow['precio'], 2) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $serviceRow['cantidad']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((float) $serviceRow['peso'], 3) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((float) $serviceRow['precio'], 2) }}</td>
                 <td>{{ $serviceRow['ultimo_registro'] }}</td>
             </tr>
         @empty
@@ -129,11 +129,11 @@
         @forelse(collect($effectiveness['rows'] ?? [])->take(12) as $row)
             <tr>
                 <td>{{ $row['linea'] }}</td>
-                <td class="num">{{ number_format((int) $row['total']) }}</td>
-                <td class="num">{{ number_format((int) $row['entregados']) }}</td>
-                <td class="num">{{ number_format((int) $row['devoluciones']) }}</td>
-                <td class="num">{{ number_format((int) $row['rezago']) }}</td>
-                <td class="num">{{ number_format((float) $row['efectividad_pct'], 2) }}%</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $row['total']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $row['entregados']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $row['devoluciones']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $row['rezago']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((float) $row['efectividad_pct'], 2) }}%</td>
             </tr>
         @empty
             <tr><td colspan="6">Sin datos.</td></tr>
@@ -156,7 +156,7 @@
         @forelse(collect($sla['rows'] ?? [])->take(12) as $row)
             <tr>
                 <td>{{ $row['linea'] }}</td>
-                <td class="num">{{ number_format((int) $row['entregados']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $row['entregados']) }}</td>
                 <td>{{ $row['promedio'] }}</td>
                 <td>{{ $row['minimo'] }}</td>
                 <td>{{ $row['maximo'] }}</td>
@@ -183,10 +183,10 @@
         @forelse(collect($budget['rows'] ?? [])->take(12) as $row)
             <tr>
                 <td>{{ $row['empresa'] }}</td>
-                <td class="num">{{ number_format((float) $row['presupuesto'], 2) }}</td>
-                <td class="num">{{ number_format((float) $row['consumido'], 2) }}</td>
-                <td class="num">{{ number_format((float) $row['saldo'], 2) }}</td>
-                <td class="num">{{ number_format((float) $row['ejecucion_pct'], 2) }}%</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((float) $row['presupuesto'], 2) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((float) $row['consumido'], 2) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((float) $row['saldo'], 2) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((float) $row['ejecucion_pct'], 2) }}%</td>
                 <td>{{ $row['alerta'] }}</td>
             </tr>
         @empty
@@ -209,21 +209,21 @@
             <tr>
                 <td>Origen</td>
                 <td>{{ $row['ubicacion'] }}</td>
-                <td class="num">{{ number_format((int) $row['cantidad']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $row['cantidad']) }}</td>
             </tr>
         @endforeach
         @foreach(collect($heatmap['destinos'] ?? [])->take(5) as $row)
             <tr>
                 <td>Destino</td>
                 <td>{{ $row['ubicacion'] }}</td>
-                <td class="num">{{ number_format((int) $row['cantidad']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $row['cantidad']) }}</td>
             </tr>
         @endforeach
         @foreach(collect($heatmap['rutas'] ?? [])->take(5) as $row)
             <tr>
                 <td>Ruta</td>
                 <td>{{ $row['ruta'] }}</td>
-                <td class="num">{{ number_format((int) $row['cantidad']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $row['cantidad']) }}</td>
             </tr>
         @endforeach
     </tbody>
@@ -244,10 +244,10 @@
         @forelse(collect($collections['rows'] ?? [])->take(12) as $row)
             <tr>
                 <td>{{ $row['empresa'] }}</td>
-                <td class="num">{{ number_format((float) $row['facturado'], 2) }}</td>
-                <td class="num">{{ number_format((float) $row['cobrado'], 2) }}</td>
-                <td class="num">{{ number_format((float) $row['pendiente'], 2) }}</td>
-                <td class="num">{{ number_format((float) $row['cobranza_pct'], 2) }}%</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((float) $row['facturado'], 2) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((float) $row['cobrado'], 2) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((float) $row['pendiente'], 2) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((float) $row['cobranza_pct'], 2) }}%</td>
             </tr>
         @empty
             <tr><td colspan="5">Sin datos.</td></tr>

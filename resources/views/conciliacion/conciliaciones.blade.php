@@ -182,7 +182,7 @@
                                                     data-action="{{ route('dashboard.conciliacion.conciliaciones.pago-recibido', $item) }}"
                                                     data-empresa="{{ $empresa->nombre }}"
                                                     data-factura="{{ $item->factura_codigo_orden ?: $item->factura_venta_id }}"
-                                                    data-monto="{{ number_format((float) $item->factura_monto, 2) }}">
+                                                    data-monto="{{ number_format((float) $item->factura_monto, 2, '.', '') }}">
                                                     <strong class="mr-1">4</strong> Pago recibido
                                                 </button>
                                             @else
@@ -198,7 +198,7 @@
                                                     data-action="{{ route('dashboard.conciliacion.conciliaciones.confirmacion-pago', $item) }}"
                                                     data-empresa="{{ $empresa->nombre }}"
                                                     data-factura="{{ $item->factura_codigo_orden ?: $item->factura_venta_id }}"
-                                                    data-monto="{{ number_format((float) $item->factura_monto, 2) }}">
+                                                    data-monto="{{ number_format((float) $item->factura_monto, 2, '.', '') }}">
                                                     <strong class="mr-1">5</strong> Confirmación de pago
                                                 </button>
                                             @endif
@@ -219,7 +219,7 @@
                                     <td class="document-cell">
                                         @if($item?->factura_venta_id)
                                             <strong>{{ $item->factura_codigo_orden ?: $item->factura_venta_id }}</strong>
-                                            <small class="d-block text-muted">Bs {{ number_format((float) $item->factura_monto, 2) }} · {{ $item->factura_fecha?->format('d/m/Y') }}</small>
+                                            <small class="d-block text-muted">Bs {{ \App\Support\BolivianNumber::format((float) $item->factura_monto, 2) }} · {{ $item->factura_fecha?->format('d/m/Y') }}</small>
                                             @if(filled($item->factura_razon_social))
                                                 <small class="d-block mt-2"><strong>Razón social:</strong> {{ $item->factura_razon_social }}</small>
                                                 <small class="d-block"><strong>Código cliente:</strong> {{ $item->factura_codigo_cliente ?: '-' }}</small>
@@ -269,7 +269,7 @@
                                                 data-factura-label="{{ $item?->factura_codigo_orden ?: $item?->factura_venta_id }}"
                                                 data-formato-cobranza="{{ $item?->formato_nota_cobranza }}"
                                                 data-nombre-cobranza="{{ $item?->nombre_empresa_cobranza }}"
-                                                data-monto="{{ number_format((float) ($item?->factura_monto ?? 0), 2) }}"
+                                                data-monto="{{ number_format((float) ($item?->factura_monto ?? 0), 2, '.', '') }}"
                                                 data-tiene-pago="{{ $item?->pago_comprobante_path ? 1 : 0 }}"
                                                 data-pago-action="{{ $item ? route('dashboard.conciliacion.conciliaciones.pago-recibido', $item) : '' }}">
                                                 <i class="fas fa-edit mr-1"></i> Editar
@@ -578,7 +578,7 @@
                     data.facturas.forEach(function (factura) {
                         const option = document.createElement('option');
                         option.value = factura.ventaId;
-                        option.textContent = 'Bs ' + Number(factura.totalLinea).toFixed(2)
+                        option.textContent = 'Bs ' + window.BolivianNumber.format(factura.totalLinea, 2)
                             + ' · Razón social: ' + (factura.razonSocial || 'Sin dato')
                             + ' · Código cliente: ' + (factura.codigoCliente || 'Sin dato')
                             + ' · NIT/CI/CEX: ' + (factura.numeroDocumento || 'Sin dato');

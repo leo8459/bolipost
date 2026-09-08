@@ -1,4 +1,4 @@
-﻿<div class="bp-livewire-skin">
+<div class="bp-livewire-skin">
     @include('livewire.partials.button-theme')
     <style>
         .bp-switch {
@@ -576,7 +576,7 @@
                         <div class="incentive-kpis">
                             <div class="incentive-kpi">
                                 <div class="incentive-kpi-label">Incentivo</div>
-                                <div class="incentive-kpi-value"><i class="fas fa-star text-warning me-1"></i>{{ number_format((float) $report->stars_end, 1) }}</div>
+                                <div class="incentive-kpi-value"><i class="fas fa-star text-warning me-1"></i>{{ \App\Support\BolivianNumber::format((float) $report->stars_end, 1) }}</div>
                             </div>
                             <div class="incentive-kpi">
                                 <div class="incentive-kpi-label">Salud activo</div>

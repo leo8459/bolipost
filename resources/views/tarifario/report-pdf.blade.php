@@ -119,14 +119,14 @@
                 <tbody>
                     @foreach ($items as $item)
                         <tr>
-                            <td>{{ number_format((float) optional($item->peso)->peso_inicial, 3, '.', ',') }}</td>
-                            <td>{{ number_format((float) optional($item->peso)->peso_final, 3, '.', ',') }}</td>
+                            <td>{{ \App\Support\BolivianNumber::format((float) optional($item->peso)->peso_inicial, 3, '.', ',') }}</td>
+                            <td>{{ \App\Support\BolivianNumber::format((float) optional($item->peso)->peso_final, 3, '.', ',') }}</td>
                             <td>
-                                {{ number_format((float) optional($item->peso)->peso_inicial, 3, '.', ',') }}
+                                {{ \App\Support\BolivianNumber::format((float) optional($item->peso)->peso_inicial, 3, '.', ',') }}
                                 -
-                                {{ number_format((float) optional($item->peso)->peso_final, 3, '.', ',') }} kg
+                                {{ \App\Support\BolivianNumber::format((float) optional($item->peso)->peso_final, 3, '.', ',') }} kg
                             </td>
-                            <td class="text-right">{{ number_format((float) $item->precio, 2, '.', ',') }}</td>
+                            <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $item->precio, 2, '.', ',') }}</td>
                             <td>{{ $item->observacion ?: 'Sin observacion' }}</td>
                         </tr>
                     @endforeach

@@ -236,8 +236,8 @@
     $servicio = (string) (optional(optional($paquete->tarifario)->servicio)->nombre_servicio ?? $paquete->tipo_correspondencia ?? '');
     $servicioEspecial = (string) ($paquete->servicio_especial ?? '');
     $cantidad = $paquete->cantidad !== null && $paquete->cantidad !== '' ? (string) $paquete->cantidad : '-';
-    $peso = $paquete->peso !== null && $paquete->peso !== '' ? number_format((float) $paquete->peso, 3, '.', '') . ' kg' : '-';
-    $precio = $paquete->precio !== null && $paquete->precio !== '' ? number_format((float) $paquete->precio, 2, '.', '') . ' Bs' : '-';
+    $peso = $paquete->peso !== null && $paquete->peso !== '' ? \App\Support\BolivianNumber::format((float) $paquete->peso, 3, '.', '') . ' kg' : '-';
+    $precio = $paquete->precio !== null && $paquete->precio !== '' ? \App\Support\BolivianNumber::format((float) $paquete->precio, 2, '.', '') . ' Bs' : '-';
     $fecha = \Carbon\Carbon::parse($paquete->created_at ?? now())->format('d/m/Y H:i:s');
     $usuario = trim((string) (Auth::user()->name ?? ''));
     $logoPath = public_path('images/LOGO 19-2-26.png');

@@ -83,7 +83,7 @@
         <div class="row"><span class="label">{{ $ticket['comprobante_label'] }}:</span> {{ $ticket['comprobante_valor'] }}</div>
         <div class="row"><span class="label">FECHA:</span> {{ $ticket['fecha'] }}</div>
 
-        <div class="amount">TOTAL Bs: {{ number_format((float) $ticket['importe'], 2) }}</div>
+        <div class="amount">TOTAL Bs: {{ \App\Support\BolivianNumber::format((float) $ticket['importe'], 2) }}</div>
 
         @if($ticket['qr_image'])
             <div class="qr">

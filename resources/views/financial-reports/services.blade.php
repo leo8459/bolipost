@@ -123,9 +123,9 @@
             ['Servicios', $summary['cantidadServicios'] ?? 0, 'fa-layer-group', 'primary'],
             ['Ventas contabilizadas', $summary['cantidadVentas'] ?? 0, 'fa-file-invoice', 'info'],
             ['Cantidad total', $summary['totalCantidad'] ?? 0, 'fa-boxes', 'warning'],
-            ['Monto contabilizado', 'Bs ' . number_format((float) ($summary['totalMonto'] ?? 0), 2), 'fa-money-bill-wave', 'success'],
-            ['Contratos por cobrar', 'Bs ' . number_format((float) ($summary['contratosPorCobrarMonto'] ?? 0), 2), 'fa-hand-holding-usd', 'warning', number_format((float) ($summary['contratosPorCobrarVentas'] ?? 0)) . ' factura(s) pendiente(s)'],
-            ['Contratos validados', 'Bs ' . number_format((float) ($summary['contratosValidadosMonto'] ?? 0), 2), 'fa-clipboard-check', 'success', number_format((float) ($summary['contratosValidadosVentas'] ?? 0)) . ' factura(s) asociada(s)'],
+            ['Monto contabilizado', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['totalMonto'] ?? 0), 2), 'fa-money-bill-wave', 'success'],
+            ['Contratos por cobrar', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['contratosPorCobrarMonto'] ?? 0), 2), 'fa-hand-holding-usd', 'warning', \App\Support\BolivianNumber::format((float) ($summary['contratosPorCobrarVentas'] ?? 0)) . ' factura(s) pendiente(s)'],
+            ['Contratos validados', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['contratosValidadosMonto'] ?? 0), 2), 'fa-clipboard-check', 'success', \App\Support\BolivianNumber::format((float) ($summary['contratosValidadosVentas'] ?? 0)) . ' factura(s) asociada(s)'],
         ] as $metric)
             @php([$label, $value, $icon, $color, $help] = array_pad($metric, 5, null))
             <div class="col-sm-6 col-xl-4 mb-3">
@@ -133,7 +133,7 @@
                     <span class="info-box-icon bg-{{ $color }}"><i class="fas {{ $icon }}"></i></span>
                     <div class="info-box-content">
                         <span class="info-box-text">{{ $label }}</span>
-                        <span class="info-box-number">{{ is_numeric($value) ? number_format((float) $value) : $value }}</span>
+                        <span class="info-box-number">{{ is_numeric($value) ? \App\Support\BolivianNumber::format((float) $value) : $value }}</span>
                         @if($help)<small class="text-muted">{{ $help }}</small>@endif
                     </div>
                 </div>
@@ -161,8 +161,8 @@
                 <div class="text-muted small">{{ $soloContratos ? 'La tabla contiene exclusivamente los datos facturados de contratos.' : 'Haga clic en un grupo para mostrar u ocultar sus subservicios. En contratos, solo se contabilizan las facturas validadas en Conciliaciones.' }}</div>
             </div>
             <div class="text-right">
-                <span class="badge badge-primary">{{ number_format($serviceGroups->count()) }} grupos</span>
-                <span class="badge badge-light border">{{ number_format($services->count()) }} subservicios</span>
+                <span class="badge badge-primary">{{ \App\Support\BolivianNumber::format($serviceGroups->count()) }} grupos</span>
+                <span class="badge badge-light border">{{ \App\Support\BolivianNumber::format($services->count()) }} subservicios</span>
                 <a href="{{ route('dashboard.financiera.ventas-servicios.pdf', ['servicios' => $selectedServices, 'meses' => $selectedMonths, 'anio' => $anio, 'limite' => $limite, 'solo_contratos' => $soloContratos ? 1 : null]) }}" class="btn btn-danger btn-sm ml-2" target="_blank">
                     <i class="fas fa-file-pdf mr-1"></i> Reporte ejecutivo PDF
                 </a>
@@ -203,10 +203,10 @@
                                     @endforeach
                                 </td>
                                 <td><span class="badge badge-info">{{ count($group['_children'] ?? []) }} subservicios</span></td>
-                                <td class="text-right font-weight-bold">{{ number_format((int) ($group['cantidadVentas'] ?? 0)) }}</td>
-                                <td class="text-right">{{ number_format((int) ($group['cantidadDetalles'] ?? 0)) }}</td>
-                                <td class="text-right">{{ number_format((float) ($group['totalCantidad'] ?? 0), 2) }}</td>
-                                <td class="text-right font-weight-bold text-success">Bs {{ number_format((float) ($group['totalMonto'] ?? 0), 2) }}</td>
+                                <td class="text-right font-weight-bold">{{ \App\Support\BolivianNumber::format((int) ($group['cantidadVentas'] ?? 0)) }}</td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format((int) ($group['cantidadDetalles'] ?? 0)) }}</td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($group['totalCantidad'] ?? 0), 2) }}</td>
+                                <td class="text-right font-weight-bold text-success">Bs {{ \App\Support\BolivianNumber::format((float) ($group['totalMonto'] ?? 0), 2) }}</td>
                                 <td class="text-nowrap">{{ $group['ultimaFecha'] ?? '-' }}</td>
                                 <td class="text-center">
                                     <a class="btn btn-sm btn-primary" href="{{ route('dashboard.financiera.ventas-servicios.detalle', ['servicios' => collect($group['_children'] ?? [])->pluck('servicio')->all(), 'meses' => $selectedMonths, 'anio' => $anio]) }}" onclick="event.stopPropagation()">
@@ -227,10 +227,10 @@
                                         @endforeach
                                     </td>
                                     <td class="description-cell text-muted">{{ $child['descripcionMuestra'] ?? '-' }}</td>
-                                    <td class="text-right">{{ number_format((int) ($child['cantidadVentas'] ?? 0)) }}</td>
-                                    <td class="text-right">{{ number_format((int) ($child['cantidadDetalles'] ?? 0)) }}</td>
-                                    <td class="text-right">{{ number_format((float) ($child['totalCantidad'] ?? 0), 2) }}</td>
-                                    <td class="text-right font-weight-bold">Bs {{ number_format((float) ($child['totalMonto'] ?? 0), 2) }}</td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((int) ($child['cantidadVentas'] ?? 0)) }}</td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((int) ($child['cantidadDetalles'] ?? 0)) }}</td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($child['totalCantidad'] ?? 0), 2) }}</td>
+                                    <td class="text-right font-weight-bold">Bs {{ \App\Support\BolivianNumber::format((float) ($child['totalMonto'] ?? 0), 2) }}</td>
                                     <td class="text-nowrap">{{ $child['ultimaFecha'] ?? '-' }}</td>
                                     <td class="text-center">
                                         <a class="btn btn-sm btn-outline-primary" href="{{ route('dashboard.financiera.ventas-servicios.detalle', ['servicios' => [$child['servicio'] ?? ''], 'meses' => $selectedMonths, 'anio' => $anio]) }}">
@@ -247,10 +247,10 @@
                         <tfoot class="font-weight-bold">
                             <tr>
                                 <td colspan="4">Totales consolidados</td>
-                                <td class="text-right">{{ number_format((int) ($summary['cantidadVentas'] ?? 0)) }}</td>
-                                <td class="text-right">{{ number_format((int) ($summary['cantidadDetalles'] ?? 0)) }}</td>
-                                <td class="text-right">{{ number_format((float) ($summary['totalCantidad'] ?? 0), 2) }}</td>
-                                <td class="text-right">Bs {{ number_format((float) ($summary['totalMonto'] ?? 0), 2) }}</td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format((int) ($summary['cantidadVentas'] ?? 0)) }}</td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format((int) ($summary['cantidadDetalles'] ?? 0)) }}</td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($summary['totalCantidad'] ?? 0), 2) }}</td>
+                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) ($summary['totalMonto'] ?? 0), 2) }}</td>
                                 <td colspan="2"></td>
                             </tr>
                         </tfoot>

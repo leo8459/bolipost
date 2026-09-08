@@ -255,12 +255,12 @@
                     @endphp
                     <tr class="data-row">
                         <td class="text-center">{{ optional($log->fecha)->format('d/m/Y') ?? '-' }}</td>
-                        <td class="text-right">{{ $log->kilometraje !== null ? number_format((float) $log->kilometraje, 2) : ($currentKm !== null ? number_format((float) $currentKm, 2) : '-') }}</td>
+                        <td class="text-right">{{ $log->kilometraje !== null ? \App\Support\BolivianNumber::format((float) $log->kilometraje, 2) : ($currentKm !== null ? \App\Support\BolivianNumber::format((float) $currentKm, 2) : '-') }}</td>
                         <td>{{ $serviceText }}</td>
                         <td>{{ $log->taller ?? '-' }}</td>
                         <td class="text-center">{{ trim((string) ($log->unidad_medida ?? '')) !== '' ? $log->unidad_medida : 'Servicio' }}</td>
                         <td class="text-center">{{ $invoiceValue !== '' ? $invoiceValue : '-' }}</td>
-                        <td class="text-right">{{ $log->costo !== null ? 'Bs ' . number_format((float) $log->costo, 2) : '-' }}</td>
+                        <td class="text-right">{{ $log->costo !== null ? 'Bs ' . \App\Support\BolivianNumber::format((float) $log->costo, 2) : '-' }}</td>
                         <td>{{ $log->observaciones ?: '-' }}</td>
                     </tr>
                 @empty

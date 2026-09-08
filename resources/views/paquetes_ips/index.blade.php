@@ -104,7 +104,7 @@
                 </div>
                 <div class="ips-results-tools">
                     <span class="ips-total-pill">
-                        <strong>{{ number_format($packages->count()) }}</strong> en esta página
+                        <strong>{{ \App\Support\BolivianNumber::format($packages->count()) }}</strong> en esta página
                     </span>
                     <a href="{{ request()->fullUrl() }}" class="btn btn-outline-light ips-refresh-btn" title="Actualizar listado">
                         <i class="fas fa-sync-alt"></i>
@@ -114,7 +114,7 @@
                         <i class="fas fa-boxes"></i>
                         <span>Total filtrado:</span>
                         @if($totalPackages !== null)
-                            <strong>{{ number_format($totalPackages) }}</strong>
+                            <strong>{{ \App\Support\BolivianNumber::format($totalPackages) }}</strong>
                         @else
                             <strong title="La API de IPS no devolvió el total del resultado">No disponible</strong>
                         @endif
@@ -162,7 +162,7 @@
                                     <td><span class="ips-service-badge">{{ data_get($package, 'tipo_servicio', '-') ?: '-' }}</span></td>
                                     <td class="text-nowrap">
                                         @if(is_numeric(data_get($package, 'peso')))
-                                            <strong>{{ number_format((float) data_get($package, 'peso'), 3, ',', '.') }}</strong> kg
+                                            <strong>{{ \App\Support\BolivianNumber::format((float) data_get($package, 'peso'), 3, ',', '.') }}</strong> kg
                                         @else
                                             -
                                         @endif
@@ -223,7 +223,7 @@
                             </div>
                             <div class="ips-package-grid">
                                 <div><small>Fecha de registro</small><strong>{{ data_get($package, 'fecha_registro') ? \Illuminate\Support\Carbon::parse(data_get($package, 'fecha_registro'))->format('d/m/Y H:i') : '-' }}</strong></div>
-                                <div><small>Peso</small><strong>{{ is_numeric(data_get($package, 'peso')) ? number_format((float) data_get($package, 'peso'), 3, ',', '.').' kg' : '-' }}</strong></div>
+                                <div><small>Peso</small><strong>{{ is_numeric(data_get($package, 'peso')) ? \App\Support\BolivianNumber::format((float) data_get($package, 'peso'), 3, ',', '.').' kg' : '-' }}</strong></div>
                                 <div><small>Estado postal</small><strong>{{ data_get($package, 'estado_postal', '-') ?: '-' }}</strong></div>
                                 <div><small>Clase de correo</small><strong>{{ data_get($package, 'clase_correo', '-') ?: '-' }}</strong></div>
                                 <div><small>Contenido</small><strong>{{ data_get($package, 'contenido', '-') ?: '-' }}</strong></div>

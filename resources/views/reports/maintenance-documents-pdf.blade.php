@@ -42,7 +42,7 @@
                             <td>{{ optional($log->fecha)->format('d/m/Y') }}</td>
                             <td>{{ $log->vehicle?->placa ?? 'N/A' }}</td>
                             <td>{{ $log->tipo }}</td>
-                            <td>BOB {{ number_format((float) $log->costo, 2) }}</td>
+                            <td>BOB {{ \App\Support\BolivianNumber::format((float) $log->costo, 2) }}</td>
                             <td>{{ $log->descripcion ?: $log->observaciones ?: 'Sin detalle' }}</td>
                         </tr>
                     @endforeach

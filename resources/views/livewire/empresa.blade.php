@@ -486,7 +486,7 @@
                                         </div>
                                     </td>
                                     <td class="coverage-cell" title="{{ $empresa->cobertura }}">{{ $empresa->cobertura ?? '-' }}</td>
-                                    <td class="budget-cell">{{ !is_null($empresa->presupuesto) ? number_format((float) $empresa->presupuesto, 2) : '-' }}</td>
+                                    <td class="budget-cell">{{ !is_null($empresa->presupuesto) ? \App\Support\BolivianNumber::format((float) $empresa->presupuesto, 2) : '-' }}</td>
                                     <td>
                                         <div class="document-stack">
                                         @if (!empty($empresa->documento_pdf_path))

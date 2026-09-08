@@ -87,10 +87,10 @@
         <div class="divider"></div>
 
         <div class="amounts">
-            <div class="row"><span class="label">SUBTOTAL Bs</span> {{ $subtotal !== '' ? $subtotal : number_format((float) $amount, 2) }}</div>
+            <div class="row"><span class="label">SUBTOTAL Bs</span> {{ $subtotal !== '' ? $subtotal : \App\Support\BolivianNumber::format((float) $amount, 2) }}</div>
             <div class="row"><span class="label">DESCUENTO Bs</span> 0.00</div>
-            <div class="row"><span class="label">TOTAL Bs</span> {{ number_format((float) $amount, 2) }}</div>
-            <div class="row"><span class="label">IMPORTE BASE CF MONTO LEY 317</span> {{ number_format((float) $amount * 0.7, 2) }}</div>
+            <div class="row"><span class="label">TOTAL Bs</span> {{ \App\Support\BolivianNumber::format((float) $amount, 2) }}</div>
+            <div class="row"><span class="label">IMPORTE BASE CF MONTO LEY 317</span> {{ \App\Support\BolivianNumber::format((float) $amount * 0.7, 2) }}</div>
         </div>
 
         <div class="divider"></div>

@@ -37,15 +37,15 @@
         <div class="gestor-stats">
             <div class="gestor-stat">
                 <span>Total paquetes</span>
-                <strong>{{ number_format((int) $totalContratos) }}</strong>
+                <strong>{{ \App\Support\BolivianNumber::format((int) $totalContratos) }}</strong>
             </div>
             <div class="gestor-stat">
                 <span>Peso total</span>
-                <strong>{{ number_format((float) $totalPeso, 3) }} kg</strong>
+                <strong>{{ \App\Support\BolivianNumber::format((float) $totalPeso, 3) }} kg</strong>
             </div>
             <div class="gestor-stat">
                 <span>Mostrando</span>
-                <strong>{{ number_format((int) $contratos->total()) }}</strong>
+                <strong>{{ \App\Support\BolivianNumber::format((int) $contratos->total()) }}</strong>
             </div>
         </div>
 
@@ -61,13 +61,13 @@
                         <label for="estado">Estado</label>
                         <select id="estado" name="estado" class="form-control">
                             <option value="pendientes" @selected($estadoFiltro === 'pendientes')>
-                                Pendientes ({{ number_format((int) $totalPendientes) }})
+                                Pendientes ({{ \App\Support\BolivianNumber::format((int) $totalPendientes) }})
                             </option>
                             <option value="entregados" @selected($estadoFiltro === 'entregados')>
-                                Entregados ({{ number_format((int) $totalEntregados) }})
+                                Entregados ({{ \App\Support\BolivianNumber::format((int) $totalEntregados) }})
                             </option>
                             <option value="todos" @selected($estadoFiltro === 'todos')>
-                                Todos ({{ number_format((int) $totalContratos) }})
+                                Todos ({{ \App\Support\BolivianNumber::format((int) $totalContratos) }})
                             </option>
                         </select>
                     </div>
@@ -134,7 +134,7 @@
                                             <small class="d-block text-muted">{{ $contrato->provincia }}</small>
                                         @endif
                                     </td>
-                                    <td>{{ $contrato->peso !== null ? number_format((float) $contrato->peso, 3) : '-' }}</td>
+                                    <td>{{ $contrato->peso !== null ? \App\Support\BolivianNumber::format((float) $contrato->peso, 3) : '-' }}</td>
                                     <td>{{ $contrato->contenido ?: '-' }}</td>
                                     <td>{{ optional($contrato->created_at)->format('d/m/Y H:i') ?: '-' }}</td>
                                     <td class="text-center gestor-image-col">

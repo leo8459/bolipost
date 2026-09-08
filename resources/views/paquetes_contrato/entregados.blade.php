@@ -50,19 +50,19 @@
                 <div class="summary-grid">
                     <div class="summary-card">
                         <div class="summary-label">Entregados</div>
-                        <div class="summary-value">{{ number_format($stats['total'] ?? 0) }}</div>
+                        <div class="summary-value">{{ \App\Support\BolivianNumber::format($stats['total'] ?? 0) }}</div>
                     </div>
                     <div class="summary-card">
                         <div class="summary-label">Peso total</div>
-                        <div class="summary-value">{{ number_format((float) ($stats['peso_total'] ?? 0), 3) }} kg</div>
+                        <div class="summary-value">{{ \App\Support\BolivianNumber::format((float) ($stats['peso_total'] ?? 0), 3) }} kg</div>
                     </div>
                     <div class="summary-card">
                         <div class="summary-label">Dias cubiertos</div>
-                        <div class="summary-value">{{ number_format($stats['dias_cubiertos'] ?? 0) }}</div>
+                        <div class="summary-value">{{ \App\Support\BolivianNumber::format($stats['dias_cubiertos'] ?? 0) }}</div>
                     </div>
                     <div class="summary-card">
                         <div class="summary-label">Promedio diario</div>
-                        <div class="summary-value">{{ number_format((float) ($stats['promedio_diario'] ?? 0), 2) }}</div>
+                        <div class="summary-value">{{ \App\Support\BolivianNumber::format((float) ($stats['promedio_diario'] ?? 0), 2) }}</div>
                     </div>
                 </div>
 
@@ -92,7 +92,7 @@
                                     <td>{{ $c->nombre_r }}</td>
                                     <td>{{ $c->nombre_d }}</td>
                                     <td>{{ optional($c->created_at)->format('d/m/Y H:i') ?: '-' }}</td>
-                                    <td>{{ number_format((float) ($c->peso ?? 0), 3) }}</td>
+                                    <td>{{ \App\Support\BolivianNumber::format((float) ($c->peso ?? 0), 3) }}</td>
                                     <td>
                                         @php
                                             $imagenUrl = \App\Support\StoredImage::url($c->imagen ?? null);

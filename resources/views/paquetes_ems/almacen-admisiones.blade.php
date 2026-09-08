@@ -204,7 +204,7 @@
                                     <td>{{ $item->remitente ?: '-' }}</td>
                                     <td>{{ $item->destinatario ?: '-' }}</td>
                                     <td>{{ $item->destino ?: '-' }}</td>
-                                    <td class="text-right">{{ number_format((float) $item->peso, 3) }}</td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $item->peso, 3) }}</td>
                                     <td>{{ $item->usuario ?: 'Sin usuario' }}</td>
                                     <td class="muted small">{{ optional($item->created_at)->format('d/m/Y H:i') ?: '-' }}</td>
                                     <td class="muted small">{{ optional($item->updated_at)->format('d/m/Y H:i') ?: '-' }}</td>

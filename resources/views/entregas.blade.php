@@ -303,12 +303,12 @@
     </div>
 
     <div class="entregas-summary mb-3">
-        <div class="entregas-kpi"><span>Total asignados</span><strong>{{ number_format($totalAsignados) }}</strong></div>
-        <div class="entregas-kpi"><span>Entregados cartero</span><strong>{{ number_format($totalCarteroEntregados) }}</strong></div>
-        <div class="entregas-kpi"><span>Entregados ventanilla</span><strong>{{ number_format($totalVentanilla) }}</strong></div>
-        <div class="entregas-kpi"><span>Total entregados</span><strong>{{ number_format($totalGeneral) }}</strong></div>
-        <div class="entregas-kpi"><span>Pendientes asignados</span><strong>{{ number_format($totalPendientesAsignados) }}</strong></div>
-        <div class="entregas-kpi"><span>Cumplimiento</span><strong>{{ number_format($cumplimientoGeneral, 1) }}%</strong></div>
+        <div class="entregas-kpi"><span>Total asignados</span><strong>{{ \App\Support\BolivianNumber::format($totalAsignados) }}</strong></div>
+        <div class="entregas-kpi"><span>Entregados cartero</span><strong>{{ \App\Support\BolivianNumber::format($totalCarteroEntregados) }}</strong></div>
+        <div class="entregas-kpi"><span>Entregados ventanilla</span><strong>{{ \App\Support\BolivianNumber::format($totalVentanilla) }}</strong></div>
+        <div class="entregas-kpi"><span>Total entregados</span><strong>{{ \App\Support\BolivianNumber::format($totalGeneral) }}</strong></div>
+        <div class="entregas-kpi"><span>Pendientes asignados</span><strong>{{ \App\Support\BolivianNumber::format($totalPendientesAsignados) }}</strong></div>
+        <div class="entregas-kpi"><span>Cumplimiento</span><strong>{{ \App\Support\BolivianNumber::format($cumplimientoGeneral, 1) }}%</strong></div>
     </div>
 
     <div class="card entregas-card">
@@ -366,26 +366,26 @@
                                     <div class="excel-user">{{ $item->name }}</div>
                                     <span class="excel-city">{{ $item->ciudad ?: 'SIN DEPARTAMENTO' }}</span>
                                 </td>
-                                <td class="metric-cell total">{{ number_format((int) $item->total_asignados) }}</td>
-                                <td class="metric-cell total">{{ number_format((int) $item->total_cartero_entregados) }}</td>
-                                <td class="metric-cell total">{{ number_format((int) $item->total_ventanilla) }}</td>
-                                <td class="metric-cell total">{{ number_format((int) $item->total_entregados) }}</td>
-                                <td class="metric-cell">{{ number_format((int) $item->pendientes_asignados) }}</td>
+                                <td class="metric-cell total">{{ \App\Support\BolivianNumber::format((int) $item->total_asignados) }}</td>
+                                <td class="metric-cell total">{{ \App\Support\BolivianNumber::format((int) $item->total_cartero_entregados) }}</td>
+                                <td class="metric-cell total">{{ \App\Support\BolivianNumber::format((int) $item->total_ventanilla) }}</td>
+                                <td class="metric-cell total">{{ \App\Support\BolivianNumber::format((int) $item->total_entregados) }}</td>
+                                <td class="metric-cell">{{ \App\Support\BolivianNumber::format((int) $item->pendientes_asignados) }}</td>
                                 <td>
                                     <div class="fulfillment">
-                                        <span class="fulfillment-value">{{ number_format($cumplimiento, 1) }}%</span>
+                                        <span class="fulfillment-value">{{ \App\Support\BolivianNumber::format($cumplimiento, 1) }}%</span>
                                         <span class="fulfillment-track">
                                             <span class="fulfillment-bar" style="width: {{ $cumplimientoBar }}%;"></span>
                                         </span>
                                     </div>
                                 </td>
-                                <td class="metric-cell">{{ number_format((int) $item->ems) }}</td>
-                                <td class="metric-cell">{{ number_format((int) $item->contrato) }}</td>
-                                <td class="metric-cell">{{ number_format((int) $item->certi) }}</td>
-                                <td class="metric-cell">{{ number_format((int) $item->ordi) }}</td>
+                                <td class="metric-cell">{{ \App\Support\BolivianNumber::format((int) $item->ems) }}</td>
+                                <td class="metric-cell">{{ \App\Support\BolivianNumber::format((int) $item->contrato) }}</td>
+                                <td class="metric-cell">{{ \App\Support\BolivianNumber::format((int) $item->certi) }}</td>
+                                <td class="metric-cell">{{ \App\Support\BolivianNumber::format((int) $item->ordi) }}</td>
                                 <td>
                                     <span class="service-pill" title="{{ $item->servicio_mas_entregado }}">{{ $item->servicio_mas_entregado }}</span>
-                                    <span class="service-total">{{ number_format((int) $item->servicio_mas_entregado_total) }}</span>
+                                    <span class="service-total">{{ \App\Support\BolivianNumber::format((int) $item->servicio_mas_entregado_total) }}</span>
                                 </td>
                             </tr>
                         @empty

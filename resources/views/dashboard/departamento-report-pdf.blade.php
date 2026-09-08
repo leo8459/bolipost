@@ -39,10 +39,10 @@
 
 <table class="kpis">
     <tr>
-        <td><div class="k">Registrados</div><div class="v">{{ number_format((int) $item->total) }}</div></td>
-        <td><div class="k">Entregados</div><div class="v">{{ number_format((int) $item->entregados) }}</div></td>
-        <td><div class="k">Pendientes</div><div class="v">{{ number_format((int) $item->pendientes) }}</div></td>
-        <td><div class="k">Cumplimiento</div><div class="v">{{ number_format((float) $item->cumplimiento, 1) }}%</div></td>
+        <td><div class="k">Registrados</div><div class="v">{{ \App\Support\BolivianNumber::format((int) $item->total) }}</div></td>
+        <td><div class="k">Entregados</div><div class="v">{{ \App\Support\BolivianNumber::format((int) $item->entregados) }}</div></td>
+        <td><div class="k">Pendientes</div><div class="v">{{ \App\Support\BolivianNumber::format((int) $item->pendientes) }}</div></td>
+        <td><div class="k">Cumplimiento</div><div class="v">{{ \App\Support\BolivianNumber::format((float) $item->cumplimiento, 1) }}%</div></td>
         <td><div class="k">Quien entrega mas</div><div class="v" style="font-size:11px;">{{ $item->top_entregador }}</div></td>
     </tr>
 </table>
@@ -59,10 +59,10 @@
     </thead>
     <tbody>
         <tr>
-            <td class="num">{{ number_format((int) ($totalesModulo['EMS'] ?? 0)) }}</td>
-            <td class="num">{{ number_format((int) ($totalesModulo['CONTRATOS'] ?? 0)) }}</td>
-            <td class="num">{{ number_format((int) ($totalesModulo['CERTIFICADOS'] ?? 0)) }}</td>
-            <td class="num">{{ number_format((int) ($totalesModulo['ORDINARIOS'] ?? 0)) }}</td>
+            <td class="num">{{ \App\Support\BolivianNumber::format((int) ($totalesModulo['EMS'] ?? 0)) }}</td>
+            <td class="num">{{ \App\Support\BolivianNumber::format((int) ($totalesModulo['CONTRATOS'] ?? 0)) }}</td>
+            <td class="num">{{ \App\Support\BolivianNumber::format((int) ($totalesModulo['CERTIFICADOS'] ?? 0)) }}</td>
+            <td class="num">{{ \App\Support\BolivianNumber::format((int) ($totalesModulo['ORDINARIOS'] ?? 0)) }}</td>
         </tr>
     </tbody>
 </table>

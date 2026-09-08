@@ -481,8 +481,8 @@
                                             <span class="solicitudes-contact-name">{{ $solicitud->nombre_destinatario ?: '-' }}</span>
                                             <span class="solicitudes-contact-phone">{{ $solicitud->telefono_destinatario ?: 'Sin telefono' }}</span>
                                         </td>
-                                        <td>{{ $solicitud->peso !== null ? number_format((float) $solicitud->peso, 3, '.', '') : '-' }}</td>
-                                        <td>{{ $solicitud->precio !== null ? number_format((float) $solicitud->precio, 2, '.', '') : '-' }}</td>
+                                        <td>{{ $solicitud->peso !== null ? \App\Support\BolivianNumber::format((float) $solicitud->peso, 3, '.', '') : '-' }}</td>
+                                        <td>{{ $solicitud->precio !== null ? \App\Support\BolivianNumber::format((float) $solicitud->precio, 2, '.', '') : '-' }}</td>
                                         <td>
                                             <span class="badge badge-warning">
                                                 {{ $estadoNombre !== '' ? $estadoNombre : '-' }}
@@ -621,7 +621,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const precioBase = Number(item.precio_base || 0);
             const recargo = item.paquete_muy_grande ? (mismoDestino ? 5 : 10) : 0;
             const priceCell = document.createElement('td');
-            priceCell.textContent = 'Bs ' + (precioBase + recargo).toFixed(2);
+            priceCell.textContent = 'Bs ' + window.BolivianNumber.format(precioBase + recargo, 2);
             row.appendChild(priceCell);
 
             const largeCell = document.createElement('td');

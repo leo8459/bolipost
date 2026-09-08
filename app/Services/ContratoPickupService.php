@@ -15,6 +15,8 @@ class ContratoPickupService
 {
     public const EVENTO_ID_CONTRATO_RECOGIDO = 295;
 
+    public const PESO_MAXIMO_KG = 150.000;
+
     /**
      * @param  array<int, int|string>  $identificadores
      * @return array{actualizados: int, actualizados_por_tipo: array{contrato: int, solicitud: int}, codigos: array<int, string>, no_procesados: array<int, int|string>}
@@ -22,6 +24,16 @@ class ContratoPickupService
     public function recogerPorIds(User $actor, array $identificadores): array
     {
         return $this->recoger($actor, $identificadores, 'id');
+    }
+
+    /**
+     * @param  array<int, int|string>  $identificadores
+     * @param  array<int|string, int|float|string>  $pesosPorId
+     * @return array{actualizados: int, actualizados_por_tipo: array{contrato: int, solicitud: int}, codigos: array<int, string>, no_procesados: array<int, int|string>}
+     */
+    public function recogerPorIdsConPesos(User $actor, array $identificadores, array $pesosPorId): array
+    {
+        return $this->recoger($actor, $identificadores, 'id', $pesosPorId);
     }
 
     /**
@@ -34,10 +46,24 @@ class ContratoPickupService
     }
 
     /**
+     * @param  array<int, string>  $identificadores
+     * @param  array<string, int|float|string>  $pesosPorCodigo
+     * @return array{actualizados: int, actualizados_por_tipo: array{contrato: int, solicitud: int}, codigos: array<int, string>, no_procesados: array<int, string>}
+     */
+    public function recogerPorCodigosConPesos(User $actor, array $identificadores, array $pesosPorCodigo): array
+    {
+        $pesosNormalizados = collect($pesosPorCodigo)
+            ->mapWithKeys(fn ($peso, $codigo) => [strtoupper(trim((string) $codigo)) => $peso])
+            ->all();
+
+        return $this->recoger($actor, $identificadores, 'codigo', $pesosNormalizados);
+    }
+
+    /**
      * @param  array<int, int|string>  $identificadores
      * @return array{actualizados: int, actualizados_por_tipo: array{contrato: int, solicitud: int}, codigos: array<int, string>, no_procesados: array<int, int|string>}
      */
-    private function recoger(User $actor, array $identificadores, string $campo): array
+    private function recoger(User $actor, array $identificadores, string $campo, ?array $pesosPorIdentificador = null): array
     {
         $solicitudId = $this->estadoId('SOLICITUD');
         $almacenId = $this->estadoId('ALMACEN');
@@ -73,7 +99,8 @@ class ContratoPickupService
             $hasGlobalDepartmentAccess,
             $solicitudId,
             $userCity,
-            $valores
+            $valores,
+            $pesosPorIdentificador
         ): array {
             $query = Recojo::query()
                 ->where('estados_id', $solicitudId)
@@ -109,6 +136,47 @@ class ContratoPickupService
                     ->lockForUpdate()
                     ->get(['id', 'cliente_id', 'codigo_solicitud', 'barcode']);
             }
+
+            if ($pesosPorIdentificador !== null) {
+                $pesosRecojos = $recojos->mapWithKeys(function (Recojo $recojo) use ($campo, $pesosPorIdentificador): array {
+                    $llave = $campo === 'id' ? $recojo->id : strtoupper(trim((string) $recojo->codigo));
+
+                    return [$recojo->id => $this->normalizarPeso($pesosPorIdentificador[$llave] ?? null)];
+                });
+                $pesosSolicitudes = $solicitudes->mapWithKeys(function (SolicitudCliente $solicitud) use ($pesosPorIdentificador): array {
+                    $codigoSolicitud = strtoupper(trim((string) $solicitud->codigo_solicitud));
+                    $barcode = strtoupper(trim((string) $solicitud->barcode));
+                    $peso = $pesosPorIdentificador[$codigoSolicitud]
+                        ?? $pesosPorIdentificador[$barcode]
+                        ?? null;
+
+                    return [$solicitud->id => $this->normalizarPeso($peso)];
+                });
+                $codigosPesoInvalido = $recojos
+                    ->filter(fn (Recojo $recojo) => ! $this->pesoValido($pesosRecojos->get($recojo->id)))
+                    ->pluck('codigo')
+                    ->map(fn ($codigo) => (string) $codigo)
+                    ->values();
+
+                if ($codigosPesoInvalido->isNotEmpty()) {
+                    throw new RuntimeException(
+                        'Por favor ingrese un peso entre 0,001 y 150,000 kg para los paquetes: '
+                        .$codigosPesoInvalido->implode(', ').'.'
+                    );
+                }
+
+                foreach ($recojos as $recojo) {
+                    $recojo->forceFill(['peso' => $pesosRecojos->get($recojo->id)])->save();
+                }
+
+                foreach ($solicitudes as $solicitud) {
+                    $pesoSolicitud = $pesosSolicitudes->get($solicitud->id);
+                    if ($this->pesoValido($pesoSolicitud)) {
+                        $solicitud->forceFill(['peso' => $pesoSolicitud])->save();
+                    }
+                }
+            }
+
             $now = now();
 
             if ($recojos->isNotEmpty()) {
@@ -194,6 +262,18 @@ class ContratoPickupService
         $codigo = trim((string) $solicitud->codigo_solicitud);
 
         return $codigo !== '' ? $codigo : trim((string) $solicitud->barcode);
+    }
+
+    private function normalizarPeso(mixed $peso): ?float
+    {
+        $valor = str_replace(',', '.', trim((string) $peso));
+
+        return is_numeric($valor) ? round((float) $valor, 3) : null;
+    }
+
+    private function pesoValido(?float $peso): bool
+    {
+        return $peso !== null && $peso >= 0.001 && $peso <= self::PESO_MAXIMO_KG;
     }
 
     private function estadoId(string $nombre): int

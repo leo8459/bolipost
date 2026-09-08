@@ -118,7 +118,7 @@
                     <td>{{ $paquete->usuario ?? (optional($paquete->user)->name ?? 'N/A') }}</td>
                     <td>
                         @if (($paquete->precio ?? null) !== null)
-                            {{ number_format((float) $paquete->precio, 2) }}
+                            {{ \App\Support\BolivianNumber::format((float) $paquete->precio, 2) }}
                         @else
                             -
                         @endif

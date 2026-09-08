@@ -99,7 +99,7 @@
                     <td>{{ ($row['codigo_regional'] ?? '') !== '' ? $row['codigo_regional'] : ($regional ?? '') }}</td>
                     <td>{{ $row['fecha_registro'] ?? '' }}</td>
                     <td>{{ $row['destinatario'] ?? '' }}</td>
-                    <td class="center">{{ is_numeric($row['peso'] ?? null) ? number_format((float) $row['peso'], 3, '.', '') : '' }}</td>
+                    <td class="center">{{ is_numeric($row['peso'] ?? null) ? \App\Support\BolivianNumber::format((float) $row['peso'], 3, '.', '') : '' }}</td>
                     <td class="simple-observacion"></td>
                 </tr>
             @empty
@@ -137,7 +137,7 @@
                     </td>
                     <td>{{ $row['destinatario'] ?? '' }}</td>
                     <td>{{ $row['direccion'] ?? '' }}</td>
-                    <td class="center">{{ is_numeric($row['peso'] ?? null) ? number_format((float) $row['peso'], 3, '.', '') : '' }}</td>
+                    <td class="center">{{ is_numeric($row['peso'] ?? null) ? \App\Support\BolivianNumber::format((float) $row['peso'], 3, '.', '') : '' }}</td>
                     <td></td>
                     <td></td>
                 </tr>

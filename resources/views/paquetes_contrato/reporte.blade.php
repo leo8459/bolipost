@@ -350,7 +350,7 @@
                             </td>
                             <td>
                                 <span class="section-label">Peso</span>
-                                <span class="small-value">{{ $contrato->peso !== null ? number_format((float) $contrato->peso, 3) . ' kg' : '-' }}</span>
+                                <span class="small-value">{{ $contrato->peso !== null ? \App\Support\BolivianNumber::format((float) $contrato->peso, 3) . ' kg' : '-' }}</span>
                             </td>
                             <td>
                                 <span class="section-label">Fecha solicitud</span>
