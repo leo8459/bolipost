@@ -5,10 +5,12 @@ namespace App\Livewire;
 use App\Models\CodigoEmpresa as CodigoEmpresaModel;
 use App\Models\Empresa as EmpresaModel;
 use App\Models\Estado as EstadoModel;
+use App\Models\Evento as EventoModel;
 use App\Models\Recojo as RecojoModel;
 use App\Models\User;
 use App\Services\ContratoCodigoService;
 use App\Services\PackageCancellationService;
+use App\Support\EncargadoEvent;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -167,8 +169,31 @@ class Recojo extends Component
         $this->authorizePermission($this->modeFeaturePermission('delete'));
 
         $recojo = RecojoModel::findOrFail((int) $id);
-        if (! app(PackageCancellationService::class)->cancel($recojo, 'estados_id')) {
-            session()->flash('error', 'No existe el estado CANCELADO en la tabla estados.');
+        $eventoCancelacionId = (int) (EventoModel::query()
+            ->whereRaw('trim(upper(nombre_evento)) = ?', [
+                mb_strtoupper(EncargadoEvent::CANCELADO),
+            ])
+            ->value('id') ?? 0);
+
+        if ($eventoCancelacionId <= 0) {
+            session()->flash('error', 'No existe el evento de cancelacion usado por Encargado.');
+
+            return;
+        }
+
+        $actorName = trim((string) optional(Auth::user())->name);
+        $cancelado = app(PackageCancellationService::class)->cancelAndRecordEvent(
+            $recojo,
+            'estados_id',
+            'eventos_contrato',
+            (string) $recojo->codigo,
+            $eventoCancelacionId,
+            (int) optional(Auth::user())->id,
+            'Envio cancelado por '.($actorName !== '' ? $actorName : 'USUARIO DEL SISTEMA').'.'
+        );
+
+        if (! $cancelado) {
+            session()->flash('error', 'No se pudo cancelar el contrato ni registrar su evento.');
 
             return;
         }
