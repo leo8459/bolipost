@@ -63,6 +63,7 @@ class ExternalApiTokenSelectionTest extends TestCase
             ->assertSee('EVENTOS SIOP')
             ->assertSee('INICIO SESION SIOP')
             ->assertSee('INICIO SESION CHASQUIAPP')
+            ->assertSee('ENVIO DE CORREOS')
             ->assertSee('CHASQUIAPP - Paquetes asignados al cartero')
             ->assertSee('CHASQUIAPP - Asignar paquetes al cartero')
             ->assertSee('ENTREGA CARTEROS')
@@ -72,6 +73,7 @@ class ExternalApiTokenSelectionTest extends TestCase
             ->assertSee('Iniciar sesion Delivery Express con Google')
             ->assertSee('Iniciar sesion Delivery Express con usuario y contrasena')
             ->assertSee('Crear usuario Delivery Express')
+            ->assertSee('Editar usuario Delivery Express')
             ->assertSee('Crear solicitud Delivery Express para un cliente')
             ->assertSee('Ver solicitudes Delivery Express de un cliente')
             ->assertSee('Ver todos los paquetes de solicitudes de clientes')
@@ -84,6 +86,7 @@ class ExternalApiTokenSelectionTest extends TestCase
             ->assertSee('/api/paquetes-eventos')
             ->assertSee('/api/integraciones/siop/login')
             ->assertSee('/api/integraciones/chasqui/login')
+            ->assertSee('/api/integraciones/correos/enviar')
             ->assertSee('/api/chasqui/paquetes-asignados')
             ->assertSee('/api/chasqui/paquetes/asignar')
             ->assertSee('/api/chasqui/paquetes/entregar')
@@ -91,6 +94,7 @@ class ExternalApiTokenSelectionTest extends TestCase
             ->assertSee('/api/integraciones/clientes/google-login')
             ->assertSee('/api/integraciones/clientes/login')
             ->assertSee('/api/integraciones/clientes')
+            ->assertSee('/api/integraciones/clientes/{cliente}')
             ->assertSee('/api/integraciones/clientes/{cliente}/solicitudes')
             ->assertSee('/api/integraciones/solicitudes-clientes')
             ->assertSee('/api/paquetes-contrato/recoger')
@@ -133,6 +137,7 @@ class ExternalApiTokenSelectionTest extends TestCase
     {
         $abilities = [
             'clientes:create',
+            'clientes:update',
             'clientes:google-login',
             'clientes:login',
             'clientes:solicitudes:create',

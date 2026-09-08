@@ -230,6 +230,103 @@ class ClienteAuthApiTest extends TestCase
         ]);
     }
 
+    public function test_una_integracion_autorizada_puede_editar_un_usuario_delivery_express(): void
+    {
+        $cliente = Cliente::query()->create([
+            'name' => 'Cliente Original',
+            'email' => 'cliente.editar@example.com',
+            'password' => 'ClaveSegura123',
+            'numero_carnet' => '1111111',
+            'telefono' => '61111111',
+            'direccion' => 'Direccion anterior',
+        ]);
+        $token = ExternalApiToken::query()->create([
+            'name' => 'Integracion para editar clientes',
+            'jti' => hash('sha256', Str::uuid()->toString()),
+            'token_hash' => hash('sha256', Str::random(40)),
+            'abilities' => ['clientes:update'],
+            'is_active' => true,
+        ]);
+        $jwt = ExternalApiJwt::issue($token);
+        $token->forceFill(['token_hash' => hash('sha256', $jwt)])->save();
+
+        $this->withToken($jwt)
+            ->patchJson("/api/integraciones/clientes/{$cliente->id}", [
+                'name' => 'Cliente Actualizado',
+                'numero_carnet' => '7654321',
+                'telefono' => '70000000',
+                'direccion' => 'Avenida Principal 123',
+                'email' => 'correo.no.permitido@example.com',
+            ])
+            ->assertOk()
+            ->assertJsonPath('message', 'Cliente actualizado correctamente.')
+            ->assertJsonPath('cliente.id', $cliente->id)
+            ->assertJsonPath('cliente.name', 'Cliente Actualizado')
+            ->assertJsonPath('cliente.numero_carnet', '7654321')
+            ->assertJsonPath('cliente.telefono', '70000000')
+            ->assertJsonPath('cliente.direccion', 'Avenida Principal 123');
+
+        $this->assertDatabaseHas('clientes', [
+            'id' => $cliente->id,
+            'name' => 'Cliente Actualizado',
+            'email' => 'cliente.editar@example.com',
+            'numero_carnet' => '7654321',
+            'telefono' => '70000000',
+            'direccion' => 'Avenida Principal 123',
+        ]);
+    }
+
+    public function test_editar_cliente_requiere_el_permiso_correspondiente(): void
+    {
+        $cliente = Cliente::query()->create([
+            'name' => 'Cliente Protegido',
+            'email' => 'cliente.protegido@example.com',
+            'password' => 'ClaveSegura123',
+        ]);
+        $token = ExternalApiToken::query()->create([
+            'name' => 'Integracion sin permiso de edicion',
+            'jti' => hash('sha256', Str::uuid()->toString()),
+            'token_hash' => hash('sha256', Str::random(40)),
+            'abilities' => ['clientes:create'],
+            'is_active' => true,
+        ]);
+        $jwt = ExternalApiJwt::issue($token);
+        $token->forceFill(['token_hash' => hash('sha256', $jwt)])->save();
+
+        $this->withToken($jwt)
+            ->patchJson("/api/integraciones/clientes/{$cliente->id}", ['name' => 'Cambio no autorizado'])
+            ->assertForbidden()
+            ->assertJsonPath('permiso_requerido', 'clientes:update');
+
+        $this->assertDatabaseHas('clientes', [
+            'id' => $cliente->id,
+            'name' => 'Cliente Protegido',
+        ]);
+    }
+
+    public function test_editar_cliente_exige_al_menos_un_campo_permitido(): void
+    {
+        $cliente = Cliente::query()->create([
+            'name' => 'Cliente Sin Cambios',
+            'email' => 'cliente.sin.cambios@example.com',
+            'password' => 'ClaveSegura123',
+        ]);
+        $token = ExternalApiToken::query()->create([
+            'name' => 'Integracion de edicion',
+            'jti' => hash('sha256', Str::uuid()->toString()),
+            'token_hash' => hash('sha256', Str::random(40)),
+            'abilities' => ['clientes:update'],
+            'is_active' => true,
+        ]);
+        $jwt = ExternalApiJwt::issue($token);
+        $token->forceFill(['token_hash' => hash('sha256', $jwt)])->save();
+
+        $this->withToken($jwt)
+            ->patchJson("/api/integraciones/clientes/{$cliente->id}", [])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['cliente']);
+    }
+
     public function test_una_integracion_autorizada_puede_iniciar_sesion_con_correo_y_contrasena(): void
     {
         $cliente = Cliente::query()->create([

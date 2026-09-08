@@ -2,6 +2,40 @@
 
 return [
     'catalog' => [
+        'correos:send' => [
+            'name' => 'ENVIO DE CORREOS',
+            'description' => 'Envia correos mediante la cuenta SMTP institucional configurada. El remitente siempre es el definido por el servidor.',
+            'access' => 'Escritura',
+            'icon' => 'fas fa-envelope',
+            'color' => 'primary',
+            'endpoints' => [
+                [
+                    'method' => 'POST',
+                    'path' => '/api/integraciones/correos/enviar',
+                    'example' => '',
+                    'body' => [
+                        'para' => ['destinatario@ejemplo.com'],
+                        'cc' => ['copia@ejemplo.com'],
+                        'cco' => [],
+                        'asunto' => 'Notificacion de Correos de Bolivia',
+                        'mensaje' => 'Contenido del correo que se desea enviar.',
+                        'formato' => 'texto',
+                        'responder_a' => 'respuesta@ejemplo.com',
+                    ],
+                    'response' => [
+                        'message' => 'Correo enviado correctamente.',
+                        'data' => [
+                            'para' => ['destinatario@ejemplo.com'],
+                            'cc' => ['copia@ejemplo.com'],
+                            'cco' => [],
+                            'asunto' => 'Notificacion de Correos de Bolivia',
+                            'formato' => 'texto',
+                            'enviado_en' => '2026-09-08T10:30:00-04:00',
+                        ],
+                    ],
+                ],
+            ],
+        ],
         'chasqui:login' => [
             'name' => 'INICIO SESION CHASQUIAPP',
             'description' => 'Valida el alias y la contrasena de un cartero habilitado y devuelve su Bearer Token personal.',
@@ -222,6 +256,36 @@ return [
                         'message' => 'Cliente registrado correctamente.',
                         'token_type' => 'Bearer',
                         'access_token' => 'TOKEN_PERSONAL_DEL_CLIENTE',
+                    ],
+                ],
+            ],
+        ],
+        'clientes:update' => [
+            'name' => 'Editar usuario Delivery Express',
+            'description' => 'Actualiza el nombre, numero de carnet, telefono y direccion del cliente indicado en la URL.',
+            'access' => 'Escritura',
+            'icon' => 'fas fa-user-edit',
+            'color' => 'warning',
+            'endpoints' => [
+                [
+                    'method' => 'PATCH',
+                    'path' => '/api/integraciones/clientes/{cliente}',
+                    'example' => '',
+                    'body' => [
+                        'name' => 'Cliente Actualizado',
+                        'numero_carnet' => '1234567',
+                        'telefono' => '70000000',
+                        'direccion' => 'Avenida Principal 123',
+                    ],
+                    'response' => [
+                        'message' => 'Cliente actualizado correctamente.',
+                        'cliente' => [
+                            'id' => 1,
+                            'name' => 'Cliente Actualizado',
+                            'numero_carnet' => '1234567',
+                            'telefono' => '70000000',
+                            'direccion' => 'Avenida Principal 123',
+                        ],
                     ],
                 ],
             ],

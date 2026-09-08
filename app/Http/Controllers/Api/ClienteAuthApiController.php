@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
 class ClienteAuthApiController extends Controller
@@ -125,6 +126,39 @@ class ClienteAuthApiController extends Controller
             'access_token' => $this->createToken($cliente, $validated['device_name'] ?? null),
             'cliente' => $this->clienteData($cliente),
         ], 201);
+    }
+
+    public function update(Request $request, Cliente $cliente): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['sometimes', 'required', 'string', 'max:255'],
+            'numero_carnet' => ['sometimes', 'nullable', 'string', 'max:50'],
+            'telefono' => ['sometimes', 'nullable', 'string', 'max:50'],
+            'direccion' => ['sometimes', 'nullable', 'string', 'max:255'],
+        ]);
+
+        if ($validated === []) {
+            throw ValidationException::withMessages([
+                'cliente' => 'Debes enviar al menos uno de estos campos: name, numero_carnet, telefono o direccion.',
+            ]);
+        }
+
+        foreach (['name', 'numero_carnet', 'telefono', 'direccion'] as $field) {
+            if (! array_key_exists($field, $validated)) {
+                continue;
+            }
+
+            $validated[$field] = $field === 'name'
+                ? trim($validated[$field])
+                : $this->nullableTrim($validated[$field]);
+        }
+
+        $cliente->fill($validated)->save();
+
+        return response()->json([
+            'message' => 'Cliente actualizado correctamente.',
+            'cliente' => $this->clienteData($cliente->fresh()),
+        ]);
     }
 
     public function login(Request $request): JsonResponse

@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\ChasquiAuthApiController;
 use App\Http\Controllers\Api\ClienteAuthApiController;
 use App\Http\Controllers\Api\ClienteSolicitudApiController;
 use App\Http\Controllers\Api\ContratoPickupApiController;
+use App\Http\Controllers\Api\CorreoApiController;
 use App\Http\Controllers\Api\DireccionDestinoApiController;
 use App\Http\Controllers\Api\EventosSiopApiController;
 use App\Http\Controllers\Api\ExternalClienteSolicitudApiController;
@@ -80,6 +81,10 @@ Route::prefix('siop')->middleware(['auth:sanctum', 'abilities:siop'])->group(fun
 });
 
 Route::middleware(['force.json', 'external.api.jwt', 'throttle:120,1'])->group(function () {
+    Route::post('/integraciones/correos/enviar', [CorreoApiController::class, 'store'])
+        ->middleware(['external.api.ability:correos:send', 'throttle:30,1'])
+        ->name('api.integraciones.correos.store');
+
     Route::post('/integraciones/siop/login', [SiopAuthApiController::class, 'login'])
         ->middleware(['external.api.ability:siop:login', 'throttle:10,1'])
         ->name('api.integraciones.siop.login');
@@ -95,6 +100,10 @@ Route::middleware(['force.json', 'external.api.jwt', 'throttle:120,1'])->group(f
     Route::post('/integraciones/clientes', [ClienteAuthApiController::class, 'register'])
         ->middleware('external.api.ability:clientes:create')
         ->name('api.integraciones.clientes.store');
+    Route::patch('/integraciones/clientes/{cliente}', [ClienteAuthApiController::class, 'update'])
+        ->middleware('external.api.ability:clientes:update')
+        ->whereNumber('cliente')
+        ->name('api.integraciones.clientes.update');
     Route::post('/integraciones/clientes/google-login', [ClienteAuthApiController::class, 'googleLogin'])
         ->middleware('external.api.ability:clientes:google-login')
         ->name('api.integraciones.clientes.google-login');
