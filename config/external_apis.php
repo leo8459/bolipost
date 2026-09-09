@@ -2,6 +2,112 @@
 
 return [
     'catalog' => [
+        'packgo:mobile-auth' => [
+            'name' => 'PACKGO - Autenticacion movil',
+            'description' => 'Permite iniciar, validar y cerrar sesion desde PackGo. Todas las solicitudes deben enviar X-API-Token con la credencial de integracion.',
+            'access' => 'Autenticacion',
+            'icon' => 'fas fa-mobile-alt',
+            'color' => 'primary',
+            'endpoints' => [
+                [
+                    'method' => 'POST',
+                    'path' => '/api/mobile/login',
+                    'example' => '',
+                    'body' => [
+                        'login' => 'conductor.alias',
+                        'password' => 'ClaveSegura123',
+                        'device_name' => 'PackGo Android',
+                        'device_id' => 'packgo-dispositivo-unico',
+                    ],
+                    'response' => [
+                        'success' => true,
+                        'auth_mode' => 'session',
+                        'user' => [
+                            'id' => 1,
+                            'name' => 'Conductor Demo',
+                            'role' => 'driver',
+                            'driver_id' => 1,
+                        ],
+                    ],
+                ],
+                [
+                    'method' => 'GET',
+                    'path' => '/api/mobile/me',
+                    'example' => '',
+                ],
+                [
+                    'method' => 'GET',
+                    'path' => '/api/mobile/bootstrap',
+                    'example' => '',
+                ],
+                [
+                    'method' => 'POST',
+                    'path' => '/api/mobile/logout',
+                    'example' => '',
+                ],
+            ],
+        ],
+        'packgo:alerts-support-sync' => [
+            'name' => 'PACKGO - Alertas y soporte',
+            'description' => 'Sincroniza alertas, tipos y solicitudes de mantenimiento utilizadas por PackGo.',
+            'access' => 'Lectura y escritura',
+            'icon' => 'fas fa-tools',
+            'color' => 'warning',
+            'endpoints' => [
+                ['method' => 'GET', 'path' => '/api/mobile/maintenance_alerts', 'example' => '?per_page=50&page=1'],
+                ['method' => 'GET', 'path' => '/api/mobile/maintenance_types', 'example' => '?per_page=50&page=1'],
+                [
+                    'method' => 'GET',
+                    'path' => '/api/mobile/maintenance-requests',
+                    'example' => '?per_page=50&page=1',
+                ],
+                [
+                    'method' => 'POST',
+                    'path' => '/api/mobile/maintenance-requests',
+                    'example' => '',
+                    'body' => [
+                        'vehicle_id' => 1,
+                        'maintenance_type_id' => 1,
+                        'descripcion' => 'Revision solicitada desde PackGo',
+                    ],
+                ],
+            ],
+        ],
+        'packgo:fuel-qr' => [
+            'name' => 'PACKGO - Combustible y QR',
+            'description' => 'Permite registrar combustible, decodificar QR y consultar facturas SIAT desde PackGo.',
+            'access' => 'Lectura y escritura',
+            'icon' => 'fas fa-gas-pump',
+            'color' => 'success',
+            'endpoints' => [
+                ['method' => 'GET', 'path' => '/api/fuel-logs', 'example' => '?per_page=50&page=1'],
+                ['method' => 'POST', 'path' => '/api/fuel-logs', 'example' => ''],
+                ['method' => 'POST', 'path' => '/api/fuel-logs/scrape-from-qr', 'example' => '', 'body' => ['url' => 'https://pilotosiat.impuestos.gob.bo/consulta/QR?...']],
+                ['method' => 'POST', 'path' => '/api/qr/decode-from-image', 'example' => '', 'body' => ['image_base64' => 'BASE64_DE_LA_IMAGEN']],
+                ['method' => 'PUT', 'path' => '/api/siat/consulta-factura', 'example' => ''],
+            ],
+        ],
+        'packgo:bitacora-route' => [
+            'name' => 'PACKGO - Bitacora y rutas',
+            'description' => 'Permite sincronizar bitacora, ubicacion, recorridos y reasignaciones de vehiculos desde PackGo.',
+            'access' => 'Lectura y escritura',
+            'icon' => 'fas fa-route',
+            'color' => 'info',
+            'endpoints' => [
+                ['method' => 'GET', 'path' => '/api/vehicle-logs', 'example' => '?per_page=50&page=1'],
+                ['method' => 'POST', 'path' => '/api/vehicle-logs', 'example' => ''],
+                ['method' => 'POST', 'path' => '/api/vehicle-logs/point-to-point', 'example' => ''],
+                ['method' => 'POST', 'path' => '/api/vehicle-logs/stage-event', 'example' => ''],
+                ['method' => 'POST', 'path' => '/api/vehicle-logs/reassignment/qr', 'example' => ''],
+                ['method' => 'POST', 'path' => '/api/vehicle-logs/reassignment/accept', 'example' => ''],
+                ['method' => 'POST', 'path' => '/api/mobile/location/heartbeat', 'example' => ''],
+                ['method' => 'POST', 'path' => '/api/mobile/bitacora/load', 'example' => ''],
+                ['method' => 'GET', 'path' => '/api/mobile/bitacora/session-health', 'example' => ''],
+                ['method' => 'POST', 'path' => '/api/mobile/bitacora/investigation-ticket/confirm', 'example' => ''],
+                ['method' => 'POST', 'path' => '/api/activity-logs', 'example' => ''],
+                ['method' => 'GET', 'path' => '/api/activity-logs', 'example' => ''],
+            ],
+        ],
         'correos:send' => [
             'name' => 'ENVIO DE CORREOS',
             'description' => 'Envia correos mediante la cuenta SMTP institucional configurada. El remitente siempre es el definido por el servidor.',

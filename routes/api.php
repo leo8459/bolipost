@@ -70,7 +70,7 @@ Route::post('/public/preregistros', [PreregistroController::class, 'publicStoreA
 Route::post('/subscribe', [BusquedaController::class, 'subscribe']);
 Route::post('/unsubscribe', [BusquedaController::class, 'unsubscribe']);
 Route::post('/fuel-logs/scrape-from-qr', [FuelScrapeApiController::class, 'scrapeFromQr'])
-    ->middleware('throttle:30,1');
+    ->middleware(['external.api.jwt', 'external.api.ability:packgo:fuel-qr', 'throttle:30,1']);
 Route::get('/siop/eventos', [EventosSiopApiController::class, 'index'])
     ->middleware(['siop.api.token', 'throttle:20,1'])
     ->name('api.siop.eventos.index');
@@ -177,52 +177,83 @@ Route::prefix('chasqui')->middleware([
 });
 
 Route::middleware('web')->group(function () {
-    Route::post('/mobile/login', [AuthTokenController::class, 'login']);
+    Route::post('/mobile/login', [AuthTokenController::class, 'login'])
+        ->middleware(['external.api.jwt', 'external.api.any_ability:packgo:mobile-auth,packgo:alerts-support-sync,packgo:fuel-qr,packgo:bitacora-route']);
     Route::post('/maintenance-requests', [MaintenanceRequestApiController::class, 'store']);
     Route::get('/maintenance-requests', [MaintenanceRequestApiController::class, 'index']);
-    Route::post('/fuel-logs', [FuelLogApiController::class, 'store']);
-    Route::post('/qr/decode-from-image', [QrDecoderApiController::class, 'decodeFromImage']);
-    Route::put('/siat/consulta-factura', [MobileUtilityController::class, 'siatConsultaFactura']);
+    Route::post('/fuel-logs', [FuelLogApiController::class, 'store'])
+        ->middleware(['external.api.jwt', 'external.api.ability:packgo:fuel-qr']);
+    Route::post('/qr/decode-from-image', [QrDecoderApiController::class, 'decodeFromImage'])
+        ->middleware(['external.api.jwt', 'external.api.ability:packgo:fuel-qr']);
+    Route::put('/siat/consulta-factura', [MobileUtilityController::class, 'siatConsultaFactura'])
+        ->middleware(['external.api.jwt', 'external.api.ability:packgo:fuel-qr']);
 
     Route::middleware(['auth:web', 'single.mobile.session'])->group(function () {
-        Route::get('/mobile/me', [AuthTokenController::class, 'me']);
-        Route::get('/mobile/bootstrap', [AuthTokenController::class, 'bootstrap']);
-        Route::post('/mobile/logout', [AuthTokenController::class, 'logout']);
+        Route::get('/mobile/me', [AuthTokenController::class, 'me'])
+            ->middleware(['external.api.jwt', 'external.api.any_ability:packgo:mobile-auth,packgo:alerts-support-sync,packgo:fuel-qr,packgo:bitacora-route']);
+        Route::get('/mobile/bootstrap', [AuthTokenController::class, 'bootstrap'])
+            ->middleware(['external.api.jwt', 'external.api.any_ability:packgo:mobile-auth,packgo:alerts-support-sync,packgo:fuel-qr,packgo:bitacora-route']);
+        Route::post('/mobile/logout', [AuthTokenController::class, 'logout'])
+            ->middleware(['external.api.jwt', 'external.api.any_ability:packgo:mobile-auth,packgo:alerts-support-sync,packgo:fuel-qr,packgo:bitacora-route']);
         Route::get('/mobile/chasqui/paquetes/buscar', [CarterosController::class, 'chasquiSearchPackage']);
         Route::get('/mobile/chasqui/paquetes-asignados', [CarterosController::class, 'chasquiAssignedData']);
         Route::post('/mobile/chasqui/paquetes/asignar', [CarterosController::class, 'assignChasqui']);
         Route::post('/mobile/chasqui/paquetes/entregar', [CarterosController::class, 'deliverChasquiPackage']);
         Route::get('/mobile/chasqui/notificaciones/pendientes', [CarterosController::class, 'chasquiPendingNotification']);
         Route::post('/mobile/paquetes-contrato/recoger', [ContratoPickupApiController::class, 'storeMobile']);
-        Route::post('/mobile/maintenance-requests', [MaintenanceRequestApiController::class, 'storeMobile']);
-        Route::get('/mobile/maintenance-requests', [MaintenanceRequestApiController::class, 'indexMobile']);
+        Route::post('/mobile/maintenance-requests', [MaintenanceRequestApiController::class, 'storeMobile'])
+            ->middleware(['external.api.jwt', 'external.api.ability:packgo:alerts-support-sync']);
+        Route::get('/mobile/maintenance-requests', [MaintenanceRequestApiController::class, 'indexMobile'])
+            ->middleware(['external.api.jwt', 'external.api.ability:packgo:alerts-support-sync']);
         Route::post('/mobile/snapshot', [MobileSnapshotController::class, 'store']);
         Route::patch('/alerts/{alert}/read', [AlertReadApiController::class, 'markRead']);
 
-        Route::get('/fuel-logs', [FuelLogApiController::class, 'index']);
-        Route::get('/fuel-logs/{fuelLog}', [FuelLogApiController::class, 'show']);
-        Route::get('/fuel-logs/by-vehicle/{vehicle}', [FuelLogApiController::class, 'byVehicle']);
-        Route::get('/vehicle-logs', [VehicleLogApiController::class, 'index']);
-        Route::post('/vehicle-logs', [VehicleLogApiController::class, 'store']);
-        Route::post('/vehicle-logs/point-to-point', [VehicleLogApiController::class, 'pointToPoint']);
-        Route::post('/vehicle-logs/stage-event', [VehicleLogApiController::class, 'storeStageEvent']);
-        Route::post('/vehicle-logs/reassignment/qr', [VehicleLogApiController::class, 'createReassignmentQr']);
-        Route::post('/vehicle-logs/reassignment/accept', [VehicleLogApiController::class, 'acceptReassignment']);
-        Route::get('/vehicle-logs/{vehicleLog}', [VehicleLogApiController::class, 'show']);
+        Route::get('/fuel-logs', [FuelLogApiController::class, 'index'])
+            ->middleware(['external.api.jwt', 'external.api.ability:packgo:fuel-qr']);
+        Route::get('/fuel-logs/{fuelLog}', [FuelLogApiController::class, 'show'])
+            ->middleware(['external.api.jwt', 'external.api.ability:packgo:fuel-qr']);
+        Route::get('/fuel-logs/by-vehicle/{vehicle}', [FuelLogApiController::class, 'byVehicle'])
+            ->middleware(['external.api.jwt', 'external.api.ability:packgo:fuel-qr']);
+        Route::get('/vehicle-logs', [VehicleLogApiController::class, 'index'])
+            ->middleware(['external.api.jwt', 'external.api.ability:packgo:bitacora-route']);
+        Route::post('/vehicle-logs', [VehicleLogApiController::class, 'store'])
+            ->middleware(['external.api.jwt', 'external.api.ability:packgo:bitacora-route']);
+        Route::post('/vehicle-logs/point-to-point', [VehicleLogApiController::class, 'pointToPoint'])
+            ->middleware(['external.api.jwt', 'external.api.ability:packgo:bitacora-route']);
+        Route::post('/vehicle-logs/stage-event', [VehicleLogApiController::class, 'storeStageEvent'])
+            ->middleware(['external.api.jwt', 'external.api.ability:packgo:bitacora-route']);
+        Route::post('/vehicle-logs/reassignment/qr', [VehicleLogApiController::class, 'createReassignmentQr'])
+            ->middleware(['external.api.jwt', 'external.api.ability:packgo:bitacora-route']);
+        Route::post('/vehicle-logs/reassignment/accept', [VehicleLogApiController::class, 'acceptReassignment'])
+            ->middleware(['external.api.jwt', 'external.api.ability:packgo:bitacora-route']);
+        Route::get('/vehicle-logs/{vehicleLog}', [VehicleLogApiController::class, 'show'])
+            ->middleware(['external.api.jwt', 'external.api.ability:packgo:bitacora-route']);
 
         Route::post('/emergency-alerts', [MobileUtilityController::class, 'emergencyAlert']);
-        Route::get('/activity-logs', [MobileUtilityController::class, 'activityIndex']);
-        Route::post('/activity-logs', [MobileUtilityController::class, 'activityStore']);
-        Route::post('/mobile/location/heartbeat', [MobileUtilityController::class, 'locationHeartbeat']);
+        Route::get('/activity-logs', [MobileUtilityController::class, 'activityIndex'])
+            ->middleware(['external.api.jwt', 'external.api.ability:packgo:bitacora-route']);
+        Route::post('/activity-logs', [MobileUtilityController::class, 'activityStore'])
+            ->middleware(['external.api.jwt', 'external.api.ability:packgo:bitacora-route']);
+        Route::post('/mobile/location/heartbeat', [MobileUtilityController::class, 'locationHeartbeat'])
+            ->middleware(['external.api.jwt', 'external.api.ability:packgo:bitacora-route']);
         Route::post('/mobile/operational-incident', [MobileUtilityController::class, 'reportOperationalIncident']);
-        Route::post('/mobile/bitacora/load', [MobileUtilityController::class, 'bitacoraLoad']);
-        Route::get('/mobile/bitacora/session-health', [MobileUtilityController::class, 'sessionHealth']);
-        Route::post('/mobile/bitacora/investigation-ticket/confirm', [MobileUtilityController::class, 'confirmInvestigationTicket']);
+        Route::post('/mobile/bitacora/load', [MobileUtilityController::class, 'bitacoraLoad'])
+            ->middleware(['external.api.jwt', 'external.api.ability:packgo:bitacora-route']);
+        Route::get('/mobile/bitacora/session-health', [MobileUtilityController::class, 'sessionHealth'])
+            ->middleware(['external.api.jwt', 'external.api.ability:packgo:bitacora-route']);
+        Route::post('/mobile/bitacora/investigation-ticket/confirm', [MobileUtilityController::class, 'confirmInvestigationTicket'])
+            ->middleware(['external.api.jwt', 'external.api.ability:packgo:bitacora-route']);
         Route::post('/mobile/db-snapshot/chunk', [MobileDbSnapshotController::class, 'chunk']);
         Route::post('/mobile/db-snapshot/finish', [MobileDbSnapshotController::class, 'finish']);
 
         Route::get('/mobile/resources', [MobileCrudApiController::class, 'resources']);
         Route::get('/drivers', [MobileCrudApiController::class, 'index'])->defaults('resource', 'drivers');
+        Route::get('/mobile/maintenance_alerts', [MobileCrudApiController::class, 'index'])
+            ->middleware(['external.api.jwt', 'external.api.ability:packgo:alerts-support-sync'])
+            ->defaults('resource', 'maintenance_alerts');
+        Route::get('/mobile/maintenance_types', [MobileCrudApiController::class, 'index'])
+            ->middleware(['external.api.jwt', 'external.api.ability:packgo:alerts-support-sync'])
+            ->defaults('resource', 'maintenance_types');
         Route::get('/mobile/{resource}', [MobileCrudApiController::class, 'index']);
         Route::post('/mobile/{resource}', [MobileCrudApiController::class, 'store']);
         Route::get('/mobile/{resource}/{id}', [MobileCrudApiController::class, 'show'])
