@@ -86,6 +86,9 @@ class EventosTabla extends Component
     {
         $this->authorizePermission($this->featurePermission('create'));
         $this->resetForm();
+        if ($this->tipo === 'contrato') {
+            $this->user_id = (string) (auth()->id() ?? '');
+        }
         $this->editingId = null;
         $this->dispatch('openEventosTablaModal');
     }
@@ -106,6 +109,10 @@ class EventosTabla extends Component
         $this->cliente_id = property_exists($registro, 'cliente_id') && $registro->cliente_id !== null
             ? (string) $registro->cliente_id
             : '';
+
+        if ($this->tipo === 'contrato' && $this->user_id === '') {
+            $this->user_id = (string) (auth()->id() ?? '');
+        }
 
         $this->dispatch('openEventosTablaModal');
     }
@@ -200,7 +207,7 @@ class EventosTabla extends Component
             default => 'NULL as imagen',
         };
 
-        $empresaId = $this->authenticatedEmpresaId();
+        $empresaScope = $this->authenticatedEmpresaScope();
 
         $registrosQuery = DB::table($table . ' as t')
             ->leftJoin('eventos as e', 'e.id', '=', 't.evento_id')
@@ -220,8 +227,11 @@ class EventosTabla extends Component
             ->when($q !== '', function ($query) use ($q, $supportsClienteId, $supportsCodigoRelacionado, $supportsDetalleEvento, $table) {
                 $query->where(function ($sub) use ($q, $supportsClienteId, $supportsCodigoRelacionado, $supportsDetalleEvento, $table) {
                     $sub->where('t.codigo', 'ILIKE', '%' . $q . '%')
-                        ->orWhere('e.nombre_evento', 'ILIKE', '%' . $q . '%')
-                        ->orWhere('u.name', 'ILIKE', '%' . $q . '%');
+                        ->orWhere('e.nombre_evento', 'ILIKE', '%' . $q . '%');
+
+                    if ($table !== 'eventos_contrato') {
+                        $sub->orWhere('u.name', 'ILIKE', '%' . $q . '%');
+                    }
 
                     if ($supportsCodigoRelacionado) {
                         $sub->orWhere('t.codigo_relacionado', 'ILIKE', '%' . $q . '%');
@@ -243,6 +253,28 @@ class EventosTabla extends Component
                         });
                     }
 
+                    if (
+                        $table === 'eventos_contrato'
+                        && Schema::hasTable('paquetes_contrato')
+                        && Schema::hasTable('empresa')
+                        && Schema::hasColumn('empresa', 'codigo_cliente')
+                    ) {
+                        $codigoClienteBuscado = $this->normalizeCodigoCliente($q);
+
+                        if ($codigoClienteBuscado !== '') {
+                            $sub->orWhereExists(function ($packageQuery) use ($codigoClienteBuscado) {
+                                $packageQuery->selectRaw('1')
+                                    ->from('paquetes_contrato as pc_busqueda')
+                                    ->join('empresa as emp_busqueda', 'emp_busqueda.id', '=', 'pc_busqueda.empresa_id')
+                                    ->whereColumn('pc_busqueda.codigo', 't.codigo')
+                                    ->whereRaw(
+                                        "REPLACE(UPPER(TRIM(COALESCE(emp_busqueda.codigo_cliente, ''))), ' ', '') LIKE ?",
+                                        ['%' . $codigoClienteBuscado . '%']
+                                    );
+                            });
+                        }
+                    }
+
                     if ($supportsClienteId) {
                         $sub->orWhere('c.name', 'ILIKE', '%' . $q . '%');
                     }
@@ -257,12 +289,13 @@ class EventosTabla extends Component
             ->when($this->tipo === 'contrato' && $descripcionEvento !== '', function ($query) use ($descripcionEvento) {
                 $query->where('e.nombre_evento', 'ILIKE', '%' . $descripcionEvento . '%');
             })
-            ->when($this->tipo === 'contrato' && $empresaId > 0, function ($query) use ($empresaId) {
-                $query->whereExists(function ($subQuery) use ($empresaId) {
+            ->when($this->tipo === 'contrato' && $empresaScope['empresa_id'] > 0, function ($query) use ($empresaScope) {
+                $query->whereExists(function ($subQuery) use ($empresaScope) {
                     $subQuery->selectRaw('1')
                         ->from('paquetes_contrato as pc')
-                        ->whereColumn('pc.codigo', 't.codigo')
-                        ->where('pc.empresa_id', $empresaId);
+                        ->whereColumn('pc.codigo', 't.codigo');
+
+                    $this->scopeContratoPackagesByEmpresa($subQuery, $empresaScope, 'pc');
                 });
             });
 
@@ -354,13 +387,23 @@ class EventosTabla extends Component
                     'p.updated_at',
                     'emp.nombre as empresa_nombre',
                     'emp.sigla as empresa_sigla',
+                    'emp.codigo_cliente as empresa_codigo_cliente',
                 ])
                 ->where(function ($query) use ($q) {
+                    $codigoClienteBuscado = $this->normalizeCodigoCliente($q);
+
                     $query->where('p.codigo', 'ILIKE', '%' . $q . '%')
                         ->orWhere('p.cod_especial', 'ILIKE', '%' . $q . '%');
+
+                    if ($codigoClienteBuscado !== '') {
+                        $query->orWhereRaw(
+                            "REPLACE(UPPER(TRIM(COALESCE(emp.codigo_cliente, ''))), ' ', '') LIKE ?",
+                            ['%' . $codigoClienteBuscado . '%']
+                        );
+                    }
                 })
-                ->when($empresaId > 0, function ($query) use ($empresaId) {
-                    $query->where('p.empresa_id', $empresaId);
+                ->when($empresaScope['empresa_id'] > 0, function ($query) use ($empresaScope) {
+                    $this->scopeContratoPackagesByEmpresa($query, $empresaScope, 'p');
                 })
                 ->orderByRaw('CASE WHEN upper(trim(p.codigo)) = upper(trim(?)) THEN 0 ELSE 1 END', [$q])
                 ->orderByDesc('p.updated_at')
@@ -370,7 +413,9 @@ class EventosTabla extends Component
         return view('livewire.eventos-tabla', [
             'registros' => $registros,
             'eventos' => DB::table('eventos')->orderBy('nombre_evento')->get(['id', 'nombre_evento']),
-            'users' => DB::table('users')->orderBy('name')->get(['id', 'name']),
+            'users' => $this->tipo === 'contrato'
+                ? collect()
+                : DB::table('users')->orderBy('name')->get(['id', 'name']),
             'clientes' => $supportsClienteId
                 ? DB::table('clientes')->orderBy('name')->get(['id', 'name'])
                 : collect(),
@@ -472,14 +517,15 @@ class EventosTabla extends Component
     private function scopedTableQuery()
     {
         $query = DB::table($this->tableName());
-        $empresaId = $this->authenticatedEmpresaId();
+        $empresaScope = $this->authenticatedEmpresaScope();
 
-        if ($this->tipo === 'contrato' && $empresaId > 0) {
-            $query->whereExists(function ($subQuery) use ($empresaId) {
+        if ($this->tipo === 'contrato' && $empresaScope['empresa_id'] > 0) {
+            $query->whereExists(function ($subQuery) use ($empresaScope) {
                 $subQuery->selectRaw('1')
                     ->from('paquetes_contrato as pc')
-                    ->whereColumn('pc.codigo', $this->tableName() . '.codigo')
-                    ->where('pc.empresa_id', $empresaId);
+                    ->whereColumn('pc.codigo', $this->tableName() . '.codigo');
+
+                $this->scopeContratoPackagesByEmpresa($subQuery, $empresaScope, 'pc');
             });
         }
 
@@ -489,6 +535,50 @@ class EventosTabla extends Component
     private function authenticatedEmpresaId(): int
     {
         return (int) (auth()->user()?->empresa_id ?? 0);
+    }
+
+    private function authenticatedEmpresaScope(): array
+    {
+        $empresaId = $this->authenticatedEmpresaId();
+        $codigoCliente = '';
+
+        if (
+            $empresaId > 0
+            && Schema::hasTable('empresa')
+            && Schema::hasColumn('empresa', 'codigo_cliente')
+        ) {
+            $codigoCliente = $this->normalizeCodigoCliente(
+                DB::table('empresa')->where('id', $empresaId)->value('codigo_cliente')
+            );
+        }
+
+        return [
+            'empresa_id' => $empresaId,
+            'codigo_cliente' => $codigoCliente,
+        ];
+    }
+
+    private function scopeContratoPackagesByEmpresa($query, array $empresaScope, string $packageAlias): void
+    {
+        if ($empresaScope['codigo_cliente'] === '') {
+            $query->where($packageAlias . '.empresa_id', $empresaScope['empresa_id']);
+
+            return;
+        }
+
+        $query->whereIn($packageAlias . '.empresa_id', function ($empresaQuery) use ($empresaScope) {
+            $empresaQuery->select('id')
+                ->from('empresa')
+                ->whereRaw(
+                    "REPLACE(UPPER(TRIM(COALESCE(codigo_cliente, ''))), ' ', '') = ?",
+                    [$empresaScope['codigo_cliente']]
+                );
+        });
+    }
+
+    private function normalizeCodigoCliente(?string $codigo): string
+    {
+        return preg_replace('/\s+/', '', strtoupper(trim((string) $codigo))) ?? '';
     }
 
     private function resolveImagesForCodigo(string $codigo): array

@@ -327,7 +327,7 @@
                         <input
                             type="text"
                             class="form-control"
-                            placeholder="Codigo, evento o usuario..."
+                            placeholder="{{ $config['table'] === 'eventos_contrato' ? 'Codigo, codigo de cliente o evento...' : 'Codigo, evento o usuario...' }}"
                             wire:model="search"
                             wire:keydown.enter.prevent="searchRegistros"
                         >
@@ -448,6 +448,10 @@
                                                 @endif
                                             </div>
                                         </div>
+                                        <div class="contrato-preview-item">
+                                            <div class="contrato-preview-label">Codigo de cliente</div>
+                                            <div class="contrato-preview-value">{{ $contratoBuscado->empresa_codigo_cliente ?: '-' }}</div>
+                                        </div>
                                     </div>
 
                                     @if ($contratoImagenUrl)
@@ -509,7 +513,9 @@
                                 @if ($config['table'] === 'eventos_contrato')
                                     <th>Ruta / ubicación</th>
                                 @endif
-                                <th>{{ $supportsClienteId ? 'Actor' : 'Usuario' }}</th>
+                                @if ($config['table'] !== 'eventos_contrato')
+                                    <th>{{ $supportsClienteId ? 'Actor' : 'Usuario' }}</th>
+                                @endif
                                 @if ($config['table'] !== 'eventos_despacho')
                                     <th>Foto entrega</th>
                                     <th>Foto devolucion</th>
@@ -544,13 +550,15 @@
                                             @endif
                                         </td>
                                     @endif
-                                    <td>
-                                        @if ($supportsClienteId)
-                                            {{ $registro->actor_nombre ?? ($registro->user_id ? ('#' . $registro->user_id) : ($registro->cliente_id ? ('Cliente #' . $registro->cliente_id) : '-')) }}
-                                        @else
-                                            {{ $registro->usuario_nombre ?? ('#' . $registro->user_id) }}
-                                        @endif
-                                    </td>
+                                    @if ($config['table'] !== 'eventos_contrato')
+                                        <td>
+                                            @if ($supportsClienteId)
+                                                {{ $registro->actor_nombre ?? ($registro->user_id ? ('#' . $registro->user_id) : ($registro->cliente_id ? ('Cliente #' . $registro->cliente_id) : '-')) }}
+                                            @else
+                                                {{ $registro->usuario_nombre ?? ('#' . $registro->user_id) }}
+                                            @endif
+                                        </td>
+                                    @endif
                                     @if ($config['table'] !== 'eventos_despacho')
                                         <td>
                                             @php
@@ -636,7 +644,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="{{ ($config['table'] !== 'eventos_despacho' ? 7 : 5) + ($config['table'] === 'eventos_contrato' ? 1 : 0) }}" class="text-center py-5">
+                                    <td colspan="{{ $config['table'] !== 'eventos_despacho' ? 7 : 5 }}" class="text-center py-5">
                                         <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                         <div class="muted">Prueba con otro texto de busqueda.</div>
                                     </td>
@@ -682,16 +690,18 @@
                             </select>
                             @error('evento_id') <small class="text-danger">{{ $message }}</small> @enderror
                         </div>
-                        <div class="form-group mb-0">
-                            <label>Usuario</label>
-                            <select wire:model.defer="user_id" class="form-control">
-                                <option value="">Seleccione...</option>
-                                @foreach ($users as $user)
-                                    <option value="{{ $user->id }}">{{ $user->name }}</option>
-                                @endforeach
-                            </select>
-                            @error('user_id') <small class="text-danger">{{ $message }}</small> @enderror
-                        </div>
+                        @if ($config['table'] !== 'eventos_contrato')
+                            <div class="form-group mb-0">
+                                <label>Usuario</label>
+                                <select wire:model.defer="user_id" class="form-control">
+                                    <option value="">Seleccione...</option>
+                                    @foreach ($users as $user)
+                                        <option value="{{ $user->id }}">{{ $user->name }}</option>
+                                    @endforeach
+                                </select>
+                                @error('user_id') <small class="text-danger">{{ $message }}</small> @enderror
+                            </div>
+                        @endif
                         @if ($supportsClienteId)
                             <div class="form-group mt-3 mb-0">
                                 <label>Cliente</label>
