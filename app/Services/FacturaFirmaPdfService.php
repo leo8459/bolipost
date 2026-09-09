@@ -65,7 +65,7 @@ class FacturaFirmaPdfService
                     : ($isLastPage && $footerStart !== null
                         ? min($size['height'], $footerStart)
                         : $size['height']));
-            $signatureBlockHeight = $moveContribution ? 58 : 54;
+            $signatureBlockHeight = 0;
             $tailHeight = $insertBeforeQr ? max(0, $contributionStart - $signatureInsertTop - 6) : 0;
             $contributionBlockHeight = $moveContribution ? 15 : 0;
             $contentBottom = $headerHeight + $visibleHeight;
@@ -80,24 +80,6 @@ class FacturaFirmaPdfService
                 if ($footerStart !== null || $insertBeforeQr) {
                     $pdf->SetFillColor(255, 255, 255);
                     $pdf->Rect(0, $contentBottom, $size['width'], $signatureBlockHeight, 'F');
-                }
-                $margin = min(10, $size['width'] * 0.08);
-                $lineEnd = $size['width'] - $margin;
-                $pdf->SetFont('Helvetica', '', 9);
-                $pdf->SetTextColor(0);
-                $pdf->SetDrawColor(0);
-                $pdf->SetLineWidth(0.2);
-                $pdf->Text($margin, $contentBottom + 7, 'Firma:');
-                $pdf->Line($margin, $contentBottom + 15, $lineEnd, $contentBottom + 15);
-                $pdf->Text($margin, $contentBottom + 23, 'Nombre completo:');
-                $pdf->Line($margin, $contentBottom + 31, $lineEnd, $contentBottom + 31);
-                $pdf->SetFont('Helvetica', '', 8);
-                $conformidadLineas = [
-                    'Declaro mi conformidad con la admision y/o recojo de la paqueteria',
-                    'registrada en este comprobante.',
-                ];
-                foreach ($conformidadLineas as $index => $linea) {
-                    $pdf->Text(($size['width'] - $pdf->GetStringWidth($linea)) / 2, $contentBottom + 40 + ($index * 4), $linea);
                 }
                 if ($insertBeforeQr) {
                     $pdf->useClippedInvoiceSection(
@@ -127,7 +109,6 @@ class FacturaFirmaPdfService
 
         return $pdf->Output('S');
     }
-
     private function findFiscalFooterStart(string $source, float $pageHeight): ?float
     {
         return $this->findFiscalFooterLayout($source, $pageHeight)['lawTop'] ?? null;
