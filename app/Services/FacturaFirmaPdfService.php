@@ -65,7 +65,7 @@ class FacturaFirmaPdfService
                     : ($isLastPage && $footerStart !== null
                         ? min($size['height'], $footerStart)
                         : $size['height']));
-            $signatureBlockHeight = $moveContribution ? 52 : 48;
+            $signatureBlockHeight = $moveContribution ? 58 : 54;
             $tailHeight = $insertBeforeQr ? max(0, $contributionStart - $signatureInsertTop - 6) : 0;
             $contributionBlockHeight = $moveContribution ? 15 : 0;
             $contentBottom = $headerHeight + $visibleHeight;
@@ -92,8 +92,13 @@ class FacturaFirmaPdfService
                 $pdf->Text($margin, $contentBottom + 23, 'Nombre completo:');
                 $pdf->Line($margin, $contentBottom + 31, $lineEnd, $contentBottom + 31);
                 $pdf->SetFont('Helvetica', '', 8);
-                $conformidad = 'Declaro mi conformidad con la admision y/o recojo de la paqueteria registrada en este comprobante.';
-                $pdf->Text($margin, $contentBottom + 41, $conformidad);
+                $conformidadLineas = [
+                    'Declaro mi conformidad con la admision y/o recojo de la paqueteria',
+                    'registrada en este comprobante.',
+                ];
+                foreach ($conformidadLineas as $index => $linea) {
+                    $pdf->Text(($size['width'] - $pdf->GetStringWidth($linea)) / 2, $contentBottom + 40 + ($index * 4), $linea);
+                }
                 if ($insertBeforeQr) {
                     $pdf->useClippedInvoiceSection(
                         $template,
