@@ -188,6 +188,12 @@ Route::middleware('web')->group(function () {
         Route::get('/mobile/me', [AuthTokenController::class, 'me']);
         Route::get('/mobile/bootstrap', [AuthTokenController::class, 'bootstrap']);
         Route::post('/mobile/logout', [AuthTokenController::class, 'logout']);
+        Route::get('/mobile/chasqui/paquetes/buscar', [CarterosController::class, 'chasquiSearchPackage']);
+        Route::get('/mobile/chasqui/paquetes-asignados', [CarterosController::class, 'chasquiAssignedData']);
+        Route::post('/mobile/chasqui/paquetes/asignar', [CarterosController::class, 'assignChasqui']);
+        Route::post('/mobile/chasqui/paquetes/entregar', [CarterosController::class, 'deliverChasquiPackage']);
+        Route::get('/mobile/chasqui/notificaciones/pendientes', [CarterosController::class, 'chasquiPendingNotification']);
+        Route::post('/mobile/paquetes-contrato/recoger', [ContratoPickupApiController::class, 'storeMobile']);
         Route::post('/mobile/maintenance-requests', [MaintenanceRequestApiController::class, 'storeMobile']);
         Route::get('/mobile/maintenance-requests', [MaintenanceRequestApiController::class, 'indexMobile']);
         Route::post('/mobile/snapshot', [MobileSnapshotController::class, 'store']);

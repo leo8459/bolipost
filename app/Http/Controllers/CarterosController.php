@@ -425,6 +425,30 @@ class CarterosController extends Controller
         );
     }
 
+    public function chasquiSearchPackage(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'codigo' => ['required', 'string', 'max:120'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:25'],
+        ]);
+
+        $request->query->set('codigo', mb_strtoupper(trim((string) $validated['codigo']), 'UTF-8'));
+        $request->query->set('per_page', (int) ($validated['per_page'] ?? 10));
+        $request->query->set('page', 1);
+
+        return $this->combinedDataResponse(
+            $request,
+            null,
+            null,
+            false,
+            false,
+            false,
+            null,
+            $this->normalizeUserCity((string) optional($request->user())->ciudad),
+            true
+        );
+    }
+
     public function provinciaData(Request $request): JsonResponse
     {
         $this->authorizeRoutePermission('carteros.cartero');
