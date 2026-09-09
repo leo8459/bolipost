@@ -15,7 +15,7 @@ class ContratoPickupService
 {
     public const EVENTO_ID_CONTRATO_RECOGIDO = 295;
 
-    public const PESO_MAXIMO_KG = 150.000;
+    public const PESO_MAXIMO_KG = 700.000;
 
     /**
      * @param  array<int, int|string>  $identificadores
@@ -160,7 +160,7 @@ class ContratoPickupService
 
                 if ($codigosPesoInvalido->isNotEmpty()) {
                     throw new RuntimeException(
-                        'Por favor ingrese un peso entre 0,001 y 150,000 kg para los paquetes: '
+                        'Por favor ingrese un peso entre 0,001 y 700,000 kg para los paquetes: '
                         .$codigosPesoInvalido->implode(', ').'.'
                     );
                 }

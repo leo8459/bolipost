@@ -147,7 +147,7 @@ class ContratoPickupApiTest extends TestCase
         $this->withToken($this->issueToken($userId))
             ->postJson('/api/paquetes-contrato/recoger', [
                 'envios' => [
-                    ['codigo' => 'cto-lp-001', 'peso' => 150],
+                    ['codigo' => 'cto-lp-001', 'peso' => 700],
                     ['codigo' => 'CTO-CBBA-001', 'peso' => 2.350],
                     ['codigo' => 'NO-EXISTE', 'peso' => 0.500],
                 ],
@@ -162,7 +162,7 @@ class ContratoPickupApiTest extends TestCase
         $this->assertDatabaseHas('paquetes_contrato', [
             'codigo' => 'CTO-LP-001',
             'estados_id' => $almacenId,
-            'peso' => 150.000,
+            'peso' => 700.000,
         ]);
         $this->assertDatabaseHas('paquetes_contrato', [
             'codigo' => 'CTO-CBBA-001',
@@ -295,7 +295,7 @@ class ContratoPickupApiTest extends TestCase
 
         $this->withToken($token)
             ->postJson('/api/paquetes-contrato/recoger', [
-                'envios' => [['codigo' => 'CTO-PESO-ALTO', 'peso' => 150.001]],
+                'envios' => [['codigo' => 'CTO-PESO-ALTO', 'peso' => 700.001]],
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['envios.0.peso']);
@@ -332,7 +332,7 @@ class ContratoPickupApiTest extends TestCase
                 'envios' => [['codigo' => 'CTO-PESO-REQUERIDO']],
             ])
             ->assertUnprocessable()
-            ->assertJsonPath('message', 'Por favor ingrese un peso entre 0,001 y 150,000 kg para los paquetes: CTO-PESO-REQUERIDO.');
+            ->assertJsonPath('message', 'Por favor ingrese un peso entre 0,001 y 700,000 kg para los paquetes: CTO-PESO-REQUERIDO.');
 
         $this->assertDatabaseHas('paquetes_contrato', [
             'codigo' => 'CTO-PESO-REQUERIDO',

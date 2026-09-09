@@ -549,7 +549,7 @@ return [
         ],
         'paquetes-contrato:pickup' => [
             'name' => 'RECOJO DE PAQUETES',
-            'description' => 'Recoge uno o varios paquetes de contrato o solicitudes Delivery Express en estado SOLICITUD. El peso es obligatorio para paquetes de contrato (entre 0,001 y 150,000 kg) y opcional para Delivery Express. Los pasa a ALMACEN y registra el evento de recojo correspondiente. El alcance regional corresponde al usuario que creo la credencial.',
+            'description' => 'Recoge uno o varios paquetes de contrato o solicitudes Delivery Express en estado SOLICITUD. El peso es obligatorio para paquetes de contrato (entre 0,001 y 700,000 kg) y opcional para Delivery Express. Los pasa a ALMACEN y registra el evento de recojo correspondiente. El alcance regional corresponde al usuario que creo la credencial.',
             'access' => 'Escritura',
             'icon' => 'fas fa-dolly',
             'color' => 'warning',

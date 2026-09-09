@@ -280,7 +280,7 @@
                 <div class="modal-header">
                     <div>
                         <h5 class="modal-title font-weight-bold" id="pickupConfirmationModalLabel">Confirmar recojo de envios</h5>
-                        <div class="text-muted small">Revisa todos los paquetes e ingresa su peso en kilogramos (maximo 150,000 kg).</div>
+                        <div class="text-muted small">Revisa todos los paquetes e ingresa su peso en kilogramos (maximo 700,000 kg).</div>
                     </div>
                     <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
                         <span aria-hidden="true">&times;</span>
@@ -345,7 +345,7 @@
                                                     maxlength="7"
                                                     data-fixed-weight-input
                                                     data-weight-min="0.001"
-                                                    data-weight-max="150"
+                                                    data-weight-max="700"
                                                     required
                                                     aria-label="Peso del paquete {{ $rowCode }} en kilogramos"
                                                 >
@@ -354,7 +354,7 @@
                                                 </div>
                                             </div>
                                             @if ($weightMissing)
-                                                <small class="text-danger font-weight-bold">Ingrese un peso entre 0,001 y 150,000 kg</small>
+                                                <small class="text-danger font-weight-bold">Ingrese un peso entre 0,001 y 700,000 kg</small>
                                             @endif
                                         </td>
                                     </tr>

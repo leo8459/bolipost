@@ -22,7 +22,7 @@ class ContratoPickupApiController extends Controller
             'envios.required' => 'Debe enviar al menos un envio con su codigo.',
             'envios.*.peso.numeric' => 'El peso de cada paquete debe ser numerico.',
             'envios.*.peso.min' => 'El peso minimo permitido es 0,001 kg.',
-            'envios.*.peso.max' => 'El peso maximo permitido es 150,000 kg.',
+            'envios.*.peso.max' => 'El peso maximo permitido es 700,000 kg.',
         ]);
 
         $actor = $request->user();
@@ -75,7 +75,7 @@ class ContratoPickupApiController extends Controller
             'envios.required' => 'Debe enviar al menos un envio con su codigo.',
             'envios.*.peso.numeric' => 'El peso de cada paquete debe ser numerico.',
             'envios.*.peso.min' => 'El peso minimo permitido es 0,001 kg.',
-            'envios.*.peso.max' => 'El peso maximo permitido es 150,000 kg.',
+            'envios.*.peso.max' => 'El peso maximo permitido es 700,000 kg.',
         ]);
 
         /** @var ExternalApiToken|null $apiToken */
