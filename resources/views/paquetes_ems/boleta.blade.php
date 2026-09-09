@@ -24,11 +24,17 @@
             width: 72mm;
             margin: 0 auto;
             page-break-inside: avoid;
-            page-break-after: always;
+            break-inside: avoid-page;
         }
         .ticket:last-child {
             margin-bottom: 0;
-            page-break-after: auto;
+        }
+        .ticket-page-break {
+            height: 0;
+            line-height: 0;
+            font-size: 0;
+            page-break-after: always;
+            break-after: page;
         }
         .center { text-align: center; }
         .brand {
@@ -358,6 +364,9 @@
         </div>
 
     </div>
+    @if($i === 0)
+        <div class="ticket-page-break"></div>
+    @endif
 @endfor
 </body>
 </html>
