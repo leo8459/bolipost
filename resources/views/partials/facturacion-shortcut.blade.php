@@ -844,9 +844,9 @@
                                 data-confirm-message="{{ $emitConfirmMessage }}"
                                 data-confirm-note="{{ $emitConfirmNote }}"
                                 data-confirm-cta="{{ $emitConfirmCta }}"
-                                data-processing-pill="Facturacion en curso"
-                                data-processing-title="Emitiendo factura"
-                                data-processing-text="Procesando emision, espera un momento..."
+                                data-processing-pill="Preparando ticket"
+                                data-processing-title="Preparando comprobante"
+                                data-processing-text="La venta fue registrada. Estamos preparando el comprobante para imprimir..."
                             >
                                 @csrf
                                 <input type="hidden" name="modalidad_facturacion" value="con_datos" data-emit-sync-field="modalidad_facturacion">
@@ -876,9 +876,9 @@
                                 data-confirm-message="{{ $emitConfirmMessage }}"
                                 data-confirm-note="{{ $emitConfirmNote }}"
                                 data-confirm-cta="{{ $emitConfirmCta }}"
-                                data-processing-pill="Facturacion en curso"
-                                data-processing-title="Emitiendo factura"
-                                data-processing-text="Procesando emision, espera un momento..."
+                                data-processing-pill="Preparando ticket"
+                                data-processing-title="Preparando comprobante"
+                                data-processing-text="La venta fue registrada. Estamos preparando el comprobante para imprimir..."
                             >
                                 @csrf
                                 <input type="hidden" name="modalidad_facturacion" value="con_datos" data-emit-sync-field="modalidad_facturacion">
@@ -1190,6 +1190,7 @@
                 action="{{ route('facturacion.cart.conceptos.store') }}"
                 id="facturacionConceptoModalForm"
                 class="global-shortcut-item-edit-form"
+                novalidate
             >
                 @csrf
                 <input type="hidden" name="concepto_facturacion_id" id="facturacionConceptoModalConceptId" value="">
@@ -5278,9 +5279,9 @@
             let facturacionCurrentQrKey = facturacionInitialQrKey;
             let facturacionPreviewRestoreState = null;
             const FACTURACION_PROCESSING_DEFAULTS = {
-                pill: 'Facturacion en curso',
-                title: 'Emitiendo factura',
-                text: 'Procesando emision, espera un momento...',
+                pill: 'Preparando ticket',
+                title: 'Preparando comprobante',
+                text: 'La venta fue registrada. Estamos preparando el comprobante para imprimir...',
             };
             const FACTURACION_CART_PROCESSING_DEFAULTS = {
                 pill: 'Carrito en actualizacion',
@@ -6305,6 +6306,7 @@
                         }
                     }
                     facturacionConceptoDescripcion.readOnly = isAerolinea;
+                    facturacionConceptoDescripcion.required = !(isAerolinea || isEmsInternacional);
                     facturacionConceptoDescripcion.placeholder = descripcionBase !== ''
                         ? (isCasilla
                             ? 'Describa el tiempo del pago de la casilla.'
@@ -6649,6 +6651,52 @@
                             facturacionConceptoPrecio.focus();
                             facturacionConceptoPrecio.select();
                             return;
+                        }
+                    } else {
+                        const packageCards = Array.from(facturacionEmsPackagesList?.querySelectorAll('.facturacion-ems-package-card') || []);
+                        if (packageCards.length !== cantidadSolicitada) {
+                            showFacturacionConceptoValidation('Paquetes incompletos', 'Registra un codigo, peso y precio para cada paquete.');
+                            return;
+                        }
+
+                        const seenPackageCodes = new Set();
+
+                        for (const [index, card] of packageCards.entries()) {
+                            const codeInput = card.querySelector('input[name$="[codigo]"]');
+                            const weightInput = card.querySelector('input[name$="[peso]"]');
+                            const priceInput = card.querySelector('input[name$="[precio]"]');
+                            const codeValue = String(codeInput?.value || '').trim();
+                            const normalizedCode = codeValue.toUpperCase();
+                            const weightValue = Number.parseFloat(String(weightInput?.value || '').replace(',', '.'));
+                            const priceValue = Number.parseFloat(String(priceInput?.value || '').replace(',', '.'));
+
+                            if (codeValue === '') {
+                                showFacturacionConceptoValidation('Codigo requerido', 'Escribe el codigo del paquete ' + (index + 1) + '.');
+                                codeInput?.focus();
+                                return;
+                            }
+
+                            if (seenPackageCodes.has(normalizedCode)) {
+                                showFacturacionConceptoValidation('Codigo repetido', 'El codigo del paquete ' + (index + 1) + ' ya fue usado en este registro.');
+                                codeInput?.focus();
+                                codeInput?.select?.();
+                                return;
+                            }
+                            seenPackageCodes.add(normalizedCode);
+
+                            if (!Number.isFinite(weightValue) || weightValue <= 0) {
+                                showFacturacionConceptoValidation('Peso requerido', 'Ingresa un peso mayor que 0 en el paquete ' + (index + 1) + '.');
+                                weightInput?.focus();
+                                weightInput?.select?.();
+                                return;
+                            }
+
+                            if (!Number.isFinite(priceValue) || priceValue <= 0) {
+                                showFacturacionConceptoValidation('Precio requerido', 'Ingresa un precio mayor que 0 en el paquete ' + (index + 1) + '.');
+                                priceInput?.focus();
+                                priceInput?.select?.();
+                                return;
+                            }
                         }
                     }
 
@@ -7306,22 +7354,38 @@
 
             const handleFacturacionDownloadPdf = (downloadPdf) => {
                 if (!downloadPdf || typeof downloadPdf !== 'object' || !downloadPdf.url) {
-                    return;
+                    return Promise.resolve(false);
                 }
 
                 const downloadKey = 'facturacion-pdf:' + (downloadPdf.key || downloadPdf.url);
+                const runDownload = () => {
+                    setFacturacionProcessingOverlay(true, {
+                        pill: 'Generando PDF',
+                        title: 'Preparando comprobante',
+                        text: 'Estamos preparando el comprobante para imprimir. Ya casi esta...',
+                        previewMode: false,
+                    });
+
+                    return triggerFacturacionPdfDownload(downloadPdf.url, downloadPdf.filename || '');
+                };
 
                 try {
                     if (!window.sessionStorage.getItem(downloadKey)) {
                         window.sessionStorage.setItem(downloadKey, '1');
-                        window.setTimeout(() => {
-                            triggerFacturacionPdfDownload(downloadPdf.url, downloadPdf.filename || '');
-                        }, 180);
+                        return new Promise((resolve) => {
+                            window.setTimeout(() => {
+                                runDownload().then(resolve).catch(resolve);
+                            }, 180);
+                        });
                     }
+
+                    return Promise.resolve(false);
                 } catch (error) {
-                    window.setTimeout(() => {
-                        triggerFacturacionPdfDownload(downloadPdf.url, downloadPdf.filename || '');
-                    }, 180);
+                    return new Promise((resolve) => {
+                        window.setTimeout(() => {
+                            runDownload().then(resolve).catch(resolve);
+                        }, 180);
+                    });
                 }
             };
 
@@ -7366,7 +7430,7 @@
                     window.setTimeout(() => {
                         window.URL.revokeObjectURL(objectUrl);
                     }, 1200);
-                    return;
+                    return true;
                 } catch (error) {
                     const tempLink = document.createElement('a');
                     tempLink.href = url;
@@ -7375,6 +7439,7 @@
                     document.body.appendChild(tempLink);
                     tempLink.click();
                     tempLink.remove();
+                    return true;
                 }
             };
 
@@ -7487,7 +7552,7 @@
                     renderFacturacionShortcutFeedback(data.feedback);
                 }
                 if (data.download_pdf) {
-                    handleFacturacionDownloadPdf(data.download_pdf);
+                    await handleFacturacionDownloadPdf(data.download_pdf);
                 }
                 if (data.qr_data) {
                     updateFacturacionQrViewer(data.qr_data, data.cart || null);
@@ -7567,7 +7632,7 @@
                     !['RECHAZADA', 'ERROR'].includes(String((finalData.cart && finalData.cart.estado_emision) || '').trim().toUpperCase())
                 );
                 if (finalData.download_pdf) {
-                    handleFacturacionDownloadPdf(finalData.download_pdf);
+                    await handleFacturacionDownloadPdf(finalData.download_pdf);
                 }
                 if (finalData.qr_data) {
                     updateFacturacionQrViewer(finalData.qr_data, finalData.cart || null);
@@ -7703,7 +7768,7 @@
                 }
             };
 
-            const continueAutomaticQrFacturaFlow = (data) => {
+            const continueAutomaticQrFacturaFlow = async (data) => {
                 if (!shouldAutoEmitQrInvoice(data)) {
                     publishFacturacionMonitorTerminalState(data && data.qr_data ? data.qr_data : {}, true);
                     closeFacturacionQrViewer();
@@ -7761,7 +7826,7 @@
                 }
 
                 if (data.download_pdf) {
-                    handleFacturacionDownloadPdf(data.download_pdf);
+                    await handleFacturacionDownloadPdf(data.download_pdf);
                 }
 
                 if (data.cart) {
@@ -7862,14 +7927,8 @@
                 return data;
             };
 
-            const handleFacturaBackgroundResolved = (data) => {
+            const handleFacturaBackgroundResolved = async (data) => {
                 clearFacturaBackgroundTracking();
-                setFacturacionProcessingOverlay(false, {
-                    pill: '',
-                    title: '',
-                    text: '',
-                    previewMode: false,
-                });
 
                 if (data.feedback) {
                     renderFacturacionShortcutFeedback(data.feedback);
@@ -7877,8 +7936,15 @@
                 }
 
                 if (data.download_pdf) {
-                    handleFacturacionDownloadPdf(data.download_pdf);
+                    await handleFacturacionDownloadPdf(data.download_pdf);
                 }
+
+                setFacturacionProcessingOverlay(false, {
+                    pill: '',
+                    title: '',
+                    text: '',
+                    previewMode: false,
+                });
 
                 if (data.cart) {
                     resetFacturacionShortcutDraftUi();
@@ -7917,7 +7983,7 @@
                         return;
                     }
 
-                    handleFacturaBackgroundResolved(data);
+                    await handleFacturaBackgroundResolved(data);
                 } catch (error) {
                     facturacionPendingEmitState.lastCheckedAt = Date.now();
                     persistFacturaPendingState();
@@ -8032,7 +8098,7 @@
                         updateFacturacionQrViewer(data.qr_data, data.cart || null);
                     }
                     if (data.download_pdf) {
-                        handleFacturacionDownloadPdf(data.download_pdf);
+                        await handleFacturacionDownloadPdf(data.download_pdf);
                     }
                     facturacionQrPollingErrorCount = 0;
 
@@ -8060,7 +8126,7 @@
                         }
 
                         if (isQrPaymentConfirmed(data)) {
-                            continueAutomaticQrFacturaFlow(data);
+                            await continueAutomaticQrFacturaFlow(data);
                             return;
                         }
 

@@ -658,7 +658,8 @@
                                             </form>
                                         @endif
                                         @if($showPdfAction)
-                                            <a href="{{ $pdfUrl }}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary ventas-actions-grid__item">Factura</a>
+                                            <a href="{{ $pdfUrl }}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary ventas-actions-grid__item ventas-actions-grid__invoice">Factura</a>
+                                            <a href="{{ \Illuminate\Support\Facades\URL::temporarySignedRoute('facturacion.factura-con-firma', now()->addDay(), ['url' => $pdfUrl]) }}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-secondary ventas-actions-grid__item" title="Descargar factura con espacios para firma y nombre completo">Ticket</a>
                                         @endif
                                     </div>
                                 </td>
@@ -1144,6 +1145,10 @@
         .ventas-actions-grid__item {
             width: 100%;
             margin: 0;
+        }
+
+        .ventas-actions-grid__invoice {
+            grid-column: 1;
         }
 
         .ventas-actions-grid .btn {

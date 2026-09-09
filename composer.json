@@ -20,6 +20,8 @@
         "maatwebsite/excel": "^3.1",
         "milon/barcode": "^12.0",
         "opcodesio/log-viewer": "^3.17",
+        "setasign/fpdf": "^1.8",
+        "setasign/fpdi": "^2.6",
         "smalot/pdfparser": "^2.12",
         "spatie/laravel-permission": "^6.19",
         "yoeunes/toastr": "^3.1"

@@ -521,6 +521,12 @@ return [
                     'can' => 'feature.dashboard.facturacion',
                 ],
                 [
+                    'text' => 'Kardex',
+                    'url' => '/mis-ventas/kardex',
+                    'icon' => 'fas fa-table',
+                    'can' => 'feature.dashboard.facturacion',
+                ],
+                [
                     'text' => 'Reporte General',
                     'url' => '/reportes/general',
                     'icon' => 'fas fa-layer-group',

@@ -800,6 +800,11 @@ class FacturacionCartService
             })
             ->mapWithKeys(fn ($item) => [mb_strtoupper(trim((string) data_get($item, 'resumen_origen.codigo_paquete', ''))) => true])
             ->all();
+        $nextOriginId = collect($cart?->items ?? [])
+            ->filter(fn ($item) => ltrim((string) data_get($item, 'origen_tipo', ''), '\\') === ltrim(ConceptoFacturacion::class, '\\'))
+            ->map(fn ($item) => (int) data_get($item, 'origen_id', 0))
+            ->push((int) $concepto->id)
+            ->max() + 1;
 
         foreach ($paquetes as $paquete) {
             $codigoPaquete = trim((string) ($paquete['codigo'] ?? ''));
@@ -819,7 +824,7 @@ class FacturacionCartService
 
             $payload = $this->buildConceptoDraftPayload(
                 $concepto,
-                $this->resolveConceptoDraftOriginId($cart, $concepto),
+                $nextOriginId++,
                 1,
                 $precioUnitario,
                 $codigoCompleto,

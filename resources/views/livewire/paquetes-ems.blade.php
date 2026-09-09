@@ -1119,11 +1119,6 @@
                             @endif
                             <div class="header-actions-group">
                                 @if ($this->isAdmision)
-                                    @if ($canEmsAdmisionCreate)
-                                    <button class="btn btn-dorado" type="button" wire:click="openPaqueteIntModal">
-                                        Anadir paquete INT
-                                    </button>
-                                    @endif
                                     @if ($canEmsAssign)
                                     <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosGeneradosHoy">
                                         GENERADOS EL DIA DE HOY

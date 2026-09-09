@@ -163,6 +163,7 @@ Route::middleware(['auth', 'internal.only'])->group(function () {
     Route::post('/facturacion/cart/ver-qr', [FacturacionCartController::class, 'verQr'])->name('facturacion.cart.ver-qr');
     Route::post('/facturacion/cart/consultar', [FacturacionCartController::class, 'consultar'])->name('facturacion.cart.consultar');
     Route::post('/facturacion/cart/emitir', [FacturacionCartController::class, 'emitir'])->name('facturacion.cart.emitir');
+    Route::get('/facturacion/factura-con-firma', \App\Http\Controllers\FacturaFirmaPdfController::class)->middleware('signed')->name('facturacion.factura-con-firma');
     Route::get('/facturacion/clientes-frecuentes/search', [FacturacionCartController::class, 'searchFrequentClients'])->name('facturacion.frequent-clients.search');
     Route::post('/facturacion/cart/scan-add', [FacturacionCartController::class, 'scanAdd'])->name('facturacion.cart.scan-add');
     Route::post('/facturacion/cart/conceptos', [FacturacionCartController::class, 'addConcepto'])->name('facturacion.cart.conceptos.store');
@@ -292,6 +293,15 @@ Route::get('/mis-ventas', [MisVentasController::class, 'index'])
 Route::get('/mis-ventas/export/pdf', [MisVentasController::class, 'exportPdf'])
     ->middleware(['auth', 'internal.only', 'verified'])
     ->name('mis-ventas.export.pdf');
+Route::get('/mis-ventas/kardex', [MisVentasController::class, 'kardex'])
+    ->middleware(['auth', 'internal.only', 'verified'])
+    ->name('mis-ventas.kardex');
+Route::get('/mis-ventas/kardex/export/pdf', [MisVentasController::class, 'exportKardexPdf'])
+    ->middleware(['auth', 'internal.only', 'verified'])
+    ->name('mis-ventas.kardex.export.pdf');
+Route::get('/mis-ventas/kardex/export/excel', [MisVentasController::class, 'exportKardexExcel'])
+    ->middleware(['auth', 'internal.only', 'verified'])
+    ->name('mis-ventas.kardex.export.excel');
 Route::get('/ventas-sucursal', [MisVentasController::class, 'branchIndex'])
     ->middleware(['auth', 'internal.only', 'verified'])
     ->name('ventas-sucursal.index');
