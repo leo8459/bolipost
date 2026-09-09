@@ -15,6 +15,8 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class PerformanceController extends Controller
 {
+    private const MAX_EXECUTION_SECONDS = 180;
+
     private const SERVICE_OPTIONS = [
         'EMS' => 'EMS',
         'CONTRATO' => 'CONTRATOS',
@@ -65,6 +67,8 @@ class PerformanceController extends Controller
 
     public function index(Request $request)
     {
+        $this->configureExecutionTime();
+
         $filters = $this->extractFilters($request);
         $viewData = $this->buildViewData($filters);
 
@@ -73,6 +77,8 @@ class PerformanceController extends Controller
 
     public function exportExcel(Request $request)
     {
+        $this->configureExecutionTime();
+
         $filters = $this->extractFilters($request);
         $exportData = $this->buildExportData($filters);
         $filename = 'performance-' . now()->format('Ymd-His') . '.xlsx';
@@ -82,6 +88,8 @@ class PerformanceController extends Controller
 
     public function exportPdf(Request $request)
     {
+        $this->configureExecutionTime();
+
         $filters = $this->extractFilters($request);
         $exportData = $this->buildExportData($filters);
 
@@ -89,6 +97,12 @@ class PerformanceController extends Controller
             ->setPaper('A4', 'landscape');
 
         return $pdf->stream('performance-' . now()->format('Ymd-His') . '.pdf');
+    }
+
+    private function configureExecutionTime(): void
+    {
+        @set_time_limit(self::MAX_EXECUTION_SECONDS);
+        @ini_set('max_execution_time', (string) self::MAX_EXECUTION_SECONDS);
     }
 
     private function buildViewData(array $filters): array
