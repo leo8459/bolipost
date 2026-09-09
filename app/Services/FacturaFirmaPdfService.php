@@ -8,7 +8,7 @@ use Smalot\PdfParser\Parser;
 
 class FacturaFirmaPdfService
 {
-    public function appendSignatureFields(string $source): string
+    public function appendSignatureFields(string $source, array $delivery = []): string
     {
         $pdf = new class extends Fpdi
         {
@@ -43,11 +43,15 @@ class FacturaFirmaPdfService
         $pageCount = $pdf->setSourceFile(StreamReader::createByString($source));
         $logoPath = dirname(__DIR__, 2) . '/public/images/LOGO 19-2-26.png';
         [$logoWidth, $logoHeight] = getimagesize($logoPath);
+        $deliveryPageWidth = 0.0;
 
         for ($page = 1; $page <= $pageCount; $page++) {
             $template = $pdf->importPage($page);
             $size = $pdf->getTemplateSize($template);
             $isLastPage = $page === $pageCount;
+            if ($isLastPage) {
+                $deliveryPageWidth = (float) $size['width'];
+            }
             $footerLayout = $isLastPage ? $this->findFiscalFooterLayout($source, $size['height']) : [];
             $footerStart = $footerLayout['lawTop'] ?? null;
             $contributionStart = $footerLayout['contributionTop'] ?? null;
@@ -101,13 +105,249 @@ class FacturaFirmaPdfService
                         'PAIS, EL USO ILICITO SERA SANCIONADO',
                         'PENALMENTE DE ACUERDO A LEY',
                     ] as $index => $line) {
-                    $pdf->Text(($size['width'] - $pdf->GetStringWidth($line)) / 2, $contentBottom + 7 + ($index * 3.5), $line);
+                        $pdf->Text(($size['width'] - $pdf->GetStringWidth($line)) / 2, $contentBottom + 7 + ($index * 3.5), $line);
                     }
+                    $contentBottom += $contributionBlockHeight;
                 }
             }
         }
 
+        $deliveryPageHeight = $deliveryPageWidth > 0
+            ? $this->deliveryBlockHeight($delivery, $deliveryPageWidth)
+            : 0;
+
+        if ($deliveryPageHeight > 0) {
+            $pdf->AddPage('P', [$deliveryPageWidth, $deliveryPageHeight]);
+            $this->drawDeliveryVoucher($pdf, $delivery, 0, $deliveryPageWidth);
+        }
+
         return $pdf->Output('S');
+    }
+
+    private function deliveryBlockHeight(array $delivery, float $width): float
+    {
+        if ($this->deliveryPackages($delivery) === []) {
+            return 0;
+        }
+
+        $height = 64 + $this->deliveryPackagesHeight($delivery, $width);
+
+        return max($height, $width + 1);
+    }
+
+    private function drawDeliveryVoucher(Fpdi $pdf, array $delivery, float $top, float $width): void
+    {
+        $packages = $this->deliveryPackages($delivery);
+        if ($packages === []) {
+            return;
+        }
+
+        $left = 5.0;
+        $right = max($left + 45, $width - 5);
+        $contentWidth = $right - $left;
+        $y = $top + 0.8;
+
+        $pdf->SetTextColor(0, 0, 0);
+        $pdf->SetDrawColor(40, 40, 40);
+        $this->drawDashedLine($pdf, $left, $y, $right, $y);
+
+        $y += 4.2;
+        $pdf->SetFont('Courier', 'B', 9.5);
+        $title = 'FORMULARIO DE ENTREGA';
+        $pdf->Text(($width - $pdf->GetStringWidth($title)) / 2, $y + 4.8, $title);
+        $y += 7.5;
+
+        $pdf->SetFont('Courier', 'B', 8);
+        $pdf->Text($left, $y, 'Paquetes:');
+        $y += 4.8;
+        foreach ($packages as $package) {
+            $y = $this->drawDeliveryPackage($pdf, $left, $right, $y, $package);
+        }
+        $y += 3;
+
+        $y = $this->drawDeliveryValueRow(
+            $pdf,
+            $left,
+            $right,
+            $y,
+            'Usuario',
+            $this->deliveryValue($delivery, 'usuario', '-')
+        );
+        $y = $this->drawDeliveryValueRow(
+            $pdf,
+            $left,
+            $right,
+            $y,
+            'Nro. Factura',
+            $this->deliveryValue($delivery, 'numero_factura', '-')
+        );
+
+        $y += 4;
+        $y = $this->drawDeliveryDateRow(
+            $pdf,
+            $left,
+            $right,
+            $y,
+            $this->deliveryValue($delivery, 'fecha_entrega', '-')
+        );
+        $y = $this->drawDeliveryBlankRow($pdf, $left, $right, $y + 3, 'RECIBIDO POR');
+        $y = $this->drawDeliveryBlankRow($pdf, $left, $right, $y + 2, 'FIRMA');
+
+        $y += 4;
+        $pdf->SetFont('Courier', 'B', 7);
+        $this->centerText($pdf, 'Conserve este talon como respaldo de entrega.', $width, $y);
+    }
+
+    private function deliveryPackagesHeight(array $delivery, float $width): float
+    {
+        $packages = $this->deliveryPackages($delivery);
+        if ($packages === []) {
+            return 0;
+        }
+
+        return 8 + (count($packages) * 14) + 3;
+    }
+
+    private function deliveryPackages(array $delivery): array
+    {
+        $packages = $delivery['packages'] ?? [];
+        if (!is_array($packages)) {
+            $packages = [];
+        }
+
+        $packages = array_values(array_filter(array_map(function ($package): string {
+            if (is_array($package)) {
+                return trim((string) ($package['codigo'] ?? ''));
+            }
+
+            return trim((string) $package);
+        }, $packages), fn ($package) => $package !== ''));
+
+        return array_slice($packages, 0, 12);
+    }
+
+    private function drawDeliveryPackage(Fpdi $pdf, float $left, float $right, float $y, string $code): float
+    {
+        $code = $this->pdfText($code);
+        $rowHeight = 13.5;
+        $barcodeWidth = min(50, $right - $left - 4);
+        $barcodeHeight = 8.5;
+        $barcodeX = $left + (($right - $left - $barcodeWidth) / 2);
+        $barcodeY = $y + 0.8;
+
+        $barcodePath = $this->barcodePngPath($code);
+
+        if ($barcodePath !== null) {
+            try {
+                $pdf->Image($barcodePath, $barcodeX, $barcodeY, $barcodeWidth, $barcodeHeight, 'PNG');
+            } finally {
+                @unlink($barcodePath);
+            }
+        }
+
+        $pdf->SetFont('Courier', 'B', 7.8);
+        $textX = $barcodeX + (($barcodeWidth - $pdf->GetStringWidth($code)) / 2);
+        $pdf->Text(max($left, $textX), $barcodeY + $barcodeHeight + 3.2, $code);
+
+        return $y + $rowHeight;
+    }
+
+    private function barcodePngPath(string $code): ?string
+    {
+        if ($code === '' || !class_exists(\Milon\Barcode\DNS1D::class)) {
+            return null;
+        }
+
+        try {
+            $barcode = (new \Milon\Barcode\DNS1D())->getBarcodePNG($code, 'C128', 1.5, 36);
+            if (!is_string($barcode) || $barcode === '') {
+                return null;
+            }
+
+            $path = tempnam(sys_get_temp_dir(), 'delivery-barcode-');
+            if ($path === false) {
+                return null;
+            }
+
+            file_put_contents($path, base64_decode($barcode, true) ?: '');
+
+            return $path;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function drawDeliveryValueRow(Fpdi $pdf, float $left, float $right, float $y, string $label, string $value): float
+    {
+        $label = $this->pdfText($label . ':');
+        $value = $this->pdfText($value);
+        $labelWidth = 34;
+        $valueWidth = max(20, $right - $left - $labelWidth);
+
+        $pdf->SetFont('Courier', 'B', 8);
+        $pdf->SetXY($left, $y);
+        $pdf->Cell($labelWidth, 5, $label, 0, 0);
+        $pdf->SetFont('Courier', 'B', 8);
+        $pdf->SetXY($left + $labelWidth, $y);
+        $pdf->MultiCell($valueWidth, 5, $value, 0, 'L');
+
+        return max($pdf->GetY(), $y + 5);
+    }
+
+    private function drawDeliveryDateRow(Fpdi $pdf, float $left, float $right, float $y, string $value): float
+    {
+        $labelWidth = 34;
+        $valueWidth = max(20, $right - $left - $labelWidth);
+
+        $pdf->SetFont('Courier', 'B', 8);
+        $pdf->Text($left, $y, $this->pdfText('Fecha Entrega:'));
+        $pdf->SetFont('Courier', 'B', 6.2);
+        $pdf->SetXY($left + $labelWidth, $y - 3.8);
+        $pdf->MultiCell($valueWidth, 4.2, $this->pdfText($value), 0, 'L');
+
+        return max($pdf->GetY() + 2.2, $y + 6.5);
+    }
+
+    private function drawDeliveryBlankRow(Fpdi $pdf, float $left, float $right, float $y, string $label): float
+    {
+        $label = $this->pdfText($label . ':');
+        $labelWidth = 33;
+
+        $pdf->SetFont('Courier', 'B', 8);
+        $pdf->Text($left, $y, $label);
+        $pdf->Line($left + $labelWidth, $y + .6, $right, $y + .6);
+
+        return $y + 7;
+    }
+
+    private function drawDashedLine(Fpdi $pdf, float $x1, float $y, float $x2, float $y2): void
+    {
+        $dash = 2.2;
+        $gap = 1.4;
+        for ($x = $x1; $x < $x2; $x += $dash + $gap) {
+            $pdf->Line($x, $y, min($x + $dash, $x2), $y2);
+        }
+    }
+
+    private function centerText(Fpdi $pdf, string $text, float $width, float $y): void
+    {
+        $text = $this->pdfText($text);
+        $pdf->Text(max(2, ($width - $pdf->GetStringWidth($text)) / 2), $y, $text);
+    }
+
+    private function deliveryValue(array $delivery, string $key, string $fallback): string
+    {
+        $value = trim((string) ($delivery[$key] ?? ''));
+
+        return $value !== '' ? $value : $fallback;
+    }
+
+    private function pdfText(string $value): string
+    {
+        $value = preg_replace('/\s+/', ' ', trim($value)) ?? '';
+        $converted = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
+
+        return $converted !== false ? $converted : $value;
     }
     private function findFiscalFooterStart(string $source, float $pageHeight): ?float
     {

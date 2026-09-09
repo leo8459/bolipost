@@ -698,7 +698,7 @@ class FacturacionCartController extends Controller
             $downloadPdf = null;
             if ($pdfUrl !== '' && strtoupper((string) ($respuesta['estado'] ?? '')) === 'FACTURADA') {
                 $downloadPdf = [
-                    'url' => $this->signaturePdfUrl($pdfUrl),
+                    'url' => $this->signaturePdfUrl($pdfUrl, data_get($resultado, 'carrito')),
                     'filename' => basename((string) parse_url($pdfUrl, PHP_URL_PATH)),
                     'key' => (string) ($respuesta['codigoOrden'] ?? $resultado['carrito']->codigo_orden ?? now()->timestamp),
                 ];
@@ -792,7 +792,7 @@ class FacturacionCartController extends Controller
             $downloadPdf = null;
             if ($pdfUrl !== '' && strtoupper((string) ($respuesta['estado'] ?? '')) === 'FACTURADA') {
                 $downloadPdf = [
-                    'url' => $this->signaturePdfUrl($pdfUrl),
+                    'url' => $this->signaturePdfUrl($pdfUrl, data_get($resultado, 'carrito')),
                     'filename' => basename((string) parse_url($pdfUrl, PHP_URL_PATH)),
                     'key' => (string) ($respuesta['codigoOrden'] ?? data_get($resultado, 'carrito.codigo_orden', now()->timestamp)),
                 ];
@@ -1176,10 +1176,16 @@ class FacturacionCartController extends Controller
         return $meta;
     }
 
-    private function signaturePdfUrl(string $url): string
+    private function signaturePdfUrl(string $url, mixed $cart = null): string
     {
+        $parameters = ['url' => $url];
+        $cartId = (int) data_get($cart, 'id', 0);
+        if ($cartId > 0) {
+            $parameters['cart_id'] = $cartId;
+        }
+
         return \Illuminate\Support\Facades\URL::temporarySignedRoute(
-            'facturacion.factura-con-firma', now()->addDay(), ['url' => $url]
+            'facturacion.factura-con-firma', now()->addDay(), $parameters
         );
     }
 
