@@ -65,7 +65,7 @@ class FacturaFirmaPdfService
                     : ($isLastPage && $footerStart !== null
                         ? min($size['height'], $footerStart)
                         : $size['height']));
-            $signatureBlockHeight = $moveContribution ? 31 : 27;
+            $signatureBlockHeight = $moveContribution ? 52 : 48;
             $tailHeight = $insertBeforeQr ? max(0, $contributionStart - $signatureInsertTop - 6) : 0;
             $contributionBlockHeight = $moveContribution ? 15 : 0;
             $contentBottom = $headerHeight + $visibleHeight;
@@ -83,17 +83,17 @@ class FacturaFirmaPdfService
                 }
                 $margin = min(10, $size['width'] * 0.08);
                 $lineEnd = $size['width'] - $margin;
-                $gap = 5;
-                $columnWidth = ($lineEnd - $margin - $gap) / 2;
-                $nameStart = $margin + $columnWidth + $gap;
                 $pdf->SetFont('Helvetica', '', 9);
                 $pdf->SetTextColor(0);
                 $pdf->SetDrawColor(0);
                 $pdf->SetLineWidth(0.2);
-                $pdf->Text($margin, $contentBottom + 7, 'Firma');
-                $pdf->Line($margin, $contentBottom + 23, $margin + $columnWidth, $contentBottom + 23);
-                $pdf->Text($nameStart, $contentBottom + 7, 'Nombre completo:');
-                $pdf->Line($nameStart, $contentBottom + 23, $lineEnd, $contentBottom + 23);
+                $pdf->Text($margin, $contentBottom + 7, 'Firma:');
+                $pdf->Line($margin, $contentBottom + 15, $lineEnd, $contentBottom + 15);
+                $pdf->Text($margin, $contentBottom + 23, 'Nombre completo:');
+                $pdf->Line($margin, $contentBottom + 31, $lineEnd, $contentBottom + 31);
+                $pdf->SetFont('Helvetica', '', 8);
+                $conformidad = 'Declaro mi conformidad con la admision y/o recojo de la paqueteria registrada en este comprobante.';
+                $pdf->Text($margin, $contentBottom + 41, $conformidad);
                 if ($insertBeforeQr) {
                     $pdf->useClippedInvoiceSection(
                         $template,
