@@ -86,8 +86,8 @@
                     </table>
                 </div>
             </div>
-            <div class="card-footer clearfix">
-                <ul class="pagination pagination-sm m-0 float-right">
+            <div class="card-footer clearfix asignados-pagination-wrap">
+                <ul class="pagination pagination-sm m-0 float-right asignados-pagination">
                     <li class="page-item" id="prev-page-item">
                         <a class="page-link" href="#" id="prev-page-link">Anterior</a>
                     </li>
@@ -343,6 +343,15 @@
 
         .asignados-table-wrap {
             border-top: 1px solid #e4e8f2;
+        }
+
+        .asignados-pagination-wrap {
+            overflow-x: auto;
+        }
+
+        .asignados-pagination {
+            flex-wrap: nowrap;
+            width: max-content;
         }
 
         .btn-carteros-danger {
@@ -659,11 +668,65 @@
             }
 
             function updatePagination(meta) {
-                pageIndicator.textContent = 'Pagina ' + meta.page + ' de ' + meta.last_page;
-                if (meta.page <= 1) prevItem.classList.add('disabled');
+                const page = Math.max(1, Number(meta.page) || 1);
+                const lastPage = Math.max(1, Number(meta.last_page) || 1);
+
+                pageIndicator.textContent = 'Pagina ' + page + ' de ' + lastPage;
+                if (page <= 1) prevItem.classList.add('disabled');
                 else prevItem.classList.remove('disabled');
-                if (meta.page >= meta.last_page) nextItem.classList.add('disabled');
+                if (page >= lastPage) nextItem.classList.add('disabled');
                 else nextItem.classList.remove('disabled');
+
+                document.querySelectorAll('[data-asignados-pagination-item]').forEach(function(item) {
+                    item.remove();
+                });
+
+                const firstPages = Array.from(
+                    { length: Math.min(10, lastPage) },
+                    function(_, index) { return index + 1; }
+                );
+                const lastPages = lastPage > 10
+                    ? Array.from(
+                        { length: Math.min(10, lastPage - 10) },
+                        function(_, index) { return lastPage - Math.min(10, lastPage - 10) + index + 1; }
+                    )
+                    : [];
+                const pages = firstPages.concat(lastPages);
+                const fragment = document.createDocumentFragment();
+
+                pages.forEach(function(pageNumber, index) {
+                    if (index > 0 && pageNumber > pages[index - 1] + 1) {
+                        const ellipsisItem = document.createElement('li');
+                        ellipsisItem.className = 'page-item disabled';
+                        ellipsisItem.setAttribute('data-asignados-pagination-item', '');
+                        ellipsisItem.innerHTML = '<span class="page-link" aria-hidden="true">&hellip;</span>';
+                        fragment.appendChild(ellipsisItem);
+                    }
+
+                    const item = document.createElement('li');
+                    item.className = 'page-item' + (pageNumber === page ? ' active' : '');
+                    item.setAttribute('data-asignados-pagination-item', '');
+
+                    const link = document.createElement('a');
+                    link.className = 'page-link';
+                    link.href = '#';
+                    link.textContent = pageNumber;
+                    link.setAttribute('aria-label', 'Ir a la pagina ' + pageNumber);
+                    if (pageNumber === page) {
+                        link.setAttribute('aria-current', 'page');
+                    }
+                    link.addEventListener('click', function(event) {
+                        event.preventDefault();
+                        if (pageNumber !== currentPage) {
+                            loadPage(pageNumber);
+                        }
+                    });
+
+                    item.appendChild(link);
+                    fragment.appendChild(item);
+                });
+
+                nextItem.parentNode.insertBefore(fragment, nextItem);
             }
 
             function updateCount(meta, rows) {
