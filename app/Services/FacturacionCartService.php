@@ -1936,20 +1936,14 @@ class FacturacionCartService
         $canalEmision = strtolower(trim((string) ($cart->canal_emision ?? '')));
         $metodoPago = strtolower(trim((string) ($cart->metodo_pago ?? '')));
         $estadoEmision = strtoupper(trim((string) ($cart->estado_emision ?? '')));
-        $estadoPago = strtolower(trim((string) (
-            $cart->estado_pago
-            ?? data_get($respuesta, 'estado_pago')
-            ?? data_get($respuesta, 'payment_status')
-            ?? data_get($respuesta, 'items.0.payment_status')
-            ?? ''
-        )));
+        $paymentStatuses = $this->qrPaymentStatuses($cart, $respuesta);
 
         $isQrOrigin = $canalEmision === 'qr' || $metodoPago === 'qr';
         if (!$isQrOrigin) {
             return false;
         }
 
-        if (!in_array($estadoPago, ['pagado', 'success', 'paid', 'completed', 'approved', 'confirmed'], true)) {
+        if (!$this->containsPaidQrStatus($paymentStatuses)) {
             return false;
         }
 
@@ -1974,6 +1968,42 @@ class FacturacionCartService
         }
 
         return in_array($estadoEmision, ['', 'NO_APLICA'], true);
+    }
+
+    private function qrPaymentStatuses(?object $cart, array $respuesta): array
+    {
+        return collect([
+            data_get($respuesta, 'estado_pago'),
+            data_get($respuesta, 'estadoPago'),
+            data_get($respuesta, 'payment_status'),
+            data_get($respuesta, 'paymentStatus'),
+            data_get($respuesta, 'payment_state'),
+            data_get($respuesta, 'paymentState'),
+            data_get($respuesta, 'items.0.estado_pago'),
+            data_get($respuesta, 'items.0.estadoPago'),
+            data_get($respuesta, 'items.0.payment_status'),
+            data_get($respuesta, 'items.0.paymentStatus'),
+            data_get($respuesta, 'items.0.payment_state'),
+            data_get($respuesta, 'items.0.paymentState'),
+            $cart ? ($cart->estado_pago ?? null) : null,
+        ])
+            ->map(fn ($status) => strtolower(trim((string) $status)))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function containsPaidQrStatus(array $statuses): bool
+    {
+        return collect($statuses)->contains(fn (string $status) => in_array($status, [
+            'pagado',
+            'success',
+            'paid',
+            'completed',
+            'approved',
+            'confirmed',
+        ], true));
     }
 
     private function resolveAutoEmitAttemptStatus(object $cart): string
