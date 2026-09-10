@@ -208,6 +208,7 @@ class EventosTabla extends Component
         };
 
         $empresaScope = $this->authenticatedEmpresaScope();
+        $showEventUser = $this->shouldShowEventUser();
 
         $registrosQuery = DB::table($table . ' as t')
             ->leftJoin('eventos as e', 'e.id', '=', 't.evento_id')
@@ -428,6 +429,7 @@ class EventosTabla extends Component
             'fechaDesdeQuery' => $fechaDesde,
             'fechaHastaQuery' => $fechaHasta,
             'descripcionEventoQuery' => $descripcionEvento,
+            'showEventUser' => $showEventUser,
         ]);
     }
 
@@ -512,6 +514,14 @@ class EventosTabla extends Component
     private function supportsClienteId(): bool
     {
         return $this->tipo === 'tiktoker';
+    }
+
+    private function shouldShowEventUser(): bool
+    {
+        $user = auth()->user();
+
+        return $this->tipo !== 'contrato'
+            || ! ($user && method_exists($user, 'hasRole') && $user->hasRole('empresa'));
     }
 
     private function scopedTableQuery()

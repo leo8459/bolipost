@@ -8,6 +8,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use ReflectionMethod;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class EventosContratoCodigoClienteScopeTest extends TestCase
@@ -85,6 +86,26 @@ class EventosContratoCodigoClienteScopeTest extends TestCase
         $this->assertSame(['CONT-1'], $this->scopedCodes());
     }
 
+    public function test_usuario_del_evento_se_muestra_a_quien_no_tiene_rol_empresa(): void
+    {
+        $user = $this->userForEmpresa(0);
+        $user->setRelation('roles', collect());
+        $this->actingAs($user);
+
+        $this->assertTrue($this->shouldShowEventUser());
+    }
+
+    public function test_usuario_del_evento_se_oculta_al_rol_empresa(): void
+    {
+        $user = $this->userForEmpresa(1);
+        $user->setRelation('roles', collect([
+            new Role(['name' => 'empresa', 'guard_name' => 'web']),
+        ]));
+        $this->actingAs($user);
+
+        $this->assertFalse($this->shouldShowEventUser());
+    }
+
     private function userForEmpresa(int $empresaId): User
     {
         return (new User)->forceFill([
@@ -102,5 +123,15 @@ class EventosContratoCodigoClienteScopeTest extends TestCase
         $query = $method->invoke($component);
 
         return $query->orderBy('codigo')->pluck('codigo')->all();
+    }
+
+    private function shouldShowEventUser(): bool
+    {
+        $component = new EventosTabla;
+        $component->tipo = 'contrato';
+
+        $method = new ReflectionMethod($component, 'shouldShowEventUser');
+
+        return $method->invoke($component);
     }
 }

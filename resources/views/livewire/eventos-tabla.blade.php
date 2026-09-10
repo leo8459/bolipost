@@ -513,7 +513,7 @@
                                 @if ($config['table'] === 'eventos_contrato')
                                     <th>Ruta / ubicación</th>
                                 @endif
-                                @if ($config['table'] !== 'eventos_contrato')
+                                @if ($showEventUser)
                                     <th>{{ $supportsClienteId ? 'Actor' : 'Usuario' }}</th>
                                 @endif
                                 @if ($config['table'] !== 'eventos_despacho')
@@ -550,7 +550,7 @@
                                             @endif
                                         </td>
                                     @endif
-                                    @if ($config['table'] !== 'eventos_contrato')
+                                    @if ($showEventUser)
                                         <td>
                                             @if ($supportsClienteId)
                                                 {{ $registro->actor_nombre ?? ($registro->user_id ? ('#' . $registro->user_id) : ($registro->cliente_id ? ('Cliente #' . $registro->cliente_id) : '-')) }}
