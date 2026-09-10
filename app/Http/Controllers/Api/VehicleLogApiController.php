@@ -10,8 +10,8 @@ use App\Models\VehicleLog;
 use App\Models\VehicleLogSession;
 use App\Models\VehicleLogStageEvent;
 use App\Services\MaintenanceAlertService;
-use Illuminate\Support\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -20,6 +20,162 @@ use Illuminate\Validation\ValidationException;
 
 class VehicleLogApiController extends Controller
 {
+    public function externalIndex(Request $request)
+    {
+        $validated = $request->validate([
+            'vehicle_id' => ['nullable', 'integer', 'min:1'],
+            'driver_id' => ['nullable', 'integer', 'min:1'],
+            'date_from' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
+            'search' => ['nullable', 'string', 'max:100'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $query = VehicleLog::query()
+            ->active()
+            ->with(['vehicle', 'driver', 'fuelLog'])
+            ->orderByDesc('fecha')
+            ->orderByDesc('id');
+
+        if (! empty($validated['vehicle_id'])) {
+            $query->where('vehicles_id', (int) $validated['vehicle_id']);
+        }
+
+        if (! empty($validated['driver_id'])) {
+            $query->where('drivers_id', (int) $validated['driver_id']);
+        }
+
+        if (! empty($validated['date_from'])) {
+            $query->whereDate('fecha', '>=', $validated['date_from']);
+        }
+
+        if (! empty($validated['date_to'])) {
+            $query->whereDate('fecha', '<=', $validated['date_to']);
+        }
+
+        if (! empty($validated['search'])) {
+            $search = trim($validated['search']);
+            $query->where(function ($builder) use ($search): void {
+                $builder
+                    ->where('recorrido_inicio', 'like', '%'.$search.'%')
+                    ->orWhere('recorrido_destino', 'like', '%'.$search.'%')
+                    ->orWhereHas('vehicle', fn ($vehicle) => $vehicle->where('placa', 'like', '%'.$search.'%'))
+                    ->orWhereHas('driver', fn ($driver) => $driver->where('nombre', 'like', '%'.$search.'%'));
+            });
+        }
+
+        return response()->json($query->paginate((int) ($validated['per_page'] ?? 20)));
+    }
+
+    public function externalStore(Request $request)
+    {
+        $rules = [
+            'vehicles_id' => ['required', 'integer', 'min:1', 'exists:vehicles,id'],
+            'drivers_id' => ['required', 'integer', 'min:1', 'exists:drivers,id'],
+            'fecha' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
+            'kilometraje_salida' => ['required', 'numeric', 'gt:0'],
+            'kilometraje_recorrido' => ['required', 'numeric', 'min:0'],
+            'cantidad_paquetes' => ['nullable', 'integer', 'min:0'],
+            'recorrido_inicio' => ['required', 'string', 'max:255'],
+            'recorrido_destino' => ['required', 'string', 'max:255', 'different:recorrido_inicio'],
+            'latitud_inicio' => ['required', 'numeric', 'between:-90,90'],
+            'logitud_inicio' => ['required', 'numeric', 'between:-180,180'],
+            'latitud_destino' => ['required', 'numeric', 'between:-90,90'],
+            'logitud_destino' => ['required', 'numeric', 'between:-180,180'],
+            'fuel_log_id' => ['nullable', 'integer', 'exists:fuel_logs,id'],
+            'firma_digital' => ['nullable', 'string'],
+            'odometro_photo' => ['required', 'image', 'max:5120'],
+        ];
+
+        $data = $request->validate($rules);
+        $vehicle = Vehicle::query()->findOrFail((int) $data['vehicles_id']);
+        $blockReason = MaintenanceAlertService::resolveVehicleLogBlockReason($vehicle);
+
+        if ($blockReason !== null) {
+            throw ValidationException::withMessages(['vehicles_id' => $blockReason]);
+        }
+
+        $this->validateVehicleAssignment(
+            (int) $data['vehicles_id'],
+            (int) $data['drivers_id'],
+            (string) $data['fecha']
+        );
+
+        if (
+            abs((float) $data['latitud_inicio'] - (float) $data['latitud_destino']) < 0.0000001
+            && abs((float) $data['logitud_inicio'] - (float) $data['logitud_destino']) < 0.0000001
+        ) {
+            throw ValidationException::withMessages([
+                'recorrido_destino' => 'El destino debe ser diferente del inicio.',
+            ]);
+        }
+
+        $kilometrajeLlegada = round(
+            (float) $data['kilometraje_salida'] + (float) $data['kilometraje_recorrido'],
+            2
+        );
+        $photoPath = $request->file('odometro_photo')->store('vehicle-log/odometro', 'public');
+
+        $payload = [
+            'vehicles_id' => (int) $data['vehicles_id'],
+            'drivers_id' => (int) $data['drivers_id'],
+            'fuel_log_id' => $data['fuel_log_id'] ?? null,
+            'fecha' => $data['fecha'],
+            'kilometraje_salida' => (float) $data['kilometraje_salida'],
+            'kilometraje_recorrido' => (float) $data['kilometraje_recorrido'],
+            'kilometraje_llegada' => $kilometrajeLlegada,
+            'cantidad_paquetes' => $data['cantidad_paquetes'] ?? null,
+            'recorrido_inicio' => trim($data['recorrido_inicio']),
+            'latitud_inicio' => (float) $data['latitud_inicio'],
+            'logitud_inicio' => (float) $data['logitud_inicio'],
+            'recorrido_destino' => trim($data['recorrido_destino']),
+            'latitud_destino' => (float) $data['latitud_destino'],
+            'logitud_destino' => (float) $data['logitud_destino'],
+            'abastecimiento_combustible' => ! empty($data['fuel_log_id']),
+            'firma_digital' => $data['firma_digital'] ?? null,
+            'odometro_photo_path' => $photoPath,
+            'ruta_json' => [
+                [
+                    'lat' => (float) $data['latitud_inicio'],
+                    'lng' => (float) $data['logitud_inicio'],
+                    't' => Carbon::parse($data['fecha'])->startOfDay()->toIso8601String(),
+                    'address' => trim($data['recorrido_inicio']),
+                    'label' => 'Inicio',
+                    'is_marked' => true,
+                    'index' => 0,
+                ],
+                [
+                    'lat' => (float) $data['latitud_destino'],
+                    'lng' => (float) $data['logitud_destino'],
+                    't' => Carbon::parse($data['fecha'])->startOfDay()->toIso8601String(),
+                    'address' => trim($data['recorrido_destino']),
+                    'label' => 'Destino',
+                    'is_marked' => true,
+                    'index' => 1,
+                ],
+            ],
+        ];
+
+        if (Schema::hasColumn('vehicle_log', 'activo')) {
+            $payload['activo'] = true;
+        }
+
+        try {
+            $log = VehicleLog::query()->create($payload);
+        } catch (\Throwable $exception) {
+            Storage::disk('public')->delete($photoPath);
+            throw $exception;
+        }
+
+        $this->updateVehicleKilometraje($vehicle, $kilometrajeLlegada, (float) $data['kilometraje_salida']);
+        $log->load(['vehicle', 'driver', 'fuelLog']);
+
+        return response()->json([
+            'message' => 'Registro de bitacora creado correctamente.',
+            'data' => $log,
+        ], 201);
+    }
+
     public function index(Request $request)
     {
         $query = VehicleLog::query()
@@ -49,7 +205,7 @@ class VehicleLogApiController extends Controller
 
     public function show(VehicleLog $vehicleLog)
     {
-        if (isset($vehicleLog->activo) && !$vehicleLog->activo) {
+        if (isset($vehicleLog->activo) && ! $vehicleLog->activo) {
             abort(404);
         }
 
@@ -90,7 +246,7 @@ class VehicleLogApiController extends Controller
             $input['kilometraje_llegada']
                 ?? $input['odometer_end']
                 ?? $input['km_end']
-                ?? (!is_null($distance) ? $kilometrajeSalida + $distance : null)
+                ?? (! is_null($distance) ? $kilometrajeSalida + $distance : null)
         );
 
         $ruta = $this->normalizeRoutePoints(
@@ -147,16 +303,16 @@ class VehicleLogApiController extends Controller
                 ?? ($input['end']['lng'] ?? null)
         );
 
-        if (Schema::hasColumn('vehicle_log', 'latitud_inicio') && !is_null($latInicio)) {
+        if (Schema::hasColumn('vehicle_log', 'latitud_inicio') && ! is_null($latInicio)) {
             $payload['latitud_inicio'] = $latInicio;
         }
-        if (Schema::hasColumn('vehicle_log', 'logitud_inicio') && !is_null($lngInicio)) {
+        if (Schema::hasColumn('vehicle_log', 'logitud_inicio') && ! is_null($lngInicio)) {
             $payload['logitud_inicio'] = $lngInicio;
         }
-        if (Schema::hasColumn('vehicle_log', 'latitud_destino') && !is_null($latDestino)) {
+        if (Schema::hasColumn('vehicle_log', 'latitud_destino') && ! is_null($latDestino)) {
             $payload['latitud_destino'] = $latDestino;
         }
-        if (Schema::hasColumn('vehicle_log', 'logitud_destino') && !is_null($lngDestino)) {
+        if (Schema::hasColumn('vehicle_log', 'logitud_destino') && ! is_null($lngDestino)) {
             $payload['logitud_destino'] = $lngDestino;
         }
         if (Schema::hasColumn('vehicle_log', 'session_reference')) {
@@ -174,7 +330,7 @@ class VehicleLogApiController extends Controller
         if (empty($ruta)) {
             $fallbackRoute = [];
             $baseTs = (string) ($input['date_time'] ?? $input['sent_at'] ?? now()->toIso8601String());
-            if (!is_null($latInicio) && !is_null($lngInicio)) {
+            if (! is_null($latInicio) && ! is_null($lngInicio)) {
                 $fallbackRoute[] = [
                     'lat' => $latInicio,
                     'lng' => $lngInicio,
@@ -185,7 +341,7 @@ class VehicleLogApiController extends Controller
                     'index' => 0,
                 ];
             }
-            if (!is_null($latDestino) && !is_null($lngDestino)) {
+            if (! is_null($latDestino) && ! is_null($lngDestino)) {
                 $isDifferentEnd = is_null($latInicio) || is_null($lngInicio)
                     || abs($latDestino - $latInicio) > 0.000001
                     || abs($lngDestino - $lngInicio) > 0.000001;
@@ -204,7 +360,7 @@ class VehicleLogApiController extends Controller
             $ruta = $fallbackRoute;
         }
 
-        if (!empty($ruta)) {
+        if (! empty($ruta)) {
             $payload['ruta_json'] = $ruta;
             $firstAddress = (string) ($ruta[0]['address'] ?? '');
             $lastAddress = (string) ($ruta[array_key_last($ruta)]['address'] ?? '');
@@ -260,7 +416,7 @@ class VehicleLogApiController extends Controller
             ]);
         }
 
-        if (!is_null($payload['kilometraje_llegada'] ?? null) && (float) $payload['kilometraje_llegada'] <= 0) {
+        if (! is_null($payload['kilometraje_llegada'] ?? null) && (float) $payload['kilometraje_llegada'] <= 0) {
             throw ValidationException::withMessages([
                 'kilometraje_llegada' => 'El kilometraje de llegada debe ser mayor a 0.',
             ]);
@@ -278,12 +434,12 @@ class VehicleLogApiController extends Controller
         );
 
         $manualDistanceKm = null;
-        if (!is_null($kilometrajeSalida) && !is_null($kilometrajeLlegada)) {
+        if (! is_null($kilometrajeSalida) && ! is_null($kilometrajeLlegada)) {
             $manualDistanceKm = max(0, round($kilometrajeLlegada - $kilometrajeSalida, 3));
         }
 
         $discrepancyKm = null;
-        if (!is_null($distance) && !is_null($manualDistanceKm)) {
+        if (! is_null($distance) && ! is_null($manualDistanceKm)) {
             $discrepancyKm = round(abs($distance - $manualDistanceKm), 3);
             if ($discrepancyKm >= 1.0) {
                 Log::warning('Discrepancia detectada entre distance_km y odometro manual.', [
@@ -304,6 +460,61 @@ class VehicleLogApiController extends Controller
         $response['distance_km_discrepancy'] = $discrepancyKm;
 
         return response()->json($response, 201);
+    }
+
+    private function validateVehicleAssignment(int $vehicleId, int $driverId, string $date): void
+    {
+        if (! Schema::hasTable('vehicle_assignments')) {
+            return;
+        }
+
+        $baseQuery = VehicleAssignment::query()
+            ->where('vehicle_id', $vehicleId)
+            ->where('activo', true)
+            ->where(function ($query) use ($date): void {
+                $query->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $date);
+            })
+            ->where(function ($query) use ($date): void {
+                $query->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $date);
+            });
+
+        if (! (clone $baseQuery)->whereNotNull('driver_id')->exists()) {
+            throw ValidationException::withMessages([
+                'vehicles_id' => 'El vehiculo seleccionado no tiene un conductor asignado para la fecha indicada.',
+            ]);
+        }
+
+        if (! (clone $baseQuery)->where('driver_id', $driverId)->exists()) {
+            throw ValidationException::withMessages([
+                'drivers_id' => 'El conductor seleccionado no tiene asignado este vehiculo en la fecha indicada.',
+            ]);
+        }
+    }
+
+    private function updateVehicleKilometraje(Vehicle $vehicle, float $arrival, float $start): void
+    {
+        if ((bool) ($vehicle->tacometro_danado ?? false)) {
+            return;
+        }
+
+        $updates = [];
+        if ($vehicle->kilometraje_inicial === null) {
+            $updates['kilometraje_inicial'] = $start;
+        }
+
+        $current = $this->asFloat($vehicle->kilometraje_actual ?? null);
+        if ($current === null || $arrival >= $current) {
+            $updates['kilometraje_actual'] = $arrival;
+            if (Schema::hasColumn('vehicles', 'kilometraje')) {
+                $updates['kilometraje'] = $arrival;
+            }
+        }
+
+        if ($updates !== []) {
+            $vehicle->update($updates);
+        }
+
+        MaintenanceAlertService::evaluateVehicleByKilometraje((int) $vehicle->id);
     }
 
     public function pointToPoint(Request $request)
@@ -352,7 +563,7 @@ class VehicleLogApiController extends Controller
                 ?? ($vehicle?->kilometraje_actual ?? $vehicle?->kilometraje_inicial ?? $vehicle?->kilometraje ?? null)
         ) ?? 0.0;
 
-        $segments = !empty($providedSegments)
+        $segments = ! empty($providedSegments)
             ? $this->buildProvidedPointToPointSegments($providedSegments, $distanceKm)
             : $this->buildTimelineSegments($timeline, $distanceKm);
         $created = [];
@@ -377,6 +588,7 @@ class VehicleLogApiController extends Controller
             if ($existing) {
                 $created[] = $existing;
                 $cursorKm = $this->asFloat($existing->kilometraje_llegada) ?? $cursorKm;
+
                 continue;
             }
 
@@ -435,7 +647,7 @@ class VehicleLogApiController extends Controller
             $currentDriverId,
             $sentAt->toIso8601String(),
             null,
-            !empty($created) ? (int) ($created[0]->id ?? 0) : null
+            ! empty($created) ? (int) ($created[0]->id ?? 0) : null
         );
 
         if ($vehicle && Schema::hasColumn('vehicles', 'kilometraje_actual')) {
@@ -575,7 +787,7 @@ class VehicleLogApiController extends Controller
             'issued_at' => now()->toIso8601String(),
             'expires_at' => now()->addMinutes(20)->toIso8601String(),
         ];
-        $qrText = 'BOLIPOST-REASSIGN|' . base64_encode(json_encode($qrPayload, JSON_UNESCAPED_UNICODE));
+        $qrText = 'BOLIPOST-REASSIGN|'.base64_encode(json_encode($qrPayload, JSON_UNESCAPED_UNICODE));
         $qrBase64 = \DNS2D::getBarcodePNG($qrText, 'QRCODE', 8, 8);
 
         VehicleLogStageEvent::query()->create([
@@ -612,7 +824,7 @@ class VehicleLogApiController extends Controller
         ]);
 
         $qrPayload = $this->decodeReassignmentPayload((string) $payload['qr_text']);
-        if (!$qrPayload) {
+        if (! $qrPayload) {
             return response()->json([
                 'message' => 'El QR de reasignacion no es valido.',
             ], 422);
@@ -760,6 +972,7 @@ class VehicleLogApiController extends Controller
                 });
 
             $this->createVehicleUnassignmentMarker($previousCurrentDriverId, $today);
+
             return;
         }
 
@@ -792,7 +1005,7 @@ class VehicleLogApiController extends Controller
     }
 
     /**
-     * @param array<int, array<string, mixed>> $segments
+     * @param  array<int, array<string, mixed>>  $segments
      * @return array<int, array{start: array<string, mixed>, end: array<string, mixed>, route_points: array<int, array<string, mixed>>, distance_km: float|null}>
      */
     private function buildProvidedPointToPointSegments(array $segments, ?float $distanceKm): array
@@ -803,13 +1016,13 @@ class VehicleLogApiController extends Controller
         foreach ($segments as $segment) {
             $startRaw = $segment['from'] ?? null;
             $endRaw = $segment['to'] ?? null;
-            if (!is_array($startRaw) || !is_array($endRaw)) {
+            if (! is_array($startRaw) || ! is_array($endRaw)) {
                 continue;
             }
 
             $start = $this->normalizePointToPointPoint($startRaw);
             $end = $this->normalizePointToPointPoint($endRaw);
-            if (!$start || !$end) {
+            if (! $start || ! $end) {
                 continue;
             }
 
@@ -840,7 +1053,7 @@ class VehicleLogApiController extends Controller
         $totalRaw = array_sum($rawLengths);
         foreach ($normalized as $i => $item) {
             $piece = null;
-            if (!is_null($distanceKm) && $distanceKm >= 0) {
+            if (! is_null($distanceKm) && $distanceKm >= 0) {
                 if ($totalRaw > 0) {
                     $piece = $distanceKm * (($rawLengths[$i] ?? 0) / $totalRaw);
                 } else {
@@ -854,9 +1067,9 @@ class VehicleLogApiController extends Controller
     }
 
     /**
-     * @param array<string, mixed> $start
-     * @param array<string, mixed> $end
-     * @param array<int, array<string, mixed>> $intermediatePoints
+     * @param  array<string, mixed>  $start
+     * @param  array<string, mixed>  $end
+     * @param  array<int, array<string, mixed>>  $intermediatePoints
      * @return array<int, array<string, mixed>>
      */
     private function buildSegmentRoutePoints(array $start, array $end, array $intermediatePoints = []): array
@@ -872,6 +1085,7 @@ class VehicleLogApiController extends Controller
             ->values()
             ->map(function (array $point, int $index) {
                 $point['index'] = $index;
+
                 return $point;
             })
             ->all();
@@ -982,14 +1196,14 @@ class VehicleLogApiController extends Controller
             $raw = is_array($decoded) ? $decoded : [];
         }
 
-        if (!is_array($raw)) {
+        if (! is_array($raw)) {
             return [];
         }
 
         $normalized = [];
 
         foreach ($raw as $point) {
-            if (!is_array($point)) {
+            if (! is_array($point)) {
                 continue;
             }
 
@@ -1007,7 +1221,7 @@ class VehicleLogApiController extends Controller
                 't' => is_scalar($timestamp) ? (string) $timestamp : Carbon::now()->toIso8601String(),
                 'address' => (string) ($point['address'] ?? ''),
                 'label' => (string) ($point['label'] ?? $point['point_label'] ?? ''),
-                'is_marked' => !empty($point['isMarked']) || !empty($point['is_marked']) || !empty($point['marked']),
+                'is_marked' => ! empty($point['isMarked']) || ! empty($point['is_marked']) || ! empty($point['marked']),
                 'index' => is_numeric($point['index'] ?? null) ? (int) $point['index'] : null,
             ];
         }
@@ -1022,13 +1236,13 @@ class VehicleLogApiController extends Controller
             $raw = is_array($decoded) ? $decoded : [];
         }
 
-        if (!is_array($raw)) {
+        if (! is_array($raw)) {
             return [];
         }
 
         $normalized = [];
         foreach ($raw as $point) {
-            if (!is_array($point)) {
+            if (! is_array($point)) {
                 continue;
             }
 
@@ -1045,7 +1259,7 @@ class VehicleLogApiController extends Controller
                 't' => is_scalar($timestamp) ? (string) $timestamp : Carbon::now()->toIso8601String(),
                 'address' => (string) ($point['address'] ?? ''),
                 'label' => (string) ($point['label'] ?? ''),
-                'is_marked' => !empty($point['isMarked']) || !empty($point['is_marked']) || !empty($point['marked']),
+                'is_marked' => ! empty($point['isMarked']) || ! empty($point['is_marked']) || ! empty($point['marked']),
                 'index' => is_numeric($point['index'] ?? null) ? (int) $point['index'] : null,
             ];
         }
@@ -1059,7 +1273,7 @@ class VehicleLogApiController extends Controller
 
     private function normalizePointToPointPoint(mixed $raw): ?array
     {
-        if (!is_array($raw)) {
+        if (! is_array($raw)) {
             return null;
         }
 
@@ -1077,7 +1291,7 @@ class VehicleLogApiController extends Controller
             't' => is_scalar($timestamp) ? (string) $timestamp : Carbon::now()->toIso8601String(),
             'address' => (string) ($raw['address'] ?? ''),
             'label' => (string) ($raw['label'] ?? ''),
-            'is_marked' => !empty($raw['isMarked']) || !empty($raw['is_marked']) || !empty($raw['marked']),
+            'is_marked' => ! empty($raw['isMarked']) || ! empty($raw['is_marked']) || ! empty($raw['marked']),
             'index' => is_numeric($raw['index'] ?? null) ? (int) $raw['index'] : null,
         ];
     }
@@ -1089,19 +1303,19 @@ class VehicleLogApiController extends Controller
             $raw = is_array($decoded) ? $decoded : [];
         }
 
-        if (!is_array($raw)) {
+        if (! is_array($raw)) {
             return [];
         }
 
         $normalized = [];
         foreach ($raw as $segment) {
-            if (!is_array($segment)) {
+            if (! is_array($segment)) {
                 continue;
             }
 
             $from = $this->normalizePointToPointPoint($segment['from'] ?? null);
             $to = $this->normalizePointToPointPoint($segment['to'] ?? null);
-            if (!$from || !$to) {
+            if (! $from || ! $to) {
                 continue;
             }
 
@@ -1124,7 +1338,7 @@ class VehicleLogApiController extends Controller
     }
 
     /**
-     * @param array<int, array<string, mixed>> $timeline
+     * @param  array<int, array<string, mixed>>  $timeline
      * @return array<int, array{start: array<string, mixed>, end: array<string, mixed>, distance_km: float|null}>
      */
     private function buildTimelineSegments(array $timeline, ?float $distanceKm): array
@@ -1152,7 +1366,7 @@ class VehicleLogApiController extends Controller
         $totalRaw = array_sum($rawLengths);
         foreach ($segments as $i => $segment) {
             $piece = null;
-            if (!is_null($distanceKm) && $distanceKm >= 0) {
+            if (! is_null($distanceKm) && $distanceKm >= 0) {
                 if ($totalRaw > 0) {
                     $piece = $distanceKm * (($rawLengths[$i] ?? 0) / $totalRaw);
                 } else {
@@ -1167,12 +1381,13 @@ class VehicleLogApiController extends Controller
 
     private function parseTimelineDate(mixed $raw): ?Carbon
     {
-        if (!$raw) {
+        if (! $raw) {
             return null;
         }
 
         if (is_numeric($raw)) {
             $numeric = (float) $raw;
+
             return $numeric > 1000000000000
                 ? Carbon::createFromTimestampMs((int) $numeric)
                 : Carbon::createFromTimestamp((int) $numeric);
@@ -1196,7 +1411,7 @@ class VehicleLogApiController extends Controller
             return Str::limit($raw, 120, '');
         }
 
-        return 'bitacora-' . now()->format('YmdHis') . '-' . Str::lower(Str::random(8));
+        return 'bitacora-'.now()->format('YmdHis').'-'.Str::lower(Str::random(8));
     }
 
     private function resolveResponsibleDriverId(array $input, ?int $fallback): ?int
@@ -1227,6 +1442,7 @@ class VehicleLogApiController extends Controller
         }
 
         $intValue = (int) $value;
+
         return $intValue > 0 ? $intValue : null;
     }
 
@@ -1239,7 +1455,7 @@ class VehicleLogApiController extends Controller
         mixed $endedAt = null,
         ?int $originVehicleLogId = null
     ): ?VehicleLogSession {
-        if (!Schema::hasTable('vehicle_log_sessions') || !$sessionReference) {
+        if (! Schema::hasTable('vehicle_log_sessions') || ! $sessionReference) {
             return null;
         }
 
@@ -1247,7 +1463,7 @@ class VehicleLogApiController extends Controller
             'session_reference' => $sessionReference,
         ]);
 
-        if (!$session->exists) {
+        if (! $session->exists) {
             $session->started_at = $this->parseTimelineDate($startedAt ?? now()) ?? now();
         }
 
@@ -1278,7 +1494,7 @@ class VehicleLogApiController extends Controller
         }
 
         $folder = trim($folder, '/');
-        $path = $folder . '/' . now()->format('Y/m') . '/' . Str::uuid() . '.jpg';
+        $path = $folder.'/'.now()->format('Y/m').'/'.Str::uuid().'.jpg';
         Storage::disk('public')->put($path, $binary);
 
         return $path;
@@ -1290,7 +1506,7 @@ class VehicleLogApiController extends Controller
         if (str_starts_with($trimmed, 'PACKGO-REASSIGN:')) {
             $encoded = substr($trimmed, strlen('PACKGO-REASSIGN:'));
             $decoded = json_decode(urldecode($encoded), true);
-            if (!is_array($decoded)) {
+            if (! is_array($decoded)) {
                 return null;
             }
 
@@ -1309,7 +1525,7 @@ class VehicleLogApiController extends Controller
             ];
         }
 
-        if (!str_starts_with($trimmed, 'BOLIPOST-REASSIGN|')) {
+        if (! str_starts_with($trimmed, 'BOLIPOST-REASSIGN|')) {
             return null;
         }
 
@@ -1324,12 +1540,13 @@ class VehicleLogApiController extends Controller
         }
 
         $decoded = json_decode($json, true);
+
         return is_array($decoded) ? $decoded : null;
     }
 
     /**
-     * @param array<string, mixed> $start
-     * @param array<string, mixed> $end
+     * @param  array<string, mixed>  $start
+     * @param  array<string, mixed>  $end
      */
     private function buildPointToPointSignature(int $sessionId, array $start, array $end): string
     {
@@ -1353,8 +1570,7 @@ class VehicleLogApiController extends Controller
         float $startLng,
         float $endLat,
         float $endLng
-    ): ?VehicleLog
-    {
+    ): ?VehicleLog {
         // 1) Dedupe duro por coordenadas/fecha/vehiculo/conductor.
         $byCoords = VehicleLog::query()
             ->active()

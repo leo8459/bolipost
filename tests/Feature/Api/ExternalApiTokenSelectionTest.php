@@ -68,6 +68,9 @@ class ExternalApiTokenSelectionTest extends TestCase
             ->assertSee('CHASQUIAPP - Asignar paquetes al cartero')
             ->assertSee('ENTREGA CARTEROS')
             ->assertSee('NOTIFICACIONES CARTEROS')
+            ->assertSee('CREAR BITACORA')
+            ->assertSee('VER BITACORAS')
+            ->assertSee('/api/bitacoras')
             ->assertSee('Consultar direcciones de entrega')
             ->assertSee('Actualizar direcciones de entrega')
             ->assertSee('Iniciar sesion Delivery Express con Google')
@@ -103,7 +106,7 @@ class ExternalApiTokenSelectionTest extends TestCase
             ->assertSee('Ver ejemplo Postman')
             ->assertSee('Body &gt; raw &gt; JSON', false)
             ->assertSee('Crear credencial con APIs seleccionadas')
-            ->assertDontSee('/api/mobile/login')
+            ->assertSee('/api/mobile/login')
             ->assertDontSee('/api/carteros/asignar')
             ->assertDontSee('route:GET:/api/activity-logs', false);
 
@@ -133,6 +136,21 @@ class ExternalApiTokenSelectionTest extends TestCase
         $this->assertSame($abilities, $token->abilities);
         $this->assertNotEmpty($token->token_plain);
         $this->assertTrue($token->isUsable());
+    }
+
+    public function test_puede_crear_una_credencial_con_permisos_separados_de_bitacora(): void
+    {
+        $abilities = ['bitacoras:create', 'bitacoras:read'];
+
+        $this->post('/configuracion/apis', [
+            'name' => 'Integracion de bitacoras',
+            'abilities' => $abilities,
+        ])->assertRedirect(route('configuracion.apis.index'));
+
+        $token = ExternalApiToken::query()->firstOrFail();
+
+        $this->assertSame($abilities, $token->abilities);
+        $this->assertNotEmpty($token->token_plain);
     }
 
     public function test_puede_crear_una_credencial_para_las_apis_delivery_express(): void
