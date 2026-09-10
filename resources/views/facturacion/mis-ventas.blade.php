@@ -658,8 +658,8 @@
                                             </form>
                                         @endif
                                         @if($showPdfAction)
-                                            <a href="{{ $pdfUrl }}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary ventas-actions-grid__item ventas-actions-grid__invoice">Factura</a>
-                                            <a href="{{ \Illuminate\Support\Facades\URL::temporarySignedRoute('facturacion.factura-con-firma', now()->addDay(), array_filter(['url' => $pdfUrl, 'cart_id' => $cartId, 'source_user_id' => data_get($cart, 'origen_usuario_id')])) }}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-secondary ventas-actions-grid__item" title="Descargar factura con formulario de entrega">Ticket</a>
+                                            <a href="{{ $pdfUrl }}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary ventas-actions-grid__item ventas-actions-grid__invoice">Factura Original</a>
+                                            <a href="{{ \Illuminate\Support\Facades\URL::temporarySignedRoute('facturacion.factura-con-firma', now()->addDay(), array_filter(['url' => $pdfUrl, 'cart_id' => $cartId, 'source_user_id' => data_get($cart, 'origen_usuario_id')])) }}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-secondary ventas-actions-grid__item" title="Descargar factura con formulario de entrega">Factura Ticket</a>
                                         @endif
                                     </div>
                                 </td>
@@ -1138,7 +1138,7 @@
             gap: .45rem;
             align-items: stretch;
             width: 100%;
-            max-width: 220px;
+            max-width: 280px;
             margin: 0 auto;
         }
 
