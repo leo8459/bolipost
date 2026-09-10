@@ -129,7 +129,7 @@ class FacturaFirmaPdfDeliveryFormTest extends TestCase
         $this->assertSame('09 de septiembre de 2026 13:29:25', $date);
     }
 
-    public function test_delivery_form_is_added_as_a_separate_pdf_page(): void
+    public function test_delivery_form_is_added_as_two_separate_pdf_pages(): void
     {
         $service = new FacturaFirmaPdfService();
 
@@ -144,10 +144,16 @@ class FacturaFirmaPdfDeliveryFormTest extends TestCase
 
         $pages = (new Parser())->parseContent($output)->getPages();
 
-        $this->assertCount(2, $pages);
+        $this->assertCount(3, $pages);
         $this->assertStringContainsString('FORMULARIO DE ENTREGA', $pages[1]->getText());
         $this->assertStringContainsString('RR-VENTANILLA', $pages[1]->getText());
         $this->assertStringNotContainsString('Certificadas', $pages[1]->getText());
+        $this->assertStringContainsString('Conserve este comprobante como respaldo de entrega.', $pages[1]->getText());
+        $this->assertStringContainsString('Copia para Correos de Bolivia.', $pages[1]->getText());
+        $this->assertStringContainsString('FORMULARIO DE ENTREGA', $pages[2]->getText());
+        $this->assertStringContainsString('RR-VENTANILLA', $pages[2]->getText());
+        $this->assertStringContainsString('Conserve este comprobante para respaldo de entrega.', $pages[2]->getText());
+        $this->assertStringContainsString('Copia para Aduana.', $pages[2]->getText());
     }
 
     public function test_delivery_form_page_is_not_added_without_packages(): void

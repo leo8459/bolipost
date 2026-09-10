@@ -15,17 +15,19 @@ class FacturacionQrMonitorController extends Controller
         abort_unless($user && $user->can('feature.dashboard.facturacion'), 403, 'No tienes permiso para usar el monitor QR.');
 
         $monitorKey = 'user-' . (string) $user->getAuthIdentifier();
+        $expiresAt = now()->addDays(30);
         $signedUrl = URL::temporarySignedRoute(
             'facturacion.monitor.display',
-            now()->addDays(30),
-            ['monitor' => $monitorKey]
+            $expiresAt,
+            ['monitor' => $monitorKey],
+            false
         );
 
         return response()->json([
             'ok' => true,
             'url' => $signedUrl,
             'monitor_key' => $monitorKey,
-            'expires_at' => now()->addDays(30)->toIso8601String(),
+            'expires_at' => $expiresAt->toIso8601String(),
         ]);
     }
 

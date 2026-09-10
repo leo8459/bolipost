@@ -117,8 +117,10 @@ class FacturaFirmaPdfService
             : 0;
 
         if ($deliveryPageHeight > 0) {
-            $pdf->AddPage('P', [$deliveryPageWidth, $deliveryPageHeight]);
-            $this->drawDeliveryVoucher($pdf, $delivery, 0, $deliveryPageWidth);
+            for ($copy = 1; $copy <= 2; $copy++) {
+                $pdf->AddPage('P', [$deliveryPageWidth, $deliveryPageHeight]);
+                $this->drawDeliveryVoucher($pdf, $delivery, 0, $deliveryPageWidth, $copy, 2);
+            }
         }
 
         return $pdf->Output('S');
@@ -130,12 +132,12 @@ class FacturaFirmaPdfService
             return 0;
         }
 
-        $height = 64 + $this->deliveryPackagesHeight($delivery, $width);
+        $height = 68 + $this->deliveryPackagesHeight($delivery, $width);
 
         return max($height, $width + 1);
     }
 
-    private function drawDeliveryVoucher(Fpdi $pdf, array $delivery, float $top, float $width): void
+    private function drawDeliveryVoucher(Fpdi $pdf, array $delivery, float $top, float $width, int $copy = 1, int $totalCopies = 1): void
     {
         $packages = $this->deliveryPackages($delivery);
         if ($packages === []) {
@@ -155,6 +157,11 @@ class FacturaFirmaPdfService
         $pdf->SetFont('Courier', 'B', 9.5);
         $title = 'FORMULARIO DE ENTREGA';
         $pdf->Text(($width - $pdf->GetStringWidth($title)) / 2, $y + 4.8, $title);
+        if ($totalCopies > 1) {
+            $copyLabel = 'COPIA ' . $copy . '/' . $totalCopies;
+            $pdf->SetFont('Courier', 'B', 5.8);
+            $pdf->Text($right - $pdf->GetStringWidth($copyLabel), $y + 4.8, $copyLabel);
+        }
         $y += 7.5;
 
         $pdf->SetFont('Courier', 'B', 8);
@@ -195,7 +202,25 @@ class FacturaFirmaPdfService
 
         $y += 4;
         $pdf->SetFont('Courier', 'B', 7);
-        $this->centerText($pdf, 'Conserve este talon como respaldo de entrega.', $width, $y);
+        foreach ($this->deliveryCopyFooterLines($copy) as $line) {
+            $this->centerText($pdf, $line, $width, $y);
+            $y += 3.6;
+        }
+    }
+
+    private function deliveryCopyFooterLines(int $copy): array
+    {
+        if ($copy >= 2) {
+            return [
+                'Conserve este comprobante para respaldo de entrega.',
+                'Copia para Aduana.',
+            ];
+        }
+
+        return [
+            'Conserve este comprobante como respaldo de entrega.',
+            'Copia para Correos de Bolivia.',
+        ];
     }
 
     private function deliveryPackagesHeight(array $delivery, float $width): float
