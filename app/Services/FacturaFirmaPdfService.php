@@ -244,12 +244,14 @@ class FacturaFirmaPdfService
             if (is_array($package)) {
                 return [
                     'codigo' => trim((string) ($package['codigo'] ?? '')),
+                    'peso' => trim((string) ($package['peso'] ?? $package['peso_kg'] ?? $package['weight'] ?? '')),
                     'monto' => trim((string) ($package['monto'] ?? $package['precio'] ?? $package['importe'] ?? '')),
                 ];
             }
 
             return [
                 'codigo' => trim((string) $package),
+                'peso' => '',
                 'monto' => '',
             ];
         }, $packages), fn (array $package) => $package['codigo'] !== ''));
@@ -260,6 +262,7 @@ class FacturaFirmaPdfService
     private function drawDeliveryPackage(Fpdi $pdf, float $left, float $right, float $y, array $package): float
     {
         $code = $this->pdfText((string) ($package['codigo'] ?? ''));
+        $weight = $this->pdfText((string) ($package['peso'] ?? ''));
         $amount = $this->pdfText((string) ($package['monto'] ?? ''));
         $rowHeight = 13.5;
         $barcodeWidth = min(50, $right - $left - 4);
@@ -277,9 +280,11 @@ class FacturaFirmaPdfService
             }
         }
 
-        $pdf->SetFont('Courier', 'B', 7.8);
-        $packageText = trim($code . ($amount !== '' ? '     ' . $amount : ''));
-        $textX = $barcodeX + (($barcodeWidth - $pdf->GetStringWidth($packageText)) / 2);
+        $pdf->SetFont('Courier', 'B', 7.2);
+        $packageText = trim($code
+            . ($weight !== '' ? '     ' . $weight : '')
+            . ($amount !== '' ? '     ' . $amount : ''));
+        $textX = $left + ((($right - $left) - $pdf->GetStringWidth($packageText)) / 2);
         $pdf->Text(max($left, $textX), $barcodeY + $barcodeHeight + 3.2, $packageText);
 
         return $y + $rowHeight;
