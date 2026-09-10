@@ -1162,8 +1162,12 @@ class VehicleLogApiController extends Controller
 
         $assignment = VehicleAssignment::query()
             ->where('vehicle_id', $vehicleId)
-            ->where(function ($q) {
-                $q->where('activo', true)->orWhereNull('activo');
+            ->where('activo', true)
+            ->where(function ($q): void {
+                $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', now()->toDateString());
+            })
+            ->where(function ($q): void {
+                $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', now()->toDateString());
             })
             ->orderByDesc('fecha_inicio')
             ->orderByDesc('id')
@@ -1185,8 +1189,12 @@ class VehicleLogApiController extends Controller
         if (($driverId ?? 0) > 0) {
             $assignment = VehicleAssignment::query()
                 ->where('driver_id', (int) $driverId)
-                ->where(function ($q) {
-                    $q->where('activo', true)->orWhereNull('activo');
+                ->where('activo', true)
+                ->where(function ($q): void {
+                    $q->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', now()->toDateString());
+                })
+                ->where(function ($q): void {
+                    $q->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', now()->toDateString());
                 })
                 ->orderByDesc('fecha_inicio')
                 ->orderByDesc('id')

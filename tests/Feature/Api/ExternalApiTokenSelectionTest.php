@@ -70,7 +70,10 @@ class ExternalApiTokenSelectionTest extends TestCase
             ->assertSee('NOTIFICACIONES CARTEROS')
             ->assertSee('CREAR BITACORA')
             ->assertSee('VER BITACORAS')
+            ->assertSee('CREAR GASOLINA')
+            ->assertSee('VER GASOLINA')
             ->assertSee('/api/bitacoras')
+            ->assertSee('/api/gasolinas')
             ->assertSee('Consultar direcciones de entrega')
             ->assertSee('Actualizar direcciones de entrega')
             ->assertSee('Iniciar sesion Delivery Express con Google')
@@ -144,6 +147,21 @@ class ExternalApiTokenSelectionTest extends TestCase
 
         $this->post('/configuracion/apis', [
             'name' => 'Integracion de bitacoras',
+            'abilities' => $abilities,
+        ])->assertRedirect(route('configuracion.apis.index'));
+
+        $token = ExternalApiToken::query()->firstOrFail();
+
+        $this->assertSame($abilities, $token->abilities);
+        $this->assertNotEmpty($token->token_plain);
+    }
+
+    public function test_puede_crear_una_credencial_con_permisos_separados_de_gasolina(): void
+    {
+        $abilities = ['gasolinas:create', 'gasolinas:read'];
+
+        $this->post('/configuracion/apis', [
+            'name' => 'Integracion de gasolina',
             'abilities' => $abilities,
         ])->assertRedirect(route('configuracion.apis.index'));
 

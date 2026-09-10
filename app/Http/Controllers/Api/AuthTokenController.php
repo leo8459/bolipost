@@ -161,19 +161,24 @@ class AuthTokenController extends Controller
         $vehicle = null;
 
         if ($driver) {
+            $today = now()->startOfDay();
             $latestAssignment = \App\Models\VehicleAssignment::query()
                 ->with(['vehicle.brand', 'vehicle.vehicleClass'])
                 ->where('driver_id', (int) $driver->id)
+                ->where('activo', true)
+                ->whereNotNull('vehicle_id')
+                ->where(function ($query) use ($today): void {
+                    $query->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $today);
+                })
+                ->where(function ($query) use ($today): void {
+                    $query->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $today);
+                })
                 ->orderByDesc('fecha_inicio')
                 ->orderByDesc('updated_at')
                 ->orderByDesc('id')
                 ->first();
 
-            $today = now()->startOfDay();
             $latestIsCurrent = $latestAssignment
-                && (bool) ($latestAssignment->activo ?? false)
-                && (!$latestAssignment->fecha_inicio || $latestAssignment->fecha_inicio->copy()->startOfDay()->lte($today))
-                && (!$latestAssignment->fecha_fin || $latestAssignment->fecha_fin->copy()->startOfDay()->gte($today))
                 && (int) ($latestAssignment->vehicle_id ?? 0) > 0;
 
             $activeAssignment = $latestIsCurrent ? $latestAssignment : null;

@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -152,7 +153,36 @@ class User extends Authenticatable
 
     public function resolvedDriver(): ?Driver
     {
-        $driver = $this->driver()->first();
+        $driver = null;
+
+        // Un usuario puede tener perfiles historicos duplicados. Para la app movil
+        // debe prevalecer el perfil que realmente tiene una asignacion vigente;
+        // usar simplemente hasOne()->first() depende del orden de la base de datos
+        // y puede devolver el vehiculo de otro perfil del mismo usuario.
+        if (Schema::hasTable('vehicle_assignments')) {
+            $today = now()->toDateString();
+            $driver = $this->driver()
+                ->where('activo', true)
+                ->whereHas('assignments', function ($query) use ($today): void {
+                    $query
+                        ->where('activo', true)
+                        ->whereNotNull('vehicle_id')
+                        ->where(function ($dateQuery) use ($today): void {
+                            $dateQuery->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $today);
+                        })
+                        ->where(function ($dateQuery) use ($today): void {
+                            $dateQuery->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $today);
+                        });
+                })
+                ->orderByDesc('id')
+                ->first();
+        }
+
+        $driver ??= $this->driver()
+            ->orderByDesc('activo')
+            ->orderByDesc('id')
+            ->first();
+
         if ($driver) {
             return $driver;
         }

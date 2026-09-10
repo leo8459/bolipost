@@ -50,6 +50,41 @@ class VehicleLogExternalApiTest extends TestCase
             $table->timestamps();
         });
 
+        Schema::create('gas_stations', function (Blueprint $table): void {
+            $table->id();
+            $table->string('nit_emisor')->nullable()->unique();
+            $table->string('razon_social')->nullable();
+            $table->string('direccion')->nullable();
+            $table->string('nombre')->nullable();
+            $table->boolean('activa')->default(true);
+            $table->timestamps();
+        });
+
+        Schema::create('fuel_invoices', function (Blueprint $table): void {
+            $table->id();
+            $table->string('numero')->unique();
+            $table->string('numero_factura')->unique();
+            $table->dateTime('fecha_emision')->nullable();
+            $table->unsignedBigInteger('gas_station_id')->nullable();
+            $table->string('nombre_cliente')->nullable();
+            $table->decimal('monto_total', 10, 2)->nullable();
+            $table->string('invoice_photo_path')->nullable();
+            $table->boolean('activo')->default(true);
+            $table->timestamps();
+        });
+
+        Schema::create('fuel_invoice_details', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('fuel_invoice_id');
+            $table->unsignedBigInteger('gas_station_id')->nullable();
+            $table->decimal('cantidad', 10, 2);
+            $table->decimal('precio_unitario', 10, 2);
+            $table->decimal('subtotal', 10, 2);
+            $table->string('estado')->nullable();
+            $table->boolean('activo')->default(true);
+            $table->timestamps();
+        });
+
         Schema::create('vehicle_assignments', function (Blueprint $table): void {
             $table->id();
             $table->unsignedBigInteger('vehicle_id');
@@ -87,7 +122,7 @@ class VehicleLogExternalApiTest extends TestCase
 
     protected function tearDown(): void
     {
-        foreach (['vehicle_log', 'vehicle_assignments', 'fuel_logs', 'drivers', 'vehicles'] as $table) {
+        foreach (['vehicle_log', 'fuel_invoice_details', 'fuel_invoices', 'gas_stations', 'vehicle_assignments', 'fuel_logs', 'drivers', 'vehicles'] as $table) {
             Schema::dropIfExists($table);
         }
 
@@ -162,7 +197,11 @@ class VehicleLogExternalApiTest extends TestCase
         $this->getJson('/api/bitacoras?search=ABC-123&per_page=10')
             ->assertOk()
             ->assertJsonPath('total', 1)
-            ->assertJsonPath('data.0.id', $response->json('data.id'));
+            ->assertJsonPath('data.0.id', $response->json('data.id'))
+            ->assertJsonPath('data.0.vehicle_id', $vehicleId)
+            ->assertJsonPath('data.0.driver_id', $driverId)
+            ->assertJsonPath('data.0.vehicle.placa', 'ABC-123')
+            ->assertJsonPath('data.0.driver.nombre', 'Conductor API');
     }
 
     public function test_el_catalogo_api_devuelve_todos_los_conductores_activos_aunque_esten_asignados(): void
@@ -209,5 +248,67 @@ class VehicleLogExternalApiTest extends TestCase
             ->assertJsonPath('data.1.id', $freeDriverId)
             ->assertJsonPath('data.1.tiene_asignacion_activa', false)
             ->assertJsonMissing(['nombre' => 'Inactivo']);
+    }
+
+    public function test_crea_y_lista_gasolina_como_la_vista_de_combustible(): void
+    {
+        $vehicleId = Schema::getConnection()->table('vehicles')->insertGetId([
+            'placa' => 'GAS-001',
+            'kilometraje_actual' => 1500,
+            'kilometraje' => 1500,
+            'activo' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $driverId = Schema::getConnection()->table('drivers')->insertGetId([
+            'nombre' => 'Conductor Gasolina',
+            'activo' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        Schema::getConnection()->table('vehicle_assignments')->insert([
+            'vehicle_id' => $vehicleId,
+            'driver_id' => $driverId,
+            'fecha_inicio' => now()->subDay()->toDateString(),
+            'activo' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->postJson('/api/gasolinas', [
+            'vehicle_id' => $vehicleId,
+            'driver_id' => $driverId,
+            'numero_factura' => 'GAS-FAC-001',
+            'nombre_cliente' => 'Correos de Bolivia',
+            'fecha_emision' => now()->format('Y-m-d H:i:s'),
+            'cantidad' => 20.5,
+            'precio_unitario' => 3.74,
+            'razon_social_emisor' => 'Gasolinera Central',
+            'nit_emisor' => '123456789',
+            'direccion_emisor' => 'La Paz',
+        ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('message', 'Registro de gasolina creado correctamente.')
+            ->assertJsonPath('data.vehicle.id', $vehicleId)
+            ->assertJsonPath('data.vehicle.placa', 'GAS-001')
+            ->assertJsonPath('data.driver.id', $driverId)
+            ->assertJsonPath('data.driver.nombre', 'Conductor Gasolina')
+            ->assertJsonPath('data.numero_factura', 'GAS-FAC-001')
+            ->assertJsonPath('data.liters', 20.5)
+            ->assertJsonPath('data.monto_total', 76.67);
+
+        $this->assertDatabaseHas('vehicle_log', [
+            'vehicles_id' => $vehicleId,
+            'drivers_id' => $driverId,
+            'abastecimiento_combustible' => true,
+        ]);
+
+        $this->getJson('/api/gasolinas?search=GAS-FAC-001&per_page=10')
+            ->assertOk()
+            ->assertJsonPath('total', 1)
+            ->assertJsonPath('data.0.vehicle.placa', 'GAS-001')
+            ->assertJsonPath('data.0.driver.nombre', 'Conductor Gasolina');
     }
 }
