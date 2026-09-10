@@ -132,7 +132,7 @@ class FacturaFirmaPdfService
             return 0;
         }
 
-        $height = 64 + $this->deliveryPackagesHeight($delivery, $width);
+        $height = 68 + $this->deliveryPackagesHeight($delivery, $width);
 
         return max($height, $width + 1);
     }
@@ -202,7 +202,25 @@ class FacturaFirmaPdfService
 
         $y += 4;
         $pdf->SetFont('Courier', 'B', 7);
-        $this->centerText($pdf, 'Conserve este talon como respaldo de entrega.', $width, $y);
+        foreach ($this->deliveryCopyFooterLines($copy) as $line) {
+            $this->centerText($pdf, $line, $width, $y);
+            $y += 3.6;
+        }
+    }
+
+    private function deliveryCopyFooterLines(int $copy): array
+    {
+        if ($copy >= 2) {
+            return [
+                'Conserve este comprobante para respaldo de entrega.',
+                'Copia para Aduana.',
+            ];
+        }
+
+        return [
+            'Conserve este comprobante como respaldo de entrega.',
+            'Copia para Correos de Bolivia.',
+        ];
     }
 
     private function deliveryPackagesHeight(array $delivery, float $width): float

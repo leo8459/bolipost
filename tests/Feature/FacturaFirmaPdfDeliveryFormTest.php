@@ -148,8 +148,12 @@ class FacturaFirmaPdfDeliveryFormTest extends TestCase
         $this->assertStringContainsString('FORMULARIO DE ENTREGA', $pages[1]->getText());
         $this->assertStringContainsString('RR-VENTANILLA', $pages[1]->getText());
         $this->assertStringNotContainsString('Certificadas', $pages[1]->getText());
+        $this->assertStringContainsString('Conserve este comprobante como respaldo de entrega.', $pages[1]->getText());
+        $this->assertStringContainsString('Copia para Correos de Bolivia.', $pages[1]->getText());
         $this->assertStringContainsString('FORMULARIO DE ENTREGA', $pages[2]->getText());
         $this->assertStringContainsString('RR-VENTANILLA', $pages[2]->getText());
+        $this->assertStringContainsString('Conserve este comprobante para respaldo de entrega.', $pages[2]->getText());
+        $this->assertStringContainsString('Copia para Aduana.', $pages[2]->getText());
     }
 
     public function test_delivery_form_page_is_not_added_without_packages(): void
