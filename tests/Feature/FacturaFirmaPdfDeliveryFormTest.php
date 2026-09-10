@@ -6,6 +6,7 @@ use App\Http\Controllers\FacturaFirmaPdfController;
 use App\Services\FacturaFirmaPdfService;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use ReflectionMethod;
 use setasign\Fpdi\Fpdi;
@@ -103,6 +104,132 @@ class FacturaFirmaPdfDeliveryFormTest extends TestCase
 
         $this->assertSame(['RR-EXPEDICION', 'RR-ADUANA', 'RR-VENTANILLA', 'RR-ENTREGADO'], array_column($packages, 'codigo'));
         $this->assertSame(['0.010 kg', '0.020 kg', '0.030 kg', '0.040 kg'], array_column($packages, 'peso'));
+    }
+
+    public function test_delivery_form_accepts_customs_package_code_from_resumen_codigo_item(): void
+    {
+        $customsEvent = DB::table('eventos')->insertGetId([
+            'nombre_evento' => 'Paquete enviado a aduana.',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('eventos_certi')->insert([
+            'codigo' => 'RR-RESUMEN-ITEM',
+            'evento_id' => $customsEvent,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $packages = $this->deliveryPackagesFromItems(collect([
+            (object) [
+                'tipo' => 'Certificado Internacional',
+                'resumen_origen' => [
+                    'codigo_item' => 'RR-RESUMEN-ITEM',
+                    'peso' => 0.025,
+                ],
+                'precio' => 69,
+            ],
+        ]));
+
+        $this->assertSame('RR-RESUMEN-ITEM', $packages[0]['codigo'] ?? null);
+        $this->assertSame('0.025 kg', $packages[0]['peso'] ?? null);
+        $this->assertSame('Bs 69.00', $packages[0]['monto'] ?? null);
+    }
+
+    public function test_delivery_form_uses_external_tracking_fallback_when_local_events_are_missing(): void
+    {
+        config()->set('services.tracking_sqlserver.base_url', 'https://tracking-primary.test/api/tracking/eventos');
+        config()->set('services.tracking_sqlserver.token', 'primary-token');
+        config()->set('services.tracking_sqlserver.eventos_batch_url', '');
+        config()->set('services.tracking_sqlserver.fallback_base_url', 'https://tracking-fallback.test/api/public/tracking/eventos');
+        config()->set('services.tracking_sqlserver.fallback_token', 'fallback-token');
+
+        Http::fake([
+            'https://tracking-primary.test/*' => Http::response([], 500),
+            'https://tracking-fallback.test/*' => Http::response([
+                'tipo' => 'tracking_eventos',
+                'existe_paquete' => true,
+                'resultado' => [[
+                    'codigo' => 'LX-API-ADUANA',
+                    'eventos' => [[
+                        'codigo' => 'LX-API-ADUANA',
+                        'created_at' => '2026-09-10 14:21:16',
+                        'nombre_evento' => 'Paquete enviado a aduana.',
+                    ]],
+                ]],
+            ], 200),
+        ]);
+
+        $packages = $this->deliveryPackagesFromItems(collect([
+            (object) [
+                'codigo_paquete' => 'LX-API-ADUANA',
+                'tipo' => 'Ordinarias Internacional',
+                'peso' => 0.5,
+                'precio' => 25,
+            ],
+        ]));
+
+        $this->assertSame('LX-API-ADUANA', $packages[0]['codigo'] ?? null);
+        $this->assertSame('0.500 kg', $packages[0]['peso'] ?? null);
+        $this->assertSame('Bs 25.00', $packages[0]['monto'] ?? null);
+    }
+
+    public function test_delivery_form_uses_tracking_batch_endpoint_for_multiple_packages(): void
+    {
+        config()->set('services.tracking_sqlserver.base_url', 'https://tracking-primary.test/api/tracking/eventos');
+        config()->set('services.tracking_sqlserver.eventos_batch_url', 'https://tracking-primary.test/api/tracking/eventos/batch');
+        config()->set('services.tracking_sqlserver.token', 'primary-token');
+        config()->set('services.tracking_sqlserver.fallback_base_url', '');
+
+        Http::fake([
+            'https://tracking-primary.test/api/tracking/eventos/batch' => Http::response([
+                'tipo' => 'tracking_eventos_batch',
+                'resultado' => [
+                    [
+                        'codigo' => 'LX-BATCH-1',
+                        'tipo_servicio' => 'ordinarias',
+                        'eventos_externos' => [[
+                            'mailitM_FID' => 'LX-BATCH-1',
+                            'codigo_evento' => 31,
+                            'eventType' => 'Enviado a control aduanero',
+                            'eventDate' => '2026-09-10 14:21:16',
+                        ]],
+                    ],
+                    [
+                        'codigo' => 'LX-BATCH-2',
+                        'tipo_servicio' => 'ordinarias',
+                        'eventos_externos' => [[
+                            'mailitM_FID' => 'LX-BATCH-2',
+                            'codigo_evento' => 31,
+                            'eventType' => 'Enviado a control aduanero',
+                            'eventDate' => '2026-09-10 14:22:16',
+                        ]],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $packages = $this->deliveryPackagesFromItems(collect([
+            (object) [
+                'codigo_paquete' => 'LX-BATCH-1',
+                'tipo' => 'Ordinarias Internacional',
+                'peso' => 0.5,
+                'precio' => 25,
+            ],
+            (object) [
+                'codigo_paquete' => 'LX-BATCH-2',
+                'tipo' => 'Ordinarias Internacional',
+                'peso' => 0.05,
+                'precio' => 25,
+            ],
+        ]));
+
+        $this->assertSame(['LX-BATCH-1', 'LX-BATCH-2'], array_column($packages, 'codigo'));
+        Http::assertSentCount(1);
+        Http::assertSent(fn ($request) => $request->method() === 'POST'
+            && $request->url() === 'https://tracking-primary.test/api/tracking/eventos/batch'
+            && $request['codigos'] === ['LX-BATCH-1', 'LX-BATCH-2']);
     }
 
     public function test_delivery_form_is_not_reserved_when_there_are_no_counter_packages(): void

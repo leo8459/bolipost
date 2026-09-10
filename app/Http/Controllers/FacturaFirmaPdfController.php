@@ -21,6 +21,8 @@ class FacturaFirmaPdfController extends Controller
         ['table' => 'eventos_tiktoker', 'service' => 'SOLICITUD'],
     ];
 
+    private array $unavailableTrackingApiUrls = [];
+
     public function __invoke(Request $request, FacturaFirmaPdfService $pdfService, FacturacionCartService $cartService)
     {
         $data = $request->validate([
@@ -239,7 +241,7 @@ class FacturaFirmaPdfController extends Controller
 
     private function deliveryPackagesFromItems(\Illuminate\Support\Collection $items): array
     {
-        return $items
+        $packages = $items
             ->map(function ($item): ?array {
                 $code = $this->resolveTrackingCode($item);
                 if ($code === '') {
@@ -260,12 +262,9 @@ class FacturaFirmaPdfController extends Controller
             })
             ->filter()
             ->unique(fn (array $package) => strtoupper(trim(($package['codigo'] ?? '') . '|' . ($package['servicio'] ?? ''))))
-            ->filter(fn (array $package) => $this->shouldIncludePackageInDeliveryForm(
-                (string) ($package['codigo'] ?? ''),
-                (string) ($package['servicio'] ?? '')
-            ))
-            ->values()
-            ->all();
+            ->values();
+
+        return $this->filterDeliveryPackagesByTracking($packages)->values()->all();
     }
 
     private function resolveDeliveryPackageAmount(object $item): string
@@ -315,6 +314,63 @@ class FacturaFirmaPdfController extends Controller
         /** @var TrackingProgressService $progressService */
         $progressService = app(TrackingProgressService::class);
 
+        if ($this->localTrackingAllowsDeliveryForm($code, $service, $progressService)) {
+            return true;
+        }
+
+        $events = $this->trackingEventsFromExternalApi($code);
+        if ($events->isEmpty()) {
+            return false;
+        }
+
+        $progress = $progressService->resolve(
+            $events,
+            (string) (($events->first()->servicio ?? $service) ?: 'TRACKING')
+        );
+
+        return $this->trackingProgressAllowsDeliveryForm($progress);
+    }
+
+    private function filterDeliveryPackagesByTracking(\Illuminate\Support\Collection $packages): \Illuminate\Support\Collection
+    {
+        /** @var TrackingProgressService $progressService */
+        $progressService = app(TrackingProgressService::class);
+        $included = collect();
+        $pending = collect();
+
+        foreach ($packages as $package) {
+            $code = strtoupper(trim((string) ($package['codigo'] ?? '')));
+            $service = (string) ($package['servicio'] ?? '');
+
+            if ($this->localTrackingAllowsDeliveryForm($code, $service, $progressService)) {
+                $included->push($package);
+            } else {
+                $pending->push($package);
+            }
+        }
+
+        $externalEventsByCode = $this->trackingEventsFromExternalApiByCode(
+            $pending->pluck('codigo')->all()
+        );
+
+        return $included->merge($pending->filter(function (array $package) use ($externalEventsByCode, $progressService): bool {
+            $code = strtoupper(trim((string) ($package['codigo'] ?? '')));
+            $events = $externalEventsByCode[$code] ?? collect();
+            if ($events->isEmpty()) {
+                return false;
+            }
+
+            $progress = $progressService->resolve(
+                $events,
+                (string) (($events->first()->servicio ?? $package['servicio'] ?? '') ?: 'TRACKING')
+            );
+
+            return $this->trackingProgressAllowsDeliveryForm($progress);
+        }));
+    }
+
+    private function localTrackingAllowsDeliveryForm(string $code, string $service, TrackingProgressService $progressService): bool
+    {
         foreach ($this->trackingEventSourcesForService($service) as $source) {
             $events = $this->trackingEventsForPackage($source['table'], $source['service'], $code);
             if ($events->isEmpty()) {
@@ -322,17 +378,324 @@ class FacturaFirmaPdfController extends Controller
             }
 
             $progress = $progressService->resolve($events, (string) $source['service']);
-            $steps = array_values((array) ($progress['steps'] ?? []));
-            $currentIndex = (int) ($progress['current_index'] ?? -1);
-            $expeditionIndex = collect($steps)
-                ->search(fn ($step) => strcasecmp((string) $step, 'Expedicion') === 0);
-
-            if ($expeditionIndex !== false && $currentIndex >= (int) $expeditionIndex) {
+            if ($this->trackingProgressAllowsDeliveryForm($progress)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private function trackingProgressAllowsDeliveryForm(array $progress): bool
+    {
+        $steps = array_values((array) ($progress['steps'] ?? []));
+        $currentIndex = (int) ($progress['current_index'] ?? -1);
+        $expeditionIndex = collect($steps)
+            ->search(fn ($step) => strcasecmp((string) $step, 'Expedicion') === 0);
+        $currentStep = (string) ($steps[$currentIndex] ?? '');
+
+        return ($expeditionIndex !== false && $currentIndex >= (int) $expeditionIndex)
+            || in_array($this->normalizeTrackingStep($currentStep), ['expedicion', 'aduana', 'ventanilla', 'entregado'], true);
+    }
+
+    private function trackingEventsFromExternalApi(string $code): \Illuminate\Support\Collection
+    {
+        $eventsByCode = $this->trackingEventsFromExternalApiByCode([$code]);
+
+        return $eventsByCode[strtoupper(trim($code))] ?? collect();
+    }
+
+    private function trackingEventsFromExternalApiByCode(array $codes): array
+    {
+        $codes = collect($codes)
+            ->map(fn ($code) => strtoupper(trim((string) $code)))
+            ->filter()
+            ->unique()
+            ->values();
+        $eventsByCode = [];
+
+        if ($codes->isEmpty()) {
+            return $eventsByCode;
+        }
+
+        foreach ($this->trackingApiConfigs() as $apiConfig) {
+            if (isset($this->unavailableTrackingApiUrls[$apiConfig['url']])) {
+                continue;
+            }
+
+            $pendingCodes = $codes
+                ->reject(fn (string $code) => isset($eventsByCode[$code]))
+                ->values();
+
+            if ($pendingCodes->isEmpty()) {
+                break;
+            }
+
+            $responses = $this->fetchExternalTrackingResponses($apiConfig, $pendingCodes);
+            if ($responses === null) {
+                continue;
+            }
+
+            foreach ($responses as $code => $response) {
+                if ($response instanceof \Illuminate\Http\Client\Response) {
+                    if ($response->serverError()) {
+                        $this->unavailableTrackingApiUrls[$apiConfig['url']] = true;
+                    }
+
+                    if ($response->status() === 422 || ! $response->ok()) {
+                        continue;
+                    }
+
+                    $payload = (array) $response->json();
+                } elseif (is_array($response)) {
+                    $payload = $response;
+                } else {
+                    continue;
+                }
+
+                $events = $this->normalizeExternalTrackingEvents($payload, (string) $code);
+                if ($events->isNotEmpty()) {
+                    $eventsByCode[strtoupper(trim((string) $code))] = $events;
+                }
+            }
+        }
+
+        return $eventsByCode;
+    }
+
+    private function fetchExternalTrackingResponses(array $apiConfig, \Illuminate\Support\Collection $codes): ?array
+    {
+        $responses = [];
+
+        try {
+            if (! empty($apiConfig['batch'])) {
+                $request = Http::connectTimeout(2)
+                    ->timeout((int) config('services.tracking_sqlserver.timeout', 15))
+                    ->acceptJson()
+                    ->withOptions(['verify' => (bool) config('services.tracking_sqlserver.ssl_verify', false)]);
+
+                if ($apiConfig['token'] !== '') {
+                    $request = $request->withToken($apiConfig['token']);
+                }
+
+                $response = $request->post($apiConfig['url'], ['codigos' => $codes->values()->all()]);
+
+                if ($response->serverError()) {
+                    $this->unavailableTrackingApiUrls[$apiConfig['url']] = true;
+
+                    return null;
+                }
+
+                if ($response->status() === 422 || ! $response->ok()) {
+                    return [];
+                }
+
+                return $this->trackingResponsesFromBatchPayload((array) $response->json(), $codes);
+            }
+
+            foreach ($codes as $code) {
+                $request = Http::connectTimeout(2)
+                    ->timeout((int) config('services.tracking_sqlserver.timeout', 15))
+                    ->acceptJson()
+                    ->withOptions(['verify' => (bool) config('services.tracking_sqlserver.ssl_verify', false)]);
+
+                if ($apiConfig['token'] !== '') {
+                    $request = $request->withToken($apiConfig['token']);
+                }
+
+                $responses[$code] = $request->get($apiConfig['url'], ['codigo' => $code]);
+            }
+        } catch (\Throwable) {
+            $this->unavailableTrackingApiUrls[$apiConfig['url']] = true;
+
+            return null;
+        }
+
+        return $responses;
+    }
+
+    private function trackingResponsesFromBatchPayload(array $payload, \Illuminate\Support\Collection $codes): array
+    {
+        $requested = array_fill_keys($codes->values()->all(), true);
+        $responses = [];
+        $groups = data_get($payload, 'resultado', data_get($payload, 'resultados', []));
+
+        foreach ((array) $groups as $key => $group) {
+            $group = is_array($group) ? $group : (array) $group;
+            if ($group === []) {
+                continue;
+            }
+
+            $code = strtoupper(trim((string) ($group['codigo'] ?? (is_string($key) ? $key : ''))));
+            if ($code === '' || ! isset($requested[$code])) {
+                continue;
+            }
+
+            $responses[$code] = $group;
+        }
+
+        return $responses;
+    }
+
+    private function trackingApiConfigs(): array
+    {
+        $baseUrl = $this->normalizeTrackingApiUrl(trim((string) config('services.tracking_sqlserver.base_url', '')));
+        $batchUrl = $this->normalizeTrackingBatchApiUrl(trim((string) config('services.tracking_sqlserver.eventos_batch_url', '')), $baseUrl);
+
+        return collect([
+            [
+                'url' => $batchUrl,
+                'token' => $this->normalizeBearerToken(trim((string) config('services.tracking_sqlserver.token', ''))),
+                'batch' => true,
+            ],
+            [
+                'url' => $baseUrl,
+                'token' => $this->normalizeBearerToken(trim((string) config('services.tracking_sqlserver.token', ''))),
+                'batch' => false,
+            ],
+            [
+                'url' => $this->normalizeTrackingApiUrl(trim((string) config('services.tracking_sqlserver.fallback_base_url', ''))),
+                'token' => $this->normalizeBearerToken(trim((string) config('services.tracking_sqlserver.fallback_token', ''))),
+                'batch' => false,
+            ],
+        ])
+            ->filter(fn (array $config) => $config['url'] !== '')
+            ->unique(fn (array $config) => $config['url'])
+            ->values()
+            ->all();
+    }
+
+    private function normalizeExternalTrackingEvents(array $payload, string $code): \Illuminate\Support\Collection
+    {
+        $events = collect(data_get($payload, 'eventos_locales', []))
+            ->merge(data_get($payload, 'eventos_externos', []));
+
+        if ($events->isEmpty()) {
+            $events = collect(data_get($payload, 'resultado', []))
+                ->flatMap(fn ($group) => (array) data_get($group, 'eventos', []));
+        }
+
+        return $events
+            ->map(fn ($event) => $this->normalizeExternalTrackingEvent($event, $payload, $code))
+            ->filter()
+            ->sortByDesc(fn ($event) => strtotime((string) ($event->created_at ?? '')) ?: 0)
+            ->values();
+    }
+
+    private function normalizeExternalTrackingEvent(mixed $event, array $payload, string $code): ?object
+    {
+        $event = is_array($event) ? $event : (array) $event;
+        if ($event === []) {
+            return null;
+        }
+
+        $createdAt = (string) (
+            $event['created_at']
+            ?? $event['eventDate']
+            ?? $event['fecha_hora']
+            ?? $event['fecha_registro']
+            ?? $event['fecha']
+            ?? now()->toDateTimeString()
+        );
+
+        return (object) [
+            'id' => $event['id'] ?? null,
+            'codigo' => $event['codigo'] ?? $event['mailitM_FID'] ?? data_get($payload, 'codigo', $code),
+            'evento_id' => $event['evento_id'] ?? $event['id_evento'] ?? null,
+            'codigo_evento' => $event['codigo_evento'] ?? $event['eventCode'] ?? $event['event_type_cd'] ?? null,
+            'created_at' => $createdAt,
+            'updated_at' => $event['updated_at'] ?? $createdAt,
+            'nombre_evento' => $event['nombre_evento']
+                ?? $event['eventType']
+                ?? $event['evento']
+                ?? $event['descripcion_evento']
+                ?? $event['descripcion']
+                ?? 'Evento de seguimiento',
+            'servicio' => $this->resolveExternalTrackingService($event, $payload, $code),
+        ];
+    }
+
+    private function resolveExternalTrackingService(array $event, array $payload, string $code): string
+    {
+        $service = strtoupper(trim((string) (
+            data_get($payload, 'servicio')
+            ?? data_get($payload, 'tipo_servicio')
+            ?? data_get($payload, 'service')
+            ?? $event['servicio']
+            ?? $event['tipo_servicio']
+            ?? $event['service']
+            ?? ''
+        )));
+
+        if ($service !== '') {
+            return $service;
+        }
+
+        $code = strtoupper(trim((string) ($event['mailitM_FID'] ?? data_get($payload, 'codigo', $code))));
+
+        if (preg_match('/^R[A-Z]\d{9}[A-Z]{2}$/', $code) === 1) {
+            return 'CERTI';
+        }
+
+        if (preg_match('/^E[A-Z]\d{9}[A-Z]{2}$/', $code) === 1) {
+            return 'EMS';
+        }
+
+        return 'TRACKING';
+    }
+
+    private function normalizeTrackingApiUrl(string $configuredUrl): string
+    {
+        if ($configuredUrl === '') {
+            return '';
+        }
+
+        $parts = parse_url($configuredUrl);
+        $path = trim((string) ($parts['path'] ?? ''));
+
+        if ($path === '' || $path === '/') {
+            return rtrim($configuredUrl, '/') . '/api/tracking/eventos';
+        }
+
+        if ($path === '/api/sqlserver/busqueda') {
+            return preg_replace('#/api/sqlserver/busqueda$#', '/api/tracking/eventos', $configuredUrl) ?: $configuredUrl;
+        }
+
+        return $configuredUrl;
+    }
+
+    private function normalizeTrackingBatchApiUrl(string $configuredUrl, string $baseUrl): string
+    {
+        if ($configuredUrl !== '') {
+            return rtrim($configuredUrl, '/');
+        }
+
+        if ($baseUrl === '') {
+            return '';
+        }
+
+        return rtrim($baseUrl, '/') . '/batch';
+    }
+
+    private function normalizeBearerToken(string $token): string
+    {
+        if (str_starts_with(strtolower($token), 'bearer ')) {
+            return trim(substr($token, 7));
+        }
+
+        return $token;
+    }
+
+    private function normalizeTrackingStep(string $step): string
+    {
+        $step = mb_strtolower(trim($step));
+
+        if (class_exists(\Normalizer::class)) {
+            $step = \Normalizer::normalize($step, \Normalizer::FORM_D) ?: $step;
+            $step = preg_replace('/\p{Mn}+/u', '', $step) ?: $step;
+        }
+
+        return $step;
     }
 
     private function trackingEventSourcesForService(string $service): array
@@ -419,6 +782,7 @@ class FacturaFirmaPdfController extends Controller
             data_get($item, 'codigo_paquete'),
             data_get($item, 'resumen_origen.codigo_paquete'),
             data_get($item, 'resumen_origen.codigo'),
+            data_get($item, 'resumen_origen.codigo_item'),
             data_get($item, 'codigo'),
             data_get($item, 'codigo_item'),
         ];

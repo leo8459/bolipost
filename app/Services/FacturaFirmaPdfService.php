@@ -256,7 +256,7 @@ class FacturaFirmaPdfService
             ];
         }, $packages), fn (array $package) => $package['codigo'] !== ''));
 
-        return array_slice($packages, 0, 12);
+        return $packages;
     }
 
     private function drawDeliveryPackage(Fpdi $pdf, float $left, float $right, float $y, array $package): float
