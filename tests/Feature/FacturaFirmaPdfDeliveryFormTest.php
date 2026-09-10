@@ -95,13 +95,14 @@ class FacturaFirmaPdfDeliveryFormTest extends TestCase
         ]);
 
         $packages = $this->deliveryPackagesFromItems(collect([
-            (object) ['codigo' => 'RR-EXPEDICION', 'tipo' => 'Certificado Internacional'],
-            (object) ['codigo' => 'RR-ADUANA', 'tipo' => 'Certificado Internacional'],
-            (object) ['codigo' => 'RR-VENTANILLA', 'tipo' => 'Certificado Internacional'],
-            (object) ['codigo' => 'RR-ENTREGADO', 'tipo' => 'Certificado Internacional'],
+            (object) ['codigo' => 'RR-EXPEDICION', 'tipo' => 'Certificado Internacional', 'peso' => 0.01],
+            (object) ['codigo' => 'RR-ADUANA', 'tipo' => 'Certificado Internacional', 'peso' => 0.02],
+            (object) ['codigo' => 'RR-VENTANILLA', 'tipo' => 'Certificado Internacional', 'peso' => 0.03],
+            (object) ['codigo' => 'RR-ENTREGADO', 'tipo' => 'Certificado Internacional', 'peso' => 0.04],
         ]));
 
         $this->assertSame(['RR-EXPEDICION', 'RR-ADUANA', 'RR-VENTANILLA', 'RR-ENTREGADO'], array_column($packages, 'codigo'));
+        $this->assertSame(['0.010 kg', '0.020 kg', '0.030 kg', '0.040 kg'], array_column($packages, 'peso'));
     }
 
     public function test_delivery_form_is_not_reserved_when_there_are_no_counter_packages(): void
@@ -135,7 +136,7 @@ class FacturaFirmaPdfDeliveryFormTest extends TestCase
 
         $output = $service->appendSignatureFields($this->simpleInvoicePdf(), [
             'packages' => [
-                ['codigo' => 'RR-VENTANILLA', 'servicio' => 'Certificadas'],
+                ['codigo' => 'RR-VENTANILLA', 'servicio' => 'Certificadas', 'peso' => '0.015 kg'],
             ],
             'usuario' => 'Nanda Flores Yujra',
             'numero_factura' => '2597',
@@ -147,6 +148,7 @@ class FacturaFirmaPdfDeliveryFormTest extends TestCase
         $this->assertCount(3, $pages);
         $this->assertStringContainsString('FORMULARIO DE ENTREGA', $pages[1]->getText());
         $this->assertStringContainsString('RR-VENTANILLA', $pages[1]->getText());
+        $this->assertStringContainsString('0.015 kg', $pages[1]->getText());
         $this->assertStringNotContainsString('Certificadas', $pages[1]->getText());
         $this->assertStringContainsString('Conserve este comprobante como respaldo de entrega.', $pages[1]->getText());
         $this->assertStringContainsString('Copia para Correos de Bolivia.', $pages[1]->getText());

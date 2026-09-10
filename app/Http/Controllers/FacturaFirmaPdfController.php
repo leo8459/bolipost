@@ -254,6 +254,7 @@ class FacturaFirmaPdfController extends Controller
                 return [
                     'codigo' => $code,
                     'servicio' => $service,
+                    'peso' => $this->resolveDeliveryPackageWeight($item),
                     'monto' => $this->resolveDeliveryPackageAmount($item),
                 ];
             })
@@ -283,6 +284,25 @@ class FacturaFirmaPdfController extends Controller
         $amount = round(max(0, (float) $amount), 2);
 
         return $amount > 0 ? 'Bs ' . number_format($amount, 2, '.', '') : '';
+    }
+
+    private function resolveDeliveryPackageWeight(object $item): string
+    {
+        $weight = collect([
+            data_get($item, 'resumen_origen.peso'),
+            data_get($item, 'peso'),
+            data_get($item, 'resumen_origen.peso_kg'),
+            data_get($item, 'peso_kg'),
+            data_get($item, 'weight'),
+        ])->first(fn ($value) => $value !== null && trim((string) $value) !== '');
+
+        if ($weight === null || trim((string) $weight) === '') {
+            return '';
+        }
+
+        $weight = round(max(0, (float) str_replace(',', '.', (string) $weight)), 3);
+
+        return $weight > 0 ? number_format($weight, 3, '.', '') . ' kg' : '';
     }
 
     private function shouldIncludePackageInDeliveryForm(string $code, string $service): bool
