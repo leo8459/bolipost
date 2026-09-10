@@ -80,6 +80,17 @@ class Recojo extends Model
         return $this->belongsTo(TarifaContrato::class, 'tarifa_contrato_id');
     }
 
+    public function destinoParaMostrar(): string
+    {
+        $destinoRegistrado = trim((string) $this->destino_registrado);
+
+        if ($destinoRegistrado !== '') {
+            return $destinoRegistrado;
+        }
+
+        return trim((string) $this->destino) ?: '-';
+    }
+
     public function bitacoras()
     {
         return $this->hasMany(Bitacora::class, 'paquetes_contrato_id');

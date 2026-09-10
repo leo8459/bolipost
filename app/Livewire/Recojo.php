@@ -431,7 +431,14 @@ class Recojo extends Component
                 $query->where(function ($sub) use ($q) {
                     $sub->where('codigo', 'like', "%{$q}%")
                         ->orWhere('origen', 'like', "%{$q}%")
-                        ->orWhere('destino', 'like', "%{$q}%")
+                        ->orWhere('destino_registrado', 'like', "%{$q}%")
+                        ->orWhere(function ($destinoQuery) use ($q) {
+                            $destinoQuery->where(function ($registradoQuery) {
+                                $registradoQuery->whereNull('destino_registrado')
+                                    ->orWhereRaw("trim(destino_registrado) = ''");
+                            })
+                                ->where('destino', 'like', "%{$q}%");
+                        })
                         ->orWhere('nombre_r', 'like', "%{$q}%")
                         ->orWhere('nombre_d', 'like', "%{$q}%")
                         ->orWhere('cantidad', 'like', "%{$q}%")

@@ -212,7 +212,7 @@
                                     <td><span class="pill-id">{{ $recojo->codigo }}</span></td>
                                     <td>{{ optional($recojo->estadoRegistro)->nombre_estado ?? '-' }}</td>
                                     <td>{{ $recojo->origen }}</td>
-                                    <td>{{ $recojo->destino }}</td>
+                                    <td>{{ $recojo->destinoParaMostrar() }}</td>
                                     <td>{{ $recojo->nombre_r }}</td>
                                     <td>{{ $recojo->nombre_d }}</td>
                                     <td>

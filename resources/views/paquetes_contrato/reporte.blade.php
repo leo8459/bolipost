@@ -239,7 +239,7 @@
         }
     }
 
-    $departamentoDestino = (string) ($contrato->destino ?? '-');
+    $departamentoDestino = $contrato->destinoParaMostrar();
     $provincia = trim((string) ($contrato->provincia ?? ''));
     $departamentoDetalle = $departamentoDestino;
     if ($provincia !== '') {
