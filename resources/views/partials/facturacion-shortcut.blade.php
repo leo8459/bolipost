@@ -5352,18 +5352,21 @@
                 }
             };
 
+            const isAbsoluteFacturacionMonitorUrl = (url) => /^https?:\/\//i.test(String(url || '').trim());
+
             const resolveFacturacionMonitorConfig = () => {
                 const config = readFacturacionMonitorConfig();
                 const url = String(config.url || '').trim();
                 const valid = isValidFacturacionMonitorUrl(url);
+                const absoluteUrl = isAbsoluteFacturacionMonitorUrl(url);
 
-                if (config.enabled && url !== '' && !valid) {
+                if (config.enabled && url !== '' && (!valid || absoluteUrl)) {
                     persistFacturacionMonitorConfig({ enabled: false, url: '' });
                 }
 
                 return {
-                    enabled: config.enabled && valid,
-                    url: valid ? url : '',
+                    enabled: config.enabled && valid && !absoluteUrl,
+                    url: valid && !absoluteUrl ? url : '',
                 };
             };
 

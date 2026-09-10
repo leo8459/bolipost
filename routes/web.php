@@ -124,7 +124,7 @@ Route::get('/publico/imagenes-entrega/paquete/{type}/{id}/{kind?}/descargar', [D
     ->where('kind', 'entrega|devolucion')
     ->name('delivery-images.package.public-download');
 Route::get('/facturacion/monitor/display/{monitor}', [FacturacionQrMonitorController::class, 'display'])
-    ->middleware('signed')
+    ->middleware('signed:relative')
     ->name('facturacion.monitor.display');
 Route::get('/imagenes-entrega/evento/{source}/{codigo}/{kind?}', [DeliveryImageController::class, 'event'])
     ->middleware(['auth', 'internal.only'])
