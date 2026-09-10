@@ -164,6 +164,48 @@ return [
                 ],
             ],
         ],
+        'gasolinas:create' => [
+            'name' => 'CREAR GASOLINA',
+            'description' => 'Crea registros de combustible con vehiculo, conductor, factura, cantidad, precio y gasolinera.',
+            'access' => 'Escritura',
+            'icon' => 'fas fa-gas-pump',
+            'color' => 'success',
+            'endpoints' => [
+                [
+                    'method' => 'POST',
+                    'path' => '/api/gasolinas',
+                    'example' => '',
+                    'body_type' => 'form-data',
+                    'body' => [
+                        'vehicle_id' => 1,
+                        'driver_id' => 1,
+                        'numero_factura' => 'FAC-001',
+                        'nombre_cliente' => 'Correos de Bolivia',
+                        'fecha_emision' => '2026-09-10 15:00:00',
+                        'cantidad' => 20.5,
+                        'precio_unitario' => 3.74,
+                        'razon_social_emisor' => 'Gasolinera Central',
+                        'nit_emisor' => '123456789',
+                        'direccion_emisor' => 'La Paz',
+                        'invoice_photo' => '@factura.jpg (opcional, tipo File)',
+                    ],
+                ],
+            ],
+        ],
+        'gasolinas:read' => [
+            'name' => 'VER GASOLINA',
+            'description' => 'Consulta registros de combustible con factura, gasolinera, vehiculo y conductor.',
+            'access' => 'Solo lectura',
+            'icon' => 'fas fa-gas-pump',
+            'color' => 'info',
+            'endpoints' => [
+                [
+                    'method' => 'GET',
+                    'path' => '/api/gasolinas',
+                    'example' => '?per_page=20&page=1&vehicle_id=1&driver_id=1&date_from=2026-09-01&date_to=2026-09-10',
+                ],
+            ],
+        ],
         'packgo:bitacora-route' => [
             'name' => 'PACKGO - Bitacora y rutas',
             'description' => 'Permite sincronizar bitacora, ubicacion, recorridos y reasignaciones de vehiculos desde PackGo.',

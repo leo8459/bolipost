@@ -26,6 +26,180 @@ use Illuminate\Validation\ValidationException;
 
 class FuelLogApiController extends Controller
 {
+    public function externalIndex(Request $request)
+    {
+        $validated = $request->validate([
+            'vehicle_id' => ['nullable', 'integer', 'min:1'],
+            'driver_id' => ['nullable', 'integer', 'min:1'],
+            'date_from' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
+            'search' => ['nullable', 'string', 'max:100'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $query = FuelLog::query()
+            ->active()
+            ->with(['vehicleLog.vehicle', 'vehicleLog.driver', 'gasStation', 'invoice']);
+
+        if (!empty($validated['vehicle_id'])) {
+            $query->whereHas('vehicleLog', fn ($vehicleLog) => $vehicleLog
+                ->where('vehicles_id', (int) $validated['vehicle_id']));
+        }
+
+        if (!empty($validated['driver_id'])) {
+            $query->whereHas('vehicleLog', fn ($vehicleLog) => $vehicleLog
+                ->where('drivers_id', (int) $validated['driver_id']));
+        }
+
+        if (!empty($validated['search'])) {
+            $search = trim((string) $validated['search']);
+            $query->where(function ($builder) use ($search): void {
+                $builder
+                    ->whereHas('invoice', fn ($invoice) => $invoice
+                        ->where('numero_factura', 'like', "%{$search}%")
+                        ->orWhere('nombre_cliente', 'like', "%{$search}%"))
+                    ->orWhereHas('gasStation', fn ($station) => $station
+                        ->where('razon_social', 'like', "%{$search}%")
+                        ->orWhere('nit_emisor', 'like', "%{$search}%"))
+                    ->orWhereHas('vehicleLog.vehicle', fn ($vehicle) => $vehicle
+                        ->where('placa', 'like', "%{$search}%"))
+                    ->orWhereHas('vehicleLog.driver', fn ($driver) => $driver
+                        ->where('nombre', 'like', "%{$search}%"));
+            });
+        }
+
+        $this->applyFuelLogDateFilters(
+            $query,
+            $validated['date_from'] ?? null,
+            $validated['date_to'] ?? null
+        );
+        $this->applyFuelLogOrdering($query);
+
+        $logs = $query->paginate((int) ($validated['per_page'] ?? 20));
+        $logs->setCollection(
+            $logs->getCollection()->map(fn (FuelLog $log) => $this->toMobileFuelLog($log))
+        );
+
+        return response()->json($logs);
+    }
+
+    public function externalStore(Request $request)
+    {
+        $data = $request->validate([
+            'vehicle_id' => ['required', 'integer', 'exists:vehicles,id'],
+            'driver_id' => ['required', 'integer', 'exists:drivers,id'],
+            'numero_factura' => ['required', 'string', 'max:255'],
+            'nombre_cliente' => ['required', 'string', 'max:255'],
+            'fecha_emision' => ['required', 'date', 'before_or_equal:now'],
+            'cantidad' => ['required', 'numeric', 'gt:0'],
+            'precio_unitario' => ['required', 'numeric', 'gt:0'],
+            'gas_station_id' => ['nullable', 'integer', 'exists:gas_stations,id'],
+            'razon_social_emisor' => ['nullable', 'string', 'max:255'],
+            'nit_emisor' => ['nullable', 'string', 'max:50'],
+            'direccion_emisor' => ['nullable', 'string', 'max:255'],
+            'invoice_photo' => ['nullable', 'image', 'max:5120'],
+        ]);
+
+        $vehicle = Vehicle::query()->findOrFail((int) $data['vehicle_id']);
+        $driver = Driver::query()->findOrFail((int) $data['driver_id']);
+        $date = \Carbon\Carbon::parse((string) $data['fecha_emision']);
+        $this->validateExternalFuelAssignment($vehicle->id, $driver->id, $date->toDateString());
+
+        $liters = (float) $data['cantidad'];
+        if ($vehicle->capacidad_tanque !== null && $liters > ((float) $vehicle->capacidad_tanque * 1.05)) {
+            throw ValidationException::withMessages([
+                'cantidad' => 'La cantidad de combustible excede la capacidad registrada del tanque del vehiculo.',
+            ]);
+        }
+
+        $invoiceNumber = trim((string) $data['numero_factura']);
+        if (FuelInvoice::query()->where('numero_factura', $invoiceNumber)->exists()) {
+            throw ValidationException::withMessages([
+                'numero_factura' => 'La factura ya esta registrada en el sistema.',
+            ]);
+        }
+
+        $photoPath = null;
+
+        try {
+            $log = DB::transaction(function () use ($data, $vehicle, $driver, $date, $liters, $invoiceNumber, &$photoPath): FuelLog {
+                $station = $this->resolveExternalGasStation($data);
+                $total = round($liters * (float) $data['precio_unitario'], 2);
+                $invoicePayload = [
+                    'numero_factura' => $invoiceNumber,
+                    'fecha_emision' => $date->format('Y-m-d H:i:s'),
+                    'gas_station_id' => $station?->id,
+                    'nombre_cliente' => trim((string) $data['nombre_cliente']),
+                    'monto_total' => $total,
+                ];
+                if (Schema::hasColumn('fuel_invoices', 'numero')) {
+                    $invoicePayload['numero'] = $invoiceNumber;
+                }
+                if (Schema::hasColumn('fuel_invoices', 'activo')) {
+                    $invoicePayload['activo'] = true;
+                }
+                if (!empty($data['invoice_photo'])) {
+                    $photoPath = $data['invoice_photo']->store('fuel-invoices/photos', 'public');
+                    if (Schema::hasColumn('fuel_invoices', 'invoice_photo_path')) {
+                        $invoicePayload['invoice_photo_path'] = $photoPath;
+                    }
+                }
+
+                $invoice = FuelInvoice::query()->create($invoicePayload);
+                $detailPayload = [
+                    'fuel_invoice_id' => $invoice->id,
+                    'cantidad' => $liters,
+                    'precio_unitario' => (float) $data['precio_unitario'],
+                    'subtotal' => $total,
+                ];
+                if (Schema::hasColumn('fuel_invoice_details', 'gas_station_id')) {
+                    $detailPayload['gas_station_id'] = $station?->id;
+                }
+                if (Schema::hasColumn('fuel_invoice_details', 'estado')) {
+                    $detailPayload['estado'] = 'Falta verificar';
+                }
+                if (Schema::hasColumn('fuel_invoice_details', 'activo')) {
+                    $detailPayload['activo'] = true;
+                }
+
+                $fuelLog = FuelLog::query()->create($detailPayload);
+                $km = (float) ($vehicle->kilometraje_actual ?? $vehicle->kilometraje_inicial ?? $vehicle->kilometraje ?? 0);
+                $stationName = (string) ($station?->razon_social ?? 'Carga de combustible');
+                $vehicleLogPayload = [
+                    'drivers_id' => (int) $driver->id,
+                    'vehicles_id' => (int) $vehicle->id,
+                    'fuel_log_id' => (int) $fuelLog->id,
+                    'fecha' => $date->toDateString(),
+                    'kilometraje_salida' => $km,
+                    'kilometraje_llegada' => $km,
+                    'recorrido_inicio' => $stationName,
+                    'recorrido_destino' => $stationName,
+                    'abastecimiento_combustible' => true,
+                ];
+                if (Schema::hasColumn('vehicle_log', 'kilometraje_recorrido')) {
+                    $vehicleLogPayload['kilometraje_recorrido'] = 0;
+                }
+                if (Schema::hasColumn('vehicle_log', 'activo')) {
+                    $vehicleLogPayload['activo'] = true;
+                }
+                VehicleLog::query()->create($vehicleLogPayload);
+
+                return $fuelLog->load(['vehicleLog.vehicle', 'vehicleLog.driver', 'gasStation', 'invoice']);
+            });
+        } catch (\Throwable $exception) {
+            if ($photoPath) {
+                Storage::disk('public')->delete($photoPath);
+            }
+
+            throw $exception;
+        }
+
+        return response()->json([
+            'message' => 'Registro de gasolina creado correctamente.',
+            'data' => $this->toMobileFuelLog($log),
+        ], 201);
+    }
+
     public function index(Request $request)
     {
         $query = FuelLog::query()
@@ -783,10 +957,19 @@ class FuelLogApiController extends Controller
             'numero_factura' => (string) ($log->invoice?->numero_factura ?? ''),
             'customer_name' => (string) ($log->invoice?->nombre_cliente ?? ''),
             'vehicle_plate' => (string) ($log->vehicleLog?->vehicle?->placa ?? ''),
+            'driver_name' => (string) ($log->vehicleLog?->driver?->nombre ?? ''),
             'user_id' => $userId ? (int) $userId : null,
             'driver_id' => $driverId ? (int) $driverId : null,
             'drivers_id' => $driverId ? (int) $driverId : null,
             'vehicle_id' => $vehicleId ? (int) $vehicleId : null,
+            'vehicle' => $log->vehicleLog?->vehicle ? [
+                'id' => (int) $log->vehicleLog->vehicle->id,
+                'placa' => (string) $log->vehicleLog->vehicle->placa,
+            ] : null,
+            'driver' => $log->vehicleLog?->driver ? [
+                'id' => (int) $log->vehicleLog->driver->id,
+                'nombre' => (string) $log->vehicleLog->driver->nombre,
+            ] : null,
             'liters' => (float) ($log->cantidad ?? 0),
             'precio_unitario' => (float) ($log->precio_unitario ?? 0),
             'unit_price' => (float) ($log->precio_unitario ?? 0),
@@ -826,6 +1009,56 @@ class FuelLogApiController extends Controller
                     : null,
             ],
         ];
+    }
+
+    private function validateExternalFuelAssignment(int $vehicleId, int $driverId, string $date): void
+    {
+        $exists = VehicleAssignment::query()
+            ->where('vehicle_id', $vehicleId)
+            ->where('driver_id', $driverId)
+            ->where('activo', true)
+            ->where(function ($query) use ($date): void {
+                $query->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $date);
+            })
+            ->where(function ($query) use ($date): void {
+                $query->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $date);
+            })
+            ->exists();
+
+        if (!$exists) {
+            throw ValidationException::withMessages([
+                'driver_id' => 'El conductor no tiene asignado este vehiculo en la fecha indicada.',
+            ]);
+        }
+    }
+
+    private function resolveExternalGasStation(array $data): ?GasStation
+    {
+        if (!empty($data['gas_station_id'])) {
+            return GasStation::query()->find((int) $data['gas_station_id']);
+        }
+
+        $nit = trim((string) ($data['nit_emisor'] ?? ''));
+        $name = trim((string) ($data['razon_social_emisor'] ?? ''));
+        $address = trim((string) ($data['direccion_emisor'] ?? ''));
+        if ($nit === '' && $name === '' && $address === '') {
+            return null;
+        }
+
+        $stationName = $name !== '' ? $name : 'Sin razon social';
+        $lookup = $nit !== '' ? ['nit_emisor' => $nit] : ['razon_social' => $stationName];
+        $values = [
+            'razon_social' => $stationName,
+            'direccion' => $address !== '' ? $address : null,
+        ];
+        if (Schema::hasColumn('gas_stations', 'nombre')) {
+            $values['nombre'] = $values['razon_social'];
+        }
+        if (Schema::hasColumn('gas_stations', 'activa')) {
+            $values['activa'] = true;
+        }
+
+        return GasStation::query()->updateOrCreate($lookup, $values);
     }
 
     private function persistAntifraudEvidence(FuelInvoice $invoice, array $payload, array $location, ?string $fuelMeterPhotoPath = null): FuelInvoice

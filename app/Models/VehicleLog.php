@@ -59,6 +59,8 @@ class VehicleLog extends Model
     ];
     protected $appends = [
         'points_json',
+        'vehicle_id',
+        'driver_id',
     ];
 
     protected static function booted(): void
@@ -124,6 +126,20 @@ class VehicleLog extends Model
         }
 
         return is_array($this->ruta_json) ? $this->ruta_json : [];
+    }
+
+    public function getVehicleIdAttribute(): ?int
+    {
+        $value = $this->attributes['vehicles_id'] ?? null;
+
+        return $value !== null ? (int) $value : null;
+    }
+
+    public function getDriverIdAttribute(): ?int
+    {
+        $value = $this->attributes['drivers_id'] ?? null;
+
+        return $value !== null ? (int) $value : null;
     }
 
     public function setPointsJsonAttribute(mixed $value): void

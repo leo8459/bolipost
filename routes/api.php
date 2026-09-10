@@ -137,6 +137,13 @@ Route::middleware(['force.json', 'external.api.jwt', 'throttle:120,1'])->group(f
         ->middleware('external.api.ability:bitacoras:create')
         ->name('api.bitacoras.store');
 
+    Route::get('/gasolinas', [FuelLogApiController::class, 'externalIndex'])
+        ->middleware('external.api.ability:gasolinas:read')
+        ->name('api.gasolinas.index');
+    Route::post('/gasolinas', [FuelLogApiController::class, 'externalStore'])
+        ->middleware('external.api.ability:gasolinas:create')
+        ->name('api.gasolinas.store');
+
     Route::get('/paquetes-contactos', [PaqueteContactoApiController::class, 'index'])
         ->name('api.paquetes-contactos.index');
     Route::get('/paquetes-contactos/{tipo}', [PaqueteContactoApiController::class, 'index'])
