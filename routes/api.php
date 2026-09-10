@@ -130,6 +130,9 @@ Route::middleware(['force.json', 'external.api.jwt', 'throttle:120,1'])->group(f
     Route::get('/bitacoras', [VehicleLogApiController::class, 'externalIndex'])
         ->middleware('external.api.ability:bitacoras:read')
         ->name('api.bitacoras.index');
+    Route::get('/bitacoras/conductores', [VehicleLogApiController::class, 'externalDrivers'])
+        ->middleware('external.api.ability:bitacoras:create')
+        ->name('api.bitacoras.drivers');
     Route::post('/bitacoras', [VehicleLogApiController::class, 'externalStore'])
         ->middleware('external.api.ability:bitacoras:create')
         ->name('api.bitacoras.store');

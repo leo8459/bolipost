@@ -95,6 +95,23 @@ return [
             'color' => 'primary',
             'endpoints' => [
                 [
+                    'method' => 'GET',
+                    'path' => '/api/bitacoras/conductores',
+                    'example' => '',
+                    'response' => [
+                        'count' => 3,
+                        'data' => [
+                            [
+                                'id' => 1,
+                                'nombre' => 'Conductor Demo',
+                                'activo' => true,
+                                'tiene_asignacion_activa' => false,
+                                'asignacion_activa' => null,
+                            ],
+                        ],
+                    ],
+                ],
+                [
                     'method' => 'POST',
                     'path' => '/api/bitacoras',
                     'example' => '',

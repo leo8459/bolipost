@@ -182,13 +182,15 @@
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-bold">Conductor <span class="text-danger">*</span></label>
                             <select wire:model="driver_id" class="form-control assignment-form-select @error('driver_id') is-invalid @enderror" required>
-                                <option value="0">{{ $isEdit ? 'Seleccionar conductor' : 'Seleccionar conductor sin vehiculo' }}</option>
-                                @foreach (($isEdit ? $drivers : $unassignedDrivers) as $driver)
+                                <option value="0">Seleccionar conductor</option>
+                                @foreach ($drivers as $driver)
                                     <option value="{{ $driver->id }}">{{ $driver->nombre }}</option>
                                 @endforeach
                             </select>
-                            @if(!$isEdit && $unassignedDrivers->isEmpty())
-                                <div class="form-text text-warning">No hay conductores libres para asignar en este momento.</div>
+                            @if($drivers->isEmpty())
+                                <div class="form-text text-warning">No hay conductores activos para asignar en este momento.</div>
+                            @elseif(!$isEdit)
+                                <div class="form-text">Se muestran todos los conductores activos. Si ya tiene vehiculo, se pedira confirmar la reasignacion.</div>
                             @endif
                             @error('driver_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
