@@ -396,6 +396,27 @@ return [
                 ],
             ],
         ],
+        'clientes:password:update' => [
+            'name' => 'Actualizar contraseña de cliente',
+            'description' => 'Actualiza de forma segura la contraseña del cliente indicado en la URL. La nueva contraseña debe tener al menos 8 caracteres y enviarse con su confirmación.',
+            'access' => 'Escritura',
+            'icon' => 'fas fa-key',
+            'color' => 'warning',
+            'endpoints' => [
+                [
+                    'method' => 'PATCH',
+                    'path' => '/api/integraciones/clientes/{cliente}/password',
+                    'example' => '',
+                    'body' => [
+                        'password' => 'NuevaClaveSegura123',
+                        'password_confirmation' => 'NuevaClaveSegura123',
+                    ],
+                    'response' => [
+                        'message' => 'Contraseña del cliente actualizada correctamente.',
+                    ],
+                ],
+            ],
+        ],
         'clientes:google-login' => [
             'name' => 'Iniciar sesion Delivery Express con Google',
             'description' => 'Valida el ID token de Google mediante una integracion autorizada y devuelve el Bearer Token personal del cliente.',

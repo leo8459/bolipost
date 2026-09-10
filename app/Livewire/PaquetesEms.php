@@ -228,6 +228,8 @@ class PaquetesEms extends Component
     public $printCartaUrl = '';
     public $printOptionsMessage = 'Elige el formato para descargar o imprimir.';
     public $printOptionsShouldRedirect = false;
+    public $numeroCopias = 1;
+    public $printPaqueteId = null;
     public $showCn38PrintOptionsModal = false;
     public $mostrar_empresa = false;
     public $nombre_remitente = '';
@@ -2733,6 +2735,8 @@ class PaquetesEms extends Component
         $this->ciudad = $this->normalizeDestinoNombre((string) $this->ciudad);
         $this->validate($this->rules());
 
+        $this->numeroCopias = 1;
+
         $this->showPaqueteConfirmModal = true;
         $this->dispatch('openPaqueteConfirm');
     }
@@ -2840,8 +2844,9 @@ class PaquetesEms extends Component
                 $this->dispatch('facturacionCartSyncNeeded');
             }
             if ($this->isCreateEms) {
-                $termicaUrl = route('paquetes-ems.boleta', $paquete->id, false);
-                $cartaUrl = route('paquetes-ems.boleta', ['paquete' => $paquete->id, 'formato' => 'carta'], false);
+                $numeroCopias = $this->numeroCopiasNormalizado();
+                $termicaUrl = route('paquetes-ems.boleta', ['paquete' => $paquete->id, 'copias' => $numeroCopias], false);
+                $cartaUrl = route('paquetes-ems.boleta', ['paquete' => $paquete->id, 'formato' => 'carta', 'copias' => $numeroCopias], false);
 
                 $this->resetForm();
                 $this->setOrigenFromUser();
@@ -2850,6 +2855,7 @@ class PaquetesEms extends Component
                 $this->servicio_especial = 'IDA';
                 $this->printTermicaUrl = $termicaUrl;
                 $this->printCartaUrl = $cartaUrl;
+                $this->printPaqueteId = $paquete->id;
                 $this->printOptionsMessage = 'El paquete EMS fue registrado correctamente. Descarga o imprime el formato que necesites.';
                 $this->printOptionsShouldRedirect = true;
                 $this->showPrintOptionsModal = true;
@@ -2872,8 +2878,9 @@ class PaquetesEms extends Component
 
         $paquete = PaqueteEms::findOrFail($paqueteId);
 
-        $this->printTermicaUrl = route('paquetes-ems.boleta', $paquete->id, false);
-        $this->printCartaUrl = route('paquetes-ems.boleta', ['paquete' => $paquete->id, 'formato' => 'carta'], false);
+        $this->numeroCopias = 1;
+        $this->printPaqueteId = $paquete->id;
+        $this->actualizarUrlsImpresion();
         $this->printOptionsMessage = 'Elige el formato para reimprimir la boleta EMS.';
         $this->printOptionsShouldRedirect = false;
         $this->showPrintOptionsModal = true;
@@ -2885,9 +2892,43 @@ class PaquetesEms extends Component
         $this->showPrintOptionsModal = false;
         $this->printTermicaUrl = '';
         $this->printCartaUrl = '';
+        $this->printPaqueteId = null;
+        $this->numeroCopias = 1;
         $this->printOptionsMessage = 'Elige el formato para descargar o imprimir.';
         $this->printOptionsShouldRedirect = false;
         $this->dispatch('closePrintOptionsModal');
+    }
+
+    public function updatedNumeroCopias($value): void
+    {
+        $this->numeroCopias = max(1, min(5, (int) $value));
+
+        if ($this->printPaqueteId) {
+            $this->actualizarUrlsImpresion();
+        }
+    }
+
+    protected function actualizarUrlsImpresion(): void
+    {
+        if (!$this->printPaqueteId) {
+            return;
+        }
+
+        $numeroCopias = $this->numeroCopiasNormalizado();
+        $this->printTermicaUrl = route('paquetes-ems.boleta', [
+            'paquete' => $this->printPaqueteId,
+            'copias' => $numeroCopias,
+        ], false);
+        $this->printCartaUrl = route('paquetes-ems.boleta', [
+            'paquete' => $this->printPaqueteId,
+            'formato' => 'carta',
+            'copias' => $numeroCopias,
+        ], false);
+    }
+
+    protected function numeroCopiasNormalizado(): int
+    {
+        return max(1, min(5, (int) $this->numeroCopias));
     }
 
     public function volverDespuesDeImprimir()

@@ -104,6 +104,10 @@ Route::middleware(['force.json', 'external.api.jwt', 'throttle:120,1'])->group(f
         ->middleware('external.api.ability:clientes:update')
         ->whereNumber('cliente')
         ->name('api.integraciones.clientes.update');
+    Route::patch('/integraciones/clientes/{cliente}/password', [ClienteAuthApiController::class, 'updatePassword'])
+        ->middleware('external.api.ability:clientes:password:update')
+        ->whereNumber('cliente')
+        ->name('api.integraciones.clientes.password.update');
     Route::post('/integraciones/clientes/google-login', [ClienteAuthApiController::class, 'googleLogin'])
         ->middleware('external.api.ability:clientes:google-login')
         ->name('api.integraciones.clientes.google-login');

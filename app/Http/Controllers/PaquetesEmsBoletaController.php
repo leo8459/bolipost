@@ -27,11 +27,13 @@ class PaquetesEmsBoletaController extends Controller
         $paquete->load(['tarifario.destino', 'tarifario.servicio', 'tarifario.origen', 'tarifario.peso', 'formulario']);
 
         $formato = strtolower(trim((string) $request->query('formato', 'termica')));
+        $copias = max(1, min(5, $request->integer('copias', 1)));
 
         if ($formato === 'carta') {
             $pdf = Pdf::loadView('paquetes_ems.boleta-carta', [
                 'paquete' => $paquete,
                 'verificationUrl' => $this->verificationUrlFor($paquete),
+                'copias' => $copias,
             ])->setPaper('letter', 'portrait');
 
             return $pdf->download('boleta-carta-'.$paquete->id.'.pdf');
@@ -40,6 +42,7 @@ class PaquetesEmsBoletaController extends Controller
         $pdf = Pdf::loadView('paquetes_ems.boleta', [
             'paquete' => $paquete,
             'verificationUrl' => $this->verificationUrlFor($paquete),
+            'copias' => $copias,
         ])->setPaper([0, 0, 226.77, 651.97], 'portrait');
 
         return $pdf->download('boleta-termica-'.$paquete->id.'.pdf');

@@ -2742,6 +2742,7 @@
                                 </div>
                             </div>
                         @endif
+
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -2807,14 +2808,23 @@
                     <p class="mb-3">
                         {{ $printOptionsMessage }}
                     </p>
+                    <div class="form-group mb-3">
+                        <label for="numeroCopiasImpresion">Numero de copias</label>
+                        <select id="numeroCopiasImpresion" class="form-control" wire:model.live="numeroCopias">
+                            @for ($i = 1; $i <= 5; $i++)
+                                <option value="{{ $i }}">{{ $i }} {{ $i === 1 ? 'copia' : 'copias' }}</option>
+                            @endfor
+                        </select>
+                        <small class="form-text text-muted">Maximo 5 copias.</small>
+                    </div>
                     <div class="d-flex flex-column flex-sm-row" style="gap: 10px;">
                         @if($printTermicaUrl)
-                            <a href="{{ $printTermicaUrl }}" target="_blank" class="btn btn-outline-dark flex-fill">
+                            <a href="{{ $printTermicaUrl }}" target="_blank" class="btn btn-outline-dark flex-fill" data-ems-copy-print-link>
                                 <i class="fas fa-receipt mr-1"></i> Factura termica
                             </a>
                         @endif
                         @if($printCartaUrl)
-                            <a href="{{ $printCartaUrl }}" target="_blank" class="btn btn-outline-dark flex-fill">
+                            <a href="{{ $printCartaUrl }}" target="_blank" class="btn btn-outline-dark flex-fill" data-ems-copy-print-link>
                                 <i class="fas fa-file-alt mr-1"></i> Diseno carta
                             </a>
                         @endif
@@ -3969,6 +3979,21 @@
         Object.entries(modalMap).forEach(([eventName, selector]) => {
             window.addEventListener(eventName, () => handleModalEvent(eventName, selector));
             document.addEventListener(eventName, () => handleModalEvent(eventName, selector));
+        });
+
+        document.addEventListener('click', (event) => {
+            const printLink = event.target.closest('[data-ems-copy-print-link]');
+            if (!printLink) {
+                return;
+            }
+
+            const copiesSelect = document.getElementById('numeroCopiasImpresion');
+            const requestedCopies = Number.parseInt(copiesSelect?.value || '1', 10);
+            const copies = Math.max(1, Math.min(5, Number.isFinite(requestedCopies) ? requestedCopies : 1));
+            const printUrl = new URL(printLink.getAttribute('href'), window.location.origin);
+
+            printUrl.searchParams.set('copias', String(copies));
+            printLink.setAttribute('href', printUrl.toString());
         });
 
         document.addEventListener('livewire:init', () => {

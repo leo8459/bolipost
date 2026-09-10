@@ -327,6 +327,93 @@ class ClienteAuthApiTest extends TestCase
             ->assertJsonValidationErrors(['cliente']);
     }
 
+    public function test_una_integracion_autorizada_puede_actualizar_la_contrasena_de_un_cliente(): void
+    {
+        $cliente = Cliente::query()->create([
+            'name' => 'Cliente Contrasena',
+            'email' => 'cliente.password@example.com',
+            'password' => 'ClaveAnterior123',
+        ]);
+        $token = ExternalApiToken::query()->create([
+            'name' => 'Integracion para actualizar contrasenas',
+            'jti' => hash('sha256', Str::uuid()->toString()),
+            'token_hash' => hash('sha256', Str::random(40)),
+            'abilities' => ['clientes:password:update'],
+            'is_active' => true,
+        ]);
+        $jwt = ExternalApiJwt::issue($token);
+        $token->forceFill(['token_hash' => hash('sha256', $jwt)])->save();
+
+        $this->withToken($jwt)
+            ->patchJson("/api/integraciones/clientes/{$cliente->id}/password", [
+                'password' => 'NuevaClaveSegura123',
+                'password_confirmation' => 'NuevaClaveSegura123',
+            ])
+            ->assertOk()
+            ->assertExactJson([
+                'message' => 'Contraseña del cliente actualizada correctamente.',
+            ]);
+
+        $this->assertTrue(Hash::check('NuevaClaveSegura123', $cliente->fresh()->password));
+        $this->assertFalse(Hash::check('ClaveAnterior123', $cliente->fresh()->password));
+    }
+
+    public function test_actualizar_contrasena_de_cliente_valida_longitud_y_confirmacion(): void
+    {
+        $cliente = Cliente::query()->create([
+            'name' => 'Cliente Validacion',
+            'email' => 'cliente.validacion.password@example.com',
+            'password' => 'ClaveAnterior123',
+        ]);
+        $token = ExternalApiToken::query()->create([
+            'name' => 'Integracion para validar contrasenas',
+            'jti' => hash('sha256', Str::uuid()->toString()),
+            'token_hash' => hash('sha256', Str::random(40)),
+            'abilities' => ['clientes:password:update'],
+            'is_active' => true,
+        ]);
+        $jwt = ExternalApiJwt::issue($token);
+        $token->forceFill(['token_hash' => hash('sha256', $jwt)])->save();
+
+        $this->withToken($jwt)
+            ->patchJson("/api/integraciones/clientes/{$cliente->id}/password", [
+                'password' => 'corta',
+                'password_confirmation' => 'diferente',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['password']);
+
+        $this->assertTrue(Hash::check('ClaveAnterior123', $cliente->fresh()->password));
+    }
+
+    public function test_actualizar_contrasena_de_cliente_requiere_el_permiso_correspondiente(): void
+    {
+        $cliente = Cliente::query()->create([
+            'name' => 'Cliente Protegido',
+            'email' => 'cliente.password.protegido@example.com',
+            'password' => 'ClaveAnterior123',
+        ]);
+        $token = ExternalApiToken::query()->create([
+            'name' => 'Integracion sin permiso de contrasenas',
+            'jti' => hash('sha256', Str::uuid()->toString()),
+            'token_hash' => hash('sha256', Str::random(40)),
+            'abilities' => ['clientes:update'],
+            'is_active' => true,
+        ]);
+        $jwt = ExternalApiJwt::issue($token);
+        $token->forceFill(['token_hash' => hash('sha256', $jwt)])->save();
+
+        $this->withToken($jwt)
+            ->patchJson("/api/integraciones/clientes/{$cliente->id}/password", [
+                'password' => 'NuevaClaveSegura123',
+                'password_confirmation' => 'NuevaClaveSegura123',
+            ])
+            ->assertForbidden()
+            ->assertJsonPath('permiso_requerido', 'clientes:password:update');
+
+        $this->assertTrue(Hash::check('ClaveAnterior123', $cliente->fresh()->password));
+    }
+
     public function test_una_integracion_autorizada_puede_iniciar_sesion_con_correo_y_contrasena(): void
     {
         $cliente = Cliente::query()->create([

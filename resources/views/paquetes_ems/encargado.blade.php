@@ -445,6 +445,15 @@
             <div class="ems-confirm-modal__eyebrow">Reimpresion</div>
             <h4 class="ems-confirm-modal__title" id="emsPrintOptionsTitle">Elegir formato</h4>
             <p class="ems-confirm-modal__message">Elige el formato para reimprimir la boleta EMS.</p>
+            <div class="ems-change-cartero-field">
+                <label for="emsPrintCopies">Numero de copias</label>
+                <select id="emsPrintCopies">
+                    @for ($i = 1; $i <= 5; $i++)
+                        <option value="{{ $i }}">{{ $i }} {{ $i === 1 ? 'copia' : 'copias' }}</option>
+                    @endfor
+                </select>
+                <small>Maximo 5 copias.</small>
+            </div>
             <div class="ems-print-options">
                 <a href="#" target="_blank" class="ems-confirm-modal__btn is-secondary" id="emsPrintTermicaLink">
                     Factura termica
@@ -1279,6 +1288,7 @@
             const printOptionsModal = document.getElementById('emsPrintOptionsModal');
             const printTermicaLink = document.getElementById('emsPrintTermicaLink');
             const printCartaLink = document.getElementById('emsPrintCartaLink');
+            const printCopiesSelect = document.getElementById('emsPrintCopies');
             const printOptionsCloseButtons = Array.from(document.querySelectorAll('[data-print-options-close]'));
             let pendingForm = null;
 
@@ -1487,13 +1497,25 @@
 
                 event.preventDefault();
 
-                if (printTermicaLink) {
-                    printTermicaLink.href = button.dataset.termica || '#';
-                }
+                const termicaUrl = button.dataset.termica || '#';
+                const cartaUrl = button.dataset.carta || '#';
+                const updatePrintLinks = function () {
+                    const copies = Math.max(1, Math.min(5, Number.parseInt(printCopiesSelect?.value || '1', 10) || 1));
+                    const addCopies = function (url) {
+                        if (url === '#') return url;
+                        const separator = url.includes('?') ? '&' : '?';
+                        return `${url}${separator}copias=${copies}`;
+                    };
 
-                if (printCartaLink) {
-                    printCartaLink.href = button.dataset.carta || '#';
+                    if (printTermicaLink) printTermicaLink.href = addCopies(termicaUrl);
+                    if (printCartaLink) printCartaLink.href = addCopies(cartaUrl);
+                };
+
+                if (printCopiesSelect) {
+                    printCopiesSelect.value = '1';
+                    printCopiesSelect.onchange = updatePrintLinks;
                 }
+                updatePrintLinks();
 
                 if (printOptionsModal) {
                     printOptionsModal.classList.add('is-open');

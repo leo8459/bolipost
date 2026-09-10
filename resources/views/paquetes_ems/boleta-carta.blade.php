@@ -15,6 +15,11 @@
         }
         .sheet {
             width: 100%;
+            page-break-inside: avoid;
+        }
+        .sheet-page-break {
+            height: 0;
+            page-break-after: always;
         }
         .header {
             display: table;
@@ -240,10 +245,12 @@
     $precio = $paquete->precio !== null && $paquete->precio !== '' ? \App\Support\BolivianNumber::format((float) $paquete->precio, 2, '.', '') . ' Bs' : '-';
     $fecha = \Carbon\Carbon::parse($paquete->created_at ?? now())->format('d/m/Y H:i:s');
     $usuario = trim((string) (Auth::user()->name ?? ''));
+    $copias = max(1, min(5, (int) ($copias ?? 1)));
     $logoPath = public_path('images/LOGO 19-2-26.png');
     $logoB64 = file_exists($logoPath) ? base64_encode(file_get_contents($logoPath)) : null;
 @endphp
 <body>
+@for ($i = 0; $i < $copias; $i++)
     <main class="sheet">
         <header class="header">
             <div class="header-left">
@@ -333,5 +340,9 @@
             Documento generado por TrackingBO - Correos de Bolivia
         </footer>
     </main>
+    @if ($i < $copias - 1)
+        <div class="sheet-page-break"></div>
+    @endif
+@endfor
 </body>
 </html>

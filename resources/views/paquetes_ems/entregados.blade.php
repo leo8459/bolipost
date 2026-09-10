@@ -164,6 +164,15 @@
                 </div>
                 <div class="modal-body">
                     <p class="mb-3">Elige el formato para reimprimir la boleta EMS.</p>
+                    <div class="form-group mb-3">
+                        <label for="emsPrintCopies">Numero de copias</label>
+                        <select id="emsPrintCopies" class="form-control">
+                            @for ($i = 1; $i <= 5; $i++)
+                                <option value="{{ $i }}">{{ $i }} {{ $i === 1 ? 'copia' : 'copias' }}</option>
+                            @endfor
+                        </select>
+                        <small class="form-text text-muted">Maximo 5 copias.</small>
+                    </div>
                     <div class="d-flex flex-column flex-sm-row" style="gap: 10px;">
                         <a href="#" target="_blank" class="btn btn-outline-dark flex-fill" id="emsPrintTermicaLink">
                             <i class="fas fa-receipt mr-1"></i> Factura termica
@@ -194,14 +203,27 @@
 
             const termicaLink = document.getElementById('emsPrintTermicaLink');
             const cartaLink = document.getElementById('emsPrintCartaLink');
+            const copiesSelect = document.getElementById('emsPrintCopies');
+            const termicaUrl = button.dataset.termica || '#';
+            const cartaUrl = button.dataset.carta || '#';
 
-            if (termicaLink) {
-                termicaLink.href = button.dataset.termica || '#';
-            }
+            const updatePrintLinks = function () {
+                const copies = Math.max(1, Math.min(5, Number.parseInt(copiesSelect?.value || '1', 10) || 1));
+                const addCopies = function (url) {
+                    if (url === '#') return url;
+                    const separator = url.includes('?') ? '&' : '?';
+                    return `${url}${separator}copias=${copies}`;
+                };
 
-            if (cartaLink) {
-                cartaLink.href = button.dataset.carta || '#';
+                if (termicaLink) termicaLink.href = addCopies(termicaUrl);
+                if (cartaLink) cartaLink.href = addCopies(cartaUrl);
+            };
+
+            if (copiesSelect) {
+                copiesSelect.value = '1';
+                copiesSelect.onchange = updatePrintLinks;
             }
+            updatePrintLinks();
 
             if (window.jQuery) {
                 $('#emsPrintOptionsModal').modal('show');

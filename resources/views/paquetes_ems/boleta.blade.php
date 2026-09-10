@@ -224,6 +224,7 @@
     $direccion = (string) ($paquete->direccion ?? optional($paquete->formulario)->direccion ?? '');
     $referencia = (string) ($paquete->referencia ?? optional($paquete->formulario)->referencia ?? '');
     $usuario = trim((string) (Auth::user()->name ?? ''));
+    $copias = max(1, min(5, (int) ($copias ?? 1)));
 
     $marcaAgua = match ($destinoTarifa) {
         'SUPEREXPRESS' => 'NACIONAL SUPEREXPRESS',
@@ -244,14 +245,14 @@
     $logoB64 = file_exists($logoPath) ? base64_encode(file_get_contents($logoPath)) : null;
 @endphp
 <body>
-@for ($i = 0; $i < 2; $i++)
+@for ($i = 0; $i < $copias; $i++)
     <div class="ticket">
         <div class="brand center">
             @if($logoB64)
                 <img src="data:image/png;base64,{{ $logoB64 }}" alt="Correos de Bolivia">
             @endif
             <div class="brand-title">Boleta EMS</div>
-            <div class="copy-label">Copia {{ $i + 1 }} de 2</div>
+            <div class="copy-label">Copia {{ $i + 1 }} de {{ $copias }}</div>
             @if($marcaAgua !== '')
                 <div class="watermark">{{ $marcaAgua }}</div>
             @endif
@@ -364,7 +365,7 @@
         </div>
 
     </div>
-    @if($i === 0)
+    @if($i < $copias - 1)
         <div class="ticket-page-break"></div>
     @endif
 @endfor

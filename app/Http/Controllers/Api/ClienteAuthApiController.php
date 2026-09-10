@@ -161,6 +161,21 @@ class ClienteAuthApiController extends Controller
         ]);
     }
 
+    public function updatePassword(Request $request, Cliente $cliente): JsonResponse
+    {
+        $validated = $request->validate([
+            'password' => ['required', 'confirmed', Password::min(8)],
+        ]);
+
+        $cliente->forceFill([
+            'password' => $validated['password'],
+        ])->save();
+
+        return response()->json([
+            'message' => 'Contraseña del cliente actualizada correctamente.',
+        ]);
+    }
+
     public function login(Request $request): JsonResponse
     {
         $request->merge([
