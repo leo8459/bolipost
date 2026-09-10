@@ -40,7 +40,7 @@ class PaquetesEmsBoletaController extends Controller
         $pdf = Pdf::loadView('paquetes_ems.boleta', [
             'paquete' => $paquete,
             'verificationUrl' => $this->verificationUrlFor($paquete),
-        ])->setPaper([0, 0, 226.77, 595.28], 'portrait');
+        ])->setPaper([0, 0, 226.77, 651.97], 'portrait');
 
         return $pdf->download('boleta-termica-'.$paquete->id.'.pdf');
     }
@@ -67,7 +67,7 @@ class PaquetesEmsBoletaController extends Controller
         $pdf = Pdf::loadView('paquetes_ems.boleta', [
             'paquete' => $paquete,
             'verificationUrl' => $this->verificationUrlFor($paquete),
-        ])->setPaper([0, 0, 226.77, 595.28], 'portrait');
+        ])->setPaper([0, 0, 226.77, 651.97], 'portrait');
 
         return $pdf->stream('guia-ems-verificacion-'.$paquete->codigo.'.pdf');
     }

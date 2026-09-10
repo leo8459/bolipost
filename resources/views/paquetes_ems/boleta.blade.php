@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Boleta EMS</title>
     <style>
-        @page { size: 80mm 210mm; margin: 3mm 4mm; }
+        @page { size: 80mm 230mm; margin: 3mm 4mm; }
         * { box-sizing: border-box; }
         html, body {
             margin: 0;

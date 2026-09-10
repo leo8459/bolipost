@@ -254,6 +254,7 @@ class FacturaFirmaPdfController extends Controller
                 return [
                     'codigo' => $code,
                     'servicio' => $service,
+                    'monto' => $this->resolveDeliveryPackageAmount($item),
                 ];
             })
             ->filter()
@@ -264,6 +265,24 @@ class FacturaFirmaPdfController extends Controller
             ))
             ->values()
             ->all();
+    }
+
+    private function resolveDeliveryPackageAmount(object $item): string
+    {
+        $amount = collect([
+            data_get($item, 'monto_base'),
+            data_get($item, 'precio'),
+            data_get($item, 'resumen_origen.monto_base'),
+            data_get($item, 'resumen_origen.precio'),
+        ])->first(fn ($value) => $value !== null && trim((string) $value) !== '');
+
+        if ($amount === null || trim((string) $amount) === '') {
+            $amount = data_get($item, 'total_linea');
+        }
+
+        $amount = round(max(0, (float) $amount), 2);
+
+        return $amount > 0 ? 'Bs ' . number_format($amount, 2, '.', '') : '';
     }
 
     private function shouldIncludePackageInDeliveryForm(string $code, string $service): bool

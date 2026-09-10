@@ -215,20 +215,27 @@ class FacturaFirmaPdfService
             $packages = [];
         }
 
-        $packages = array_values(array_filter(array_map(function ($package): string {
+        $packages = array_values(array_filter(array_map(function ($package): array {
             if (is_array($package)) {
-                return trim((string) ($package['codigo'] ?? ''));
+                return [
+                    'codigo' => trim((string) ($package['codigo'] ?? '')),
+                    'monto' => trim((string) ($package['monto'] ?? $package['precio'] ?? $package['importe'] ?? '')),
+                ];
             }
 
-            return trim((string) $package);
-        }, $packages), fn ($package) => $package !== ''));
+            return [
+                'codigo' => trim((string) $package),
+                'monto' => '',
+            ];
+        }, $packages), fn (array $package) => $package['codigo'] !== ''));
 
         return array_slice($packages, 0, 12);
     }
 
-    private function drawDeliveryPackage(Fpdi $pdf, float $left, float $right, float $y, string $code): float
+    private function drawDeliveryPackage(Fpdi $pdf, float $left, float $right, float $y, array $package): float
     {
-        $code = $this->pdfText($code);
+        $code = $this->pdfText((string) ($package['codigo'] ?? ''));
+        $amount = $this->pdfText((string) ($package['monto'] ?? ''));
         $rowHeight = 13.5;
         $barcodeWidth = min(50, $right - $left - 4);
         $barcodeHeight = 8.5;
@@ -246,8 +253,9 @@ class FacturaFirmaPdfService
         }
 
         $pdf->SetFont('Courier', 'B', 7.8);
-        $textX = $barcodeX + (($barcodeWidth - $pdf->GetStringWidth($code)) / 2);
-        $pdf->Text(max($left, $textX), $barcodeY + $barcodeHeight + 3.2, $code);
+        $packageText = trim($code . ($amount !== '' ? '     ' . $amount : ''));
+        $textX = $barcodeX + (($barcodeWidth - $pdf->GetStringWidth($packageText)) / 2);
+        $pdf->Text(max($left, $textX), $barcodeY + $barcodeHeight + 3.2, $packageText);
 
         return $y + $rowHeight;
     }
