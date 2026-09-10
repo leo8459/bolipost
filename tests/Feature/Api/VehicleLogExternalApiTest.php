@@ -164,4 +164,50 @@ class VehicleLogExternalApiTest extends TestCase
             ->assertJsonPath('total', 1)
             ->assertJsonPath('data.0.id', $response->json('data.id'));
     }
+
+    public function test_el_catalogo_api_devuelve_todos_los_conductores_activos_aunque_esten_asignados(): void
+    {
+        $assignedDriverId = Schema::getConnection()->table('drivers')->insertGetId([
+            'nombre' => 'Israel',
+            'activo' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $freeDriverId = Schema::getConnection()->table('drivers')->insertGetId([
+            'nombre' => 'Pablo',
+            'activo' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        Schema::getConnection()->table('drivers')->insert([
+            'nombre' => 'Inactivo',
+            'activo' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $vehicleId = Schema::getConnection()->table('vehicles')->insertGetId([
+            'placa' => 'ASG-001',
+            'activo' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        Schema::getConnection()->table('vehicle_assignments')->insert([
+            'vehicle_id' => $vehicleId,
+            'driver_id' => $assignedDriverId,
+            'fecha_inicio' => now()->subDay()->toDateString(),
+            'activo' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->getJson('/api/bitacoras/conductores')
+            ->assertOk()
+            ->assertJsonPath('count', 2)
+            ->assertJsonPath('data.0.id', $assignedDriverId)
+            ->assertJsonPath('data.0.tiene_asignacion_activa', true)
+            ->assertJsonPath('data.0.asignacion_activa.placa', 'ASG-001')
+            ->assertJsonPath('data.1.id', $freeDriverId)
+            ->assertJsonPath('data.1.tiene_asignacion_activa', false)
+            ->assertJsonMissing(['nombre' => 'Inactivo']);
+    }
 }

@@ -20,6 +20,54 @@ use Illuminate\Validation\ValidationException;
 
 class VehicleLogApiController extends Controller
 {
+    public function externalDrivers()
+    {
+        $today = now()->toDateString();
+        $drivers = Driver::query()
+            ->where('activo', true)
+            ->with(['assignments' => function ($query) use ($today): void {
+                $query
+                    ->with('vehicle')
+                    ->where('activo', true)
+                    ->where(function ($dateQuery) use ($today): void {
+                        $dateQuery->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $today);
+                    })
+                    ->where(function ($dateQuery) use ($today): void {
+                        $dateQuery->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $today);
+                    })
+                    ->latest('fecha_inicio')
+                    ->latest('id');
+            }])
+            ->orderBy('nombre')
+            ->get()
+            ->map(function (Driver $driver): array {
+                $assignment = $driver->assignments->first();
+
+                return [
+                    'id' => (int) $driver->id,
+                    'nombre' => (string) $driver->nombre,
+                    'licencia' => $driver->licencia,
+                    'telefono' => $driver->telefono,
+                    'email' => $driver->email,
+                    'activo' => (bool) $driver->activo,
+                    'tiene_asignacion_activa' => $assignment !== null,
+                    'asignacion_activa' => $assignment ? [
+                        'id' => (int) $assignment->id,
+                        'vehicle_id' => $assignment->vehicle_id ? (int) $assignment->vehicle_id : null,
+                        'placa' => $assignment->vehicle?->placa,
+                        'fecha_inicio' => $assignment->fecha_inicio?->toIso8601String(),
+                        'fecha_fin' => $assignment->fecha_fin?->toIso8601String(),
+                    ] : null,
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'count' => $drivers->count(),
+            'data' => $drivers,
+        ]);
+    }
+
     public function externalIndex(Request $request)
     {
         $validated = $request->validate([
