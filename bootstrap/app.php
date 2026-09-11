@@ -2,19 +2,19 @@
 
 use App\Http\Middleware\ApplySecurityHeaders;
 use App\Http\Middleware\EnsureAclPermissionsSynced;
+use App\Http\Middleware\EnsureChasquiCartero;
 use App\Http\Middleware\EnsureClienteAclPermissionsSynced;
 use App\Http\Middleware\EnsureClienteProfileComplete;
 use App\Http\Middleware\EnsureClienteRoutePermission;
-use App\Http\Middleware\EnsureChasquiCartero;
 use App\Http\Middleware\EnsureEmpresaContractUsersActive;
 use App\Http\Middleware\EnsureExternalApiAbility;
 use App\Http\Middleware\EnsureExternalApiAnyAbility;
 use App\Http\Middleware\EnsureExternalApiJwt;
-use App\Http\Middleware\ForceJsonResponse;
 use App\Http\Middleware\EnsureInternalWebAccess;
 use App\Http\Middleware\EnsureRoutePermission;
 use App\Http\Middleware\EnsureSingleMobileSession;
 use App\Http\Middleware\EnsureSiopApiToken;
+use App\Http\Middleware\ForceJsonResponse;
 use App\Http\Middleware\RedirectIfClienteAuthenticated;
 use App\Http\Middleware\RegistrarAuditoria;
 use App\Http\Middleware\UseClienteGuard;
@@ -29,6 +29,7 @@ use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Http\Middleware\CheckAbilities;
 use Laravel\Sanctum\Http\Middleware\CheckForAnyAbility;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -68,6 +69,22 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->render(function (HttpExceptionInterface $e, Request $request) {
+            if (
+                $e->getStatusCode() !== 403
+                || $e->getMessage() !== 'No tienes permiso para acceder a esta ventana o accion.'
+                || ! $request->isMethodSafe()
+                || $request->expectsJson()
+            ) {
+                return null;
+            }
+
+            return redirect()->away((string) config(
+                'acl.forbidden_redirect_url',
+                'https://trackingbo.correos.gob.bo:8100/inicio'
+            ));
+        });
+
         $exceptions->render(function (QueryException $e, Request $request) {
             $sqlState = (string) ($e->errorInfo[0] ?? $e->getCode());
             $detail = strtolower($e->getMessage());

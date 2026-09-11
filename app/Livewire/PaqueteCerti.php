@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Exports\PaquetesCertiAlmacenExport;
 use App\Models\Estado as EstadoModel;
 use App\Models\PaqueteCerti as PaqueteCertiModel;
 use App\Models\Servicio as ServicioModel;
@@ -14,6 +15,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Maatwebsite\Excel\Facades\Excel;
 
 class PaqueteCerti extends Component
 {
@@ -115,6 +117,32 @@ class PaqueteCerti extends Component
     {
         $this->searchQuery = $value;
         $this->resetPage();
+    }
+
+    public function exportarExcel()
+    {
+        abort_unless($this->isAlmacen, 404);
+        $this->authorizePermission(self::MODE_ROUTE_PERMISSIONS['almacen']);
+
+        $paquetes = $this->filteredPaquetesQuery()
+            ->with(['estado', 'ventanillaRef'])
+            ->orderBy('id')
+            ->get();
+
+        $ventanillas = collect($this->restrictedVentanillaNames() ?? $paquetes
+            ->map(fn (PaqueteCertiModel $paquete) => trim((string) ($paquete->ventanillaRef?->nombre_ventanilla ?? $paquete->ventanilla)))
+            ->all())
+            ->filter()
+            ->map(fn (string $ventanilla) => strtoupper($ventanilla))
+            ->unique()
+            ->sort()
+            ->values()
+            ->implode('-');
+
+        $scope = preg_replace('/[^A-Z0-9_-]+/', '-', $ventanillas !== '' ? $ventanillas : 'TODAS');
+        $filename = sprintf('Ventanilla Certificados %s (%d).xlsx', $scope, $paquetes->count());
+
+        return Excel::download(new PaquetesCertiAlmacenExport($paquetes), $filename);
     }
 
     public function openCreateModal()
@@ -838,68 +866,8 @@ class PaqueteCerti extends Component
 
     public function render()
     {
-        $q = trim($this->searchQuery);
-        $userCity = trim((string) optional(auth()->user())->ciudad);
-        $hasGlobalDepartmentAccess = (bool) optional(auth()->user())->hasGlobalDepartmentAccess();
-        $estadoEntregadoId = $this->getEstadoIdByNombre(self::ESTADO_ENTREGADO);
-        $estadoRezagoId = $this->getEstadoIdByNombre(self::ESTADO_REZAGO);
-        $estadoVentanillaId = $this->getEstadoIdByNombre(self::ESTADO_VENTANILLA);
-        $estadoRecibidoId = $this->getEstadoIdByNombre(self::ESTADO_RECIBIDO);
-
-        $paquetes = $this->authorizedPaquetesQuery()
+        $paquetes = $this->filteredPaquetesQuery()
             ->with(['estado', 'ventanillaRef', 'servicio'])
-            ->when(!$hasGlobalDepartmentAccess && $userCity !== '', function ($query) use ($userCity) {
-                $query->whereRaw('TRIM(UPPER(cuidad)) = TRIM(UPPER(?))', [$userCity]);
-            })
-            ->when(!$hasGlobalDepartmentAccess && $userCity === '', function ($query) {
-                $query->whereRaw('1 = 0');
-            })
-            ->when($this->isInventory, function ($query) use ($estadoEntregadoId) {
-                if ($estadoEntregadoId) {
-                    $query->where('fk_estado', $estadoEntregadoId);
-                } else {
-                    $query->whereRaw('1 = 0');
-                }
-            })
-            ->when($this->isRezago, function ($query) use ($estadoRezagoId) {
-                if ($estadoRezagoId) {
-                    $query->where('fk_estado', $estadoRezagoId);
-                } else {
-                    $query->whereRaw('1 = 0');
-                }
-            })
-            ->when($this->isAlmacen, function ($query) use ($estadoVentanillaId, $estadoRecibidoId) {
-                $estadoIds = collect([$estadoVentanillaId, $estadoRecibidoId])
-                    ->filter()
-                    ->map(fn ($id) => (int) $id)
-                    ->unique()
-                    ->values()
-                    ->all();
-
-                if (!empty($estadoIds)) {
-                    $query->whereIn('fk_estado', $estadoIds);
-                } else {
-                    $query->whereRaw('1 = 0');
-                }
-            })
-            ->when($q !== '', function ($query) use ($q) {
-                $query->where(function ($searchQuery) use ($q) {
-                    $searchQuery->where('codigo', 'ILIKE', "%{$q}%")
-                        ->orWhere('destinatario', 'ILIKE', "%{$q}%")
-                        ->orWhere('telefono', 'ILIKE', "%{$q}%")
-                        ->orWhere('cuidad', 'ILIKE', "%{$q}%")
-                        ->orWhere('zona', 'ILIKE', "%{$q}%")
-                        ->orWhere('peso', 'ILIKE', "%{$q}%")
-                        ->orWhere('tipo', 'ILIKE', "%{$q}%")
-                        ->orWhere('aduana', 'ILIKE', "%{$q}%")
-                        ->orWhereHas('estado', function ($estadoQuery) use ($q) {
-                            $estadoQuery->where('nombre_estado', 'ILIKE', "%{$q}%");
-                        })
-                        ->orWhereHas('ventanillaRef', function ($ventanillaQuery) use ($q) {
-                            $ventanillaQuery->where('nombre_ventanilla', 'ILIKE', "%{$q}%");
-                        });
-                });
-            })
             ->orderByDesc('id')
             ->paginate(10);
 
@@ -931,6 +899,71 @@ class PaqueteCerti extends Component
                 ? UserModel::query()->orderBy('name')->get(['id', 'name', 'email'])
                 : collect(),
         ]);
+    }
+
+    private function filteredPaquetesQuery()
+    {
+        $q = trim($this->searchQuery);
+        $userCity = trim((string) optional(auth()->user())->ciudad);
+        $hasGlobalDepartmentAccess = (bool) optional(auth()->user())->hasGlobalDepartmentAccess();
+        $estadoEntregadoId = $this->getEstadoIdByNombre(self::ESTADO_ENTREGADO);
+        $estadoRezagoId = $this->getEstadoIdByNombre(self::ESTADO_REZAGO);
+        $estadoVentanillaId = $this->getEstadoIdByNombre(self::ESTADO_VENTANILLA);
+        $estadoRecibidoId = $this->getEstadoIdByNombre(self::ESTADO_RECIBIDO);
+
+        return $this->authorizedPaquetesQuery()
+            ->when(! $hasGlobalDepartmentAccess && $userCity !== '', function ($query) use ($userCity) {
+                $query->whereRaw('TRIM(UPPER(cuidad)) = TRIM(UPPER(?))', [$userCity]);
+            })
+            ->when(! $hasGlobalDepartmentAccess && $userCity === '', function ($query) {
+                $query->whereRaw('1 = 0');
+            })
+            ->when($this->isInventory, function ($query) use ($estadoEntregadoId) {
+                if ($estadoEntregadoId) {
+                    $query->where('fk_estado', $estadoEntregadoId);
+                } else {
+                    $query->whereRaw('1 = 0');
+                }
+            })
+            ->when($this->isRezago, function ($query) use ($estadoRezagoId) {
+                if ($estadoRezagoId) {
+                    $query->where('fk_estado', $estadoRezagoId);
+                } else {
+                    $query->whereRaw('1 = 0');
+                }
+            })
+            ->when($this->isAlmacen, function ($query) use ($estadoVentanillaId, $estadoRecibidoId) {
+                $estadoIds = collect([$estadoVentanillaId, $estadoRecibidoId])
+                    ->filter()
+                    ->map(fn ($id) => (int) $id)
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                if (! empty($estadoIds)) {
+                    $query->whereIn('fk_estado', $estadoIds);
+                } else {
+                    $query->whereRaw('1 = 0');
+                }
+            })
+            ->when($q !== '', function ($query) use ($q) {
+                $query->where(function ($searchQuery) use ($q) {
+                    $searchQuery->where('codigo', 'ILIKE', "%{$q}%")
+                        ->orWhere('destinatario', 'ILIKE', "%{$q}%")
+                        ->orWhere('telefono', 'ILIKE', "%{$q}%")
+                        ->orWhere('cuidad', 'ILIKE', "%{$q}%")
+                        ->orWhere('zona', 'ILIKE', "%{$q}%")
+                        ->orWhere('peso', 'ILIKE', "%{$q}%")
+                        ->orWhere('tipo', 'ILIKE', "%{$q}%")
+                        ->orWhere('aduana', 'ILIKE', "%{$q}%")
+                        ->orWhereHas('estado', function ($estadoQuery) use ($q) {
+                            $estadoQuery->where('nombre_estado', 'ILIKE', "%{$q}%");
+                        })
+                        ->orWhereHas('ventanillaRef', function ($ventanillaQuery) use ($q) {
+                            $ventanillaQuery->where('nombre_ventanilla', 'ILIKE', "%{$q}%");
+                        });
+                });
+            });
     }
 
     private function modeFeaturePermission(string $action, ?string $mode = null): string

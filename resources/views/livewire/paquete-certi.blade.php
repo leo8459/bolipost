@@ -255,6 +255,22 @@
                                     wire:model.live.debounce.300ms="search"
                                 >
                                 <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes">Buscar</button>
+                                @if ($this->isAlmacen)
+                                    <button
+                                        class="btn btn-outline-light2"
+                                        type="button"
+                                        wire:click="exportarExcel"
+                                        wire:loading.attr="disabled"
+                                        wire:target="exportarExcel"
+                                    >
+                                        <span wire:loading.remove wire:target="exportarExcel">
+                                            <i class="fas fa-file-excel mr-1"></i> Generar Excel
+                                        </span>
+                                        <span wire:loading wire:target="exportarExcel">
+                                            <i class="fas fa-spinner fa-spin mr-1"></i> Generando...
+                                        </span>
+                                    </button>
+                                @endif
                                 @if ($this->isAlmacen && $canCertiCreate)
                                     <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
                                 @endif

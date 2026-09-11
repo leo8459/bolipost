@@ -15,6 +15,11 @@ return [
         'allow_when_permission_missing' => false,
     ],
 
+    'forbidden_redirect_url' => env(
+        'FORBIDDEN_REDIRECT_URL',
+        'https://trackingbo.correos.gob.bo:8100/inicio'
+    ),
+
     /*
     |--------------------------------------------------------------------------
     | Super Admin Role
