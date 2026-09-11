@@ -147,6 +147,30 @@ Route::middleware(['force.json', 'external.api.jwt', 'throttle:120,1'])->group(f
         ->middleware('external.api.ability:gasolinas:create')
         ->name('api.gasolinas.store');
 
+    Route::get('/mantenimientos', [MaintenanceRequestApiController::class, 'externalIndex'])
+        ->middleware('external.api.ability:mantenimientos:read')
+        ->name('api.mantenimientos.index');
+    Route::get('/mantenimientos/vehiculos', [MaintenanceRequestApiController::class, 'externalVehicles'])
+        ->middleware('external.api.ability:mantenimientos:create')
+        ->name('api.mantenimientos.vehicles');
+    Route::get('/mantenimientos/conductores', [MaintenanceRequestApiController::class, 'externalDrivers'])
+        ->middleware('external.api.ability:mantenimientos:create')
+        ->name('api.mantenimientos.drivers');
+    Route::get('/mantenimientos/tipos', [MaintenanceRequestApiController::class, 'externalTypes'])
+        ->middleware('external.api.ability:mantenimientos:create')
+        ->name('api.mantenimientos.types');
+    Route::get('/mantenimientos/{maintenanceAppointment}/evidencia', [MaintenanceRequestApiController::class, 'externalEvidence'])
+        ->middleware('external.api.ability:mantenimientos:read')
+        ->whereNumber('maintenanceAppointment')
+        ->name('api.mantenimientos.evidence');
+    Route::get('/mantenimientos/{maintenanceAppointment}/formulario', [MaintenanceRequestApiController::class, 'externalForm'])
+        ->middleware('external.api.ability:mantenimientos:read')
+        ->whereNumber('maintenanceAppointment')
+        ->name('api.mantenimientos.form');
+    Route::post('/mantenimientos', [MaintenanceRequestApiController::class, 'externalStore'])
+        ->middleware('external.api.ability:mantenimientos:create')
+        ->name('api.mantenimientos.store');
+
     Route::get('/paquetes-contactos', [PaqueteContactoApiController::class, 'index'])
         ->name('api.paquetes-contactos.index');
     Route::get('/paquetes-contactos/{tipo}', [PaqueteContactoApiController::class, 'index'])

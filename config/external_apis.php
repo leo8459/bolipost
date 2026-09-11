@@ -227,6 +227,117 @@ return [
                 ],
             ],
         ],
+        'mantenimientos:create' => [
+            'name' => 'SOLICITAR MANTENIMIENTOS',
+            'description' => 'Permite consultar vehiculos, conductores y tipos de mantenimiento disponibles, y registrar una solicitud igual que en el modulo de citas de mantenimiento.',
+            'access' => 'Escritura con documentos',
+            'icon' => 'fas fa-tools',
+            'color' => 'warning',
+            'endpoints' => [
+                [
+                    'method' => 'GET',
+                    'path' => '/api/mantenimientos/vehiculos',
+                    'example' => '',
+                    'response' => [
+                        'count' => 1,
+                        'data' => [[
+                            'id' => 1,
+                            'placa' => 'ABC-123',
+                            'marca' => 'Toyota',
+                            'modelo' => 'Hilux',
+                            'kilometraje_actual' => 12500.5,
+                            'disponible_para_mantenimiento' => true,
+                            'asignacion_activa' => [
+                                'driver_id' => 1,
+                                'conductor' => 'Conductor Demo',
+                            ],
+                        ]],
+                    ],
+                ],
+                [
+                    'method' => 'GET',
+                    'path' => '/api/mantenimientos/conductores',
+                    'example' => '',
+                    'response' => [
+                        'count' => 1,
+                        'data' => [[
+                            'id' => 1,
+                            'nombre' => 'Conductor Demo',
+                            'licencia' => 'LIC-001',
+                            'activo' => true,
+                        ]],
+                    ],
+                ],
+                [
+                    'method' => 'GET',
+                    'path' => '/api/mantenimientos/tipos',
+                    'example' => '?vehicle_id=1',
+                    'response' => [
+                        'count' => 1,
+                        'data' => [[
+                            'id' => 1,
+                            'nombre' => 'Cambio de aceite',
+                            'categoria' => 'preventivo_km',
+                            'es_preventivo' => true,
+                            'cada_km' => 5000,
+                        ]],
+                    ],
+                ],
+                [
+                    'method' => 'POST',
+                    'path' => '/api/mantenimientos',
+                    'example' => '',
+                    'body_type' => 'form-data',
+                    'body' => [
+                        'vehicle_id' => 1,
+                        'driver_id' => 1,
+                        'maintenance_type_id' => 1,
+                        'fecha_programada' => '2026-09-20 09:30:00',
+                        'es_accidente' => false,
+                        'evidencia' => '@foto_evidencia.jpg (opcional, tipo File)',
+                        'formulario_documento' => '@formulario.pdf (opcional, tipo File)',
+                    ],
+                    'response' => [
+                        'message' => 'Solicitud de mantenimiento registrada correctamente.',
+                        'data' => [
+                            'id' => 1,
+                            'estado' => 'Pendiente',
+                            'origen_solicitud' => 'external_api',
+                        ],
+                    ],
+                ],
+            ],
+        ],
+        'mantenimientos:read' => [
+            'name' => 'VER MANTENIMIENTOS',
+            'description' => 'Consulta todas las solicitudes y citas de mantenimiento con vehiculo, conductor, tipo, estado, fechas y enlaces protegidos a sus documentos.',
+            'access' => 'Solo lectura',
+            'icon' => 'fas fa-calendar-check',
+            'color' => 'info',
+            'endpoints' => [
+                [
+                    'method' => 'GET',
+                    'path' => '/api/mantenimientos',
+                    'example' => '?per_page=20&page=1&vehicle_id=1&driver_id=1&status=Pendiente&date_from=2026-09-01&date_to=2026-09-30',
+                    'response' => [
+                        'data' => [],
+                        'current_page' => 1,
+                        'per_page' => 20,
+                        'total' => 0,
+                    ],
+                ],
+                [
+                    'method' => 'GET',
+                    'path' => '/api/mantenimientos/{maintenanceAppointment}/evidencia',
+                    'example' => '',
+                ],
+                [
+                    'method' => 'GET',
+                    'path' => '/api/mantenimientos/{maintenanceAppointment}/formulario',
+                    'example' => '',
+                ],
+            ],
+        ],
         'packgo:bitacora-route' => [
             'name' => 'PACKGO - Bitacora y rutas',
             'description' => 'Permite sincronizar bitacora, ubicacion, recorridos y reasignaciones de vehiculos desde PackGo.',

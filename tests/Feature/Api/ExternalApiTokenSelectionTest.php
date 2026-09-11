@@ -72,8 +72,14 @@ class ExternalApiTokenSelectionTest extends TestCase
             ->assertSee('VER BITACORAS')
             ->assertSee('CREAR GASOLINA')
             ->assertSee('VER GASOLINA')
+            ->assertSee('SOLICITAR MANTENIMIENTOS')
+            ->assertSee('VER MANTENIMIENTOS')
             ->assertSee('/api/bitacoras')
             ->assertSee('/api/gasolinas')
+            ->assertSee('/api/mantenimientos')
+            ->assertSee('/api/mantenimientos/vehiculos')
+            ->assertSee('/api/mantenimientos/conductores')
+            ->assertSee('/api/mantenimientos/tipos')
             ->assertSee('Consultar direcciones de entrega')
             ->assertSee('Actualizar direcciones de entrega')
             ->assertSee('Iniciar sesion Delivery Express con Google')
@@ -162,6 +168,21 @@ class ExternalApiTokenSelectionTest extends TestCase
 
         $this->post('/configuracion/apis', [
             'name' => 'Integracion de gasolina',
+            'abilities' => $abilities,
+        ])->assertRedirect(route('configuracion.apis.index'));
+
+        $token = ExternalApiToken::query()->firstOrFail();
+
+        $this->assertSame($abilities, $token->abilities);
+        $this->assertNotEmpty($token->token_plain);
+    }
+
+    public function test_puede_crear_una_credencial_con_permisos_separados_de_mantenimiento(): void
+    {
+        $abilities = ['mantenimientos:create', 'mantenimientos:read'];
+
+        $this->post('/configuracion/apis', [
+            'name' => 'Integracion de mantenimientos',
             'abilities' => $abilities,
         ])->assertRedirect(route('configuracion.apis.index'));
 
