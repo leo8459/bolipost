@@ -6,6 +6,7 @@ use App\Models\ExternalApiToken;
 use App\Models\User;
 use App\Support\ExternalApiJwt;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
@@ -192,6 +193,60 @@ class ChasquiAuthApiTest extends TestCase
         ])->getJson('/api/chasqui/notificaciones/pendientes')
             ->assertForbidden()
             ->assertJsonPath('permiso_requerido', 'chasqui:notificaciones:read');
+    }
+
+    public function test_chasqui_puede_reportar_la_ubicacion_de_su_celular(): void
+    {
+        $user = User::factory()->create([
+            'name' => 'Cartero GPS',
+            'alias' => 'cartero.gps',
+            'ciudad' => 'LA PAZ',
+        ]);
+        $user->assignRole(Role::create(['name' => 'cartero_ems', 'guard_name' => 'web']));
+        $personalToken = $user->createToken('Chasqui Android', ['chasqui'])->plainTextToken;
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer '.$personalToken,
+            'X-API-Token' => $this->externalToken(['chasqui:location:update']),
+        ])->postJson('/api/chasqui/location/heartbeat', [
+            'device_id' => 'android-test-123',
+            'device_name' => 'Poco Chasqui',
+            'latitude' => -16.4897,
+            'longitude' => -68.1193,
+            'accuracy_m' => 7.5,
+            'speed_kmh' => 10.8,
+            'gps_enabled' => true,
+            'gps_mocked' => false,
+        ])
+            ->assertStatus(202)
+            ->assertJsonPath('message', 'Ubicacion de ChasquiApp recibida.')
+            ->assertJsonPath('data.user_id', $user->id)
+            ->assertJsonPath('data.alias', 'cartero.gps')
+            ->assertJsonPath('data.device_name', 'Poco Chasqui')
+            ->assertJsonPath('data.is_moving', true)
+            ->assertJsonPath('data.is_stale', false);
+
+        $index = Cache::get('chasqui:location:index');
+        $this->assertIsArray($index);
+        $this->assertCount(1, $index);
+        $this->assertNotNull(Cache::get('chasqui:location:device:'.$index[0]));
+    }
+
+    public function test_ubicacion_chasqui_exige_el_permiso_de_integracion_correcto(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole(Role::create(['name' => 'cartero_ems', 'guard_name' => 'web']));
+        $personalToken = $user->createToken('Chasqui Android', ['chasqui'])->plainTextToken;
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer '.$personalToken,
+            'X-API-Token' => $this->externalToken(['chasqui:paquetes:read']),
+        ])->postJson('/api/chasqui/location/heartbeat', [
+            'latitude' => -16.4897,
+            'longitude' => -68.1193,
+        ])
+            ->assertForbidden()
+            ->assertJsonPath('permiso_requerido', 'chasqui:location:update');
     }
 
     /** @param array<int, string> $abilities */

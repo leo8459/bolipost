@@ -19,6 +19,10 @@
                 max-height: 24vh;
                 overflow-y: auto;
             }
+            .mobile-device-list {
+                max-height: 24vh;
+                overflow-y: auto;
+            }
             .vehicle-item {
                 border: 1px solid #e7edf5;
                 border-radius: 8px;
@@ -76,6 +80,27 @@
                 border-color: #fef3c7;
                 color: #422006;
             }
+            .map-device-icon {
+                width: 30px;
+                height: 30px;
+                border-radius: 50%;
+                background: #7c3aed;
+                color: #fff;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border: 2px solid #ede9fe;
+                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+                font-size: 15px;
+            }
+            .map-device-icon.moving {
+                background: #0891b2;
+                border-color: #cffafe;
+            }
+            .map-device-icon.stale {
+                background: #6b7280;
+                border-color: #e5e7eb;
+            }
             .operation-alert-item {
                 border: 1px solid #e7edf5;
                 border-radius: 8px;
@@ -124,7 +149,7 @@
     @include('livewire.partials.button-theme')
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h1 class="page-title mb-0">
-            <i class="fas fa-map-marked-alt me-2"></i>Mapa de Vehiculos
+            <i class="fas fa-map-marked-alt me-2"></i>Mapa de Vehiculos y Chasquis
         </h1>
         <div class="d-flex align-items-center gap-2">
             <div class="btn-group btn-group-sm" role="group" aria-label="Modo mapa">
@@ -193,6 +218,10 @@
                     <div class="card-body vehicle-list" id="vehicle-list"></div>
                 </div>
             </div>
+            <div class="card map-panel shadow-sm mt-3">
+                <div class="card-header fw-bold">Celulares ChasquiApp</div>
+                <div class="card-body mobile-device-list" id="mobile-device-list"></div>
+            </div>
         </div>
     </div>
 </div>
@@ -208,6 +237,7 @@
                 const map = L.map('vehicle-map').setView([-16.5, -68.15], 12);
                 const dataUrl = @json(route('map.data'));
                 const listEl = document.getElementById('vehicle-list');
+                const mobileDeviceListEl = document.getElementById('mobile-device-list');
                 const alertsEl = document.getElementById('operation-alerts');
                 const alertsPanelEl = document.getElementById('operation-alerts-panel');
                 const vehicleListPanelEl = document.getElementById('vehicle-list-panel');
@@ -226,6 +256,7 @@
                 let selectedLastPoint = null;
                 let filteredVehicleId = '';
                 let currentOfflineDate = queryParams.get('date') || @json(now()->toDateString());
+                let currentMobileDevices = [];
                 const refreshIntervalMs = 3000;
 
                 function setPanelState(buttonEl, panelEl, collapsed) {
@@ -279,6 +310,23 @@
                         iconAnchor: [15, 15],
                         popupAnchor: [0, -14]
                     });
+                }
+
+                function createMobileDeviceIcon(item) {
+                    const stateClass = item.is_stale ? 'stale' : (item.is_moving ? 'moving' : '');
+                    return L.divIcon({
+                        html: `<div class="map-device-icon ${stateClass}"><i class="fas fa-mobile-alt"></i></div>`,
+                        className: '',
+                        iconSize: [30, 30],
+                        iconAnchor: [15, 15],
+                        popupAnchor: [0, -14]
+                    });
+                }
+
+                function escapeHtml(value) {
+                    const div = document.createElement('div');
+                    div.textContent = String(value ?? '');
+                    return div.innerHTML;
                 }
 
                 function formatAge(seconds) {
@@ -395,7 +443,43 @@
                     });
                 }
 
-                function renderMap(vehicles) {
+                function renderMobileDevices(devices) {
+                    if (!mobileDeviceListEl) return;
+                    mobileDeviceListEl.innerHTML = '';
+
+                    if (effectiveMode !== 'online') {
+                        mobileDeviceListEl.innerHTML = '<div class="text-muted">Disponibles solamente en Tiempo Real.</div>';
+                        return;
+                    }
+
+                    if (!Array.isArray(devices) || devices.length === 0) {
+                        mobileDeviceListEl.innerHTML = '<div class="text-muted">Ningun celular esta reportando ubicacion.</div>';
+                        return;
+                    }
+
+                    devices.forEach((item) => {
+                        const div = document.createElement('div');
+                        div.className = 'vehicle-item';
+                        div.innerHTML = `
+                            <div class="fw-bold"><i class="fas fa-mobile-alt me-1"></i>${escapeHtml(item.user_name || item.alias || 'Chasqui')}</div>
+                            <div class="small text-muted">${escapeHtml(item.alias || '')} · ${escapeHtml(item.device_name || 'ChasquiApp')}</div>
+                            <div class="small fw-semibold ${item.is_moving ? 'text-info' : 'text-secondary'}">${item.is_moving ? 'En movimiento' : 'Detenido'}</div>
+                            <div class="small ${item.is_stale ? 'text-danger' : 'text-success'}">${item.is_stale ? 'Sin señal' : 'En línea'} (${formatAge(item.seconds_since_update)})</div>
+                            <div class="small text-muted">Velocidad: ${formatSpeed(item.speed_kmh)}</div>
+                        `;
+                        div.addEventListener('click', () => {
+                            const lat = Number(item.latitude);
+                            const lng = Number(item.longitude);
+                            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+                            map.setView([lat, lng], 17);
+                            const overlay = overlays.get(`device:${item.location_id}`);
+                            if (overlay && overlay.marker) overlay.marker.openPopup();
+                        });
+                        mobileDeviceListEl.appendChild(div);
+                    });
+                }
+
+                function renderMap(vehicles, devices = currentMobileDevices) {
                     clearOverlays();
                     const bounds = [];
                     let selectedItem = null;
@@ -544,6 +628,32 @@
                         overlays.set(item.vehicle_id, { marker, path, segmentPaths, marked, allPoints, lastKnown });
                     });
 
+                    if (effectiveMode === 'online' && Array.isArray(devices)) {
+                        devices.forEach((item) => {
+                            const lat = Number(item.latitude);
+                            const lng = Number(item.longitude);
+                            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+                            const popup = `
+                                <div>
+                                    <strong>${escapeHtml(item.user_name || item.alias || 'Chasqui')}</strong><br>
+                                    Celular: ${escapeHtml(item.device_name || 'ChasquiApp')}<br>
+                                    Estado: ${item.is_stale ? 'Sin señal' : 'En línea'} (${formatAge(item.seconds_since_update)})<br>
+                                    Movimiento: ${item.is_moving ? 'En movimiento' : 'Detenido'}<br>
+                                    Velocidad: ${formatSpeed(item.speed_kmh)}<br>
+                                    Precisión: ${Number.isFinite(Number(item.accuracy_m)) ? `${window.BolivianNumber.format(Number(item.accuracy_m), 1)} m` : '-'}
+                                </div>
+                            `;
+                            const marker = L.marker([lat, lng], {
+                                icon: createMobileDeviceIcon(item),
+                                zIndexOffset: 500,
+                            }).addTo(map).bindPopup(popup);
+
+                            overlays.set(`device:${item.location_id}`, { marker });
+                            bounds.push([lat, lng]);
+                        });
+                    }
+
                     if (selectedItem && selectedItem.last_point) {
                         const lat = Number(selectedItem.last_point.lat);
                         const lng = Number(selectedItem.last_point.lng);
@@ -586,6 +696,9 @@
 
                         const payload = await response.json();
                         const vehicles = Array.isArray(payload.vehicles) ? payload.vehicles : [];
+                        currentMobileDevices = effectiveMode === 'online' && Array.isArray(payload.mobile_devices)
+                            ? payload.mobile_devices
+                            : [];
                         const alerts = Array.isArray(payload.alerts) ? payload.alerts : [];
                         if (effectiveMode === 'offline' && payload.selected_date && offlineDateEl) {
                             offlineDateEl.value = String(payload.selected_date);
@@ -595,7 +708,8 @@
                         const filtered = applyVehicleFilter(vehicles);
                         renderAlerts(alerts);
                         renderList(filtered);
-                        renderMap(filtered);
+                        renderMobileDevices(currentMobileDevices);
+                        renderMap(filtered, currentMobileDevices);
 
                         if (payload.updated_at) {
                             const dt = new Date(payload.updated_at);

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AlertReadApiController;
 use App\Http\Controllers\Api\AuthTokenController;
 use App\Http\Controllers\Api\ChasquiAuthApiController;
+use App\Http\Controllers\Api\ChasquiLocationApiController;
 use App\Http\Controllers\Api\ClienteAuthApiController;
 use App\Http\Controllers\Api\ClienteSolicitudApiController;
 use App\Http\Controllers\Api\ContratoPickupApiController;
@@ -222,6 +223,9 @@ Route::prefix('chasqui')->middleware([
     Route::get('/notificaciones/pendientes', [CarterosController::class, 'chasquiPendingNotification'])
         ->middleware('external.api.ability:chasqui:notificaciones:read')
         ->name('api.chasqui.notificaciones.pendientes');
+    Route::post('/location/heartbeat', [ChasquiLocationApiController::class, 'heartbeat'])
+        ->middleware('external.api.ability:chasqui:location:update')
+        ->name('api.chasqui.location.heartbeat');
 });
 
 Route::middleware('web')->group(function () {

@@ -10,8 +10,9 @@ use App\Models\VehicleAssignment;
 use App\Models\VehicleLog;
 use App\Models\VehicleLogSession;
 use App\Models\VehicleOperationAlert;
-use Illuminate\Support\Carbon;
+use App\Services\ChasquiLocationService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -21,6 +22,7 @@ use Throwable;
 class MapController extends Controller
 {
     private const LIVE_STALE_SECONDS = 20;
+
     private const FUTURE_POINT_TOLERANCE_SECONDS = 120;
 
     public function index(Request $request)
@@ -28,20 +30,20 @@ class MapController extends Controller
         $user = $request->user();
         abort_unless($user, 403);
 
-        if (!in_array($user->role, ['admin', 'recepcion', 'conductor'], true)) {
+        if (! in_array($user->role, ['admin', 'recepcion', 'conductor'], true)) {
             abort(403);
         }
 
         return view('map.index');
     }
 
-    public function data(Request $request)
+    public function data(Request $request, ChasquiLocationService $chasquiLocations)
     {
         $user = $request->user();
         abort_unless($user, 403);
 
         $mode = mb_strtolower(trim((string) $request->query('mode', 'online')));
-        if (!in_array($mode, ['online', 'offline'], true)) {
+        if (! in_array($mode, ['online', 'offline'], true)) {
             $mode = 'online';
         }
 
@@ -58,6 +60,7 @@ class MapController extends Controller
                 'selected_date' => $selectedDate->toDateString(),
                 'updated_at' => now()->toIso8601String(),
                 'vehicles' => $vehicles,
+                'mobile_devices' => [],
                 'alerts' => $alerts,
             ]);
         }
@@ -69,12 +72,14 @@ class MapController extends Controller
             'selected_date' => null,
             'updated_at' => now()->toIso8601String(),
             'vehicles' => $vehicles,
+            'mobile_devices' => $chasquiLocations->locations(),
             'alerts' => $alerts,
         ]);
     }
 
     /**
      * Build "offline" route view from latest mobile snapshots (LOCAL_DB payloads).
+     *
      * @return array<int, array<string, mixed>>
      */
     private function buildOfflineVehicles($user, Carbon $selectedDate): array
@@ -110,12 +115,13 @@ class MapController extends Controller
 
     /**
      * Fallback historico usando snapshots locales si no existen bitacoras del dia.
+     *
      * @return array<int, array<string, mixed>>
      */
     private function buildOfflineVehiclesFromSnapshots($user, Carbon $selectedDate): array
     {
-        $table = (new MobileDbSnapshot())->getTable();
-        if (!Schema::hasTable($table)) {
+        $table = (new MobileDbSnapshot)->getTable();
+        if (! Schema::hasTable($table)) {
             return [];
         }
 
@@ -168,7 +174,7 @@ class MapController extends Controller
             $snapshotDate = $snapshot->sent_at instanceof Carbon
                 ? $snapshot->sent_at
                 : ($snapshot->created_at instanceof Carbon ? $snapshot->created_at : null);
-            if ($snapshotDate && !$snapshotDate->copy()->setTimezone(config('app.timezone'))->isSameDay($selectedDate)) {
+            if ($snapshotDate && ! $snapshotDate->copy()->setTimezone(config('app.timezone'))->isSameDay($selectedDate)) {
                 continue;
             }
 
@@ -189,16 +195,16 @@ class MapController extends Controller
             }
 
             $driver = $driversByUser->get($snapshotUserId);
-            if (!$driver) {
+            if (! $driver) {
                 continue;
             }
 
             $assignment = $assignmentByDriver->get($driver->id);
             $vehicleId = (int) ($assignment->vehicle_id ?? 0);
             $vehicle = $vehiclesById->get($vehicleId);
-            $key = $driver->id . ':' . $vehicleId;
+            $key = $driver->id.':'.$vehicleId;
 
-            if (!isset($acc[$key])) {
+            if (! isset($acc[$key])) {
                 $acc[$key] = [
                     'vehicle_id' => $vehicleId,
                     'placa' => (string) ($vehicle->placa ?? 'SIN PLACA'),
@@ -228,7 +234,7 @@ class MapController extends Controller
             foreach ($points as $p) {
                 $k = implode('|', [(string) $p['lat'], (string) $p['lng'], (string) ($p['t'] ?? '')]);
                 $prev = $existing->get($k);
-                if (!$prev || (!empty($p['is_marked']) && empty($prev['is_marked']))) {
+                if (! $prev || (! empty($p['is_marked']) && empty($prev['is_marked']))) {
                     $existing->put($k, $p);
                 }
             }
@@ -239,14 +245,14 @@ class MapController extends Controller
             });
 
             $acc[$key]['points'] = $merged;
-            $acc[$key]['last_point'] = !empty($merged) ? $merged[array_key_last($merged)] : null;
-            $acc[$key]['marked_points'] = array_values(array_filter($merged, fn ($p) => !empty($p['is_marked'])));
+            $acc[$key]['last_point'] = ! empty($merged) ? $merged[array_key_last($merged)] : null;
+            $acc[$key]['marked_points'] = array_values(array_filter($merged, fn ($p) => ! empty($p['is_marked'])));
             $acc[$key]['offline_segments'] = $this->buildOfflineSegments($merged);
             $acc[$key]['points_count'] = count($merged);
             $acc[$key]['current_address'] = (string) (($acc[$key]['last_point']['address'] ?? '') ?: 'Sin direccion');
         }
 
-        return array_values(array_filter($acc, fn ($v) => !empty($v['last_point'])));
+        return array_values(array_filter($acc, fn ($v) => ! empty($v['last_point'])));
     }
 
     private function buildOfflineVehicleFromLogs(Collection $group, Carbon $selectedDate): ?array
@@ -288,10 +294,10 @@ class MapController extends Controller
                     (string) ($point['lng'] ?? ''),
                     (string) ($point['t'] ?? ''),
                 ]);
-                if (!isset($pointIndex[$pointKey])) {
+                if (! isset($pointIndex[$pointKey])) {
                     $pointIndex[$pointKey] = true;
                     $mergedPoints[] = $point;
-                } elseif (!empty($point['is_marked'])) {
+                } elseif (! empty($point['is_marked'])) {
                     foreach ($mergedPoints as $idx => $existingPoint) {
                         $existingKey = implode('|', [
                             (string) ($existingPoint['lat'] ?? ''),
@@ -340,7 +346,7 @@ class MapController extends Controller
             return strcmp((string) ($a['t'] ?? ''), (string) ($b['t'] ?? ''));
         });
 
-        $markedPoints = array_values(array_filter($mergedPoints, fn (array $point) => !empty($point['is_marked'])));
+        $markedPoints = array_values(array_filter($mergedPoints, fn (array $point) => ! empty($point['is_marked'])));
         $lastPoint = $mergedPoints[array_key_last($mergedPoints)];
 
         return [
@@ -380,12 +386,12 @@ class MapController extends Controller
         $sourceLog = $withRoute ?: $latest;
 
         $points = $this->normalizePoints($sourceLog);
-        $lastPoint = !empty($points) ? $points[array_key_last($points)] : null;
+        $lastPoint = ! empty($points) ? $points[array_key_last($points)] : null;
 
-        if (!$lastPoint) {
+        if (! $lastPoint) {
             $fallbackLat = $this->asFloat($sourceLog->latitud_destino) ?? $this->asFloat($sourceLog->latitud_inicio);
             $fallbackLng = $this->asFloat($sourceLog->logitud_destino) ?? $this->asFloat($sourceLog->logitud_inicio);
-            if (!is_null($fallbackLat) && !is_null($fallbackLng)) {
+            if (! is_null($fallbackLat) && ! is_null($fallbackLng)) {
                 $lastPoint = ['lat' => $fallbackLat, 'lng' => $fallbackLng, 't' => null, 'is_marked' => false];
                 if (empty($points)) {
                     $points[] = $lastPoint;
@@ -393,7 +399,7 @@ class MapController extends Controller
             }
         }
 
-        if (!$lastPoint) {
+        if (! $lastPoint) {
             return null;
         }
 
@@ -423,7 +429,7 @@ class MapController extends Controller
             'last_point' => $lastPoint,
             'points' => $points,
             'points_count' => count($points),
-            'marked_points' => array_values(array_filter($points, fn (array $p) => !empty($p['is_marked']))),
+            'marked_points' => array_values(array_filter($points, fn (array $p) => ! empty($p['is_marked']))),
             'heartbeat_received_at' => null,
             'current_speed_kmh' => null,
         ];
@@ -435,7 +441,7 @@ class MapController extends Controller
         $points = [];
 
         foreach ($raw as $point) {
-            if (!is_array($point)) {
+            if (! is_array($point)) {
                 continue;
             }
 
@@ -450,7 +456,7 @@ class MapController extends Controller
                 'lat' => $lat,
                 'lng' => $lng,
                 't' => is_scalar($t) ? (string) $t : null,
-                'is_marked' => !empty($point['is_marked']) || !empty($point['marked']) || !empty($point['isMarked']),
+                'is_marked' => ! empty($point['is_marked']) || ! empty($point['marked']) || ! empty($point['isMarked']),
                 'point_label' => (string) ($point['point_label'] ?? $point['label'] ?? ''),
                 'address' => (string) ($point['address'] ?? ''),
             ];
@@ -462,7 +468,7 @@ class MapController extends Controller
     private function normalizePointsWithFallback(VehicleLog $log): array
     {
         $points = $this->normalizePoints($log);
-        if (!empty($points)) {
+        if (! empty($points)) {
             return $points;
         }
 
@@ -476,7 +482,7 @@ class MapController extends Controller
             ?? now()->toIso8601String();
 
         $fallback = [];
-        if (!is_null($startLat) && !is_null($startLng)) {
+        if (! is_null($startLat) && ! is_null($startLng)) {
             $fallback[] = [
                 'lat' => $startLat,
                 'lng' => $startLng,
@@ -487,7 +493,7 @@ class MapController extends Controller
             ];
         }
 
-        if (!is_null($endLat) && !is_null($endLng)) {
+        if (! is_null($endLat) && ! is_null($endLng)) {
             $fallback[] = [
                 'lat' => $endLat,
                 'lng' => $endLng,
@@ -503,12 +509,12 @@ class MapController extends Controller
 
     private function decodeSnapshotPayload(?string $raw): array
     {
-        if (!is_string($raw) || trim($raw) === '') {
+        if (! is_string($raw) || trim($raw) === '') {
             return [];
         }
 
         $payload = json_decode($raw, true);
-        if (!is_array($payload)) {
+        if (! is_array($payload)) {
             return [];
         }
 
@@ -523,7 +529,7 @@ class MapController extends Controller
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * @param  array<string, mixed>  $payload
      * @return array<int, array<string, mixed>>
      */
     private function extractSnapshotRoutePoints(array $payload): array
@@ -550,7 +556,7 @@ class MapController extends Controller
 
         $points = [];
         foreach ($rows as $item) {
-            if (!is_array($item)) {
+            if (! is_array($item)) {
                 continue;
             }
 
@@ -565,7 +571,7 @@ class MapController extends Controller
                 'lat' => $lat,
                 'lng' => $lng,
                 't' => is_scalar($timestamp) ? (string) $timestamp : now()->toIso8601String(),
-                'is_marked' => !empty($item['is_marked']) || !empty($item['marked']) || !empty($item['isMarked']),
+                'is_marked' => ! empty($item['is_marked']) || ! empty($item['marked']) || ! empty($item['isMarked']),
                 'point_label' => (string) ($item['point_label'] ?? $item['label'] ?? ''),
                 'address' => (string) ($item['address'] ?? ''),
             ];
@@ -584,7 +590,7 @@ class MapController extends Controller
     }
 
     /**
-     * @param array<string, mixed> $point
+     * @param  array<string, mixed>  $point
      */
     private function isPointFromDate(array $point, Carbon $selectedDate): bool
     {
@@ -602,12 +608,12 @@ class MapController extends Controller
         } elseif (is_string($raw)) {
             try {
                 $time = Carbon::parse($raw);
-            } catch (\Throwable) {
+            } catch (Throwable) {
                 $time = null;
             }
         }
 
-        if (!$time) {
+        if (! $time) {
             return $selectedDate->isSameDay(now(config('app.timezone')));
         }
 
@@ -623,7 +629,7 @@ class MapController extends Controller
                 $today = now(config('app.timezone'))->startOfDay();
 
                 return $selected->greaterThan($today) ? $today : $selected;
-            } catch (\Throwable) {
+            } catch (Throwable) {
                 // Fallback a hoy si el formato no es valido.
             }
         }
@@ -646,7 +652,7 @@ class MapController extends Controller
             } else {
                 $time = Carbon::parse((string) $raw);
             }
-        } catch (\Throwable) {
+        } catch (Throwable) {
             return null;
         }
 
@@ -659,7 +665,7 @@ class MapController extends Controller
     }
 
     /**
-     * @param array<int, array<string, mixed>> $points
+     * @param  array<int, array<string, mixed>>  $points
      * @return array<int, array<string, mixed>>
      */
     private function buildOfflineSegments(array $points): array
@@ -668,7 +674,7 @@ class MapController extends Controller
             return [];
         }
 
-        $anchors = array_values(array_filter($points, fn (array $point) => !empty($point['is_marked'])));
+        $anchors = array_values(array_filter($points, fn (array $point) => ! empty($point['is_marked'])));
         if (count($anchors) < 2) {
             return [[
                 'from' => $points[0],
@@ -708,7 +714,7 @@ class MapController extends Controller
     }
 
     /**
-     * @param array<int, array<string, mixed>> $vehicles
+     * @param  array<int, array<string, mixed>>  $vehicles
      * @return array<int, array<string, mixed>>
      */
     private function mergeHeartbeatVehicles(array $vehicles, $user): array
@@ -753,7 +759,7 @@ class MapController extends Controller
         $heartbeatUserIds = [];
         foreach ($vehicleIds as $vehicleId) {
             $hb = Cache::get("mobile:heartbeat:vehicle:{$vehicleId}");
-            if (!is_array($hb)) {
+            if (! is_array($hb)) {
                 continue;
             }
             $heartbeatByVehicle[$vehicleId] = $hb;
@@ -777,7 +783,7 @@ class MapController extends Controller
 
         foreach ($vehicleIds as $vehicleId) {
             $hb = $heartbeatByVehicle[$vehicleId] ?? null;
-            if (!is_array($hb)) {
+            if (! is_array($hb)) {
                 continue;
             }
 
@@ -802,7 +808,7 @@ class MapController extends Controller
             }
 
             $driver = $drivers->get($driverId);
-            if (!$driver && $driverId > 0) {
+            if (! $driver && $driverId > 0) {
                 $driver = Driver::query()->find($driverId);
             }
             $vehicle = $vehicleModels->get($vehicleId);
@@ -826,7 +832,7 @@ class MapController extends Controller
             $heartbeatRoute = Cache::get("mobile:heartbeat:route:{$vehicleId}", []);
             $heartbeatPoints = collect(is_array($heartbeatRoute) ? $heartbeatRoute : [])
                 ->map(function ($point) {
-                    if (!is_array($point)) {
+                    if (! is_array($point)) {
                         return null;
                     }
 
@@ -870,24 +876,25 @@ class MapController extends Controller
                 if (($existing['driver_name'] ?? '') === 'SIN CONDUCTOR' && $driver) {
                     $existing['driver_name'] = (string) ($driver->nombre ?? 'SIN CONDUCTOR');
                 }
-                $existingPoints = !empty($heartbeatPoints)
+                $existingPoints = ! empty($heartbeatPoints)
                     ? $heartbeatPoints
                     : (is_array($existing['points'] ?? null) ? $existing['points'] : []);
-                $lastExistingPoint = !empty($existingPoints) ? $existingPoints[array_key_last($existingPoints)] : null;
+                $lastExistingPoint = ! empty($existingPoints) ? $existingPoints[array_key_last($existingPoints)] : null;
                 $sameAsLast = is_array($lastExistingPoint)
                     && ((float) ($lastExistingPoint['lat'] ?? 0) === (float) $lastPoint['lat'])
                     && ((float) ($lastExistingPoint['lng'] ?? 0) === (float) $lastPoint['lng'])
                     && ((string) ($lastExistingPoint['t'] ?? '') === (string) $lastPoint['t']);
-                if (!$sameAsLast) {
+                if (! $sameAsLast) {
                     $existingPoints[] = $lastPoint;
                 }
                 $existing['points'] = array_slice($existingPoints, -150);
                 $existing['points_count'] = count($existing['points']);
                 $vehiclesById->put($vehicleId, $existing);
+
                 continue;
             }
 
-                $vehiclesById->put($vehicleId, [
+            $vehiclesById->put($vehicleId, [
                 'vehicle_id' => $vehicleId,
                 'placa' => (string) ($vehicle->placa ?? 'SIN PLACA'),
                 'marca' => (string) ($vehicle->marca ?? ''),
@@ -901,8 +908,8 @@ class MapController extends Controller
                 'current_address' => $lastPoint['point_label'],
                 'current_status' => $currentStatus,
                 'last_point' => $lastPoint,
-                'points' => !empty($heartbeatPoints) ? $heartbeatPoints : [$lastPoint],
-                'points_count' => !empty($heartbeatPoints) ? count($heartbeatPoints) : 1,
+                'points' => ! empty($heartbeatPoints) ? $heartbeatPoints : [$lastPoint],
+                'points_count' => ! empty($heartbeatPoints) ? count($heartbeatPoints) : 1,
                 'marked_points' => [],
                 'heartbeat_received_at' => (string) ($hb['received_at'] ?? ''),
                 'current_speed_kmh' => $this->asFloat($hb['speed_kmh'] ?? null),
@@ -915,7 +922,7 @@ class MapController extends Controller
     }
 
     /**
-     * @param array<int, array<string, mixed>> $vehicles
+     * @param  array<int, array<string, mixed>>  $vehicles
      * @return array<int, array<string, mixed>>
      */
     private function syncAndBuildOperationalAlerts(array $vehicles): array
@@ -976,7 +983,7 @@ class MapController extends Controller
             if (is_string($heartbeatRaw) && $heartbeatRaw !== '') {
                 try {
                     $heartbeatAt = Carbon::parse($heartbeatRaw);
-                } catch (\Throwable) {
+                } catch (Throwable) {
                     $heartbeatAt = null;
                 }
             }
@@ -1012,7 +1019,7 @@ class MapController extends Controller
                 ],
             ];
 
-            if (!$gpsEnabled) {
+            if (! $gpsEnabled) {
                 $desiredAlerts[] = [
                     'vehicle_id' => $vehicleId,
                     'vehicle_log_session_id' => $session?->id,
@@ -1087,16 +1094,17 @@ class MapController extends Controller
                 ->whereIn('alert_type', VehicleOperationAlert::mapManagedTypes())
                 ->where('status', VehicleOperationAlert::STATUS_ACTIVE)
                 ->get()
-                ->keyBy(fn (VehicleOperationAlert $alert) => $alert->vehicle_id . ':' . $alert->alert_type);
+                ->keyBy(fn (VehicleOperationAlert $alert) => $alert->vehicle_id.':'.$alert->alert_type);
 
             $activeKeys = [];
             foreach ($desiredAlerts as $payload) {
-                $key = $payload['vehicle_id'] . ':' . $payload['alert_type'];
+                $key = $payload['vehicle_id'].':'.$payload['alert_type'];
                 $activeKeys[] = $key;
                 $existing = $existingAlerts->get($key);
 
-                if (!$existing) {
+                if (! $existing) {
                     VehicleOperationAlert::query()->create($payload);
+
                     continue;
                 }
 
@@ -1115,7 +1123,7 @@ class MapController extends Controller
 
             $keysFlipped = collect($activeKeys)->flip();
             $existingAlerts
-                ->filter(fn (VehicleOperationAlert $alert, string $key) => !$keysFlipped->has($key))
+                ->filter(fn (VehicleOperationAlert $alert, string $key) => ! $keysFlipped->has($key))
                 ->each(function (VehicleOperationAlert $alert) {
                     $alert->update([
                         'status' => VehicleOperationAlert::STATUS_RESOLVED,
@@ -1133,6 +1141,7 @@ class MapController extends Controller
             if ($aScore === $bScore) {
                 return strcmp((string) ($a['title'] ?? ''), (string) ($b['title'] ?? ''));
             }
+
             return $aScore <=> $bScore;
         });
 
@@ -1144,7 +1153,7 @@ class MapController extends Controller
      */
     private function loadManualOperationalAlerts(): array
     {
-        if (!Schema::hasTable('vehicle_operation_alerts')) {
+        if (! Schema::hasTable('vehicle_operation_alerts')) {
             return [];
         }
 
@@ -1184,16 +1193,17 @@ class MapController extends Controller
     private function formatSecondsAsHuman(int $seconds): string
     {
         if ($seconds < 60) {
-            return $seconds . ' segundo(s)';
+            return $seconds.' segundo(s)';
         }
 
         $minutes = (int) floor($seconds / 60);
         $remaining = $seconds % 60;
-        return $minutes . ' minuto(s) ' . $remaining . ' segundo(s)';
+
+        return $minutes.' minuto(s) '.$remaining.' segundo(s)';
     }
 
     /**
-     * @param array<string, mixed> $vehicle
+     * @param  array<string, mixed>  $vehicle
      */
     private function resolveOperationalDriverName(array $vehicle, ?VehicleLogSession $session): string
     {
@@ -1211,14 +1221,14 @@ class MapController extends Controller
     }
 
     /**
-     * @param array<int, array<string, mixed>> $vehicles
+     * @param  array<int, array<string, mixed>>  $vehicles
      * @return array<int, array<string, mixed>>
      */
     private function annotateStaleness(array $vehicles): array
     {
         return array_map(function (array $vehicle) {
             $reference = $vehicle['heartbeat_received_at'] ?? null;
-            if (!is_string($reference) || trim($reference) === '') {
+            if (! is_string($reference) || trim($reference) === '') {
                 $reference = (string) data_get($vehicle, 'last_point.t', '');
             }
 
@@ -1235,7 +1245,7 @@ class MapController extends Controller
 
     private function secondsSince(?string $value): ?int
     {
-        if (!is_string($value) || trim($value) === '') {
+        if (! is_string($value) || trim($value) === '') {
             return null;
         }
 
@@ -1248,11 +1258,12 @@ class MapController extends Controller
             } else {
                 $time = Carbon::parse($value);
             }
-        } catch (\Throwable) {
+        } catch (Throwable) {
             return null;
         }
 
         $seconds = $time->diffInSeconds(now(), false);
+
         return $seconds < 0 ? 0 : $seconds;
     }
 }
