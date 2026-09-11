@@ -77,9 +77,6 @@ class ExternalApiTokenSelectionTest extends TestCase
             ->assertSee('/api/bitacoras')
             ->assertSee('/api/gasolinas')
             ->assertSee('/api/mantenimientos')
-            ->assertSee('/api/mantenimientos/vehiculos')
-            ->assertSee('/api/mantenimientos/conductores')
-            ->assertSee('/api/mantenimientos/tipos')
             ->assertSee('Consultar direcciones de entrega')
             ->assertSee('Actualizar direcciones de entrega')
             ->assertSee('Iniciar sesion Delivery Express con Google')
@@ -124,6 +121,34 @@ class ExternalApiTokenSelectionTest extends TestCase
             ->assertSee('Cerrar ventana')
             ->assertSee('collapse show', false)
             ->assertSee('Crear nueva credencial API');
+    }
+
+    public function test_mantenimiento_aparece_una_sola_vez_con_su_metodo_principal_y_primero_por_ser_nuevo(): void
+    {
+        $html = $this->get('/configuracion/apis?nueva=1')
+            ->assertOk()
+            ->getContent();
+
+        $document = new \DOMDocument;
+        @$document->loadHTML($html);
+        $xpath = new \DOMXPath($document);
+        $requestRows = $xpath->query('//tr[contains(@class, "js-api-route-row")][contains(., "SOLICITAR MANTENIMIENTOS")]');
+        $readRows = $xpath->query('//tr[contains(@class, "js-api-route-row")][contains(., "VER MANTENIMIENTOS")]');
+
+        $this->assertSame(1, $requestRows->length);
+        $this->assertStringContainsString('POST', $requestRows->item(0)->textContent);
+        $this->assertStringContainsString('/api/mantenimientos', $requestRows->item(0)->textContent);
+        $this->assertSame(1, $readRows->length);
+        $this->assertStringContainsString('GET', $readRows->item(0)->textContent);
+        $this->assertStringContainsString('/api/mantenimientos', $readRows->item(0)->textContent);
+        $this->assertStringContainsString(
+            'VER MANTENIMIENTOS',
+            $xpath->query('//div[@id="api-inventory-get"]//tbody/tr[1]')->item(0)->textContent
+        );
+        $this->assertStringContainsString(
+            'SOLICITAR MANTENIMIENTOS',
+            $xpath->query('//div[@id="api-inventory-post"]//tbody/tr[1]')->item(0)->textContent
+        );
     }
 
     public function test_puede_crear_un_token_con_varias_apis_seleccionadas(): void

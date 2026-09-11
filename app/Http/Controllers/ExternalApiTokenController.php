@@ -86,12 +86,19 @@ class ExternalApiTokenController extends Controller
             'DELETE' => collect(),
         ]);
 
+        $catalogSequence = 0;
+
         foreach ($catalog as $ability => $api) {
+            $selectionEndpoint = (string) ($api['selection_endpoint'] ?? '');
+
             foreach ($api['endpoints'] as $endpoint) {
                 $method = strtoupper($endpoint['method']);
                 $group = in_array($method, ['PUT', 'PATCH'], true) ? 'PUT / PATCH' : $method;
 
-                if (! $groups->has($group)) {
+                if (
+                    ! $groups->has($group)
+                    || ($selectionEndpoint !== '' && $selectionEndpoint !== (string) $endpoint['path'])
+                ) {
                     continue;
                 }
 
@@ -109,15 +116,27 @@ class ExternalApiTokenController extends Controller
                     'body_type' => (string) ($endpoint['body_type'] ?? 'json'),
                     'headers' => $endpoint['headers'] ?? null,
                     'response' => $endpoint['response'] ?? null,
+                    'created_at' => (string) ($api['created_at'] ?? ''),
+                    'catalog_sequence' => $catalogSequence,
                 ]);
             }
+
+            $catalogSequence++;
         }
 
         return $groups
-            ->map(fn ($routes): array => $routes
-                ->sortBy(fn (array $route): string => $route['uri'].'|'.$route['method'])
-                ->values()
-                ->all())
+            ->map(function ($routes): array {
+                return $routes
+                    ->sort(function (array $left, array $right): int {
+                        $dateOrder = strcmp($right['created_at'], $left['created_at']);
+
+                        return $dateOrder !== 0
+                            ? $dateOrder
+                            : ($left['catalog_sequence'] <=> $right['catalog_sequence']);
+                    })
+                    ->values()
+                    ->all();
+            })
             ->filter(fn (array $routes): bool => $routes !== [])
             ->all();
     }

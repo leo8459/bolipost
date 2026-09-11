@@ -233,6 +233,8 @@ return [
             'access' => 'Escritura con documentos',
             'icon' => 'fas fa-tools',
             'color' => 'warning',
+            'created_at' => '2026-09-11 11:08:00',
+            'selection_endpoint' => '/api/mantenimientos',
             'endpoints' => [
                 [
                     'method' => 'GET',
@@ -314,6 +316,8 @@ return [
             'access' => 'Solo lectura',
             'icon' => 'fas fa-calendar-check',
             'color' => 'info',
+            'created_at' => '2026-09-11 11:08:00',
+            'selection_endpoint' => '/api/mantenimientos',
             'endpoints' => [
                 [
                     'method' => 'GET',
