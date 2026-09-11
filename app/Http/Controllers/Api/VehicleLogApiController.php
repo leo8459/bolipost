@@ -20,6 +20,58 @@ use Illuminate\Validation\ValidationException;
 
 class VehicleLogApiController extends Controller
 {
+    public function externalVehicles()
+    {
+        $today = now()->toDateString();
+        $vehicles = Vehicle::query()
+            ->where('activo', true)
+            ->with(['assignments' => function ($query) use ($today): void {
+                $query
+                    ->with('driver')
+                    ->where('activo', true)
+                    ->where(function ($dateQuery) use ($today): void {
+                        $dateQuery->whereNull('fecha_inicio')->orWhereDate('fecha_inicio', '<=', $today);
+                    })
+                    ->where(function ($dateQuery) use ($today): void {
+                        $dateQuery->whereNull('fecha_fin')->orWhereDate('fecha_fin', '>=', $today);
+                    })
+                    ->latest('fecha_inicio')
+                    ->latest('id');
+            }])
+            ->orderBy('placa')
+            ->get()
+            ->map(function (Vehicle $vehicle): array {
+                $assignment = $vehicle->assignments->first();
+
+                return [
+                    'id' => (int) $vehicle->id,
+                    'placa' => (string) $vehicle->placa,
+                    'marca' => $vehicle->marca ?: null,
+                    'modelo' => $vehicle->modelo,
+                    'anio' => $vehicle->anio ? (int) $vehicle->anio : null,
+                    'tipo_combustible' => $vehicle->tipo_combustible,
+                    'kilometraje' => $vehicle->kilometraje,
+                    'kilometraje_actual' => $vehicle->kilometraje,
+                    'operational_status' => $vehicle->operational_status,
+                    'activo' => (bool) $vehicle->activo,
+                    'tiene_asignacion_activa' => $assignment !== null,
+                    'asignacion_activa' => $assignment ? [
+                        'id' => (int) $assignment->id,
+                        'driver_id' => $assignment->driver_id ? (int) $assignment->driver_id : null,
+                        'conductor' => $assignment->driver?->nombre,
+                        'fecha_inicio' => $assignment->fecha_inicio?->toIso8601String(),
+                        'fecha_fin' => $assignment->fecha_fin?->toIso8601String(),
+                    ] : null,
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'count' => $vehicles->count(),
+            'data' => $vehicles,
+        ]);
+    }
+
     public function externalDrivers()
     {
         $today = now()->toDateString();

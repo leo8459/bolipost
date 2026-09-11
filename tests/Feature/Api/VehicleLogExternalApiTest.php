@@ -250,6 +250,55 @@ class VehicleLogExternalApiTest extends TestCase
             ->assertJsonMissing(['nombre' => 'Inactivo']);
     }
 
+    public function test_el_catalogo_api_devuelve_vehiculos_activos_con_su_asignacion_actual(): void
+    {
+        $driverId = Schema::getConnection()->table('drivers')->insertGetId([
+            'nombre' => 'Conductor asignado',
+            'activo' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $assignedVehicleId = Schema::getConnection()->table('vehicles')->insertGetId([
+            'placa' => 'ASG-001',
+            'kilometraje_actual' => 4321.50,
+            'activo' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $freeVehicleId = Schema::getConnection()->table('vehicles')->insertGetId([
+            'placa' => 'LIB-002',
+            'activo' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        Schema::getConnection()->table('vehicles')->insert([
+            'placa' => 'INA-003',
+            'activo' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        Schema::getConnection()->table('vehicle_assignments')->insert([
+            'vehicle_id' => $assignedVehicleId,
+            'driver_id' => $driverId,
+            'fecha_inicio' => now()->subDay()->toDateString(),
+            'activo' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->getJson('/api/bitacoras/vehiculos')
+            ->assertOk()
+            ->assertJsonPath('count', 2)
+            ->assertJsonPath('data.0.id', $assignedVehicleId)
+            ->assertJsonPath('data.0.kilometraje_actual', 4321.5)
+            ->assertJsonPath('data.0.tiene_asignacion_activa', true)
+            ->assertJsonPath('data.0.asignacion_activa.driver_id', $driverId)
+            ->assertJsonPath('data.0.asignacion_activa.conductor', 'Conductor asignado')
+            ->assertJsonPath('data.1.id', $freeVehicleId)
+            ->assertJsonPath('data.1.tiene_asignacion_activa', false)
+            ->assertJsonMissing(['placa' => 'INA-003']);
+    }
+
     public function test_crea_y_lista_gasolina_como_la_vista_de_combustible(): void
     {
         $vehicleId = Schema::getConnection()->table('vehicles')->insertGetId([

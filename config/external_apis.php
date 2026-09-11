@@ -96,6 +96,27 @@ return [
             'endpoints' => [
                 [
                     'method' => 'GET',
+                    'path' => '/api/bitacoras/vehiculos',
+                    'example' => '',
+                    'response' => [
+                        'count' => 2,
+                        'data' => [
+                            [
+                                'id' => 1,
+                                'placa' => 'ABC-123',
+                                'kilometraje_actual' => 12500.50,
+                                'activo' => true,
+                                'tiene_asignacion_activa' => true,
+                                'asignacion_activa' => [
+                                    'driver_id' => 1,
+                                    'conductor' => 'Conductor Demo',
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+                [
+                    'method' => 'GET',
                     'path' => '/api/bitacoras/conductores',
                     'example' => '',
                     'response' => [
