@@ -82,6 +82,10 @@ Route::prefix('siop')->middleware(['auth:sanctum', 'abilities:siop'])->group(fun
 });
 
 Route::middleware(['force.json', 'external.api.jwt', 'throttle:120,1'])->group(function () {
+    Route::get('/chasqui/location/heartbeat', [ChasquiLocationApiController::class, 'index'])
+        ->middleware('external.api.ability:chasqui:location:update')
+        ->name('api.chasqui.location.index');
+
     Route::post('/integraciones/correos/enviar', [CorreoApiController::class, 'store'])
         ->middleware(['external.api.ability:correos:send', 'throttle:30,1'])
         ->name('api.integraciones.correos.store');

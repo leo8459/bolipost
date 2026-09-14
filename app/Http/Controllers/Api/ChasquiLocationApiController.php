@@ -10,6 +10,31 @@ use Illuminate\Http\Request;
 
 class ChasquiLocationApiController extends Controller
 {
+    public function index(Request $request, ChasquiLocationService $locations): JsonResponse
+    {
+        $request->validate([
+            'online_only' => ['nullable', 'boolean'],
+            'moving_only' => ['nullable', 'boolean'],
+        ]);
+
+        $data = collect($locations->locations())
+            ->when(
+                $request->boolean('online_only'),
+                fn ($items) => $items->where('is_stale', false)
+            )
+            ->when(
+                $request->boolean('moving_only'),
+                fn ($items) => $items->where('is_moving', true)
+            )
+            ->values();
+
+        return response()->json([
+            'updated_at' => now()->toIso8601String(),
+            'count' => $data->count(),
+            'data' => $data,
+        ]);
+    }
+
     public function heartbeat(Request $request, ChasquiLocationService $locations): JsonResponse
     {
         $payload = $request->validate([

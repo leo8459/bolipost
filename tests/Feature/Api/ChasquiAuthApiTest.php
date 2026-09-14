@@ -4,6 +4,7 @@ namespace Tests\Feature\Api;
 
 use App\Models\ExternalApiToken;
 use App\Models\User;
+use App\Services\ChasquiLocationService;
 use App\Support\ExternalApiJwt;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Cache;
@@ -245,6 +246,50 @@ class ChasquiAuthApiTest extends TestCase
             'latitude' => -16.4897,
             'longitude' => -68.1193,
         ])
+            ->assertForbidden()
+            ->assertJsonPath('permiso_requerido', 'chasqui:location:update');
+    }
+
+    public function test_credencial_de_rastreo_puede_consultar_todas_las_ubicaciones(): void
+    {
+        $carteroUno = User::factory()->create(['name' => 'Cartero Uno', 'alias' => 'cartero.uno']);
+        $carteroDos = User::factory()->create(['name' => 'Cartero Dos', 'alias' => 'cartero.dos']);
+
+        $locations = app(ChasquiLocationService::class);
+        $locations->record($carteroUno, [
+            'device_id' => 'device-one',
+            'latitude' => -16.4897,
+            'longitude' => -68.1193,
+            'speed_kmh' => 8.5,
+        ]);
+        $locations->record($carteroDos, [
+            'device_id' => 'device-two',
+            'latitude' => -17.3935,
+            'longitude' => -66.1570,
+            'speed_kmh' => 0,
+        ]);
+
+        $token = $this->externalToken(['chasqui:location:update']);
+
+        $this->withToken($token)
+            ->getJson('/api/chasqui/location/heartbeat?online_only=1')
+            ->assertOk()
+            ->assertJsonPath('count', 2)
+            ->assertJsonCount(2, 'data')
+            ->assertJsonFragment(['user_name' => 'Cartero Uno'])
+            ->assertJsonFragment(['user_name' => 'Cartero Dos']);
+
+        $this->withToken($token)
+            ->getJson('/api/chasqui/location/heartbeat?moving_only=1')
+            ->assertOk()
+            ->assertJsonPath('count', 1)
+            ->assertJsonPath('data.0.alias', 'cartero.uno');
+    }
+
+    public function test_consulta_de_ubicaciones_rechaza_una_credencial_sin_permiso(): void
+    {
+        $this->withToken($this->externalToken(['chasqui:paquetes:read']))
+            ->getJson('/api/chasqui/location/heartbeat')
             ->assertForbidden()
             ->assertJsonPath('permiso_requerido', 'chasqui:location:update');
     }

@@ -565,11 +565,38 @@ return [
         ],
         'chasqui:location:update' => [
             'name' => 'RASTREO TIEMPO REAL',
-            'description' => 'Recibe la ubicacion GPS del celular del cartero autenticado para mostrarla en el mapa web. Requiere Authorization Bearer con el token personal y X-API-Token con la credencial de integracion.',
-            'access' => 'Escritura de ubicacion',
+            'description' => 'Recibe la ubicacion GPS del celular del cartero y permite consultar todos los dispositivos que estan reportando para mostrarlos en el mapa web.',
+            'access' => 'Lectura y escritura',
             'icon' => 'fas fa-map-marker-alt',
             'color' => 'info',
             'endpoints' => [
+                [
+                    'method' => 'GET',
+                    'path' => '/api/chasqui/location/heartbeat',
+                    'example' => '?online_only=1&moving_only=0',
+                    'headers' => [
+                        'Authorization' => 'Bearer TOKEN_JWT_DE_LA_INTEGRACION',
+                        'Accept' => 'application/json',
+                    ],
+                    'response' => [
+                        'updated_at' => '2026-09-14T10:30:01-04:00',
+                        'count' => 1,
+                        'data' => [
+                            [
+                                'user_id' => 1,
+                                'user_name' => 'Cartero Chasqui',
+                                'alias' => 'cartero.chasqui',
+                                'device_name' => 'ChasquiApp Android',
+                                'latitude' => -16.4897,
+                                'longitude' => -68.1193,
+                                'speed_kmh' => 12.4,
+                                'is_moving' => true,
+                                'is_stale' => false,
+                                'received_at' => '2026-09-14T10:30:00-04:00',
+                            ],
+                        ],
+                    ],
+                ],
                 [
                     'method' => 'POST',
                     'path' => '/api/chasqui/location/heartbeat',
