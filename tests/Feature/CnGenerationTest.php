@@ -33,7 +33,11 @@ class CnGenerationTest extends TestCase
         $response->assertOk()
             ->assertViewIs('cn-generation.index')
             ->assertViewHas('countryDispatchCodes', fn (array $codes): bool => $codes['MX'] === 'MEX' && $codes['PE'] === 'LIM')
+            ->assertViewHas('routeSheet', 'CP-87')
+            ->assertViewHas('service', 'ENDA. INT. AEREO')
+            ->assertViewHas('transport', 'AEREO')
             ->assertSee('Generacion de CN')
+            ->assertSee('Numero de sacas')
             ->assertSee('Añadir destino')
             ->assertSee('Pais de destino')
             ->assertSee('LPB-LIM completa todas las filas con origen LPB, oficina LIM y destino LIM.');
@@ -45,6 +49,7 @@ class CnGenerationTest extends TestCase
             'fecha' => '2026-09-03',
             'hoja_ruta' => 'CP-87',
             'despacho' => '29',
+            'numero_sacas' => 3,
             'administracion_expedidora' => 'BO - BOLIVIA',
             'oficina_cambio' => 'LPB - LA PAZ',
             'servicio' => 'ENDA. INT. AEREO',
@@ -84,6 +89,7 @@ class CnGenerationTest extends TestCase
             'fecha' => '2026-09-03',
             'hoja_ruta' => 'CP-87',
             'despacho' => '29',
+            'numero_sacas' => 1,
             'administracion_expedidora' => 'BO - BOLIVIA',
             'oficina_cambio' => 'LPB - LA PAZ',
             'servicio' => 'ENDA. INT. AEREO',

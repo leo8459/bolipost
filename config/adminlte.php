@@ -446,6 +446,12 @@ return [
                     'icon' => 'fas fa-file-alt',
                     'can' => 'dashboard.generacion-cn',
                 ],
+                [
+                    'text' => 'Marbetes',
+                    'url' => '/dir-operaciones/marbetes',
+                    'icon' => 'fas fa-tags',
+                    'can' => 'dashboard.marbetes',
+                ],
             ],
         ],
         [

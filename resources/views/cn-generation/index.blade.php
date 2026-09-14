@@ -48,19 +48,23 @@
                         </div>
                         <div class="col-lg-2 col-md-6 form-group">
                             <label>Hoja de ruta</label>
-                            <input name="hoja_ruta" class="form-control text-uppercase" value="{{ old('hoja_ruta') }}" placeholder="Ej: CP-87" required maxlength="30">
+                            <input name="hoja_ruta" class="form-control text-uppercase" value="{{ $routeSheet }}" readonly>
                         </div>
-                        <div class="col-lg-3 col-md-6 form-group">
+                        <div class="col-lg-2 col-md-6 form-group">
                             <label>Despacho</label>
                             <input name="despacho" class="form-control text-uppercase" value="{{ old('despacho') }}" placeholder="Ej: 29" required maxlength="30">
                         </div>
+                        <div class="col-lg-2 col-md-6 form-group">
+                            <label>Numero de sacas</label>
+                            <input type="number" name="numero_sacas" class="form-control" value="{{ old('numero_sacas') }}" min="1" max="99999" step="1" required>
+                        </div>
                         <div class="col-lg-3 col-md-6 form-group">
                             <label>Servicio</label>
-                            <input name="servicio" class="form-control text-uppercase" value="{{ old('servicio', 'ENDA. INT. AEREO') }}" required maxlength="60">
+                            <input name="servicio" class="form-control text-uppercase" value="{{ $service }}" readonly>
                         </div>
                         <div class="col-lg-3 col-md-6 form-group">
                             <label>Transporte</label>
-                            <input name="transporte" class="form-control text-uppercase" value="{{ old('transporte') }}" placeholder="Ej: BOA / AEREO" maxlength="60">
+                            <input name="transporte" class="form-control text-uppercase" value="{{ $transport }}" readonly>
                         </div>
                         <div class="col-lg-3 col-md-6 form-group">
                             <label>Boletin</label>

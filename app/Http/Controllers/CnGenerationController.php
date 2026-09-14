@@ -8,6 +8,12 @@ use Illuminate\Validation\Rule;
 
 class CnGenerationController extends Controller
 {
+    private const ROUTE_SHEET = 'CP-87';
+
+    private const SERVICE = 'ENDA. INT. AEREO';
+
+    private const TRANSPORT = 'AEREO';
+
     /** @var array<string, string> */
     private const COUNTRIES = [
         'AR' => 'Argentina',
@@ -67,6 +73,9 @@ class CnGenerationController extends Controller
             'countries' => self::COUNTRIES,
             'countryDispatchCodes' => self::COUNTRY_DISPATCH_CODES,
             'defaultDate' => now()->format('Y-m-d'),
+            'routeSheet' => self::ROUTE_SHEET,
+            'service' => self::SERVICE,
+            'transport' => self::TRANSPORT,
         ]);
     }
 
@@ -74,12 +83,10 @@ class CnGenerationController extends Controller
     {
         $validated = $request->validate([
             'fecha' => ['required', 'date'],
-            'hoja_ruta' => ['required', 'string', 'max:30'],
             'despacho' => ['required', 'string', 'max:30'],
+            'numero_sacas' => ['required', 'integer', 'min:1', 'max:99999'],
             'administracion_expedidora' => ['required', 'string', 'max:80'],
             'oficina_cambio' => ['required', 'string', 'max:80'],
-            'servicio' => ['required', 'string', 'max:60'],
-            'transporte' => ['nullable', 'string', 'max:60'],
             'itinerario' => ['nullable', 'string', 'max:120'],
             'boletin' => ['nullable', 'string', 'max:30'],
             'observaciones_globales' => ['nullable', 'string', 'max:500'],
@@ -99,6 +106,8 @@ class CnGenerationController extends Controller
             'rows.*.pais_codigo.required' => 'Selecciona el pais de destino de cada envio.',
             'rows.*.oficina_destino.required' => 'La oficina de destino es obligatoria.',
             'rows.*.envio.required' => 'El codigo de envio es obligatorio.',
+            'numero_sacas.required' => 'El numero de sacas es obligatorio.',
+            'numero_sacas.min' => 'El numero de sacas debe ser mayor a cero.',
             'rows.*.peso.required' => 'El peso es obligatorio.',
             'rows.*.peso.min' => 'El peso debe ser mayor a cero.',
         ]);
@@ -122,11 +131,13 @@ class CnGenerationController extends Controller
         });
 
         $data = array_merge([
-            'transporte' => '',
             'itinerario' => '',
             'boletin' => '',
             'observaciones_globales' => '',
         ], $validated, [
+            'hoja_ruta' => self::ROUTE_SHEET,
+            'servicio' => self::SERVICE,
+            'transporte' => self::TRANSPORT,
             'rows' => $rows,
             'totalPeso' => $rows->sum('peso'),
             'totalValor' => $rows->sum('valor_declarado'),

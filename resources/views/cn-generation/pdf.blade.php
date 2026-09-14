@@ -44,6 +44,7 @@
                 <table>
                     <tr><td class="label">Fecha</td><td class="value">{{ \Illuminate\Support\Carbon::parse($fecha)->format('d/m/Y') }}</td></tr>
                     <tr><td class="label">Despacho</td><td class="value">{{ strtoupper($despacho) }}</td></tr>
+                    <tr><td class="label">Numero de sacas</td><td class="value">{{ $numero_sacas }}</td></tr>
                     <tr><td class="label">Servicio</td><td class="value">{{ strtoupper($servicio) }}</td></tr>
                     <tr><td class="label">Transporte</td><td class="value">{{ strtoupper($transporte ?: '-') }}</td></tr>
                 </table>

@@ -33,6 +33,7 @@ use App\Http\Controllers\FinancialReportController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\IndicadorController;
 use App\Http\Controllers\MalencaminadoController;
+use App\Http\Controllers\MarbeteController;
 use App\Http\Controllers\MisVentasController;
 use App\Http\Controllers\OrigenController;
 use App\Http\Controllers\PaquetesCertiController;
@@ -210,6 +211,12 @@ Route::get('/dir-operaciones/generacion-cn', [CnGenerationController::class, 'in
 Route::post('/dir-operaciones/generacion-cn/pdf', [CnGenerationController::class, 'pdf'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.generacion-cn.pdf');
+Route::get('/dir-operaciones/marbetes', [MarbeteController::class, 'index'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.marbetes');
+Route::post('/dir-operaciones/marbetes/pdf', [MarbeteController::class, 'pdf'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.marbetes.pdf');
 Route::get('/dir-comercial/rendimiento-servicios', [ReportesController::class, 'commercialPerformance'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.comercial.rendimiento-servicios');
