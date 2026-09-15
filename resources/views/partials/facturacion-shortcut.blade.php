@@ -5352,21 +5352,37 @@
                 }
             };
 
-            const isAbsoluteFacturacionMonitorUrl = (url) => /^https?:\/\//i.test(String(url || '').trim());
+            const normalizeFacturacionMonitorUrl = (url) => {
+                const normalizedUrl = String(url || '').trim();
+                if (normalizedUrl === '') {
+                    return '';
+                }
+
+                try {
+                    const parsed = new URL(normalizedUrl, window.location.origin);
+                    if (parsed.origin !== window.location.origin) {
+                        return '';
+                    }
+
+                    return parsed.pathname + parsed.search;
+                } catch (error) {
+                    return '';
+                }
+            };
 
             const resolveFacturacionMonitorConfig = () => {
                 const config = readFacturacionMonitorConfig();
                 const url = String(config.url || '').trim();
                 const valid = isValidFacturacionMonitorUrl(url);
-                const absoluteUrl = isAbsoluteFacturacionMonitorUrl(url);
+                const normalizedUrl = normalizeFacturacionMonitorUrl(url);
 
-                if (config.enabled && url !== '' && (!valid || absoluteUrl)) {
+                if (config.enabled && url !== '' && (!valid || normalizedUrl === '')) {
                     persistFacturacionMonitorConfig({ enabled: false, url: '' });
                 }
 
                 return {
-                    enabled: config.enabled && valid && !absoluteUrl,
-                    url: valid && !absoluteUrl ? url : '',
+                    enabled: config.enabled && valid && normalizedUrl !== '',
+                    url: valid && normalizedUrl !== '' ? normalizedUrl : '',
                 };
             };
 
@@ -5575,9 +5591,14 @@
                     return false;
                 }
 
-                persistFacturacionMonitorConfig({ enabled: true, url: normalizedUrl });
+                const monitorUrl = normalizeFacturacionMonitorUrl(normalizedUrl);
+                if (monitorUrl === '') {
+                    return false;
+                }
+
+                persistFacturacionMonitorConfig({ enabled: true, url: monitorUrl });
                 setFacturacionMonitorButtonState();
-                ensureFacturacionMonitorTab(normalizedUrl);
+                ensureFacturacionMonitorTab(monitorUrl);
                 publishFacturacionMonitorAdsState();
 
                 if (showFeedback) {
@@ -5585,7 +5606,7 @@
                         type: 'success',
                         title: 'Pantalla QR activada',
                         message: 'Este navegador replicara el QR en la pantalla configurada.',
-                        detail: normalizedUrl,
+                        detail: monitorUrl,
                     });
                 }
 
