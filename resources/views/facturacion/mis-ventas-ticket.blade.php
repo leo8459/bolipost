@@ -83,6 +83,12 @@
         <div class="row"><span class="label">{{ $ticket['comprobante_label'] }}:</span> {{ $ticket['comprobante_valor'] }}</div>
         <div class="row"><span class="label">FECHA:</span> {{ $ticket['fecha'] }}</div>
 
+        @foreach(($ticket['ips_snapshot']['items'] ?? []) as $ipsItem)
+            @if(($ipsItem['estado'] ?? '') !== '' || ($ipsItem['evento'] ?? '') !== '')
+                <div class="row"><span class="label">IPS {{ $ipsItem['codigo'] }}:</span> {{ $ipsItem['estado'] ?: $ipsItem['evento'] }}</div>
+            @endif
+        @endforeach
+
         <div class="amount">TOTAL Bs: {{ \App\Support\BolivianNumber::format((float) $ticket['importe'], 2) }}</div>
 
         @if($ticket['qr_image'])

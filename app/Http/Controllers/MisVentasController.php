@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ConceptoFacturacion;
+use App\Models\FacturaTicketSnapshot;
 use App\Models\PaqueteCerti;
 use App\Models\PaqueteEms;
 use App\Models\PaqueteInt;
@@ -10,6 +11,7 @@ use App\Models\PaqueteOrdi;
 use App\Models\Servicio;
 use App\Models\User;
 use App\Services\FacturacionCartService;
+use App\Services\SitraIpsClient;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -515,7 +517,7 @@ class MisVentasController extends Controller
         ]);
     }
 
-    public function ticket(Request $request, int $cart, FacturacionCartService $service): StreamedResponse
+    public function ticket(Request $request, int $cart, FacturacionCartService $service, SitraIpsClient $ips): StreamedResponse
     {
         $user = $this->authorizeVentasViewer($request->user(), $request->query('scope') === 'branch' ? 'branch' : 'own');
         $sourceUser = $this->resolveSourceUserForRequest($request, $user);
@@ -523,10 +525,33 @@ class MisVentasController extends Controller
 
         abort_unless($venta, 404, 'No se encontro la venta solicitada.');
 
-        $ticket = $this->buildTicketData($venta, $user);
+        $snapshot = $this->ticketSnapshot($venta, $ips);
+        $ticket = $this->buildTicketData($venta, $user, $snapshot);
         $pdf = Pdf::loadView('facturacion.mis-ventas-ticket', ['cart' => $venta, 'ticket' => $ticket])->setPaper([0, 0, 226.77, 680], 'portrait');
 
         return response()->streamDownload(fn () => print($pdf->output()), 'ticket-' . ($venta->codigo_orden ?: ('venta-' . $venta->id)) . '.pdf');
+    }
+
+    private function ticketSnapshot(object $venta, SitraIpsClient $ips): array
+    {
+        $cartId = (int) ($venta->id ?? 0);
+        if ($cartId <= 0) return [];
+        $existing = FacturaTicketSnapshot::where('cart_id', $cartId)->first();
+        if ($existing) return (array) $existing->data;
+        $items = [];
+        foreach ($this->normalizeItems($venta->items ?? []) as $item) {
+            $code = strtoupper(trim((string) data_get($item, 'resumen_origen.codigo_paquete', data_get($item, 'codigo_paquete', ''))));
+            if ($code === '') continue;
+            try {
+                $package = $ips->package($code)['package'] ?? [];
+                $items[] = ['codigo' => $code, 'evento_cd' => $package['operational_event_cd'] ?? null, 'evento' => $package['event_name'] ?? null, 'estado' => $package['stage']['label'] ?? null, 'oficina' => $package['office_name'] ?? null];
+            } catch (\Throwable) {
+                $items[] = ['codigo' => $code, 'evento_cd' => null, 'evento' => null, 'estado' => null, 'oficina' => null];
+            }
+        }
+        $data = ['captured_at' => now()->toIso8601String(), 'items' => $items];
+        FacturaTicketSnapshot::create(['cart_id' => $cartId, 'data' => $data, 'captured_at' => now()]);
+        return $data;
     }
 
     public function detail(Request $request, int $cart, FacturacionCartService $service): JsonResponse
@@ -2270,7 +2295,7 @@ class MisVentasController extends Controller
             ->values();
     }
 
-    private function buildTicketData(object $cart, $user): array
+    private function buildTicketData(object $cart, $user, array $snapshot = []): array
     {
         $respuesta = (array) ($cart->respuesta_emision ?? []);
         $numeroFactura = trim((string) (data_get($respuesta, 'factura.nroFactura') ?? data_get($respuesta, 'factura.numeroFactura') ?? data_get($respuesta, 'numeroFactura') ?? ''));
@@ -2314,6 +2339,7 @@ class MisVentasController extends Controller
             'qr_image' => $qrImage,
             'cuf' => $cuf,
             'pdf_url' => $this->normalizeSefePublicUrl(trim((string) data_get($respuesta, 'factura.pdfUrl', ''))),
+            'ips_snapshot' => $snapshot,
         ];
     }
 
