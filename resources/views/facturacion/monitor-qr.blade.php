@@ -980,9 +980,18 @@
 
             const formatAmount = (amount) => {
                 const numeric = Number(amount || 0);
-                return Number.isFinite(numeric) && numeric > 0
-                    ? 'Bs ' + window.BolivianNumber.format(numeric, 2)
-                    : 'Bs 0,00';
+                if (!Number.isFinite(numeric) || numeric <= 0) {
+                    return 'Bs 0,00';
+                }
+
+                if (window.BolivianNumber && typeof window.BolivianNumber.format === 'function') {
+                    return 'Bs ' + window.BolivianNumber.format(numeric, 2);
+                }
+
+                return 'Bs ' + numeric.toLocaleString('es-BO', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                });
             };
 
             const normalizeImageSrc = (value) => {
