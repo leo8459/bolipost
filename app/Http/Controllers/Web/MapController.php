@@ -48,11 +48,13 @@ class MapController extends Controller
         }
 
         $selectedDate = $this->resolveSelectedDate((string) $request->query('date', ''));
+        $locationUserId = $user->role === 'conductor' ? (int) $user->id : null;
 
         $onlineVehicles = $this->annotateStaleness($this->mergeHeartbeatVehicles([], $user));
         $alerts = $this->syncAndBuildOperationalAlerts($onlineVehicles);
 
         if ($mode === 'offline') {
+            $mobileDevices = $chasquiLocations->dailyLocations($selectedDate, $locationUserId);
             $vehicles = $this->annotateStaleness($this->buildOfflineVehicles($user, $selectedDate));
 
             return response()->json([
@@ -60,19 +62,53 @@ class MapController extends Controller
                 'selected_date' => $selectedDate->toDateString(),
                 'updated_at' => now()->toIso8601String(),
                 'vehicles' => $vehicles,
-                'mobile_devices' => [],
+                'mobile_devices' => $mobileDevices,
                 'alerts' => $alerts,
             ]);
         }
 
         $vehicles = $onlineVehicles;
+        $requestedChasquiUserId = max(0, (int) $request->query('chasqui_user_id', 0));
+        if ($locationUserId !== null) {
+            $requestedChasquiUserId = $locationUserId;
+        }
+
+        $allLiveDevices = $chasquiLocations->liveLocations($locationUserId);
+        $mobileDeviceOptions = collect($allLiveDevices)
+            ->map(fn (array $device): array => [
+                'user_id' => (int) ($device['user_id'] ?? 0),
+                'user_name' => (string) ($device['user_name'] ?? ''),
+                'alias' => (string) ($device['alias'] ?? ''),
+                'is_stale' => (bool) ($device['is_stale'] ?? true),
+            ])
+            ->filter(fn (array $device): bool => $device['user_id'] > 0)
+            ->unique('user_id')
+            ->values()
+            ->all();
+
+        $routeIncluded = false;
+        if ($requestedChasquiUserId > 0 && $request->boolean('include_route')) {
+            $mobileDevices = $chasquiLocations->dailyLocations(now(), $requestedChasquiUserId);
+            $routeIncluded = true;
+        } else {
+            $mobileDevices = collect($allLiveDevices)
+                ->when(
+                    $requestedChasquiUserId > 0,
+                    fn (Collection $devices) => $devices->where('user_id', $requestedChasquiUserId)
+                )
+                ->values()
+                ->all();
+        }
 
         return response()->json([
             'mode' => 'online',
             'selected_date' => null,
             'updated_at' => now()->toIso8601String(),
             'vehicles' => $vehicles,
-            'mobile_devices' => $chasquiLocations->locations(),
+            'mobile_devices' => $mobileDevices,
+            'mobile_device_options' => $mobileDeviceOptions,
+            'chasqui_user_id' => $requestedChasquiUserId ?: null,
+            'route_included' => $routeIncluded,
             'alerts' => $alerts,
         ]);
     }

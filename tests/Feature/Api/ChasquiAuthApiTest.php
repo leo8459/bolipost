@@ -83,6 +83,27 @@ class ChasquiAuthApiTest extends TestCase
             $table->timestamps();
         });
 
+        Schema::create('chasqui_location_points', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('user_id');
+            $table->string('location_id', 64);
+            $table->string('device_id', 190);
+            $table->string('device_name', 120)->nullable();
+            $table->decimal('latitude', 10, 7);
+            $table->decimal('longitude', 10, 7);
+            $table->decimal('accuracy_m', 10, 2)->nullable();
+            $table->decimal('speed_kmh', 8, 2)->nullable();
+            $table->decimal('heading', 6, 2)->nullable();
+            $table->decimal('battery_percent', 5, 2)->nullable();
+            $table->boolean('is_moving')->default(false);
+            $table->boolean('gps_enabled')->default(true);
+            $table->boolean('gps_mocked')->default(false);
+            $table->timestamp('sent_at');
+            $table->timestamp('received_at');
+            $table->timestamps();
+            $table->unique(['location_id', 'sent_at']);
+        });
+
         app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 
@@ -231,6 +252,77 @@ class ChasquiAuthApiTest extends TestCase
         $this->assertIsArray($index);
         $this->assertCount(1, $index);
         $this->assertNotNull(Cache::get('chasqui:location:device:'.$index[0]));
+        $this->assertDatabaseHas('chasqui_location_points', [
+            'user_id' => $user->id,
+            'device_id' => 'android-test-123',
+            'latitude' => -16.4897,
+            'longitude' => -68.1193,
+        ]);
+    }
+
+    public function test_historial_diario_agrupa_y_ordena_el_recorrido_del_chasqui(): void
+    {
+        $user = User::factory()->create([
+            'name' => 'Cartero Historial',
+            'alias' => 'cartero.historial',
+        ]);
+        $locations = app(ChasquiLocationService::class);
+        $firstAt = now()->startOfDay()->addHours(8);
+
+        $locations->record($user, [
+            'device_id' => 'walking-device',
+            'latitude' => -16.4897,
+            'longitude' => -68.1193,
+            'sent_at' => $firstAt->toIso8601String(),
+        ]);
+        $locations->record($user, [
+            'device_id' => 'walking-device',
+            'latitude' => -16.4910,
+            'longitude' => -68.1210,
+            'sent_at' => $firstAt->copy()->addMinutes(5)->toIso8601String(),
+        ]);
+
+        $history = $locations->dailyLocations(now(), $user->id);
+
+        $this->assertCount(1, $history);
+        $this->assertSame(2, $history[0]['points_count']);
+        $this->assertSame(-16.4897, $history[0]['points'][0]['lat']);
+        $this->assertSame(-16.491, $history[0]['latitude']);
+        $this->assertGreaterThan(0, $history[0]['distance_km']);
+    }
+
+    public function test_mapa_en_vivo_devuelve_solo_el_ultimo_punto_y_permite_filtrar_por_cartero(): void
+    {
+        $carteroUno = User::factory()->create(['name' => 'Cartero Uno']);
+        $carteroDos = User::factory()->create(['name' => 'Cartero Dos']);
+        $locations = app(ChasquiLocationService::class);
+
+        $locations->record($carteroUno, [
+            'device_id' => 'device-live-one',
+            'latitude' => -16.4897,
+            'longitude' => -68.1193,
+        ]);
+        $locations->record($carteroUno, [
+            'device_id' => 'device-live-one',
+            'latitude' => -16.4900,
+            'longitude' => -68.1200,
+            'sent_at' => now()->addSecond()->toIso8601String(),
+        ]);
+        $locations->record($carteroDos, [
+            'device_id' => 'device-live-two',
+            'latitude' => -17.3935,
+            'longitude' => -66.1570,
+        ]);
+
+        $all = $locations->liveLocations();
+        $filtered = $locations->liveLocations($carteroUno->id);
+
+        $this->assertCount(2, $all);
+        $this->assertCount(1, $filtered);
+        $this->assertSame($carteroUno->id, $filtered[0]['user_id']);
+        $this->assertSame(-16.49, $filtered[0]['latitude']);
+        $this->assertSame(1, $filtered[0]['points_count']);
+        $this->assertCount(1, $filtered[0]['points']);
     }
 
     public function test_ubicacion_chasqui_exige_el_permiso_de_integracion_correcto(): void
