@@ -41,9 +41,9 @@ class DailyClosingSheet extends DefaultValueBinder implements FromArray, ShouldA
         $sheet->freezePane('A'.($this->headerRow + 1));
         if ($this->headerRow === 1) {
             $sheet->setAutoFilter($sheet->calculateWorksheetDimension());
-            if ($sheet->getHighestColumn() === 'H') {
-                $sheet->getColumnDimension('H')->setAutoSize(false)->setWidth(75);
-                $sheet->getStyle('H')->getAlignment()->setWrapText(true);
+            if ($sheet->getHighestColumn() === 'J') {
+                $sheet->getColumnDimension('J')->setAutoSize(false)->setWidth(75);
+                $sheet->getStyle('J')->getAlignment()->setWrapText(true);
             }
         }
 

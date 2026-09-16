@@ -17,7 +17,7 @@ class DailyClosingExport implements WithMultipleSheets
             ['Servicio', 'Registrados hoy', 'Entregados hoy', 'Pendientes', 'Sin cartero activo']];
         $groups = array_fill_keys(self::DEPARTMENTS, []);
         $groups['SIN DEPARTAMENTO'] = [];
-        $historyRows = [['Servicio', 'Código', 'Origen', 'Destino', 'Estado o evento registrado', 'Fecha y hora (Bolivia)']];
+        $historyRows = [['Servicio', 'Código', 'Origen', 'Provincia de origen', 'Destino', 'Provincia de destino', 'Estado o evento registrado', 'Fecha y hora (Bolivia)']];
         foreach ($this->report['modules'] as $module) {
             $summary[] = [$module['name'], $module['registered'], $module['delivered'], $module['pending']->count(), $module['unassigned']];
             foreach ($module['pending'] as $row) {
@@ -35,9 +35,11 @@ class DailyClosingExport implements WithMultipleSheets
                 if (mb_strlen($historyText) > 32000) {
                     $historyText = mb_substr($historyText, 0, 31900)."\nHistorial completo en la hoja Historial.";
                 }
-                $groups[$department][] = [$module['name'], $row->codigo, $row->origen ?? 'Sin origen', $row->destino, $row->estado ?? 'Sin estado', $row->cartero ?? 'Sin cartero activo', $row->created_at, $historyText ?: 'Sin eventos registrados'];
+                $provinceOrigin = trim((string) ($row->provincia_origen ?? '')) ?: 'Sin provincia registrada';
+                $provinceDestination = trim((string) ($row->provincia_destino ?? '')) ?: 'Sin provincia registrada';
+                $groups[$department][] = [$module['name'], $row->codigo, $row->origen ?? 'Sin origen', $provinceOrigin, $row->destino, $provinceDestination, $row->estado ?? 'Sin estado', $row->cartero ?? 'Sin cartero activo', $row->created_at, $historyText ?: 'Sin eventos registrados'];
                 foreach ($history as $event) {
-                    $historyRows[] = [$module['name'], $row->codigo, $row->origen ?? 'Sin origen', $row->destino, $this->eventWithUser($event), $event['date']];
+                    $historyRows[] = [$module['name'], $row->codigo, $row->origen ?? 'Sin origen', $provinceOrigin, $row->destino, $provinceDestination, $this->eventWithUser($event), $event['date']];
                 }
             }
         }
@@ -54,7 +56,7 @@ class DailyClosingExport implements WithMultipleSheets
                 continue;
             }
             $sheets[] = new DailyClosingSheet($department, [
-                ['Servicio', 'Código', 'Origen', 'Destino', 'Estado actual', 'Cartero', 'Fecha de registro', 'Historial de estados y eventos'],
+                ['Servicio', 'Código', 'Origen', 'Provincia de origen', 'Destino', 'Provincia de destino', 'Estado actual', 'Cartero', 'Fecha de registro', 'Historial de estados y eventos'],
                 ...$rows,
             ]);
         }

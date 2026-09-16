@@ -9,6 +9,18 @@ use Symfony\Component\HttpFoundation\Response;
 
 class DeliveryImageController extends Controller
 {
+    public function bastionReport(string $codigo, \App\Services\BastionReportService $service): Response
+    {
+        $rows = collect(\App\Services\BastionReportService::MONTHS)->keys()
+            ->flatMap(fn ($month) => $service->source($month)['paquetes'])
+            ->where('codigo', strtoupper(trim($codigo)));
+        abort_if($rows->isEmpty(), 404);
+        $image = $service->rows($rows, true)->first()['imagen'] ?? null;
+        abort_if($image === null, 404);
+
+        return $this->imageResponse($image, false);
+    }
+
     public function package(string $type, int $id, string $kind = 'entrega'): Response
     {
         $image = $this->imageForPackage($type, $id, $kind);

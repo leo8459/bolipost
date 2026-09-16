@@ -54,6 +54,9 @@ class DailyClosingMailService
                 ->where('pkg.created_at', '<=', $end)
                 ->where(fn ($query) => $query->whereNull('state.nombre_estado')->orWhereRaw("UPPER(TRIM(state.nombre_estado)) NOT IN ('ENTREGADO', 'CANCELADO')"))
                 ->select('pkg.codigo', 'pkg.origen', 'pkg.'.$destination.' as destino', 'state.nombre_estado as estado', 'pkg.created_at')
+                ->selectRaw($table === 'paquetes_contrato'
+                    ? 'pkg.provincia_origen, pkg.provincia as provincia_destino'
+                    : 'NULL as provincia_origen, NULL as provincia_destino')
                 ->selectRaw("CASE WHEN UPPER(TRIM(state.nombre_estado)) = 'CARTERO' AND UPPER(TRIM(owner_state.nombre_estado)) = 'CARTERO' THEN courier.name ELSE NULL END as cartero")
                 ->selectRaw("CASE WHEN UPPER(TRIM(state.nombre_estado)) = 'CARTERO' AND UPPER(TRIM(owner_state.nombre_estado)) = 'CARTERO' THEN courier.id ELSE NULL END as cartero_id")
                 ->orderBy('pkg.created_at')->orderBy('pkg.id')->get();

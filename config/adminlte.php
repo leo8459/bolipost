@@ -592,13 +592,17 @@ return [
         [
             'text' => 'Bastiones',
             'icon' => 'fas fa-shield-alt',
-            'can' => 'bastiones.index',
             'submenu' => [
                 [
                     'text' => 'Recuperar paquetes',
                     'url' => 'bastiones/paquetes',
                     'icon' => 'fas fa-undo-alt',
                     'can' => 'bastiones.index',
+                ],
+                [
+                    'text' => 'Reporte de Bastión',
+                    'url' => 'bastiones/reporte',
+                    'icon' => 'fas fa-file-alt',
                 ],
             ],
         ],

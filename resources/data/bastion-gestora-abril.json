@@ -1,0 +1,3997 @@
+{
+    "archivo": "GESTORA   ABRIL (1).xlsx",
+    "paquetes": [
+        {
+            "codigo": "C0007A04877BO",
+            "hoja": "LLALLAGUA",
+            "fila": 15,
+            "fecha": "02-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04879BO",
+            "hoja": "LLALLAGUA",
+            "fila": 16,
+            "fecha": "02-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "POI"
+        },
+        {
+            "codigo": "C0007A04880BO",
+            "hoja": "LLALLAGUA",
+            "fila": 17,
+            "fecha": "02-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04881BO",
+            "hoja": "LLALLAGUA",
+            "fila": 18,
+            "fecha": "02-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04881BO",
+            "hoja": "LLALLAGUA",
+            "fila": 19,
+            "fecha": "02-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04882BO",
+            "hoja": "LLALLAGUA",
+            "fila": 20,
+            "fecha": "02-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04882BO",
+            "hoja": "LLALLAGUA",
+            "fila": 21,
+            "fecha": "02-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04883BO",
+            "hoja": "LLALLAGUA",
+            "fila": 22,
+            "fecha": "02-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04883BO",
+            "hoja": "LLALLAGUA",
+            "fila": 23,
+            "fecha": "02-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04886BO",
+            "hoja": "LLALLAGUA",
+            "fila": 24,
+            "fecha": "02-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04887BO",
+            "hoja": "LLALLAGUA",
+            "fila": 25,
+            "fecha": "02-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04887BO",
+            "hoja": "LLALLAGUA",
+            "fila": 26,
+            "fecha": "02-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04912BO",
+            "hoja": "LLALLAGUA",
+            "fila": 27,
+            "fecha": "08-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04912BO",
+            "hoja": "LLALLAGUA",
+            "fila": 28,
+            "fecha": "08-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04913BO",
+            "hoja": "LLALLAGUA",
+            "fila": 29,
+            "fecha": "08-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04913BO",
+            "hoja": "LLALLAGUA",
+            "fila": 30,
+            "fecha": "08-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04914BO",
+            "hoja": "LLALLAGUA",
+            "fila": 31,
+            "fecha": "09-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04919BO",
+            "hoja": "LLALLAGUA",
+            "fila": 32,
+            "fecha": "14-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04920BO",
+            "hoja": "LLALLAGUA",
+            "fila": 33,
+            "fecha": "14-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04920BO",
+            "hoja": "LLALLAGUA",
+            "fila": 34,
+            "fecha": "14-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04921BO",
+            "hoja": "LLALLAGUA",
+            "fila": 35,
+            "fecha": "14-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04921BO",
+            "hoja": "LLALLAGUA",
+            "fila": 36,
+            "fecha": "14-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04926BO",
+            "hoja": "LLALLAGUA",
+            "fila": 37,
+            "fecha": "07-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04926BO",
+            "hoja": "LLALLAGUA",
+            "fila": 38,
+            "fecha": "07-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15186BO",
+            "hoja": "LLALLAGUA",
+            "fila": 39,
+            "fecha": "16-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15534BO",
+            "hoja": "LLALLAGUA",
+            "fila": 40,
+            "fecha": "21-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15543BO",
+            "hoja": "LLALLAGUA",
+            "fila": 41,
+            "fecha": "18-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15669BO",
+            "hoja": "LLALLAGUA",
+            "fila": 42,
+            "fecha": "22-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15670BO",
+            "hoja": "LLALLAGUA",
+            "fila": 43,
+            "fecha": "22-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15801BO",
+            "hoja": "LLALLAGUA",
+            "fila": 44,
+            "fecha": "22-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15960BO",
+            "hoja": "LLALLAGUA",
+            "fila": 45,
+            "fecha": "23-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15961BO",
+            "hoja": "LLALLAGUA",
+            "fila": 46,
+            "fecha": "23-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15962BO",
+            "hoja": "LLALLAGUA",
+            "fila": 47,
+            "fecha": "23-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16098BO",
+            "hoja": "LLALLAGUA",
+            "fila": 48,
+            "fecha": "24-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16099BO",
+            "hoja": "LLALLAGUA",
+            "fila": 49,
+            "fecha": "24-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16268BO",
+            "hoja": "LLALLAGUA",
+            "fila": 50,
+            "fecha": "28-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16449BO",
+            "hoja": "LLALLAGUA",
+            "fila": 51,
+            "fecha": "28-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16450BO",
+            "hoja": "LLALLAGUA",
+            "fila": 52,
+            "fecha": "28-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16451BO",
+            "hoja": "LLALLAGUA",
+            "fila": 53,
+            "fecha": "28-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16649BO",
+            "hoja": "LLALLAGUA",
+            "fila": 54,
+            "fecha": "29-04-26",
+            "origen": "LLALLAGUA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04876BO",
+            "hoja": "TUPIZA",
+            "fila": 15,
+            "fecha": "02-04-26",
+            "origen": "TUPIZA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04917BO",
+            "hoja": "TUPIZA",
+            "fila": 16,
+            "fecha": "10-04-26",
+            "origen": "TUPIZA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04918BO",
+            "hoja": "TUPIZA",
+            "fila": 17,
+            "fecha": "10-04-26",
+            "origen": "TUPIZA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04922BO",
+            "hoja": "TUPIZA",
+            "fila": 18,
+            "fecha": "14-04-26",
+            "origen": "TUPIZA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04923BO",
+            "hoja": "TUPIZA",
+            "fila": 19,
+            "fecha": "14-04-26",
+            "origen": "TUPIZA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04925BO",
+            "hoja": "TUPIZA",
+            "fila": 20,
+            "fecha": "18-04-26",
+            "origen": "TUPIZA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04927BO",
+            "hoja": "TUPIZA",
+            "fila": 21,
+            "fecha": "18-04-26",
+            "origen": "TUPIZA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15676BO",
+            "hoja": "TUPIZA",
+            "fila": 22,
+            "fecha": "22-04-26",
+            "origen": "TUPIZA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15682BO",
+            "hoja": "TUPIZA",
+            "fila": 23,
+            "fecha": "21-04-26",
+            "origen": "TUPIZA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15683BO",
+            "hoja": "TUPIZA",
+            "fila": 24,
+            "fecha": "21-04-26",
+            "origen": "TUPIZA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16105BO",
+            "hoja": "TUPIZA",
+            "fila": 25,
+            "fecha": "24-04-26",
+            "origen": "TUPIZA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16267BO",
+            "hoja": "TUPIZA",
+            "fila": 26,
+            "fecha": "27-04-26",
+            "origen": "TUPIZA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16267BO",
+            "hoja": "TUPIZA",
+            "fila": 27,
+            "fecha": "28-04-26",
+            "origen": "TUPIZA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16446BO",
+            "hoja": "TUPIZA",
+            "fila": 28,
+            "fecha": "28-04-26",
+            "origen": "TUPIZA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16827BO",
+            "hoja": "TUPIZA",
+            "fila": 29,
+            "fecha": "30-04-26",
+            "origen": "TUPIZA",
+            "destino": "POI"
+        },
+        {
+            "codigo": "C0007A16832BO",
+            "hoja": "TUPIZA",
+            "fila": 30,
+            "fecha": "30-04-26",
+            "origen": "TUPIZA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16832BO",
+            "hoja": "TUPIZA",
+            "fila": 31,
+            "fecha": "30-04-26",
+            "origen": "TUPIZA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04877BO",
+            "hoja": "UYUNI",
+            "fila": 15,
+            "fecha": "02-04-26",
+            "origen": "UYUNI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15230BO",
+            "hoja": "UYUNI",
+            "fila": 16,
+            "fecha": "16-04-26",
+            "origen": "UYUNI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15339BO",
+            "hoja": "UYUNI",
+            "fila": 17,
+            "fecha": "17-04-26",
+            "origen": "UYUNI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15342BO",
+            "hoja": "UYUNI",
+            "fila": 18,
+            "fecha": "17-04-26",
+            "origen": "UYUNI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15343BO",
+            "hoja": "UYUNI",
+            "fila": 19,
+            "fecha": "17-04-26",
+            "origen": "UYUNI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16102BO",
+            "hoja": "UYUNI",
+            "fila": 20,
+            "fecha": "24-04-26",
+            "origen": "UYUNI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16103BO",
+            "hoja": "UYUNI",
+            "fila": 21,
+            "fecha": "24-04-26",
+            "origen": "UYUNI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16103BO",
+            "hoja": "UYUNI",
+            "fila": 22,
+            "fecha": "24-04-26",
+            "origen": "UYUNI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16225BO",
+            "hoja": "UYUNI",
+            "fila": 23,
+            "fecha": "27-04-26",
+            "origen": "UYUNI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16830BO",
+            "hoja": "UYUNI",
+            "fila": 24,
+            "fecha": "30-04-26",
+            "origen": "UYUNI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16831BO",
+            "hoja": "UYUNI",
+            "fila": 25,
+            "fecha": "30-04-26",
+            "origen": "UYUNI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A01711BO",
+            "hoja": "LPB2",
+            "fila": 6,
+            "fecha": "06-04-26",
+            "origen": "LPB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A01276BO",
+            "hoja": "LPB2",
+            "fila": 7,
+            "fecha": "08-04-26",
+            "origen": "LPB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14591BO",
+            "hoja": "LPB2",
+            "fila": 8,
+            "fecha": "10-04-26",
+            "origen": "LPB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A14593BO",
+            "hoja": "LPB2",
+            "fila": 9,
+            "fecha": "10-04-26",
+            "origen": "LPB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14848BO",
+            "hoja": "LPB2",
+            "fila": 10,
+            "fecha": "13-04-26",
+            "origen": "LPB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A02683BO",
+            "hoja": "LPB2",
+            "fila": 11,
+            "fecha": "14-04-26",
+            "origen": "LPB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15051BO",
+            "hoja": "LPB2",
+            "fila": 12,
+            "fecha": "15-04-26",
+            "origen": "LPB",
+            "destino": "LOAYZA"
+        },
+        {
+            "codigo": "C0007A15062BO",
+            "hoja": "LPB2",
+            "fila": 13,
+            "fecha": "15-04-26",
+            "origen": "LPB",
+            "destino": "AROMA"
+        },
+        {
+            "codigo": "C0007A15077BO",
+            "hoja": "LPB2",
+            "fila": 14,
+            "fecha": "15-04-26",
+            "origen": "LPB",
+            "destino": "INQUISIVI"
+        },
+        {
+            "codigo": "C0007A15083BO",
+            "hoja": "LPB2",
+            "fila": 15,
+            "fecha": "15-04-26",
+            "origen": "LPB",
+            "destino": "MANCO KAPAC"
+        },
+        {
+            "codigo": "C0007A15095BO",
+            "hoja": "LPB2",
+            "fila": 16,
+            "fecha": "15-04-26",
+            "origen": "LPB",
+            "destino": "PACAJES"
+        },
+        {
+            "codigo": "C0007A00487BO",
+            "hoja": "LPB2",
+            "fila": 17,
+            "fecha": "16-04-26",
+            "origen": "LPB",
+            "destino": "TJA"
+        },
+        {
+            "codigo": "C0007A00488BO",
+            "hoja": "LPB2",
+            "fila": 18,
+            "fecha": "16-04-26",
+            "origen": "LPB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A15293BO",
+            "hoja": "LPB2",
+            "fila": 19,
+            "fecha": "17-04-26",
+            "origen": "LPB",
+            "destino": "OMASUYOS"
+        },
+        {
+            "codigo": "C0007A15346BO",
+            "hoja": "LPB2",
+            "fila": 20,
+            "fecha": "17-04-26",
+            "origen": "LPB",
+            "destino": "MURILLO"
+        },
+        {
+            "codigo": "C0039A00179BO",
+            "hoja": "LPB2",
+            "fila": 21,
+            "fecha": "17-04-26",
+            "origen": "LPB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0039A00180BO",
+            "hoja": "LPB2",
+            "fila": 22,
+            "fecha": "17-04-26",
+            "origen": "LPB",
+            "destino": "POI"
+        },
+        {
+            "codigo": "C0007A01797BO",
+            "hoja": "LPB2",
+            "fila": 23,
+            "fecha": "20-04-26",
+            "origen": "LPB",
+            "destino": "ACHACACHI"
+        },
+        {
+            "codigo": "C0007A15428BO",
+            "hoja": "LPB2",
+            "fila": 24,
+            "fecha": "20-04-26",
+            "origen": "LPB",
+            "destino": "LOAYZA"
+        },
+        {
+            "codigo": "C0007A15439BO",
+            "hoja": "LPB2",
+            "fila": 25,
+            "fecha": "20-04-26",
+            "origen": "LPB",
+            "destino": "PACAJES"
+        },
+        {
+            "codigo": "C0007A15456BO",
+            "hoja": "LPB2",
+            "fila": 26,
+            "fecha": "20-04-26",
+            "origen": "LPB",
+            "destino": "NOR YUNGAS"
+        },
+        {
+            "codigo": "C0007A15466BO",
+            "hoja": "LPB2",
+            "fila": 27,
+            "fecha": "20-04-26",
+            "origen": "LPB",
+            "destino": "NOR YUNGAS"
+        },
+        {
+            "codigo": "C0007A15476BO",
+            "hoja": "LPB2",
+            "fila": 28,
+            "fecha": "20-04-26",
+            "origen": "LPB",
+            "destino": "SUD YUNGAS"
+        },
+        {
+            "codigo": "C0007A15484BO",
+            "hoja": "LPB2",
+            "fila": 29,
+            "fecha": "20-04-26",
+            "origen": "LPB",
+            "destino": "LARECAJA"
+        },
+        {
+            "codigo": "C0007A15493BO",
+            "hoja": "LPB2",
+            "fila": 30,
+            "fecha": "20-04-26",
+            "origen": "LPB",
+            "destino": "LOAYZA"
+        },
+        {
+            "codigo": "C0007A15497BO",
+            "hoja": "LPB2",
+            "fila": 31,
+            "fecha": "20-04-26",
+            "origen": "LPB",
+            "destino": "LARECAJA"
+        },
+        {
+            "codigo": "C0007A15501BO",
+            "hoja": "LPB2",
+            "fila": 32,
+            "fecha": "20-04-26",
+            "origen": "LPB",
+            "destino": "PACAJES"
+        },
+        {
+            "codigo": "C0007A15503BO",
+            "hoja": "LPB2",
+            "fila": 33,
+            "fecha": "20-04-26",
+            "origen": "LPB",
+            "destino": "SUD YUNGAS"
+        },
+        {
+            "codigo": "C0007A15508BO",
+            "hoja": "LPB2",
+            "fila": 34,
+            "fecha": "20-04-26",
+            "origen": "LPB",
+            "destino": "OMASUYOS"
+        },
+        {
+            "codigo": "C0007A15509BO",
+            "hoja": "LPB2",
+            "fila": 35,
+            "fecha": "20-04-26",
+            "origen": "LPB",
+            "destino": "ITURRALDE"
+        },
+        {
+            "codigo": "C0007A15516BO",
+            "hoja": "LPB2",
+            "fila": 36,
+            "fecha": "20-04-26",
+            "origen": "LPB",
+            "destino": "CAMACHO"
+        },
+        {
+            "codigo": "C0007A15517BO",
+            "hoja": "LPB2",
+            "fila": 37,
+            "fecha": "20-04-26",
+            "origen": "LPB",
+            "destino": "INGAVI"
+        },
+        {
+            "codigo": "C0007A15519BO",
+            "hoja": "LPB2",
+            "fila": 38,
+            "fecha": "20-04-26",
+            "origen": "LPB",
+            "destino": "LARECAJA"
+        },
+        {
+            "codigo": "C0007A15521BO",
+            "hoja": "LPB2",
+            "fila": 39,
+            "fecha": "20-04-26",
+            "origen": "LPB",
+            "destino": "LARECAJA"
+        },
+        {
+            "codigo": "C0007A15522BO",
+            "hoja": "LPB2",
+            "fila": 40,
+            "fecha": "20-04-26",
+            "origen": "LPB",
+            "destino": "BAUTISTA SAAVEDRA"
+        },
+        {
+            "codigo": "C0007A15523BO",
+            "hoja": "LPB2",
+            "fila": 41,
+            "fecha": "20-04-26",
+            "origen": "LPB",
+            "destino": "INGAVI"
+        },
+        {
+            "codigo": "C0007A15524BO",
+            "hoja": "LPB2",
+            "fila": 42,
+            "fecha": "20-04-26",
+            "origen": "LPB",
+            "destino": "GUALBERTO VILLARROEL"
+        },
+        {
+            "codigo": "C0007A15529BO",
+            "hoja": "LPB2",
+            "fila": 43,
+            "fecha": "20-04-26",
+            "origen": "LPB",
+            "destino": "INGAVI"
+        },
+        {
+            "codigo": "C0007A15542BO",
+            "hoja": "LPB2",
+            "fila": 44,
+            "fecha": "20-04-26",
+            "origen": "LPB",
+            "destino": "FRANZ TAMAYO"
+        },
+        {
+            "codigo": "C0007A15545BO",
+            "hoja": "LPB2",
+            "fila": 45,
+            "fecha": "20-04-26",
+            "origen": "LPB",
+            "destino": "LOAYZA"
+        },
+        {
+            "codigo": "C0007A15547BO",
+            "hoja": "LPB2",
+            "fila": 46,
+            "fecha": "20-04-26",
+            "origen": "LPB",
+            "destino": "CAMACHO"
+        },
+        {
+            "codigo": "C0007A15549BO",
+            "hoja": "LPB2",
+            "fila": 47,
+            "fecha": "20-04-26",
+            "origen": "LPB",
+            "destino": "MUÑECAS"
+        },
+        {
+            "codigo": "C0007A15551BO",
+            "hoja": "LPB2",
+            "fila": 48,
+            "fecha": "20-04-26",
+            "origen": "LPB",
+            "destino": "CARANAVI"
+        },
+        {
+            "codigo": "C0007A01366BO",
+            "hoja": "LPB2",
+            "fila": 49,
+            "fecha": "21-04-26",
+            "origen": "LPB",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15562BO",
+            "hoja": "LPB2",
+            "fila": 50,
+            "fecha": "21-04-26",
+            "origen": "LPB",
+            "destino": "ABEL ITURRALDE"
+        },
+        {
+            "codigo": "C0007A00387BO",
+            "hoja": "LPB2",
+            "fila": 51,
+            "fecha": "22-04-26",
+            "origen": "LPB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A00388BO",
+            "hoja": "LPB2",
+            "fila": 52,
+            "fecha": "22-04-26",
+            "origen": "LPB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A15720BO",
+            "hoja": "LPB2",
+            "fila": 53,
+            "fecha": "22-04-26",
+            "origen": "LPB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A15774BO",
+            "hoja": "LPB2",
+            "fila": 54,
+            "fecha": "22-04-26",
+            "origen": "LPB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A00943BO",
+            "hoja": "LPB2",
+            "fila": 55,
+            "fecha": "23-04-26",
+            "origen": "LPB",
+            "destino": "CAMARGO"
+        },
+        {
+            "codigo": "C0007A15858BO",
+            "hoja": "LPB2",
+            "fila": 56,
+            "fecha": "23-04-26",
+            "origen": "LPB",
+            "destino": "NOR YUNGAS"
+        },
+        {
+            "codigo": "C0007A15864BO",
+            "hoja": "LPB2",
+            "fila": 57,
+            "fecha": "23-04-26",
+            "origen": "LPB",
+            "destino": "AROMA"
+        },
+        {
+            "codigo": "C0007A15880BO",
+            "hoja": "LPB2",
+            "fila": 58,
+            "fecha": "23-04-26",
+            "origen": "LPB",
+            "destino": "INGAVI"
+        },
+        {
+            "codigo": "C0007A16005BO",
+            "hoja": "LPB2",
+            "fila": 59,
+            "fecha": "24-04-26",
+            "origen": "LPB",
+            "destino": "PACAJES"
+        },
+        {
+            "codigo": "C0007A02692BO",
+            "hoja": "LPB2",
+            "fila": 60,
+            "fecha": "27-04-26",
+            "origen": "LPB",
+            "destino": "COTOCA"
+        },
+        {
+            "codigo": "C0007A16228BO",
+            "hoja": "LPB2",
+            "fila": 61,
+            "fecha": "27-04-26",
+            "origen": "LPB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16332BO",
+            "hoja": "LPB2",
+            "fila": 62,
+            "fecha": "28-04-26",
+            "origen": "LPB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16360BO",
+            "hoja": "LPB2",
+            "fila": 63,
+            "fecha": "28-04-26",
+            "origen": "LPB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16722BO",
+            "hoja": "LPB2",
+            "fila": 64,
+            "fecha": "30-04-26",
+            "origen": "LPB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16789BO",
+            "hoja": "LPB2",
+            "fila": 65,
+            "fecha": "30-04-26",
+            "origen": "LPB",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14465BO",
+            "hoja": "ORU2",
+            "fila": 5,
+            "fecha": "08-04-26",
+            "origen": "HUANUNI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14470BO",
+            "hoja": "ORU2",
+            "fila": 6,
+            "fecha": "08-04-26",
+            "origen": "ORU",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14577BO",
+            "hoja": "ORU2",
+            "fila": 7,
+            "fecha": "09-04-26",
+            "origen": "ORU",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14647BO",
+            "hoja": "ORU2",
+            "fila": 8,
+            "fecha": "10-04-26",
+            "origen": "HUANUNI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14725BO",
+            "hoja": "ORU2",
+            "fila": 9,
+            "fecha": "10-04-26",
+            "origen": "ORU",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14728BO",
+            "hoja": "ORU2",
+            "fila": 10,
+            "fecha": "10-04-26",
+            "origen": "ORU",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14832BO",
+            "hoja": "ORU2",
+            "fila": 11,
+            "fecha": "13-04-26",
+            "origen": "ORU",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14944BO",
+            "hoja": "ORU2",
+            "fila": 12,
+            "fecha": "14-04-26",
+            "origen": "ORU",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14945BO",
+            "hoja": "ORU2",
+            "fila": 13,
+            "fecha": "14-04-26",
+            "origen": "ORU",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14946BO",
+            "hoja": "ORU2",
+            "fila": 14,
+            "fecha": "14-04-26",
+            "origen": "ORU",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15066BO",
+            "hoja": "ORU2",
+            "fila": 15,
+            "fecha": "15-04-26",
+            "origen": "ORU",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15194BO",
+            "hoja": "ORU2",
+            "fila": 16,
+            "fecha": "16-04-26",
+            "origen": "ORU",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15252BO",
+            "hoja": "ORU2",
+            "fila": 17,
+            "fecha": "17-04-26",
+            "origen": "ORU",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15307BO",
+            "hoja": "ORU2",
+            "fila": 18,
+            "fecha": "17-04-26",
+            "origen": "ORU",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15461BO",
+            "hoja": "ORU2",
+            "fila": 19,
+            "fecha": "20-04-26",
+            "origen": "ORU",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15468BO",
+            "hoja": "ORU2",
+            "fila": 20,
+            "fecha": "20-04-26",
+            "origen": "ORU",
+            "destino": "POI"
+        },
+        {
+            "codigo": "C0007A15601BO",
+            "hoja": "ORU2",
+            "fila": 21,
+            "fecha": "21-04-26",
+            "origen": "HUANUNI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15777BO",
+            "hoja": "ORU2",
+            "fila": 22,
+            "fecha": "22-04-26",
+            "origen": "ORU",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15906BO",
+            "hoja": "ORU2",
+            "fila": 23,
+            "fecha": "23-04-26",
+            "origen": "ORU",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15926BO",
+            "hoja": "ORU2",
+            "fila": 24,
+            "fecha": "23-04-26",
+            "origen": "ORU",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16032BO",
+            "hoja": "ORU2",
+            "fila": 25,
+            "fecha": "24-04-26",
+            "origen": "ORU",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16060BO",
+            "hoja": "ORU2",
+            "fila": 26,
+            "fecha": "24-04-26",
+            "origen": "ORU",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16129BO",
+            "hoja": "ORU2",
+            "fila": 27,
+            "fecha": "27-04-26",
+            "origen": "ORU",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16388BO",
+            "hoja": "ORU2",
+            "fila": 28,
+            "fecha": "28-04-26",
+            "origen": "HUANUNI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16670BO",
+            "hoja": "ORU2",
+            "fila": 29,
+            "fecha": "30-04-26",
+            "origen": "ORU",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16785BO",
+            "hoja": "ORU2",
+            "fila": 30,
+            "fecha": "30-04-26",
+            "origen": "ORU",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A05554BO",
+            "hoja": "CBB2",
+            "fila": 5,
+            "fecha": "06-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A05555BO",
+            "hoja": "CBB2",
+            "fila": 6,
+            "fecha": "06-04-26",
+            "origen": "CBB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14386BO",
+            "hoja": "CBB2",
+            "fila": 7,
+            "fecha": "07-04-26",
+            "origen": "CBB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14450BO",
+            "hoja": "CBB2",
+            "fila": 8,
+            "fecha": "08-04-26",
+            "origen": "CBB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14464BO",
+            "hoja": "CBB2",
+            "fila": 9,
+            "fecha": "08-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A14499BO",
+            "hoja": "CBB2",
+            "fila": 10,
+            "fecha": "09-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A14545BO",
+            "hoja": "CBB2",
+            "fila": 11,
+            "fecha": "09-04-26",
+            "origen": "CBB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14573BO",
+            "hoja": "CBB2",
+            "fila": 12,
+            "fecha": "09-04-26",
+            "origen": "CBB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A00803BO",
+            "hoja": "CBB2",
+            "fila": 13,
+            "fecha": "10-04-26",
+            "origen": "CBB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14640BO",
+            "hoja": "CBB2",
+            "fila": 14,
+            "fecha": "10-04-26",
+            "origen": "CBB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14675BO",
+            "hoja": "CBB2",
+            "fila": 15,
+            "fecha": "10-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A14694BO",
+            "hoja": "CBB2",
+            "fila": 16,
+            "fecha": "10-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A14722BO",
+            "hoja": "CBB2",
+            "fila": 17,
+            "fecha": "10-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A14731BO",
+            "hoja": "CBB2",
+            "fila": 18,
+            "fecha": "10-04-26",
+            "origen": "CBB",
+            "destino": "SRE"
+        },
+        {
+            "codigo": "C0007A14805BO",
+            "hoja": "CBB2",
+            "fila": 19,
+            "fecha": "13-04-26",
+            "origen": "CBB",
+            "destino": "SRE"
+        },
+        {
+            "codigo": "C0007A14809BO",
+            "hoja": "CBB2",
+            "fila": 20,
+            "fecha": "13-04-26",
+            "origen": "CBB",
+            "destino": "SRE"
+        },
+        {
+            "codigo": "C0007A15043BO",
+            "hoja": "CBB2",
+            "fila": 21,
+            "fecha": "15-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A15333BO",
+            "hoja": "CBB2",
+            "fila": 22,
+            "fecha": "17-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A15338BO",
+            "hoja": "CBB2",
+            "fila": 23,
+            "fecha": "17-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C007B00201BO",
+            "hoja": "CBB2",
+            "fila": 24,
+            "fecha": "17-04-26",
+            "origen": "CBB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15358BO",
+            "hoja": "CBB2",
+            "fila": 25,
+            "fecha": "18-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A15389BO",
+            "hoja": "CBB2",
+            "fila": 26,
+            "fecha": "20-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A15416BO",
+            "hoja": "CBB2",
+            "fila": 27,
+            "fecha": "20-04-26",
+            "origen": "CBB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15417BO",
+            "hoja": "CBB2",
+            "fila": 28,
+            "fecha": "20-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A15541BO",
+            "hoja": "CBB2",
+            "fila": 29,
+            "fecha": "20-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A15564BO",
+            "hoja": "CBB2",
+            "fila": 30,
+            "fecha": "21-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A15569BO",
+            "hoja": "CBB2",
+            "fila": 31,
+            "fecha": "21-04-26",
+            "origen": "CBB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15575BO",
+            "hoja": "CBB2",
+            "fila": 32,
+            "fecha": "21-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A15626BO",
+            "hoja": "CBB2",
+            "fila": 33,
+            "fecha": "21-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A15672BO",
+            "hoja": "CBB2",
+            "fila": 34,
+            "fecha": "21-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A15678BO",
+            "hoja": "CBB2",
+            "fila": 35,
+            "fecha": "21-04-26",
+            "origen": "CBB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15749BO",
+            "hoja": "CBB2",
+            "fila": 36,
+            "fecha": "22-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A15750BO",
+            "hoja": "CBB2",
+            "fila": 37,
+            "fecha": "22-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A15751BO",
+            "hoja": "CBB2",
+            "fila": 38,
+            "fecha": "22-04-26",
+            "origen": "CBB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15920BO",
+            "hoja": "CBB2",
+            "fila": 39,
+            "fecha": "23-04-26",
+            "origen": "CBB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15934BO",
+            "hoja": "CBB2",
+            "fila": 40,
+            "fecha": "23-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A15967BO",
+            "hoja": "CBB2",
+            "fila": 41,
+            "fecha": "23-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A15991BO",
+            "hoja": "CBB2",
+            "fila": 42,
+            "fecha": "24-04-26",
+            "origen": "CBB",
+            "destino": "SRE"
+        },
+        {
+            "codigo": "C0007A15992BO",
+            "hoja": "CBB2",
+            "fila": 43,
+            "fecha": "24-04-26",
+            "origen": "CBB",
+            "destino": "TJA"
+        },
+        {
+            "codigo": "C0007A16061BO",
+            "hoja": "CBB2",
+            "fila": 44,
+            "fecha": "24-04-26",
+            "origen": "CBB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16062BO",
+            "hoja": "CBB2",
+            "fila": 45,
+            "fecha": "24-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A16174BO",
+            "hoja": "CBB2",
+            "fila": 46,
+            "fecha": "27-04-26",
+            "origen": "CBB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16180BO",
+            "hoja": "CBB2",
+            "fila": 47,
+            "fecha": "27-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A16394BO",
+            "hoja": "CBB2",
+            "fila": 48,
+            "fecha": "28-04-26",
+            "origen": "CBB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16447BO",
+            "hoja": "CBB2",
+            "fila": 49,
+            "fecha": "28-04-26",
+            "origen": "CBB",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A16463BO",
+            "hoja": "CBB2",
+            "fila": 50,
+            "fecha": "29-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A16493BO",
+            "hoja": "CBB2",
+            "fila": 51,
+            "fecha": "29-04-26",
+            "origen": "CBB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16503BO",
+            "hoja": "CBB2",
+            "fila": 52,
+            "fecha": "29-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A16524BO",
+            "hoja": "CBB2",
+            "fila": 53,
+            "fecha": "29-04-26",
+            "origen": "CBB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16528BO",
+            "hoja": "CBB2",
+            "fila": 54,
+            "fecha": "29-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A16555BO",
+            "hoja": "CBB2",
+            "fila": 55,
+            "fecha": "29-04-26",
+            "origen": "CBB",
+            "destino": "CAPINOTA"
+        },
+        {
+            "codigo": "C0007A16581BO",
+            "hoja": "CBB2",
+            "fila": 56,
+            "fecha": "29-04-26",
+            "origen": "CBB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16585BO",
+            "hoja": "CBB2",
+            "fila": 57,
+            "fecha": "29-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A16608BO",
+            "hoja": "CBB2",
+            "fila": 58,
+            "fecha": "29-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A16730BO",
+            "hoja": "CBB2",
+            "fila": 59,
+            "fecha": "30-04-26",
+            "origen": "CBB",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A16752BO",
+            "hoja": "CBB2",
+            "fila": 60,
+            "fecha": "30-04-26",
+            "origen": "CBB",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A05528BO",
+            "hoja": "SRZ2",
+            "fila": 6,
+            "fecha": "06-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A05529BO",
+            "hoja": "SRZ2",
+            "fila": 7,
+            "fecha": "06-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A05531BO",
+            "hoja": "SRZ2",
+            "fila": 8,
+            "fecha": "06-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A05532BO",
+            "hoja": "SRZ2",
+            "fila": 9,
+            "fecha": "06-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A05533BO",
+            "hoja": "SRZ2",
+            "fila": 10,
+            "fecha": "06-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A05534BO",
+            "hoja": "SRZ2",
+            "fila": 11,
+            "fecha": "06-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A05397BO",
+            "hoja": "SRZ2",
+            "fila": 12,
+            "fecha": "07-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A05412BO",
+            "hoja": "SRZ2",
+            "fila": 13,
+            "fecha": "07-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A05500BO",
+            "hoja": "SRZ2",
+            "fila": 14,
+            "fecha": "07-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A05501BO",
+            "hoja": "SRZ2",
+            "fila": 15,
+            "fecha": "07-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A05585BO",
+            "hoja": "SRZ2",
+            "fila": 16,
+            "fecha": "07-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14213BO",
+            "hoja": "SRZ2",
+            "fila": 17,
+            "fecha": "07-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14337BO",
+            "hoja": "SRZ2",
+            "fila": 18,
+            "fecha": "07-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14338BO",
+            "hoja": "SRZ2",
+            "fila": 19,
+            "fecha": "07-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14350BO",
+            "hoja": "SRZ2",
+            "fila": 20,
+            "fecha": "07-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14358BO",
+            "hoja": "SRZ2",
+            "fila": 21,
+            "fecha": "07-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14379BO",
+            "hoja": "SRZ2",
+            "fila": 22,
+            "fecha": "07-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14381BO",
+            "hoja": "SRZ2",
+            "fila": 23,
+            "fecha": "07-04-26",
+            "origen": "SRZ",
+            "destino": "WARNES"
+        },
+        {
+            "codigo": "C0007A00836BO",
+            "hoja": "SRZ2",
+            "fila": 24,
+            "fecha": "08-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A00876BO",
+            "hoja": "SRZ2",
+            "fila": 25,
+            "fecha": "08-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A00920BO",
+            "hoja": "SRZ2",
+            "fila": 26,
+            "fecha": "08-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A03641BO",
+            "hoja": "SRZ2",
+            "fila": 27,
+            "fecha": "08-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A04227BO",
+            "hoja": "SRZ2",
+            "fila": 28,
+            "fecha": "08-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A04869BO",
+            "hoja": "SRZ2",
+            "fila": 29,
+            "fecha": "08-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14261BO",
+            "hoja": "SRZ2",
+            "fila": 30,
+            "fecha": "08-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14321BO",
+            "hoja": "SRZ2",
+            "fila": 31,
+            "fecha": "08-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14428BO",
+            "hoja": "SRZ2",
+            "fila": 32,
+            "fecha": "08-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14437BO",
+            "hoja": "SRZ2",
+            "fila": 33,
+            "fecha": "08-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A04837BO",
+            "hoja": "SRZ2",
+            "fila": 34,
+            "fecha": "09-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14187BO",
+            "hoja": "SRZ2",
+            "fila": 35,
+            "fecha": "09-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14232BO",
+            "hoja": "SRZ2",
+            "fila": 36,
+            "fecha": "09-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14322BO",
+            "hoja": "SRZ2",
+            "fila": 37,
+            "fecha": "09-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14525BO",
+            "hoja": "SRZ2",
+            "fila": 38,
+            "fecha": "09-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14529BO",
+            "hoja": "SRZ2",
+            "fila": 39,
+            "fecha": "09-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14533BO",
+            "hoja": "SRZ2",
+            "fila": 40,
+            "fecha": "09-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14535BO",
+            "hoja": "SRZ2",
+            "fila": 41,
+            "fecha": "09-04-26",
+            "origen": "SRZ",
+            "destino": ""
+        },
+        {
+            "codigo": "C0007A14543BO",
+            "hoja": "SRZ2",
+            "fila": 42,
+            "fecha": "09-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14549BO",
+            "hoja": "SRZ2",
+            "fila": 43,
+            "fecha": "09-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14565BO",
+            "hoja": "SRZ2",
+            "fila": 44,
+            "fecha": "09-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14576BO",
+            "hoja": "SRZ2",
+            "fila": 45,
+            "fecha": "09-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14579BO",
+            "hoja": "SRZ2",
+            "fila": 46,
+            "fecha": "09-04-26",
+            "origen": "SRZ",
+            "destino": "POI"
+        },
+        {
+            "codigo": "C0007A14606BO",
+            "hoja": "SRZ2",
+            "fila": 47,
+            "fecha": "10-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14609BO",
+            "hoja": "SRZ2",
+            "fila": 48,
+            "fecha": "10-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14610BO",
+            "hoja": "SRZ2",
+            "fila": 49,
+            "fecha": "10-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14612BO",
+            "hoja": "SRZ2",
+            "fila": 50,
+            "fecha": "10-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14706BO",
+            "hoja": "SRZ2",
+            "fila": 51,
+            "fecha": "10-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14718BO",
+            "hoja": "SRZ2",
+            "fila": 52,
+            "fecha": "10-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A01054BO",
+            "hoja": "SRZ2",
+            "fila": 53,
+            "fecha": "13-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A03675BO",
+            "hoja": "SRZ2",
+            "fila": 54,
+            "fecha": "13-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A04557BO",
+            "hoja": "SRZ2",
+            "fila": 55,
+            "fecha": "13-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14767BO",
+            "hoja": "SRZ2",
+            "fila": 56,
+            "fecha": "13-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14768BO",
+            "hoja": "SRZ2",
+            "fila": 57,
+            "fecha": "13-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14770BO",
+            "hoja": "SRZ2",
+            "fila": 58,
+            "fecha": "13-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14771BO",
+            "hoja": "SRZ2",
+            "fila": 59,
+            "fecha": "13-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14774BO",
+            "hoja": "SRZ2",
+            "fila": 60,
+            "fecha": "13-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14782BO",
+            "hoja": "SRZ2",
+            "fila": 61,
+            "fecha": "13-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14783BO",
+            "hoja": "SRZ2",
+            "fila": 62,
+            "fecha": "13-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14786BO",
+            "hoja": "SRZ2",
+            "fila": 63,
+            "fecha": "13-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14864BO",
+            "hoja": "SRZ2",
+            "fila": 64,
+            "fecha": "13-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14865BO",
+            "hoja": "SRZ2",
+            "fila": 65,
+            "fecha": "13-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A00056BO",
+            "hoja": "SRZ2",
+            "fila": 66,
+            "fecha": "14-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A00712BO",
+            "hoja": "SRZ2",
+            "fila": 67,
+            "fecha": "14-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A03725BO",
+            "hoja": "SRZ2",
+            "fila": 68,
+            "fecha": "14-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A03742BO",
+            "hoja": "SRZ2",
+            "fila": 69,
+            "fecha": "14-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A03753BO",
+            "hoja": "SRZ2",
+            "fila": 70,
+            "fecha": "14-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A03765BO",
+            "hoja": "SRZ2",
+            "fila": 71,
+            "fecha": "14-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A03769BO",
+            "hoja": "SRZ2",
+            "fila": 72,
+            "fecha": "14-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A04183BO",
+            "hoja": "SRZ2",
+            "fila": 73,
+            "fecha": "14-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A04236BO",
+            "hoja": "SRZ2",
+            "fila": 74,
+            "fecha": "14-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A04253BO",
+            "hoja": "SRZ2",
+            "fila": 75,
+            "fecha": "14-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A05428BO",
+            "hoja": "SRZ2",
+            "fila": 76,
+            "fecha": "14-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14894BO",
+            "hoja": "SRZ2",
+            "fila": 77,
+            "fecha": "14-04-26",
+            "origen": "SRZ",
+            "destino": "ZONA PLAN 3000"
+        },
+        {
+            "codigo": "C0007A14896BO",
+            "hoja": "SRZ2",
+            "fila": 78,
+            "fecha": "14-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14925BO",
+            "hoja": "SRZ2",
+            "fila": 79,
+            "fecha": "14-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A03947BO",
+            "hoja": "SRZ2",
+            "fila": 80,
+            "fecha": "15-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A04005BO",
+            "hoja": "SRZ2",
+            "fila": 81,
+            "fecha": "15-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14960BO",
+            "hoja": "SRZ2",
+            "fila": 82,
+            "fecha": "15-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14985BO",
+            "hoja": "SRZ2",
+            "fila": 83,
+            "fecha": "15-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14988BO",
+            "hoja": "SRZ2",
+            "fila": 84,
+            "fecha": "15-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15036BO",
+            "hoja": "SRZ2",
+            "fila": 85,
+            "fecha": "15-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A00374BO",
+            "hoja": "SRZ2",
+            "fila": 86,
+            "fecha": "16-04-26",
+            "origen": "SRZ",
+            "destino": "FLORIDA"
+        },
+        {
+            "codigo": "C0007A00458BO",
+            "hoja": "SRZ2",
+            "fila": 87,
+            "fecha": "16-04-26",
+            "origen": "SRZ",
+            "destino": "FLORIDA"
+        },
+        {
+            "codigo": "C0007A03738BO",
+            "hoja": "SRZ2",
+            "fila": 88,
+            "fecha": "16-04-26",
+            "origen": "SRZ",
+            "destino": "FLORIDA"
+        },
+        {
+            "codigo": "C0007A03762BO",
+            "hoja": "SRZ2",
+            "fila": 89,
+            "fecha": "16-04-26",
+            "origen": "SRZ",
+            "destino": "CORDILLERA"
+        },
+        {
+            "codigo": "C0007A15138BO",
+            "hoja": "SRZ2",
+            "fila": 90,
+            "fecha": "16-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15141BO",
+            "hoja": "SRZ2",
+            "fila": 91,
+            "fecha": "16-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15142BO",
+            "hoja": "SRZ2",
+            "fila": 92,
+            "fecha": "16-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15143BO",
+            "hoja": "SRZ2",
+            "fila": 93,
+            "fecha": "16-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15147BO",
+            "hoja": "SRZ2",
+            "fila": 94,
+            "fecha": "16-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15189BO",
+            "hoja": "SRZ2",
+            "fila": 95,
+            "fecha": "16-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15190BO",
+            "hoja": "SRZ2",
+            "fila": 96,
+            "fecha": "16-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15197BO",
+            "hoja": "SRZ2",
+            "fila": 97,
+            "fecha": "16-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15208BO",
+            "hoja": "SRZ2",
+            "fila": 98,
+            "fecha": "16-04-26",
+            "origen": "SRZ",
+            "destino": "SRE"
+        },
+        {
+            "codigo": "C0007A15227BO",
+            "hoja": "SRZ2",
+            "fila": 99,
+            "fecha": "16-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14247BO",
+            "hoja": "SRZ2",
+            "fila": 100,
+            "fecha": "17-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15248BO",
+            "hoja": "SRZ2",
+            "fila": 101,
+            "fecha": "17-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15256BO",
+            "hoja": "SRZ2",
+            "fila": 102,
+            "fecha": "17-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15260BO",
+            "hoja": "SRZ2",
+            "fila": 103,
+            "fecha": "17-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15295BO",
+            "hoja": "SRZ2",
+            "fila": 104,
+            "fecha": "17-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15361BO",
+            "hoja": "SRZ2",
+            "fila": 105,
+            "fecha": "18-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A00370BO",
+            "hoja": "SRZ2",
+            "fila": 106,
+            "fecha": "20-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A03681BO",
+            "hoja": "SRZ2",
+            "fila": 107,
+            "fecha": "20-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A03768BO",
+            "hoja": "SRZ2",
+            "fila": 108,
+            "fecha": "20-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A04395BO",
+            "hoja": "SRZ2",
+            "fila": 109,
+            "fecha": "20-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14200BO",
+            "hoja": "SRZ2",
+            "fila": 110,
+            "fecha": "20-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15379BO",
+            "hoja": "SRZ2",
+            "fila": 111,
+            "fecha": "20-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15394BO",
+            "hoja": "SRZ2",
+            "fila": 112,
+            "fecha": "20-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15404BO",
+            "hoja": "SRZ2",
+            "fila": 113,
+            "fecha": "20-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15405BO",
+            "hoja": "SRZ2",
+            "fila": 114,
+            "fecha": "20-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15406BO",
+            "hoja": "SRZ2",
+            "fila": 115,
+            "fecha": "20-04-26",
+            "origen": "SRZ",
+            "destino": "MONTERO"
+        },
+        {
+            "codigo": "C0007A15412BO",
+            "hoja": "SRZ2",
+            "fila": 116,
+            "fecha": "20-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15413BO",
+            "hoja": "SRZ2",
+            "fila": 117,
+            "fecha": "20-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A03678BO",
+            "hoja": "SRZ2",
+            "fila": 118,
+            "fecha": "21-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A03718BO",
+            "hoja": "SRZ2",
+            "fila": 119,
+            "fecha": "21-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A03735BO",
+            "hoja": "SRZ2",
+            "fila": 120,
+            "fecha": "21-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A03899BO",
+            "hoja": "SRZ2",
+            "fila": 121,
+            "fecha": "21-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A04168BO",
+            "hoja": "SRZ2",
+            "fila": 122,
+            "fecha": "21-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A04204BO",
+            "hoja": "SRZ2",
+            "fila": 123,
+            "fecha": "21-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A04213BO",
+            "hoja": "SRZ2",
+            "fila": 124,
+            "fecha": "21-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15573BO",
+            "hoja": "SRZ2",
+            "fila": 125,
+            "fecha": "21-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15588BO",
+            "hoja": "SRZ2",
+            "fila": 126,
+            "fecha": "21-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15589BO",
+            "hoja": "SRZ2",
+            "fila": 127,
+            "fecha": "21-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15592BO",
+            "hoja": "SRZ2",
+            "fila": 128,
+            "fecha": "21-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15602BO",
+            "hoja": "SRZ2",
+            "fila": 129,
+            "fecha": "21-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15633BO",
+            "hoja": "SRZ2",
+            "fila": 130,
+            "fecha": "21-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A03484BO",
+            "hoja": "SRZ2",
+            "fila": 131,
+            "fecha": "22-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A03756BO",
+            "hoja": "SRZ2",
+            "fila": 132,
+            "fecha": "22-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A04129BO",
+            "hoja": "SRZ2",
+            "fila": 133,
+            "fecha": "22-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A04468BO",
+            "hoja": "SRZ2",
+            "fila": 134,
+            "fecha": "22-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15691BO",
+            "hoja": "SRZ2",
+            "fila": 135,
+            "fecha": "22-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15714BO",
+            "hoja": "SRZ2",
+            "fila": 136,
+            "fecha": "22-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15716BO",
+            "hoja": "SRZ2",
+            "fila": 137,
+            "fecha": "22-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15722BO",
+            "hoja": "SRZ2",
+            "fila": 138,
+            "fecha": "22-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15723BO",
+            "hoja": "SRZ2",
+            "fila": 139,
+            "fecha": "22-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15728BO",
+            "hoja": "SRZ2",
+            "fila": 140,
+            "fecha": "22-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15757BO",
+            "hoja": "SRZ2",
+            "fila": 141,
+            "fecha": "22-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15758BO",
+            "hoja": "SRZ2",
+            "fila": 142,
+            "fecha": "22-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15762BO",
+            "hoja": "SRZ2",
+            "fila": 143,
+            "fecha": "22-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15763BO",
+            "hoja": "SRZ2",
+            "fila": 144,
+            "fecha": "22-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15764BO",
+            "hoja": "SRZ2",
+            "fila": 145,
+            "fecha": "22-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15794BO",
+            "hoja": "SRZ2",
+            "fila": 146,
+            "fecha": "22-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15795BO",
+            "hoja": "SRZ2",
+            "fila": 147,
+            "fecha": "22-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A00058BO",
+            "hoja": "SRZ2",
+            "fila": 148,
+            "fecha": "23-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A01079BO",
+            "hoja": "SRZ2",
+            "fila": 149,
+            "fecha": "23-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A03734BO",
+            "hoja": "SRZ2",
+            "fila": 150,
+            "fecha": "23-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A04435BO",
+            "hoja": "SRZ2",
+            "fila": 151,
+            "fecha": "23-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15818BO",
+            "hoja": "SRZ2",
+            "fila": 152,
+            "fecha": "23-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15819BO",
+            "hoja": "SRZ2",
+            "fila": 153,
+            "fecha": "23-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15847BO",
+            "hoja": "SRZ2",
+            "fila": 154,
+            "fecha": "23-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15889BO",
+            "hoja": "SRZ2",
+            "fila": 155,
+            "fecha": "23-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15892BO",
+            "hoja": "SRZ2",
+            "fila": 156,
+            "fecha": "23-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15911BO",
+            "hoja": "SRZ2",
+            "fila": 157,
+            "fecha": "23-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15918BO",
+            "hoja": "SRZ2",
+            "fila": 158,
+            "fecha": "23-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15927BO",
+            "hoja": "SRZ2",
+            "fila": 159,
+            "fecha": "23-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15943BO",
+            "hoja": "SRZ2",
+            "fila": 160,
+            "fecha": "23-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A03555BO",
+            "hoja": "SRZ2",
+            "fila": 161,
+            "fecha": "24-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A03721BO",
+            "hoja": "SRZ2",
+            "fila": 162,
+            "fecha": "24-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A03752BO",
+            "hoja": "SRZ2",
+            "fila": 163,
+            "fecha": "24-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A04346BO",
+            "hoja": "SRZ2",
+            "fila": 164,
+            "fecha": "24-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15976BO",
+            "hoja": "SRZ2",
+            "fila": 165,
+            "fecha": "24-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15977BO",
+            "hoja": "SRZ2",
+            "fila": 166,
+            "fecha": "24-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15978BO",
+            "hoja": "SRZ2",
+            "fila": 167,
+            "fecha": "24-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15979BO",
+            "hoja": "SRZ2",
+            "fila": 168,
+            "fecha": "24-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15980BO",
+            "hoja": "SRZ2",
+            "fila": 169,
+            "fecha": "24-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15982BO",
+            "hoja": "SRZ2",
+            "fila": 170,
+            "fecha": "24-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16016BO",
+            "hoja": "SRZ2",
+            "fila": 171,
+            "fecha": "24-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16049BO",
+            "hoja": "SRZ2",
+            "fila": 172,
+            "fecha": "24-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A00059BO",
+            "hoja": "SRZ2",
+            "fila": 173,
+            "fecha": "27-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A04233BO",
+            "hoja": "SRZ2",
+            "fila": 174,
+            "fecha": "27-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16134BO",
+            "hoja": "SRZ2",
+            "fila": 175,
+            "fecha": "27-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16141BO",
+            "hoja": "SRZ2",
+            "fila": 176,
+            "fecha": "27-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16148BO",
+            "hoja": "SRZ2",
+            "fila": 177,
+            "fecha": "27-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16151BO",
+            "hoja": "SRZ2",
+            "fila": 178,
+            "fecha": "27-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16152BO",
+            "hoja": "SRZ2",
+            "fila": 179,
+            "fecha": "27-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16153BO",
+            "hoja": "SRZ2",
+            "fila": 180,
+            "fecha": "27-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16198BO",
+            "hoja": "SRZ2",
+            "fila": 181,
+            "fecha": "27-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16296BO",
+            "hoja": "SRZ2",
+            "fila": 182,
+            "fecha": "28-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16300BO",
+            "hoja": "SRZ2",
+            "fila": 183,
+            "fecha": "28-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16301BO",
+            "hoja": "SRZ2",
+            "fila": 184,
+            "fecha": "28-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16305BO",
+            "hoja": "SRZ2",
+            "fila": 185,
+            "fecha": "28-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16306BO",
+            "hoja": "SRZ2",
+            "fila": 186,
+            "fecha": "28-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16310BO",
+            "hoja": "SRZ2",
+            "fila": 187,
+            "fecha": "28-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16314BO",
+            "hoja": "SRZ2",
+            "fila": 188,
+            "fecha": "28-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16319BO",
+            "hoja": "SRZ2",
+            "fila": 189,
+            "fecha": "28-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16334BO",
+            "hoja": "SRZ2",
+            "fila": 190,
+            "fecha": "28-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16337BO",
+            "hoja": "SRZ2",
+            "fila": 191,
+            "fecha": "28-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16338BO",
+            "hoja": "SRZ2",
+            "fila": 192,
+            "fecha": "28-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16344BO",
+            "hoja": "SRZ2",
+            "fila": 193,
+            "fecha": "28-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16354BO",
+            "hoja": "SRZ2",
+            "fila": 194,
+            "fecha": "28-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16364BO",
+            "hoja": "SRZ2",
+            "fila": 195,
+            "fecha": "28-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16377BO",
+            "hoja": "SRZ2",
+            "fila": 196,
+            "fecha": "28-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16379BO",
+            "hoja": "SRZ2",
+            "fila": 197,
+            "fecha": "28-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16382BO",
+            "hoja": "SRZ2",
+            "fila": 198,
+            "fecha": "28-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16407BO",
+            "hoja": "SRZ2",
+            "fila": 199,
+            "fecha": "28-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A03633BO",
+            "hoja": "SRZ2",
+            "fila": 200,
+            "fecha": "29-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A03691BO",
+            "hoja": "SRZ2",
+            "fila": 201,
+            "fecha": "29-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A03754BO",
+            "hoja": "SRZ2",
+            "fila": 202,
+            "fecha": "29-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A03773BO",
+            "hoja": "SRZ2",
+            "fila": 203,
+            "fecha": "29-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A04013BO",
+            "hoja": "SRZ2",
+            "fila": 204,
+            "fecha": "29-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14109BO",
+            "hoja": "SRZ2",
+            "fila": 205,
+            "fecha": "29-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16455BO",
+            "hoja": "SRZ2",
+            "fila": 206,
+            "fecha": "29-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16457BO",
+            "hoja": "SRZ2",
+            "fila": 207,
+            "fecha": "29-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16466BO",
+            "hoja": "SRZ2",
+            "fila": 208,
+            "fecha": "29-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16468BO",
+            "hoja": "SRZ2",
+            "fila": 209,
+            "fecha": "29-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16470BO",
+            "hoja": "SRZ2",
+            "fila": 210,
+            "fecha": "29-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16500BO",
+            "hoja": "SRZ2",
+            "fila": 211,
+            "fecha": "29-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16509BO",
+            "hoja": "SRZ2",
+            "fila": 212,
+            "fecha": "29-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16600BO",
+            "hoja": "SRZ2",
+            "fila": 213,
+            "fecha": "29-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16633BO",
+            "hoja": "SRZ2",
+            "fila": 214,
+            "fecha": "29-04-26",
+            "origen": "SRZ",
+            "destino": "FLORIDA"
+        },
+        {
+            "codigo": "C0007A16668BO",
+            "hoja": "SRZ2",
+            "fila": 215,
+            "fecha": "30-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16676BO",
+            "hoja": "SRZ2",
+            "fila": 216,
+            "fecha": "30-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16684BO",
+            "hoja": "SRZ2",
+            "fila": 217,
+            "fecha": "30-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16687BO",
+            "hoja": "SRZ2",
+            "fila": 218,
+            "fecha": "30-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16688BO",
+            "hoja": "SRZ2",
+            "fila": 219,
+            "fecha": "30-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16691BO",
+            "hoja": "SRZ2",
+            "fila": 220,
+            "fecha": "30-04-26",
+            "origen": "SRZ",
+            "destino": "EL PUENTE"
+        },
+        {
+            "codigo": "C0007A16703BO",
+            "hoja": "SRZ2",
+            "fila": 221,
+            "fecha": "30-04-26",
+            "origen": "SRZ",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16704BO",
+            "hoja": "SRZ2",
+            "fila": 222,
+            "fecha": "30-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16705BO",
+            "hoja": "SRZ2",
+            "fila": 223,
+            "fecha": "30-04-26",
+            "origen": "SRZ",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16706BO",
+            "hoja": "SRZ2",
+            "fila": 224,
+            "fecha": "30-04-26",
+            "origen": "SRZ",
+            "destino": "COTOCA"
+        },
+        {
+            "codigo": "C0007A05521BO",
+            "hoja": "TJA2",
+            "fila": 6,
+            "fecha": "06-04-26",
+            "origen": "TJA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A05584BO",
+            "hoja": "TJA2",
+            "fila": 7,
+            "fecha": "07-04-26",
+            "origen": "TJA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14480BO",
+            "hoja": "TJA2",
+            "fila": 8,
+            "fecha": "08-04-26",
+            "origen": "TJA",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A14847BO",
+            "hoja": "TJA2",
+            "fila": 9,
+            "fecha": "13-04-26",
+            "origen": "TJA",
+            "destino": "VILLA MONTES"
+        },
+        {
+            "codigo": "C0007A15319BO",
+            "hoja": "TJA2",
+            "fila": 10,
+            "fecha": "17-04-26",
+            "origen": "TJA",
+            "destino": "VILLA MONTES"
+        },
+        {
+            "codigo": "C0007A15359BO",
+            "hoja": "TJA2",
+            "fila": 11,
+            "fecha": "18-04-26",
+            "origen": "TJA",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A15951BO",
+            "hoja": "TJA2",
+            "fila": 12,
+            "fecha": "23-04-26",
+            "origen": "TJA",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A16097BO",
+            "hoja": "TJA2",
+            "fila": 13,
+            "fecha": "24-04-26",
+            "origen": "TJA",
+            "destino": "TJA"
+        },
+        {
+            "codigo": "C0007A16108BO",
+            "hoja": "TJA2",
+            "fila": 14,
+            "fecha": "24-04-26",
+            "origen": "TJA",
+            "destino": "TJA"
+        },
+        {
+            "codigo": "C0007A16109BO",
+            "hoja": "TJA2",
+            "fila": 15,
+            "fecha": "24-04-26",
+            "origen": "TJA",
+            "destino": "CBB"
+        },
+        {
+            "codigo": "C0007A16211BO",
+            "hoja": "TJA2",
+            "fila": 16,
+            "fecha": "27-04-26",
+            "origen": "TJA",
+            "destino": "TJA"
+        },
+        {
+            "codigo": "C0007A16216BO",
+            "hoja": "TJA2",
+            "fila": 17,
+            "fecha": "27-04-26",
+            "origen": "TJA",
+            "destino": "TJA"
+        },
+        {
+            "codigo": "C0007A16222BO",
+            "hoja": "TJA2",
+            "fila": 18,
+            "fecha": "27-04-26",
+            "origen": "TJA",
+            "destino": "TJA"
+        },
+        {
+            "codigo": "C0007A16223BO",
+            "hoja": "TJA2",
+            "fila": 19,
+            "fecha": "27-04-26",
+            "origen": "TJA",
+            "destino": "VILLA MONTES"
+        },
+        {
+            "codigo": "C0007A16243BO",
+            "hoja": "TJA2",
+            "fila": 20,
+            "fecha": "27-04-26",
+            "origen": "TJA",
+            "destino": "TJA"
+        },
+        {
+            "codigo": "C0007A16794BO",
+            "hoja": "TJA2",
+            "fila": 21,
+            "fecha": "30-04-26",
+            "origen": "TJA",
+            "destino": "TJA"
+        },
+        {
+            "codigo": "C0007A14541BO",
+            "hoja": "POI2",
+            "fila": 5,
+            "fecha": "09-04-26",
+            "origen": "POI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14735BO",
+            "hoja": "POI2",
+            "fila": 6,
+            "fecha": "10-04-26",
+            "origen": "POI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14957BO",
+            "hoja": "POI2",
+            "fila": 7,
+            "fecha": "15-04-26",
+            "origen": "POI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15115BO",
+            "hoja": "POI2",
+            "fila": 8,
+            "fecha": "16-04-26",
+            "origen": "POI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15229BO",
+            "hoja": "POI2",
+            "fila": 9,
+            "fecha": "16-04-26",
+            "origen": "POI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15316BO",
+            "hoja": "POI2",
+            "fila": 10,
+            "fecha": "17-04-26",
+            "origen": "POI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15339BO",
+            "hoja": "POI2",
+            "fila": 11,
+            "fecha": "17-04-26",
+            "origen": "POI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15513BO",
+            "hoja": "POI2",
+            "fila": 12,
+            "fecha": "20-04-26",
+            "origen": "POI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15669BO",
+            "hoja": "POI2",
+            "fila": 13,
+            "fecha": "21-04-26",
+            "origen": "POI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15676BO",
+            "hoja": "POI2",
+            "fila": 14,
+            "fecha": "21-04-26",
+            "origen": "TUPIZA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15801BO",
+            "hoja": "POI2",
+            "fila": 15,
+            "fecha": "22-04-26",
+            "origen": "POI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15961BO",
+            "hoja": "POI2",
+            "fila": 16,
+            "fecha": "23-04-26",
+            "origen": "POI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16101BO",
+            "hoja": "POI2",
+            "fila": 17,
+            "fecha": "24-04-26",
+            "origen": "POI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16102BO",
+            "hoja": "POI2",
+            "fila": 18,
+            "fecha": "24-04-26",
+            "origen": "POI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16105BO",
+            "hoja": "POI2",
+            "fila": 19,
+            "fecha": "24-04-26",
+            "origen": "POI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16446BO",
+            "hoja": "POI2",
+            "fila": 20,
+            "fecha": "28-04-26",
+            "origen": "POI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16449BO",
+            "hoja": "POI2",
+            "fila": 21,
+            "fecha": "28-04-26",
+            "origen": "POI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16829BO",
+            "hoja": "POI2",
+            "fila": 22,
+            "fecha": "30-04-26",
+            "origen": "POI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16830BO",
+            "hoja": "POI2",
+            "fila": 23,
+            "fecha": "30-04-26",
+            "origen": "POI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16832BO",
+            "hoja": "POI2",
+            "fila": 24,
+            "fecha": "30-04-26",
+            "origen": "POI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A05513BO",
+            "hoja": "TDD2",
+            "fila": 7,
+            "fecha": "02-04-26",
+            "origen": "RIBERALTA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14262BO",
+            "hoja": "TDD2",
+            "fila": 8,
+            "fecha": "06-04-26",
+            "origen": "RURRENABAQUE",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14327BO",
+            "hoja": "TDD2",
+            "fila": 9,
+            "fecha": "06-04-26",
+            "origen": "TDD",
+            "destino": "SANTA ANA"
+        },
+        {
+            "codigo": "C0007A14330BO",
+            "hoja": "TDD2",
+            "fila": 10,
+            "fecha": "06-04-26",
+            "origen": "TDD",
+            "destino": "RIBERALTA"
+        },
+        {
+            "codigo": "C0007A04863BO",
+            "hoja": "TDD2",
+            "fila": 11,
+            "fecha": "08-04-26",
+            "origen": "MAGDALENA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A01459BO",
+            "hoja": "TDD2",
+            "fila": 12,
+            "fecha": "10-04-26",
+            "origen": "TDD",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A01460BO",
+            "hoja": "TDD2",
+            "fila": 13,
+            "fecha": "10-04-26",
+            "origen": "TDD",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14743BO",
+            "hoja": "TDD2",
+            "fila": 14,
+            "fecha": "10-04-26",
+            "origen": "TDD",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A01461BO",
+            "hoja": "TDD2",
+            "fila": 15,
+            "fecha": "11-04-26",
+            "origen": "TDD",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A014743BO",
+            "hoja": "TDD2",
+            "fila": 16,
+            "fecha": "11-04-26",
+            "origen": "RIBERALTA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14846BO",
+            "hoja": "TDD2",
+            "fila": 17,
+            "fecha": "13-04-26",
+            "origen": "TDD",
+            "destino": "TDD"
+        },
+        {
+            "codigo": "C0007A14509BO",
+            "hoja": "TDD2",
+            "fila": 18,
+            "fecha": "14-04-26",
+            "origen": "MAGDALENA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A14810BO",
+            "hoja": "TDD2",
+            "fila": 19,
+            "fecha": "14-04-26",
+            "origen": "RIBERALTA",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14587BO",
+            "hoja": "TDD2",
+            "fila": 20,
+            "fecha": "15-04-26",
+            "origen": "SANTA ANA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15109BO",
+            "hoja": "TDD2",
+            "fila": 21,
+            "fecha": "16-04-26",
+            "origen": "RIBERALTA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15308BO",
+            "hoja": "TDD2",
+            "fila": 22,
+            "fecha": "17-04-26",
+            "origen": "TDD",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15308BO",
+            "hoja": "TDD2",
+            "fila": 23,
+            "fecha": "18-04-26",
+            "origen": "RIBERALTA",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15310BO",
+            "hoja": "TDD2",
+            "fila": 24,
+            "fecha": "18-04-26",
+            "origen": "RIBERALTA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15314BO",
+            "hoja": "TDD2",
+            "fila": 25,
+            "fecha": "18-04-26",
+            "origen": "RIBERALTA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15450BO",
+            "hoja": "TDD2",
+            "fila": 26,
+            "fecha": "20-04-26",
+            "origen": "TDD",
+            "destino": "TDD"
+        },
+        {
+            "codigo": "C0007A15594BO",
+            "hoja": "TDD2",
+            "fila": 27,
+            "fecha": "22-04-26",
+            "origen": "RIBERALTA",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A15646BO",
+            "hoja": "TDD2",
+            "fila": 28,
+            "fecha": "22-04-26",
+            "origen": "RURRENABAQUE",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15778BO",
+            "hoja": "TDD2",
+            "fila": 29,
+            "fecha": "22-04-26",
+            "origen": "TDD",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A14733BO",
+            "hoja": "TDD2",
+            "fila": 30,
+            "fecha": "23-04-26",
+            "origen": "MAGDALENA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15028BO",
+            "hoja": "TDD2",
+            "fila": 31,
+            "fecha": "23-04-26",
+            "origen": "MAGDALENA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A15710BO",
+            "hoja": "TDD2",
+            "fila": 32,
+            "fecha": "23-04-26",
+            "origen": "MAGDALENA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16023BO",
+            "hoja": "TDD2",
+            "fila": 33,
+            "fecha": "24-04-26",
+            "origen": "TDD",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16080BO",
+            "hoja": "TDD2",
+            "fila": 34,
+            "fecha": "25-04-26",
+            "origen": "RIBERALTA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16078BO",
+            "hoja": "TDD2",
+            "fila": 35,
+            "fecha": "27-04-26",
+            "origen": "MAGDALENA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16179BO",
+            "hoja": "TDD2",
+            "fila": 36,
+            "fecha": "27-04-26",
+            "origen": "TDD",
+            "destino": "TDD"
+        },
+        {
+            "codigo": "C0007A16378BO",
+            "hoja": "TDD2",
+            "fila": 37,
+            "fecha": "29-04-26",
+            "origen": "RIBERALTA",
+            "destino": "SRZ"
+        },
+        {
+            "codigo": "C0007A16522BO",
+            "hoja": "TDD2",
+            "fila": 38,
+            "fecha": "29-04-26",
+            "origen": "TDD",
+            "destino": "TDD"
+        },
+        {
+            "codigo": "C0007A16480BO",
+            "hoja": "TDD2",
+            "fila": 39,
+            "fecha": "30-04-26",
+            "origen": "SANTA ANA",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16674BO",
+            "hoja": "TDD2",
+            "fila": 40,
+            "fecha": "30-04-26",
+            "origen": "TDD",
+            "destino": "SANTA ANA"
+        }
+    ]
+}

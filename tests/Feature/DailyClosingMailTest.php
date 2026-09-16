@@ -44,6 +44,8 @@ class DailyClosingMailTest extends TestCase
                 $t->integer($state)->nullable();
                 $t->string('destino')->nullable();
                 $t->string('origen')->nullable();
+                $t->string('provincia_origen')->nullable();
+                $t->string('provincia')->nullable();
                 $t->string('ciudad')->nullable();
                 $t->timestamps();
             });
@@ -154,7 +156,7 @@ class DailyClosingMailTest extends TestCase
             ['codigo' => 'UNKNOWN', 'origen' => null, 'ciudad' => 'Otro destino', 'created_at' => '2026-09-16 10:00:00'],
         ]);
         DB::table('paquetes_contrato')->insert([
-            'codigo' => 'CON-1', 'origen' => 'SANTA CRUZ', 'destino' => 'Potosí', 'estados_id' => 4, 'created_at' => '2026-09-16 10:00:00',
+            'codigo' => 'CON-1', 'origen' => 'SANTA CRUZ', 'provincia_origen' => 'ANDRÉS IBÁÑEZ', 'destino' => 'Potosí', 'provincia' => 'TOMÁS FRÍAS', 'estados_id' => 4, 'created_at' => '2026-09-16 10:00:00',
         ]);
         DB::table('eventos')->insert([
             ['id' => 295, 'nombre_evento' => 'Recogido'],
@@ -182,11 +184,19 @@ class DailyClosingMailTest extends TestCase
             $this->assertSame(\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING, $cell->getDataType());
             $this->assertSame('Contratos', $book->getSheetByName('POTOSI')->getCell('A2')->getValue());
             $this->assertSame('UNKNOWN', $book->getSheetByName('SIN DEPARTAMENTO')->getCell('B2')->getValue());
-            $this->assertSame("15/09/2026 11:00:00 · Recogido (Ana)\n16/09/2026 12:00:00 · En tránsito (Luis)", $book->getSheetByName('LA PAZ')->getCell('H2')->getValue());
-            $this->assertSame('Recogido (Usuario no disponible)', $book->getSheetByName('Historial')->getCell('E2')->getValue());
-            $this->assertSame('Recogido (Ana)', $book->getSheetByName('Historial')->getCell('E3')->getValue());
-            $this->assertSame('En tránsito (Luis)', $book->getSheetByName('Historial')->getCell('E4')->getValue());
-            $this->assertSame('Sin eventos registrados', $book->getSheetByName('SIN DEPARTAMENTO')->getCell('H2')->getValue());
+            $this->assertSame('Provincia de origen', $book->getSheetByName('POTOSI')->getCell('D1')->getValue());
+            $this->assertSame('Provincia de destino', $book->getSheetByName('POTOSI')->getCell('F1')->getValue());
+            $this->assertSame('ANDRÉS IBÁÑEZ', $book->getSheetByName('POTOSI')->getCell('D2')->getValue());
+            $this->assertSame('TOMÁS FRÍAS', $book->getSheetByName('POTOSI')->getCell('F2')->getValue());
+            $this->assertSame('Sin provincia registrada', $book->getSheetByName('LA PAZ')->getCell('D2')->getValue());
+            $this->assertSame('Sin provincia registrada', $book->getSheetByName('LA PAZ')->getCell('F2')->getValue());
+            $this->assertSame('ANDRÉS IBÁÑEZ', $book->getSheetByName('Historial')->getCell('D2')->getValue());
+            $this->assertSame('TOMÁS FRÍAS', $book->getSheetByName('Historial')->getCell('F2')->getValue());
+            $this->assertSame("15/09/2026 11:00:00 · Recogido (Ana)\n16/09/2026 12:00:00 · En tránsito (Luis)", $book->getSheetByName('LA PAZ')->getCell('J2')->getValue());
+            $this->assertSame('Recogido (Usuario no disponible)', $book->getSheetByName('Historial')->getCell('G2')->getValue());
+            $this->assertSame('Recogido (Ana)', $book->getSheetByName('Historial')->getCell('G3')->getValue());
+            $this->assertSame('En tránsito (Luis)', $book->getSheetByName('Historial')->getCell('G4')->getValue());
+            $this->assertSame('Sin eventos registrados', $book->getSheetByName('SIN DEPARTAMENTO')->getCell('J2')->getValue());
             $this->assertSame(4, $book->getSheetByName('Historial')->getHighestDataRow());
             $total = 0;
             foreach (array_slice($book->getAllSheets(), 1) as $sheet) {

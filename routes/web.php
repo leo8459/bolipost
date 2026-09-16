@@ -437,6 +437,9 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     // gets
     Route::get('/plantilla', [PlantillaController::class, 'getplantilla']);
     Route::get('/bastiones/paquetes', [BastionController::class, 'index'])->name('bastiones.index');
+    Route::get('/bastiones/reporte', [\App\Http\Controllers\BastionReportController::class, 'index'])->name('bastiones.reporte');
+    Route::get('/bastiones/reporte/excel', [\App\Http\Controllers\BastionReportController::class, 'excel'])->name('bastiones.reporte.excel');
+    Route::get('/bastiones/reporte/imagen/{codigo}', [DeliveryImageController::class, 'bastionReport'])->name('bastiones.reporte.imagen');
     Route::post('/bastiones/paquetes/{tipo}/{id}/recuperar', [BastionController::class, 'recuperar'])
         ->whereIn('tipo', ['ems', 'contratos', 'certificados', 'ordinarios'])
         ->whereNumber('id')

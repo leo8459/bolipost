@@ -1,0 +1,2093 @@
+{
+    "archivo": "GESTORA  MAYO (1).xlsx",
+    "paquetes": [
+        {
+            "codigo": "C0007A16850BO",
+            "hoja": "LPB2",
+            "fila": 7,
+            "fecha": "04-05-26",
+            "origen": "LA PAZ",
+            "destino": "POTOSI"
+        },
+        {
+            "codigo": "C0007A00394BO",
+            "hoja": "LPB2",
+            "fila": 8,
+            "fecha": "06-05-26",
+            "origen": "LA PAZ",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A00974BO",
+            "hoja": "LPB2",
+            "fila": 9,
+            "fecha": "06-05-26",
+            "origen": "LA PAZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A17100BO",
+            "hoja": "LPB2",
+            "fila": 10,
+            "fecha": "06-05-26",
+            "origen": "LA PAZ",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17373BO",
+            "hoja": "LPB2",
+            "fila": 11,
+            "fecha": "08-05-26",
+            "origen": "LA PAZ",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17700BO",
+            "hoja": "LPB2",
+            "fila": 12,
+            "fecha": "12-05-26",
+            "origen": "LA PAZ",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17701BO",
+            "hoja": "LPB2",
+            "fila": 13,
+            "fecha": "12-05-26",
+            "origen": "LA PAZ",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18197BO",
+            "hoja": "LPB2",
+            "fila": 14,
+            "fecha": "15-05-26",
+            "origen": "LA PAZ",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A02694BO",
+            "hoja": "LPB2",
+            "fila": 15,
+            "fecha": "18-05-26",
+            "origen": "LA PAZ",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18798BO",
+            "hoja": "LPB2",
+            "fila": 16,
+            "fecha": "21-05-26",
+            "origen": "LA PAZ",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A24810BO",
+            "hoja": "LPB2",
+            "fila": 17,
+            "fecha": "29-05-26",
+            "origen": "LA PAZ",
+            "destino": "ACHACACHI"
+        },
+        {
+            "codigo": "C0007A16758BO",
+            "hoja": "ORU2",
+            "fila": 7,
+            "fecha": "04-05-26",
+            "origen": "HUANUNI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16759BO",
+            "hoja": "ORU2",
+            "fila": 8,
+            "fecha": "04-05-26",
+            "origen": "HUANUNI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16785BO",
+            "hoja": "ORU2",
+            "fila": 9,
+            "fecha": "04-05-26",
+            "origen": "HUANUNI",
+            "destino": "LPB"
+        },
+        {
+            "codigo": "C0007A16928BO",
+            "hoja": "ORU2",
+            "fila": 10,
+            "fecha": "04-05-26",
+            "origen": "ORURO",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A16974BO",
+            "hoja": "ORU2",
+            "fila": 11,
+            "fecha": "05-05-26",
+            "origen": "ORURO",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17035BO",
+            "hoja": "ORU2",
+            "fila": 12,
+            "fecha": "05-05-26",
+            "origen": "ORURO",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17423BO",
+            "hoja": "ORU2",
+            "fila": 13,
+            "fecha": "08-05-26",
+            "origen": "ORURO",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17800BO",
+            "hoja": "ORU2",
+            "fila": 14,
+            "fecha": "13-05-26",
+            "origen": "ORURO",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18248BO",
+            "hoja": "ORU2",
+            "fila": 15,
+            "fecha": "15-05-26",
+            "origen": "ORURO",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A16833BO",
+            "hoja": "SRE2",
+            "fila": 5,
+            "fecha": "05-05-26",
+            "origen": "SUCRE",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17211BO",
+            "hoja": "SRE2",
+            "fila": 6,
+            "fecha": "06-05-26",
+            "origen": "SUCRE",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17379BO",
+            "hoja": "SRE2",
+            "fila": 7,
+            "fecha": "08-05-26",
+            "origen": "SUCRE",
+            "destino": "CAMARGO"
+        },
+        {
+            "codigo": "C0007A17496BO",
+            "hoja": "SRE2",
+            "fila": 8,
+            "fecha": "10-05-26",
+            "origen": "SUCRE",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A18331BO",
+            "hoja": "SRE2",
+            "fila": 9,
+            "fecha": "17-05-26",
+            "origen": "SUCRE",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A16894BO",
+            "hoja": "CBB2",
+            "fila": 5,
+            "fecha": "04-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A16895BO",
+            "hoja": "CBB2",
+            "fila": 6,
+            "fecha": "04-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A16908BO",
+            "hoja": "CBB2",
+            "fila": 7,
+            "fecha": "04-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A16945BO",
+            "hoja": "CBB2",
+            "fila": 8,
+            "fecha": "04-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A16947BO",
+            "hoja": "CBB2",
+            "fila": 9,
+            "fecha": "04-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A17025BO",
+            "hoja": "CBB2",
+            "fila": 10,
+            "fecha": "05-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A17027BO",
+            "hoja": "CBB2",
+            "fila": 11,
+            "fecha": "05-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A17031BO",
+            "hoja": "CBB2",
+            "fila": 12,
+            "fecha": "05-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A17048BO",
+            "hoja": "CBB2",
+            "fila": 13,
+            "fecha": "05-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A17142BO",
+            "hoja": "CBB2",
+            "fila": 14,
+            "fecha": "06-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17145BO",
+            "hoja": "CBB2",
+            "fila": 15,
+            "fecha": "06-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17226BO",
+            "hoja": "CBB2",
+            "fila": 16,
+            "fecha": "07-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17242BO",
+            "hoja": "CBB2",
+            "fila": 17,
+            "fecha": "07-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A17283BO",
+            "hoja": "CBB2",
+            "fila": 18,
+            "fecha": "07-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A17292BO",
+            "hoja": "CBB2",
+            "fila": 19,
+            "fecha": "07-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17319BO",
+            "hoja": "CBB2",
+            "fila": 20,
+            "fecha": "07-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17333BO",
+            "hoja": "CBB2",
+            "fila": 21,
+            "fecha": "07-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "EN0007A14366BO",
+            "hoja": "CBB2",
+            "fila": 22,
+            "fecha": "07-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17409BO",
+            "hoja": "CBB2",
+            "fila": 23,
+            "fecha": "08-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17467BO",
+            "hoja": "CBB2",
+            "fila": 24,
+            "fecha": "08-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A17469BO",
+            "hoja": "CBB2",
+            "fila": 25,
+            "fecha": "08-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A17470BO",
+            "hoja": "CBB2",
+            "fila": 26,
+            "fecha": "08-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A17485BO",
+            "hoja": "CBB2",
+            "fila": 27,
+            "fecha": "08-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A17487BO",
+            "hoja": "CBB2",
+            "fila": 28,
+            "fecha": "08-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17492BO",
+            "hoja": "CBB2",
+            "fila": 29,
+            "fecha": "09-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17525BO",
+            "hoja": "CBB2",
+            "fila": 30,
+            "fecha": "11-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A17527BO",
+            "hoja": "CBB2",
+            "fila": 31,
+            "fecha": "11-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A17537BO",
+            "hoja": "CBB2",
+            "fila": 32,
+            "fecha": "11-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A17578BO",
+            "hoja": "CBB2",
+            "fila": 33,
+            "fecha": "11-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17580BO",
+            "hoja": "CBB2",
+            "fila": 34,
+            "fecha": "11-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A17734BO",
+            "hoja": "CBB2",
+            "fila": 35,
+            "fecha": "12-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17882BO",
+            "hoja": "CBB2",
+            "fila": 36,
+            "fecha": "13-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A17890BO",
+            "hoja": "CBB2",
+            "fila": 37,
+            "fecha": "13-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17893BO",
+            "hoja": "CBB2",
+            "fila": 38,
+            "fecha": "13-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17897BO",
+            "hoja": "CBB2",
+            "fila": 39,
+            "fecha": "13-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "CAPINOTA"
+        },
+        {
+            "codigo": "C0007A17899BO",
+            "hoja": "CBB2",
+            "fila": 40,
+            "fecha": "13-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A17910BO",
+            "hoja": "CBB2",
+            "fila": 41,
+            "fecha": "13-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "QUILLACOLLO"
+        },
+        {
+            "codigo": "C0007A17948BO",
+            "hoja": "CBB2",
+            "fila": 42,
+            "fecha": "13-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18021BO",
+            "hoja": "CBB2",
+            "fila": 43,
+            "fecha": "14-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18239BO",
+            "hoja": "CBB2",
+            "fila": 44,
+            "fecha": "15-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18240BO",
+            "hoja": "CBB2",
+            "fila": 45,
+            "fecha": "15-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A18309BO",
+            "hoja": "CBB2",
+            "fila": 46,
+            "fecha": "15-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A18310BO",
+            "hoja": "CBB2",
+            "fila": 47,
+            "fecha": "15-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A18384BO",
+            "hoja": "CBB2",
+            "fila": 48,
+            "fecha": "18-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18418BO",
+            "hoja": "CBB2",
+            "fila": 49,
+            "fecha": "18-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A18422BO",
+            "hoja": "CBB2",
+            "fila": 50,
+            "fecha": "18-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18443BO",
+            "hoja": "CBB2",
+            "fila": 51,
+            "fecha": "18-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18470BO",
+            "hoja": "CBB2",
+            "fila": 52,
+            "fecha": "18-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A18586BO",
+            "hoja": "CBB2",
+            "fila": 53,
+            "fecha": "19-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18628BO",
+            "hoja": "CBB2",
+            "fila": 54,
+            "fecha": "19-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A18646BO",
+            "hoja": "CBB2",
+            "fila": 55,
+            "fecha": "19-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A18647BO",
+            "hoja": "CBB2",
+            "fila": 56,
+            "fecha": "19-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A18744BO",
+            "hoja": "CBB2",
+            "fila": 57,
+            "fecha": "20-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18753BO",
+            "hoja": "CBB2",
+            "fila": 58,
+            "fecha": "20-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A18775BO",
+            "hoja": "CBB2",
+            "fila": 59,
+            "fecha": "20-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18873BO",
+            "hoja": "CBB2",
+            "fila": 60,
+            "fecha": "21-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18881BO",
+            "hoja": "CBB2",
+            "fila": 61,
+            "fecha": "21-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18967BO",
+            "hoja": "CBB2",
+            "fila": 62,
+            "fecha": "22-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A19102BO",
+            "hoja": "CBB2",
+            "fila": 63,
+            "fecha": "25-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A19104BO",
+            "hoja": "CBB2",
+            "fila": 64,
+            "fecha": "25-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A19113BO",
+            "hoja": "CBB2",
+            "fila": 65,
+            "fecha": "25-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A24381BO",
+            "hoja": "CBB2",
+            "fila": 66,
+            "fecha": "26-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A24452BO",
+            "hoja": "CBB2",
+            "fila": 67,
+            "fecha": "27-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A24453BO",
+            "hoja": "CBB2",
+            "fila": 68,
+            "fecha": "27-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A24508BO",
+            "hoja": "CBB2",
+            "fila": 69,
+            "fecha": "27-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "POJO"
+        },
+        {
+            "codigo": "C0007A24523BO",
+            "hoja": "CBB2",
+            "fila": 70,
+            "fecha": "27-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A24558BO",
+            "hoja": "CBB2",
+            "fila": 71,
+            "fecha": "27-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A24584BO",
+            "hoja": "CBB2",
+            "fila": 72,
+            "fecha": "27-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A24637BO",
+            "hoja": "CBB2",
+            "fila": 73,
+            "fecha": "28-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A24688BO",
+            "hoja": "CBB2",
+            "fila": 74,
+            "fecha": "28-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A24766BO",
+            "hoja": "CBB2",
+            "fila": 75,
+            "fecha": "29-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "TARIJA"
+        },
+        {
+            "codigo": "C0007A24767BO",
+            "hoja": "CBB2",
+            "fila": 76,
+            "fecha": "29-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "SUCRE"
+        },
+        {
+            "codigo": "C0007A24796BO",
+            "hoja": "CBB2",
+            "fila": 77,
+            "fecha": "29-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A24850BO",
+            "hoja": "CBB2",
+            "fila": 78,
+            "fecha": "29-05-26",
+            "origen": "COCHABAMBA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A16848BO",
+            "hoja": "SRZ2",
+            "fila": 4,
+            "fecha": "04-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A16865BO",
+            "hoja": "SRZ2",
+            "fila": 5,
+            "fecha": "04-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A16890BO",
+            "hoja": "SRZ2",
+            "fila": 6,
+            "fecha": "04-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A16893BO",
+            "hoja": "SRZ2",
+            "fila": 7,
+            "fecha": "04-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A16906BO",
+            "hoja": "SRZ2",
+            "fila": 8,
+            "fecha": "04-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A16954BO",
+            "hoja": "SRZ2",
+            "fila": 9,
+            "fecha": "04-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "VELASCO"
+        },
+        {
+            "codigo": "C0007A16956BO",
+            "hoja": "SRZ2",
+            "fila": 10,
+            "fecha": "04-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "GERMÁN BUSCH"
+        },
+        {
+            "codigo": "C0007A16989BO",
+            "hoja": "SRZ2",
+            "fila": 11,
+            "fecha": "05-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17053BO",
+            "hoja": "SRZ2",
+            "fila": 12,
+            "fecha": "06-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A17096BO",
+            "hoja": "SRZ2",
+            "fila": 13,
+            "fecha": "06-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A17097BO",
+            "hoja": "SRZ2",
+            "fila": 14,
+            "fecha": "06-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A17121BO",
+            "hoja": "SRZ2",
+            "fila": 15,
+            "fecha": "06-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A17205BO",
+            "hoja": "SRZ2",
+            "fila": 16,
+            "fecha": "06-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "GERMÁN BUSCH"
+        },
+        {
+            "codigo": "C0007A17240BO",
+            "hoja": "SRZ2",
+            "fila": 17,
+            "fecha": "07-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17260BO",
+            "hoja": "SRZ2",
+            "fila": 18,
+            "fecha": "07-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A17311BO",
+            "hoja": "SRZ2",
+            "fila": 19,
+            "fecha": "07-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17383BO",
+            "hoja": "SRZ2",
+            "fila": 20,
+            "fecha": "08-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "GERMÁN BUSCH"
+        },
+        {
+            "codigo": "C0007A17408BO",
+            "hoja": "SRZ2",
+            "fila": 21,
+            "fecha": "08-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A17569BO",
+            "hoja": "SRZ2",
+            "fila": 22,
+            "fecha": "11-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17670BO",
+            "hoja": "SRZ2",
+            "fila": 23,
+            "fecha": "12-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A17729BO",
+            "hoja": "SRZ2",
+            "fila": 24,
+            "fecha": "12-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A03638BO",
+            "hoja": "SRZ2",
+            "fila": 25,
+            "fecha": "13-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A03640BO",
+            "hoja": "SRZ2",
+            "fila": 26,
+            "fecha": "13-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A03671BO",
+            "hoja": "SRZ2",
+            "fila": 27,
+            "fecha": "13-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A03723BO",
+            "hoja": "SRZ2",
+            "fila": 28,
+            "fecha": "13-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A03761BO",
+            "hoja": "SRZ2",
+            "fila": 29,
+            "fecha": "13-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A17805BO",
+            "hoja": "SRZ2",
+            "fila": 30,
+            "fecha": "13-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A17826BO",
+            "hoja": "SRZ2",
+            "fila": 31,
+            "fecha": "13-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "JOSE MIGUEL DE VELASCO"
+        },
+        {
+            "codigo": "C0007A17874BO",
+            "hoja": "SRZ2",
+            "fila": 32,
+            "fecha": "13-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17891BO",
+            "hoja": "SRZ2",
+            "fila": 33,
+            "fecha": "13-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "EL TORNO"
+        },
+        {
+            "codigo": "C0007A17963BO",
+            "hoja": "SRZ2",
+            "fila": 34,
+            "fecha": "14-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A17972BO",
+            "hoja": "SRZ2",
+            "fila": 35,
+            "fecha": "14-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17997BO",
+            "hoja": "SRZ2",
+            "fila": 36,
+            "fecha": "14-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "TRINIDAD"
+        },
+        {
+            "codigo": "C0007A18078BO",
+            "hoja": "SRZ2",
+            "fila": 37,
+            "fecha": "14-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A18169BO",
+            "hoja": "SRZ2",
+            "fila": 38,
+            "fecha": "14-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A18183BO",
+            "hoja": "SRZ2",
+            "fila": 39,
+            "fecha": "14-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A18251BO",
+            "hoja": "SRZ2",
+            "fila": 40,
+            "fecha": "15-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A18270BO",
+            "hoja": "SRZ2",
+            "fila": 41,
+            "fecha": "15-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18282BO",
+            "hoja": "SRZ2",
+            "fila": 42,
+            "fecha": "15-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A18284BO",
+            "hoja": "SRZ2",
+            "fila": 43,
+            "fecha": "15-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A18410BO",
+            "hoja": "SRZ2",
+            "fila": 44,
+            "fecha": "18-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18423BO",
+            "hoja": "SRZ2",
+            "fila": 45,
+            "fecha": "18-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18448BO",
+            "hoja": "SRZ2",
+            "fila": 46,
+            "fecha": "18-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A18478BO",
+            "hoja": "SRZ2",
+            "fila": 47,
+            "fecha": "18-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A18637BO",
+            "hoja": "SRZ2",
+            "fila": 49,
+            "fecha": "19-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LOCAL"
+        },
+        {
+            "codigo": "C0007A18652BO",
+            "hoja": "SRZ2",
+            "fila": 50,
+            "fecha": "20-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18653BO",
+            "hoja": "SRZ2",
+            "fila": 51,
+            "fecha": "20-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A18674BO",
+            "hoja": "SRZ2",
+            "fila": 52,
+            "fecha": "20-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A18702BO",
+            "hoja": "SRZ2",
+            "fila": 53,
+            "fecha": "20-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LOCAL"
+        },
+        {
+            "codigo": "C0007A18708BO",
+            "hoja": "SRZ2",
+            "fila": 54,
+            "fecha": "20-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LOCAL"
+        },
+        {
+            "codigo": "C0007A18712BO",
+            "hoja": "SRZ2",
+            "fila": 55,
+            "fecha": "20-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LOCAL"
+        },
+        {
+            "codigo": "C0007A18727BO",
+            "hoja": "SRZ2",
+            "fila": 56,
+            "fecha": "20-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LOCAL"
+        },
+        {
+            "codigo": "C0007A18797BO",
+            "hoja": "SRZ2",
+            "fila": 57,
+            "fecha": "21-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18815BO",
+            "hoja": "SRZ2",
+            "fila": 58,
+            "fecha": "21-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SUR CHICHAS"
+        },
+        {
+            "codigo": "C0007A18821BO",
+            "hoja": "SRZ2",
+            "fila": 59,
+            "fecha": "21-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A18823BO",
+            "hoja": "SRZ2",
+            "fila": 60,
+            "fecha": "21-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A18824BO",
+            "hoja": "SRZ2",
+            "fila": 61,
+            "fecha": "21-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A18826BO",
+            "hoja": "SRZ2",
+            "fila": 62,
+            "fecha": "21-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A18831BO",
+            "hoja": "SRZ2",
+            "fila": 63,
+            "fecha": "21-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18832BO",
+            "hoja": "SRZ2",
+            "fila": 64,
+            "fecha": "21-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A18833BO",
+            "hoja": "SRZ2",
+            "fila": 65,
+            "fecha": "21-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A18869BO",
+            "hoja": "SRZ2",
+            "fila": 66,
+            "fecha": "21-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LOCAL"
+        },
+        {
+            "codigo": "C0007A18896BO",
+            "hoja": "SRZ2",
+            "fila": 67,
+            "fecha": "21-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A18899BO",
+            "hoja": "SRZ2",
+            "fila": 68,
+            "fecha": "21-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A18933BO",
+            "hoja": "SRZ2",
+            "fila": 69,
+            "fecha": "22-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A18942BO",
+            "hoja": "SRZ2",
+            "fila": 70,
+            "fecha": "22-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18952BO",
+            "hoja": "SRZ2",
+            "fila": 71,
+            "fecha": "22-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A18955BO",
+            "hoja": "SRZ2",
+            "fila": 72,
+            "fecha": "22-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A18966BO",
+            "hoja": "SRZ2",
+            "fila": 73,
+            "fecha": "22-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18978BO",
+            "hoja": "SRZ2",
+            "fila": 74,
+            "fecha": "22-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A19046BO",
+            "hoja": "SRZ2",
+            "fila": 75,
+            "fecha": "25-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "YAPACANI"
+        },
+        {
+            "codigo": "C0007A19048BO",
+            "hoja": "SRZ2",
+            "fila": 76,
+            "fecha": "25-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SAIPINA"
+        },
+        {
+            "codigo": "C0007A19049BO",
+            "hoja": "SRZ2",
+            "fila": 77,
+            "fecha": "25-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "PUCARA"
+        },
+        {
+            "codigo": "C0007A19052BO",
+            "hoja": "SRZ2",
+            "fila": 78,
+            "fecha": "25-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "PAMPAGRANDE"
+        },
+        {
+            "codigo": "C0007A19058BO",
+            "hoja": "SRZ2",
+            "fila": 79,
+            "fecha": "25-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "PORTACHUELO"
+        },
+        {
+            "codigo": "C0007A19066BO",
+            "hoja": "SRZ2",
+            "fila": 80,
+            "fecha": "25-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "EL PUENTE"
+        },
+        {
+            "codigo": "C0007A19069BO",
+            "hoja": "SRZ2",
+            "fila": 81,
+            "fecha": "25-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SAN ANTONIO DE LOMERIO"
+        },
+        {
+            "codigo": "C0007A19070BO",
+            "hoja": "SRZ2",
+            "fila": 82,
+            "fecha": "25-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "ROBORE"
+        },
+        {
+            "codigo": "C0007A19074BO",
+            "hoja": "SRZ2",
+            "fila": 83,
+            "fecha": "25-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "MAIRANA"
+        },
+        {
+            "codigo": "C0007A19090BO",
+            "hoja": "SRZ2",
+            "fila": 84,
+            "fecha": "25-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LOCAL"
+        },
+        {
+            "codigo": "C0007A19093BO",
+            "hoja": "SRZ2",
+            "fila": 85,
+            "fecha": "25-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LOCAL"
+        },
+        {
+            "codigo": "C0007A24305BO",
+            "hoja": "SRZ2",
+            "fila": 86,
+            "fecha": "25-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "COMARAPA"
+        },
+        {
+            "codigo": "C0007A24328BO",
+            "hoja": "SRZ2",
+            "fila": 87,
+            "fecha": "25-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A24336BO",
+            "hoja": "SRZ2",
+            "fila": 88,
+            "fecha": "26-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LOCAL"
+        },
+        {
+            "codigo": "C0007A24353BO",
+            "hoja": "SRZ2",
+            "fila": 89,
+            "fecha": "26-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A24355BO",
+            "hoja": "SRZ2",
+            "fila": 90,
+            "fecha": "26-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A24376BO",
+            "hoja": "SRZ2",
+            "fila": 91,
+            "fecha": "26-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A24426BO",
+            "hoja": "SRZ2",
+            "fila": 92,
+            "fecha": "26-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A24430BO",
+            "hoja": "SRZ2",
+            "fila": 93,
+            "fecha": "26-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A24431BO",
+            "hoja": "SRZ2",
+            "fila": 94,
+            "fecha": "26-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A24441BO",
+            "hoja": "SRZ2",
+            "fila": 95,
+            "fecha": "27-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A24463BO",
+            "hoja": "SRZ2",
+            "fila": 96,
+            "fecha": "27-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A24466BO",
+            "hoja": "SRZ2",
+            "fila": 97,
+            "fecha": "27-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A24479BO",
+            "hoja": "SRZ2",
+            "fila": 98,
+            "fecha": "27-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "GUARAYOS"
+        },
+        {
+            "codigo": "C0007A24483BO",
+            "hoja": "SRZ2",
+            "fila": 99,
+            "fecha": "27-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A24493BO",
+            "hoja": "SRZ2",
+            "fila": 100,
+            "fecha": "27-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A24495BO",
+            "hoja": "SRZ2",
+            "fila": 101,
+            "fecha": "27-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A24496BO",
+            "hoja": "SRZ2",
+            "fila": 102,
+            "fecha": "27-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A24506BO",
+            "hoja": "SRZ2",
+            "fila": 103,
+            "fecha": "27-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A24515BO",
+            "hoja": "SRZ2",
+            "fila": 104,
+            "fecha": "27-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A24526BO",
+            "hoja": "SRZ2",
+            "fila": 105,
+            "fecha": "27-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A24732BO",
+            "hoja": "SRZ2",
+            "fila": 106,
+            "fecha": "28-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "WARNES"
+        },
+        {
+            "codigo": "C0007A24745BO",
+            "hoja": "SRZ2",
+            "fila": 107,
+            "fecha": "28-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "GUARAYOS"
+        },
+        {
+            "codigo": "C0007A24746BO",
+            "hoja": "SRZ2",
+            "fila": 108,
+            "fecha": "28-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "JOSÉ MIGUEL DE VELASCO"
+        },
+        {
+            "codigo": "C0007A24774BO",
+            "hoja": "SRZ2",
+            "fila": 109,
+            "fecha": "29-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A24827BO",
+            "hoja": "SRZ2",
+            "fila": 110,
+            "fecha": "29-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A24830BO",
+            "hoja": "SRZ2",
+            "fila": 111,
+            "fecha": "29-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A24837BO",
+            "hoja": "SRZ2",
+            "fila": 112,
+            "fecha": "29-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A24866BO",
+            "hoja": "SRZ2",
+            "fila": 113,
+            "fecha": "29-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A24867BO",
+            "hoja": "SRZ2",
+            "fila": 114,
+            "fecha": "29-05-26",
+            "origen": "SANTA CRUZ",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A16932BO",
+            "hoja": "TJA2",
+            "fila": 5,
+            "fecha": "04-05-26",
+            "origen": "TARIJA",
+            "destino": "TARIJA"
+        },
+        {
+            "codigo": "C0007A17005BO",
+            "hoja": "TJA2",
+            "fila": 6,
+            "fecha": "05-05-26",
+            "origen": "TARIJA",
+            "destino": "TARIJA"
+        },
+        {
+            "codigo": "C0007A17482BO",
+            "hoja": "TJA2",
+            "fila": 7,
+            "fecha": "08-05-26",
+            "origen": "TARIJA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A17639BO",
+            "hoja": "TJA2",
+            "fila": 8,
+            "fecha": "11-05-26",
+            "origen": "TARIJA",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18073BO",
+            "hoja": "TJA2",
+            "fila": 9,
+            "fecha": "14-05-26",
+            "origen": "TARIJA",
+            "destino": "TARIJA"
+        },
+        {
+            "codigo": "C0007A18907BO",
+            "hoja": "TJA2",
+            "fila": 10,
+            "fecha": "21-05-26",
+            "origen": "TARIJA",
+            "destino": "TARIJA"
+        },
+        {
+            "codigo": "C0007A19101BO",
+            "hoja": "TJA2",
+            "fila": 11,
+            "fecha": "25-05-26",
+            "origen": "TARIJA",
+            "destino": "COCHABAMBA"
+        },
+        {
+            "codigo": "C0007A24744BO",
+            "hoja": "TJA2",
+            "fila": 12,
+            "fecha": "28-05-26",
+            "origen": "TARIJA",
+            "destino": "TARIJA"
+        },
+        {
+            "codigo": "C0007A16931BO",
+            "hoja": "POI2",
+            "fila": 4,
+            "fecha": "04-05-26",
+            "origen": "POTOSI",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A16933BO",
+            "hoja": "POI2",
+            "fila": 5,
+            "fecha": "04-05-26",
+            "origen": "POTOSI",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A16940BO",
+            "hoja": "POI2",
+            "fila": 6,
+            "fecha": "04-05-26",
+            "origen": "POTOSI",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A16950BO",
+            "hoja": "POI2",
+            "fila": 7,
+            "fecha": "04-05-26",
+            "origen": "POTOSI",
+            "destino": "POTOSI"
+        },
+        {
+            "codigo": "C0007A17052BO",
+            "hoja": "POI2",
+            "fila": 8,
+            "fecha": "05-05-26",
+            "origen": "POTOSI",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17190BO",
+            "hoja": "POI2",
+            "fila": 9,
+            "fecha": "06-05-26",
+            "origen": "POTOSI",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17331BO",
+            "hoja": "POI2",
+            "fila": 10,
+            "fecha": "07-05-26",
+            "origen": "POTOSI",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17338BO",
+            "hoja": "POI2",
+            "fila": 11,
+            "fecha": "07-05-26",
+            "origen": "POTOSI",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17339BO",
+            "hoja": "POI2",
+            "fila": 12,
+            "fecha": "07-05-26",
+            "origen": "POTOSI",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17461BO",
+            "hoja": "POI2",
+            "fila": 13,
+            "fecha": "08-05-26",
+            "origen": "POTOSI",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17464BO",
+            "hoja": "POI2",
+            "fila": 14,
+            "fecha": "08-05-26",
+            "origen": "POTOSI",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17491BO",
+            "hoja": "POI2",
+            "fila": 15,
+            "fecha": "08-05-26",
+            "origen": "POTOSI",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17632BO",
+            "hoja": "POI2",
+            "fila": 16,
+            "fecha": "11-05-26",
+            "origen": "POTOSI",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17645BO",
+            "hoja": "POI2",
+            "fila": 17,
+            "fecha": "11-05-26",
+            "origen": "POTOSI",
+            "destino": "SUCRE"
+        },
+        {
+            "codigo": "C0007A17646BO",
+            "hoja": "POI2",
+            "fila": 18,
+            "fecha": "11-05-26",
+            "origen": "POTOSI",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17765BO",
+            "hoja": "POI2",
+            "fila": 19,
+            "fecha": "12-05-26",
+            "origen": "POTOSI",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17767BO",
+            "hoja": "POI2",
+            "fila": 20,
+            "fecha": "12-05-26",
+            "origen": "POTOSI",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17781BO",
+            "hoja": "POI2",
+            "fila": 21,
+            "fecha": "12-05-26",
+            "origen": "POTOSI",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17940BO",
+            "hoja": "POI2",
+            "fila": 22,
+            "fecha": "13-05-26",
+            "origen": "POTOSI",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17943BO",
+            "hoja": "POI2",
+            "fila": 23,
+            "fecha": "13-05-26",
+            "origen": "UYUNI",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18074BO",
+            "hoja": "POI2",
+            "fila": 24,
+            "fecha": "14-05-26",
+            "origen": "POTOSI",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18075BO",
+            "hoja": "POI2",
+            "fila": 25,
+            "fecha": "14-05-26",
+            "origen": "POTOSI",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18083BO",
+            "hoja": "POI2",
+            "fila": 26,
+            "fecha": "14-05-26",
+            "origen": "POTOSI",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18089BO",
+            "hoja": "POI2",
+            "fila": 27,
+            "fecha": "14-05-26",
+            "origen": "POTOSI",
+            "destino": "SUCRE"
+        },
+        {
+            "codigo": "C0007A18324BO",
+            "hoja": "POI2",
+            "fila": 28,
+            "fecha": "15-05-26",
+            "origen": "POTOSI",
+            "destino": "SUCRE"
+        },
+        {
+            "codigo": "C0007A18325BO",
+            "hoja": "POI2",
+            "fila": 29,
+            "fecha": "15-05-26",
+            "origen": "POTOSI",
+            "destino": "SUCRE"
+        },
+        {
+            "codigo": "C0007A16378BO",
+            "hoja": "TDD2",
+            "fila": 5,
+            "fecha": "04-05-26",
+            "origen": "TRINIDAD",
+            "destino": "SANTA CRUZ"
+        },
+        {
+            "codigo": "C0007A16880BO",
+            "hoja": "TDD2",
+            "fila": 6,
+            "fecha": "04-05-26",
+            "origen": "TRINIDAD",
+            "destino": "TRINIDAD"
+        },
+        {
+            "codigo": "C0007A17112BO",
+            "hoja": "TDD2",
+            "fila": 7,
+            "fecha": "06-05-26",
+            "origen": "TRINIDAD",
+            "destino": "SANTA ANA"
+        },
+        {
+            "codigo": "C0007A17187BO",
+            "hoja": "TDD2",
+            "fila": 8,
+            "fecha": "06-05-26",
+            "origen": "TRINIDAD",
+            "destino": "TRINIDAD"
+        },
+        {
+            "codigo": "C0007A17558BO",
+            "hoja": "TDD2",
+            "fila": 9,
+            "fecha": "11-05-26",
+            "origen": "TRINIDAD",
+            "destino": "TRINIDAD"
+        },
+        {
+            "codigo": "C0007A17705BO",
+            "hoja": "TDD2",
+            "fila": 10,
+            "fecha": "12-05-26",
+            "origen": "TRINIDAD",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18018BO",
+            "hoja": "TDD2",
+            "fila": 11,
+            "fecha": "14-05-26",
+            "origen": "TRINIDAD",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18313BO",
+            "hoja": "TDD2",
+            "fila": 12,
+            "fecha": "15-05-26",
+            "origen": "TRINIDAD",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A18480BO",
+            "hoja": "TDD2",
+            "fila": 13,
+            "fecha": "18-05-26",
+            "origen": "TRINIDAD",
+            "destino": "SANTA ANA"
+        },
+        {
+            "codigo": "C0007A18490BO",
+            "hoja": "TDD2",
+            "fila": 14,
+            "fecha": "18-05-26",
+            "origen": "TRINIDAD",
+            "destino": "TRINIDAD"
+        },
+        {
+            "codigo": "C0007A18491BO",
+            "hoja": "TDD2",
+            "fila": 15,
+            "fecha": "18-05-26",
+            "origen": "TRINIDAD",
+            "destino": "TRINIDAD"
+        },
+        {
+            "codigo": "C0007A18492BO",
+            "hoja": "TDD2",
+            "fila": 16,
+            "fecha": "18-05-26",
+            "origen": "TRINIDAD",
+            "destino": "TRINIDAD"
+        },
+        {
+            "codigo": "C0007A18498BO",
+            "hoja": "TDD2",
+            "fila": 17,
+            "fecha": "18-05-26",
+            "origen": "TRINIDAD",
+            "destino": "TRINIDAD"
+        },
+        {
+            "codigo": "C0007A18550BO",
+            "hoja": "TDD2",
+            "fila": 18,
+            "fecha": "19-05-26",
+            "origen": "TRINIDAD",
+            "destino": "TRINIDAD"
+        },
+        {
+            "codigo": "C0007A18590BO",
+            "hoja": "TDD2",
+            "fila": 19,
+            "fecha": "19-05-26",
+            "origen": "TRINIDAD",
+            "destino": "TRINIDAD"
+        },
+        {
+            "codigo": "C0007A24541BO",
+            "hoja": "TDD2",
+            "fila": 20,
+            "fecha": "27-05-26",
+            "origen": "TRINIDAD",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A24630BO",
+            "hoja": "TDD2",
+            "fila": 21,
+            "fecha": "28-05-26",
+            "origen": "TRINIDAD",
+            "destino": "LA PAZ"
+        },
+        {
+            "codigo": "C0007A17447BO",
+            "hoja": "CIJ2",
+            "fila": 5,
+            "fecha": "08-05-26",
+            "origen": "PANDO",
+            "destino": "LA PAZ"
+        }
+    ]
+}
