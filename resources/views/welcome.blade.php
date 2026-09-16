@@ -44,7 +44,7 @@
                                     autocomplete="off"
                                     autocapitalize="characters"
                                     spellcheck="false"
-                                    pattern="[A-Za-z0-9]+"
+                                    pattern="[A-Za-z0-9\\/-]+"
                                     aria-label="C&#xF3;digo de rastreo" required>
                             </div>
                             <div class="hero-captcha-block">
@@ -1045,7 +1045,7 @@
         const normalizeTrackingCodeInput = (value) => {
             return String(value || '')
                 .toUpperCase()
-                .replace(/[^A-Z0-9]/g, '');
+                .replace(/[^A-Z0-9\\/-]/g, '');
         };
 
         if (trackCodeInput) {

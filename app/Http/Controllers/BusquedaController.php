@@ -128,7 +128,7 @@ class BusquedaController extends Controller
     public function autorizarTrackingPublico(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'codigo' => ['required', 'string', 'max:50', 'regex:/^[A-Za-z0-9]+$/'],
+            'codigo' => ['required', 'string', 'max:50', 'regex:/^[A-Za-z0-9\/-]+$/'],
             'captcha_answer' => ['required', 'string', 'max:20'],
             'captcha_challenge' => ['required', 'string'],
         ]);
@@ -225,7 +225,7 @@ class BusquedaController extends Controller
     private function obtenerCodigoValidado(Request $request): string
     {
         $validated = $request->validate([
-            'codigo' => ['required', 'string', 'max:50', 'regex:/^[A-Za-z0-9]+$/'],
+            'codigo' => ['required', 'string', 'max:50', 'regex:/^[A-Za-z0-9\/-]+$/'],
         ]);
 
         return $this->normalizeTrackingCode((string) $validated['codigo']);
@@ -587,10 +587,35 @@ class BusquedaController extends Controller
             return collect();
         }
 
-        $response = Http::timeout((int) config('services.tracking_sqlserver.timeout', 15))
-            ->acceptJson()
-            ->withToken($token)
-            ->get($baseUrl, ['codigo' => $codigo]);
+        $request = function (string $url, string $requestToken) use ($codigo) {
+            return Http::connectTimeout(3)
+                ->timeout((int) config('services.tracking_sqlserver.timeout', 15))
+                ->acceptJson()
+                ->withToken($requestToken)
+                ->get($url, ['codigo' => $codigo]);
+        };
+
+        try {
+            $response = $request($baseUrl, $token);
+        } catch (\Throwable $primaryError) {
+            // El SITRA local puede estar detenido durante desarrollo. En ese
+            // caso usa el endpoint público configurado como respaldo, en vez
+            // de convertir un fallo de conexión en “paquete inexistente”.
+            $fallbackUrl = $this->resolveTrackingApiUrl(
+                trim((string) config('services.tracking_sqlserver.fallback_base_url', ''))
+            );
+            $fallbackToken = $this->normalizarTokenBearer(
+                trim((string) config('services.tracking_sqlserver.fallback_token', ''))
+            );
+            if ($fallbackUrl === '' || $fallbackToken === '' || $fallbackUrl === $baseUrl) {
+                throw $primaryError;
+            }
+            Log::warning('API local de tracking no disponible; usando respaldo.', [
+                'base_url' => $baseUrl,
+                'fallback_url' => $fallbackUrl,
+            ]);
+            $response = $request($fallbackUrl, $fallbackToken);
+        }
 
         if ($response->status() === 422) {
             Log::notice('Tracking externo rechazo el codigo por validacion.', [
@@ -602,7 +627,18 @@ class BusquedaController extends Controller
         }
 
         if (!$response->ok()) {
-            throw new \RuntimeException('Error consultando API externa de tracking. HTTP ' . $response->status());
+            $fallbackUrl = $this->resolveTrackingApiUrl(
+                trim((string) config('services.tracking_sqlserver.fallback_base_url', ''))
+            );
+            $fallbackToken = $this->normalizarTokenBearer(
+                trim((string) config('services.tracking_sqlserver.fallback_token', ''))
+            );
+            if ($fallbackUrl !== '' && $fallbackToken !== '' && $fallbackUrl !== $baseUrl) {
+                $response = $request($fallbackUrl, $fallbackToken);
+            }
+            if (!$response->ok()) {
+                throw new \RuntimeException('Error consultando API externa de tracking. HTTP ' . $response->status());
+            }
         }
 
         $payload = $response->json();
@@ -670,7 +706,7 @@ class BusquedaController extends Controller
     private function normalizeTrackingCode(string $codigo): string
     {
         $codigo = strtoupper(trim($codigo));
-        $codigo = preg_replace('/\s+/', '', $codigo) ?? $codigo;
+        $codigo = preg_replace('/[\s\/-]+/', '', $codigo) ?? $codigo;
 
         return trim($codigo);
     }
@@ -808,6 +844,18 @@ class BusquedaController extends Controller
             'pais_origen_nombre' => $paisOrigenNombre !== '' ? $paisOrigenNombre : null,
             'pais_destino_nombre' => $paisDestinoNombre !== '' ? $paisDestinoNombre : null,
             'condition' => trim((string) ($evento['condition'] ?? '')),
+            // Estado postal pertenece al envío completo, por eso se replica en
+            // cada evento para que el motor de progreso pueda priorizarlo.
+            'postal_status_cd' => $evento['postal_status_cd']
+                ?? data_get($payload, 'codigo_estado_postal')
+                ?? data_get($payload, 'meta.postal_status_cd'),
+            'postal_status' => trim((string) (
+                $evento['postal_status']
+                ?? $evento['estado_postal']
+                ?? data_get($payload, 'estado_postal')
+                ?? data_get($payload, 'meta.postal_status_name')
+                ?? ''
+            )),
             '_sort_ts' => $timestamp !== false ? $timestamp : (PHP_INT_MAX - $index),
             '_sort_priority' => $this->calcularPrioridadEvento($nombreEvento),
         ];
