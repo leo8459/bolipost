@@ -5277,6 +5277,7 @@
             let facturacionPendingEmitState = null;
             let facturacionCurrentResultKey = facturacionInitialFeedbackKey;
             let facturacionCurrentQrKey = facturacionInitialQrKey;
+            let facturacionCurrentQrState = null;
             let facturacionPreviewRestoreState = null;
             const FACTURACION_PROCESSING_DEFAULTS = {
                 pill: 'Preparando ticket',
@@ -5477,6 +5478,9 @@
             };
 
             const publishFacturacionMonitorAdsState = () => {
+                // El modo de espera no debe conservar un QR anterior para una
+                // futura activacion de la pantalla.
+                facturacionCurrentQrState = null;
                 publishFacturacionMonitorState({
                     mode: 'ads',
                     title: 'Pagos QR',
@@ -5599,7 +5603,11 @@
                 persistFacturacionMonitorConfig({ enabled: true, url: monitorUrl });
                 setFacturacionMonitorButtonState();
                 ensureFacturacionMonitorTab(monitorUrl);
-                publishFacturacionMonitorAdsState();
+                if (facturacionCurrentQrState && facturacionCurrentQrState.image_data) {
+                    publishFacturacionMonitorState(facturacionCurrentQrState, monitorUrl);
+                } else {
+                    publishFacturacionMonitorAdsState();
+                }
 
                 if (showFeedback) {
                     renderFacturacionShortcutFeedback({
@@ -7322,6 +7330,17 @@
                     || (cartData && cartData.total_linea)
                     || 0
                 );
+                facturacionCurrentQrState = {
+                    mode: 'qr',
+                    subtitle: 'Cobro QR activo',
+                    title: 'Escanea para pagar',
+                    message,
+                    image_data: String(qrData.image_data || '').trim(),
+                    transaction_id: transactionId,
+                    internal_code: internalCode,
+                    payment_status: paymentStatus !== '' ? paymentStatus : 'HOLDING',
+                    amount: Number.isFinite(monitorAmount) ? monitorAmount : 0,
+                };
 
                 if (facturacionQrViewerSubtitle instanceof HTMLElement) {
                     facturacionQrViewerSubtitle.textContent = message;
@@ -7363,17 +7382,7 @@
                     }
                 }
 
-                publishFacturacionMonitorState({
-                    mode: 'qr',
-                    subtitle: 'Cobro QR activo',
-                    title: 'Escanea para pagar',
-                    message,
-                    image_data: String(qrData.image_data || '').trim(),
-                    transaction_id: transactionId,
-                    internal_code: internalCode,
-                    payment_status: paymentStatus !== '' ? paymentStatus : 'HOLDING',
-                    amount: Number.isFinite(monitorAmount) ? monitorAmount : 0,
-                });
+                publishFacturacionMonitorState(facturacionCurrentQrState);
             };
 
             const handleFacturacionDownloadPdf = (downloadPdf) => {
@@ -7542,8 +7551,6 @@
                 if (!(form instanceof HTMLFormElement)) {
                     return false;
                 }
-
-                publishFacturacionMonitorAdsState();
 
                 const tokenMeta = document.querySelector('meta[name="csrf-token"]');
                 const csrfToken = tokenMeta instanceof HTMLMetaElement ? tokenMeta.content : '';
