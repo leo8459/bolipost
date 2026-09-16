@@ -399,9 +399,23 @@ return [
                     'icon' => 'fas fa-key',
                 ],
                 [
-                    'text' => 'Correo electronico',
-                    'url' => 'administrador/correo-electronico',
+                    'text' => 'Envío de correo',
                     'icon' => 'fas fa-envelope',
+                    'submenu' => [
+                        [
+                            'text' => 'Contratos',
+                            'url' => 'administrador/correo-electronico',
+                            'icon' => 'fas fa-file-contract',
+                            'active' => ['administrador/correo-electronico'],
+                        ],
+                        [
+                            'text' => 'Cierre diario',
+                            'can' => 'admin-only-menu',
+                            'url' => 'administrador/correo-electronico/cierre-diario',
+                            'icon' => 'fas fa-clipboard-list',
+                            'active' => ['administrador/correo-electronico/cierre-diario'],
+                        ],
+                    ],
                 ],
                 [
                     'text' => 'Todos los paquetes',

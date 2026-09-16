@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\ContractExpirationMailService;
+use App\Services\DailyClosingMailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -10,13 +11,49 @@ use Throwable;
 
 class ContractExpirationEmailController extends Controller
 {
-    public function index(ContractExpirationMailService $mailService)
+    public function index(ContractExpirationMailService $mailService, DailyClosingMailService $closingService)
     {
         return view('configuracion.contract-expiration-email', [
             'recipients' => $mailService->recipients(),
             'alerts' => $mailService->upcomingAlerts(),
             'automaticSendingEnabled' => $mailService->automaticSendingEnabled(),
+            'dailyClosingEnabled' => $closingService->automaticSendingEnabled(),
+            'isDailyClosing' => false,
         ]);
+    }
+
+    public function dailyClosing(ContractExpirationMailService $mailService, DailyClosingMailService $closingService)
+    {
+        return view('configuracion.daily-closing-email', [
+            'recipients' => $mailService->recipients(),
+            'dailyClosingEnabled' => $closingService->automaticSendingEnabled(),
+            'report' => $closingService->report(),
+        ]);
+    }
+
+    public function updateDailyClosing(Request $request, DailyClosingMailService $service)
+    {
+        $data = $request->validate(['enabled' => ['required', 'boolean']]);
+        $service->setAutomaticSendingEnabled((bool) $data['enabled']);
+
+        return back()->with('status', 'Configuración del cierre diario guardada correctamente.');
+    }
+
+    public function sendDailyClosing(ContractExpirationMailService $mailService, DailyClosingMailService $service)
+    {
+        $recipients = $mailService->recipients();
+        if ($recipients === []) {
+            return back()->with('warning', 'Primero debe guardar al menos un correo electrónico.');
+        }
+        try {
+            $sent = $service->send($recipients);
+        } catch (Throwable $exception) {
+            Log::error('No se pudo enviar el cierre diario.', ['exception' => $exception]);
+
+            return back()->with('error', 'No se pudo enviar el cierre diario. Revise la configuración del servidor de correo e intente nuevamente.');
+        }
+
+        return back()->with('status', "Cierre diario enviado correctamente a {$sent} destinatario(s).");
     }
 
     public function updateAutomaticSending(Request $request, ContractExpirationMailService $mailService)

@@ -1,14 +1,14 @@
 @extends('adminlte::page')
 
-@section('title', 'Correo electronico')
+@section('title', $isDailyClosing ? 'Cierre diario' : 'Contratos')
 
 @section('content_header')
     <div class="d-flex flex-wrap justify-content-between align-items-center">
         <div>
-            <h1 class="mb-1">Correo electronico</h1>
-            <p class="text-muted mb-0">Avisos de vencimiento de contratos empresariales</p>
+            <h1 class="mb-1">{{ $isDailyClosing ? 'Cierre diario' : 'Contratos' }}</h1>
+            <p class="text-muted mb-0">{{ $isDailyClosing ? 'Envío de correo · Cierre diario de contratos y EMS' : 'Envío de correo · Avisos de vencimiento de contratos empresariales' }}</p>
         </div>
-        <span class="badge badge-warning p-2">Ventana de aviso: 90 dias</span>
+        <span class="badge badge-warning p-2">{{ $isDailyClosing ? 'Cierre: 20:00, hora de Bolivia' : 'Ventana de aviso: 90 dias' }}</span>
     </div>
 @stop
 
@@ -27,7 +27,33 @@
     @endif
 
     <div class="row">
-        <div class="col-lg-5">
+        @if ($isDailyClosing)
+        <div class="col-12">
+            <div class="card card-info card-outline shadow-sm">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-clipboard-list mr-2"></i>Cierre diario de contratos y EMS</h3>
+                    <span class="badge {{ $dailyClosingEnabled ? 'badge-success' : 'badge-secondary' }} float-right">{{ $dailyClosingEnabled ? 'Activo' : 'Inactivo' }}</span>
+                </div>
+                <div class="card-body">
+                    <p>Todos los días a las <strong>20:00, hora de Bolivia</strong>, se enviará el resumen a los correos guardados en esta página: registros, entregas y movimientos del día, pendientes acumulados y pendientes por cartero.</p>
+                    <p class="text-muted">Incluye un Excel dividido por departamento de destino con todos los pendientes: código, destino, estado y cartero. El envío manual usa la hora actual como corte y permite recibir otro cierre a las 20:00. El cierre es un reporte informativo; puede seguir trabajando después del corte.</p>
+                    <div class="d-flex flex-wrap">
+                        <form method="POST" action="{{ route('contract-expiration-email.daily-closing.send') }}" class="mr-2 mb-2">
+                            @csrf
+                            <button type="submit" class="btn btn-success" @disabled(empty($recipients))><i class="fas fa-envelope mr-1"></i>Enviar cierre ahora</button>
+                        </form>
+                        <form method="POST" action="{{ route('contract-expiration-email.daily-closing.update') }}" class="mb-2">
+                            @csrf
+                            @method('PATCH')
+                            <input type="hidden" name="enabled" value="{{ $dailyClosingEnabled ? 0 : 1 }}">
+                            <button type="submit" class="btn btn-outline-primary">{{ $dailyClosingEnabled ? 'Desactivar cierre automático' : 'Activar cierre automático' }}</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        @endif
+        <div class="{{ $isDailyClosing ? 'col-lg-6' : 'col-lg-5' }}">
             <div class="card card-primary card-outline shadow-sm">
                 <div class="card-header">
                     <h3 class="card-title"><i class="fas fa-user-plus mr-2"></i>Agregar destinatario</h3>
@@ -58,7 +84,7 @@
                         @error('recipient')
                             <div class="invalid-feedback d-block">{{ $message }}</div>
                         @enderror
-                        <small class="form-text text-muted">Puede guardar hasta 50 destinatarios.</small>
+                        <small class="form-text text-muted">Puede guardar hasta 50 destinatarios. La lista se comparte entre Contratos y Cierre diario.</small>
                     </div>
                 </form>
             </div>
@@ -100,6 +126,7 @@
                 </div>
             </div>
 
+            @if (! $isDailyClosing)
             <div class="card shadow-sm">
                 <div class="card-body">
                     <h5><i class="fas fa-paper-plane text-primary mr-2"></i>Envio manual</h5>
@@ -142,8 +169,10 @@
                     </form>
                 </div>
             </div>
+            @endif
         </div>
 
+        @if (! $isDailyClosing)
         <div class="col-lg-7">
             <div class="card card-warning card-outline shadow-sm">
                 <div class="card-header d-flex align-items-center">
@@ -185,5 +214,6 @@
                 </div>
             </div>
         </div>
+        @endif
     </div>
 @stop
