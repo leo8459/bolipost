@@ -28,3 +28,7 @@ Schedule::command('operations:send-daily-closing')
     ->dailyAt('20:00')
     ->timezone('America/La_Paz')
     ->withoutOverlapping();
+
+Schedule::command('contracts:cancel-expired-pickups')
+    ->hourly()
+    ->withoutOverlapping();

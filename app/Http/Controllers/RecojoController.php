@@ -661,9 +661,9 @@ class RecojoController extends Controller
                     return $this->normalizeServicioTarifa((string) $request->input('servicio')) === 'INTERPROVINCIAL';
                 }),
             ],
-        ], [
+        ], array_merge($this->storeValidationMessages(), [
             'provincia.required' => 'La provincia es obligatoria cuando el servicio es INTERPROVINCIAL.',
-        ]);
+        ]), $this->storeValidationAttributes());
 
         $empresa = Empresa::query()->find((int) $user->empresa_id);
         if (! $empresa) {
@@ -825,11 +825,11 @@ class RecojoController extends Controller
             ),
         ];
 
-        $data = $request->validate($rules, [
+        $data = $request->validate($rules, array_merge($this->storeValidationMessages(), [
             'tipo_envio.required' => 'Debe seleccionar el tipo de envio.',
             'tipo_envio.in' => 'El tipo de envio seleccionado no es valido.',
             'provincia.required' => 'La provincia es obligatoria cuando el tipo de envio es PROVINCIAL.',
-        ]);
+        ]), $this->storeValidationAttributes());
 
         try {
             $contrato = $this->createContratoDesdePayload($data, $user);
@@ -898,7 +898,7 @@ class RecojoController extends Controller
             'user_id' => 'nullable|integer|exists:users,id',
             'user_email' => 'nullable|email|exists:users,email',
             'user_ci' => 'nullable|string|max:50',
-        ]));
+        ]), $this->storeValidationMessages(), $this->storeValidationAttributes());
 
         if ($validator->fails()) {
             return response()->json([
@@ -1470,6 +1470,47 @@ class RecojoController extends Controller
         }
 
         return null;
+    }
+
+    protected function storeValidationMessages(): array
+    {
+        return [
+            'required' => 'El campo :attribute es obligatorio.',
+            'string' => 'El campo :attribute debe ser un texto.',
+            'integer' => 'El campo :attribute debe ser un número entero.',
+            'numeric' => 'El campo :attribute debe ser un número.',
+            'min' => 'El campo :attribute debe ser mayor o igual a :min.',
+            'max' => 'El campo :attribute no debe tener más de :max caracteres.',
+            'in' => 'El valor seleccionado para :attribute no es válido.',
+            'email' => 'El campo :attribute debe ser un correo electrónico válido.',
+            'exists' => 'El valor seleccionado para :attribute no existe.',
+            'numero_copias.min' => 'Debe imprimir al menos 1 copia.',
+            'numero_copias.max' => 'Puede imprimir un máximo de 3 copias.',
+        ];
+    }
+
+    protected function storeValidationAttributes(): array
+    {
+        return [
+            'tipo_envio' => 'tipo de envío',
+            'nombre_r' => 'nombre del remitente',
+            'telefono_r' => 'teléfono del remitente',
+            'contenido' => 'contenido',
+            'cantidad' => 'cantidad',
+            'direccion_r' => 'dirección del remitente',
+            'nombre_d' => 'nombre del destinatario',
+            'telefono_d' => 'teléfono del destinatario',
+            'destino' => 'departamento de destino',
+            'direccion' => 'dirección del destinatario',
+            'provincia' => 'provincia de destino',
+            'peso' => 'peso',
+            'numero_copias' => 'número de copias',
+            'servicio' => 'servicio',
+            'mapa' => 'ubicación en el mapa',
+            'user_id' => 'usuario',
+            'user_email' => 'correo electrónico del usuario',
+            'user_ci' => 'cédula de identidad del usuario',
+        ];
     }
 
     protected function storeRules(): array

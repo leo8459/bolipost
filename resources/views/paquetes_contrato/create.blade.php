@@ -201,9 +201,28 @@
             gap: 14px;
         }
         .envio-tipo-option {
+            --envio-color: #1d4ed8;
+            --envio-border: #93c5fd;
+            --envio-bg: #eff6ff;
+            --envio-soft: #dbeafe;
+            --envio-rgb: 29, 78, 216;
             display: block;
             margin: 0;
             cursor: pointer;
+        }
+        .envio-tipo-option--periurbano {
+            --envio-color: #047857;
+            --envio-border: #6ee7b7;
+            --envio-bg: #ecfdf5;
+            --envio-soft: #d1fae5;
+            --envio-rgb: 4, 120, 87;
+        }
+        .envio-tipo-option--provincial {
+            --envio-color: #c2410c;
+            --envio-border: #fdba74;
+            --envio-bg: #fff7ed;
+            --envio-soft: #ffedd5;
+            --envio-rgb: 194, 65, 12;
         }
         .envio-tipo-option input[type="radio"] {
             position: absolute;
@@ -214,10 +233,11 @@
             display: block;
             position: relative;
             min-height: 168px;
-            border: 1px solid #d7e2f1;
+            border: 1px solid var(--envio-border);
+            border-top: 4px solid var(--envio-color);
             border-radius: 18px;
             padding: 18px;
-            background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+            background: linear-gradient(180deg, #ffffff 0%, var(--envio-bg) 100%);
             cursor: pointer;
             transition: all .2s ease;
             overflow: hidden;
@@ -227,7 +247,7 @@
             position: absolute;
             inset: 0;
             background:
-                radial-gradient(circle at top right, rgba(59, 130, 246, .12), transparent 34%),
+                radial-gradient(circle at top right, rgba(var(--envio-rgb), .12), transparent 34%),
                 linear-gradient(135deg, rgba(255,255,255,.75), rgba(255,255,255,0));
             pointer-events: none;
         }
@@ -246,17 +266,17 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            background: #e8f0ff;
-            color: #1d4ed8;
+            background: var(--envio-soft);
+            color: var(--envio-color);
             font-size: 18px;
             font-weight: 800;
-            box-shadow: inset 0 0 0 1px rgba(29, 78, 216, .08);
+            box-shadow: inset 0 0 0 1px rgba(var(--envio-rgb), .12);
         }
         .envio-tipo-check {
             width: 24px;
             height: 24px;
             border-radius: 999px;
-            border: 2px solid #bfd2ea;
+            border: 2px solid var(--envio-border);
             background: #fff;
             transition: all .2s ease;
         }
@@ -264,7 +284,7 @@
             position: relative;
             z-index: 1;
             display: block;
-            color: #0f172a;
+            color: var(--envio-color);
             margin-bottom: 8px;
             font-size: 21px;
             line-height: 1.1;
@@ -286,26 +306,34 @@
             gap: 8px;
             padding: 7px 10px;
             border-radius: 999px;
-            background: #eef4ff;
-            color: #1e40af;
+            background: var(--envio-soft);
+            color: var(--envio-color);
             font-size: 12px;
             font-weight: 700;
         }
         .envio-tipo-option input[type="radio"]:checked + .envio-tipo-card {
-            border-color: #2563eb;
-            background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
-            box-shadow: 0 18px 34px rgba(37, 99, 235, .16);
+            border-color: var(--envio-color);
+            background: linear-gradient(180deg, var(--envio-bg) 0%, var(--envio-soft) 100%);
+            box-shadow: 0 0 0 2px var(--envio-color), 0 18px 34px rgba(var(--envio-rgb), .16);
             transform: translateY(-2px);
         }
         .envio-tipo-option input[type="radio"]:checked + .envio-tipo-card .envio-tipo-check {
-            border-color: #2563eb;
-            background: #2563eb;
+            border-color: var(--envio-color);
+            background: var(--envio-color);
             box-shadow: inset 0 0 0 5px #ffffff;
         }
         .envio-tipo-option:hover .envio-tipo-card {
-            border-color: #93c5fd;
+            border-color: var(--envio-color);
             box-shadow: 0 12px 24px rgba(15, 23, 42, .08);
             transform: translateY(-1px);
+        }
+        .envio-tipo-option input[type="radio"]:focus-visible + .envio-tipo-card {
+            outline: 3px solid var(--envio-color);
+            outline-offset: 4px;
+        }
+        #resumenEnvioCopias dd {
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
         }
         @media (max-width: 991.98px) {
             .envio-tipo-grid {
@@ -365,7 +393,7 @@
                         <div class="form-group">
                             <label>Tipo de envio<span class="required-star">*</span></label>
                             <div class="envio-tipo-grid">
-                                <label class="envio-tipo-option mb-0">
+                                <label class="envio-tipo-option envio-tipo-option--periurbano mb-0">
                                     <input type="radio" name="tipo_envio" value="periurbano" {{ old('tipo_envio') === 'periurbano' ? 'checked' : '' }} required>
                                     <span class="envio-tipo-card">
                                         <span class="envio-tipo-top">
@@ -377,7 +405,7 @@
                                         <span class="envio-tipo-note">Misma ciudad de origen</span>
                                     </span>
                                 </label>
-                                <label class="envio-tipo-option mb-0">
+                                <label class="envio-tipo-option envio-tipo-option--departamental mb-0">
                                     <input type="radio" name="tipo_envio" value="departamental" {{ old('tipo_envio') === 'departamental' ? 'checked' : '' }}>
                                     <span class="envio-tipo-card">
                                         <span class="envio-tipo-top">
@@ -389,7 +417,7 @@
                                         <span class="envio-tipo-note">Solo departamento destino</span>
                                     </span>
                                 </label>
-                                <label class="envio-tipo-option mb-0">
+                                <label class="envio-tipo-option envio-tipo-option--provincial mb-0">
                                     <input type="radio" name="tipo_envio" value="provincial" {{ old('tipo_envio') === 'provincial' ? 'checked' : '' }}>
                                     <span class="envio-tipo-card">
                                         <span class="envio-tipo-top">
@@ -592,15 +620,20 @@
 </div>
 
 <div class="modal fade" id="copiasGuiaModal" tabindex="-1" role="dialog" aria-labelledby="copiasGuiaModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title" id="copiasGuiaModalLabel">Copias de guia</h5>
+                <h5 class="modal-title" id="copiasGuiaModalLabel">Confirmar datos del envío y copias</h5>
                 <button type="button" class="close text-white" data-dismiss="modal" aria-label="Cerrar">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
             <div class="modal-body">
+                <div id="tipoEnvioCopiasAviso" class="alert" role="status">
+                    Usted está enviando un envío <strong id="tipoEnvioCopiasTexto"></strong>.
+                </div>
+                <p class="text-muted">Revise los datos y el número de copias antes de confirmar su solicitud.</p>
+                <div id="resumenEnvioCopias"></div>
                 <div class="form-group mb-0">
                     <label for="numeroCopiasModalSelect">Cuantas copias quieres imprimir?</label>
                     <select id="numeroCopiasModalSelect" class="form-control">
@@ -611,11 +644,12 @@
                         @endfor
                     </select>
                     <small class="form-text text-muted">Puedes elegir hasta un maximo de 3 copias.</small>
+                    <p id="resumenNumeroCopias" class="font-weight-bold mt-3 mb-0" aria-live="polite"></p>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" id="confirmarCopiasGuiaBtn">Solicitar envío</button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Volver a editar</button>
+                <button type="button" class="btn btn-primary" id="confirmarCopiasGuiaBtn">Confirmar y solicitar envío</button>
             </div>
         </div>
     </div>
@@ -634,6 +668,10 @@
         const statusBox = document.getElementById('envioFrecuenteStatus');
         const savedModal = document.getElementById('envioFrecuenteSavedModal');
         const copiasGuiaModal = document.getElementById('copiasGuiaModal');
+        const tipoEnvioCopiasAviso = document.getElementById('tipoEnvioCopiasAviso');
+        const tipoEnvioCopiasTexto = document.getElementById('tipoEnvioCopiasTexto');
+        const resumenEnvioCopias = document.getElementById('resumenEnvioCopias');
+        const resumenNumeroCopias = document.getElementById('resumenNumeroCopias');
         const numeroCopiasInput = document.getElementById('numeroCopiasInput');
         const numeroCopiasModalSelect = document.getElementById('numeroCopiasModalSelect');
         const confirmarCopiasGuiaBtn = document.getElementById('confirmarCopiasGuiaBtn');
@@ -654,6 +692,7 @@
         const provinciaRow = document.getElementById('provinciaRow');
         const provinciaInput = document.getElementById('provinciaInput');
         const origenValue = @json($origen);
+        const provinciaOrigenValue = @json($provinciaOrigen ?? '');
         const requiredFieldNames = [
             'nombre_r',
             'telefono_r',
@@ -702,6 +741,7 @@
 
             enviandoContrato = true;
             mostrarCreandoPaquete();
+            let mensajeError = 'No se pudo conectar con el servidor. Verifique su conexión e intente nuevamente.';
 
             try {
                 const response = await fetch(form.action, {
@@ -721,7 +761,18 @@
                     const validationErrors = payload?.errors
                         ? Object.values(payload.errors).flat().join(' ')
                         : '';
-                    throw new Error(validationErrors || payload?.message || 'No fue posible verificar el paquete en la base de datos. No se genero la guia.');
+                    const mensajesPorEstado = {
+                        401: 'Debe iniciar sesión nuevamente para solicitar el envío.',
+                        403: 'No tiene permiso para solicitar este envío.',
+                        404: 'No se encontró el servicio para solicitar el envío. Actualice la página.',
+                        419: 'Su sesión ha vencido. Actualice la página e inicie sesión nuevamente.',
+                        429: 'Se realizaron demasiadas solicitudes. Espere un momento e intente nuevamente.',
+                    };
+                    mensajeError = mensajesPorEstado[response.status]
+                        || validationErrors
+                        || ([409, 422].includes(response.status) ? payload?.message : '')
+                        || 'No se pudo confirmar el envío. Revise los datos e intente nuevamente.';
+                    throw new Error(mensajeError);
                 }
 
                 creandoPaqueteTitulo.textContent = 'Paquete creado correctamente';
@@ -731,7 +782,7 @@
                 console.error(error);
                 enviandoContrato = false;
                 form.dataset.copiasConfirmed = '0';
-                mostrarErrorCreacion(error.message || 'No se pudo crear ni confirmar el paquete. Permanece en este formulario e intenta nuevamente.');
+                mostrarErrorCreacion(mensajeError);
             }
         };
 
@@ -988,6 +1039,102 @@
             hideDropdown();
         });
 
+        const nombresCampos = {
+            tipo_envio: 'tipo de envío', nombre_r: 'nombre del remitente',
+            telefono_r: 'teléfono del remitente', contenido: 'contenido',
+            cantidad: 'cantidad', direccion_r: 'dirección del remitente',
+            nombre_d: 'nombre del destinatario', telefono_d: 'teléfono del destinatario',
+            destino: 'departamento de destino', destino_visible: 'departamento de destino',
+            direccion: 'dirección del destinatario', provincia: 'provincia de destino', peso: 'peso',
+        };
+        form.addEventListener('invalid', (event) => {
+            const campo = event.target;
+            campo.setCustomValidity('');
+            const nombre = nombresCampos[campo.name] || 'dato solicitado';
+            const validez = campo.validity;
+            if (validez.valueMissing) {
+                campo.setCustomValidity(`Complete el campo ${nombre}.`);
+            } else if (validez.badInput || validez.typeMismatch) {
+                campo.setCustomValidity(`Ingrese un valor válido para ${nombre}.`);
+            } else if (validez.rangeUnderflow) {
+                campo.setCustomValidity(`El campo ${nombre} debe ser mayor o igual a ${campo.min}.`);
+            } else if (validez.rangeOverflow) {
+                campo.setCustomValidity(`El campo ${nombre} debe ser menor o igual a ${campo.max}.`);
+            } else if (validez.stepMismatch) {
+                campo.setCustomValidity(campo.step === '1'
+                    ? `El campo ${nombre} debe ser un número entero.`
+                    : `El campo ${nombre} debe usar incrementos de ${campo.step}.`);
+            } else if (!validez.valid) {
+                campo.setCustomValidity(`Revise el campo ${nombre}: el valor ingresado no es válido.`);
+            }
+        }, true);
+        const limpiarValidaciones = () => {
+            form.querySelectorAll('input, select, textarea').forEach((campo) => campo.setCustomValidity(''));
+        };
+        form.addEventListener('input', limpiarValidaciones);
+        form.addEventListener('change', limpiarValidaciones);
+
+        const actualizarResumenCopias = () => {
+            if (!resumenNumeroCopias || !numeroCopiasModalSelect) return;
+            const copias = numeroCopiasModalSelect.value || '1';
+            resumenNumeroCopias.textContent = `Se imprimirán ${copias} ${copias === '1' ? 'copia' : 'copias'} de la guía.`;
+        };
+
+        const actualizarResumenEnvio = () => {
+            if (!resumenEnvioCopias) return;
+            resumenEnvioCopias.replaceChildren();
+            const origenDatos = [['Origen', origenValue]];
+            if (provinciaOrigenValue) origenDatos.push(['Provincia origen', provinciaOrigenValue]);
+            const destinoDatos = [
+                ['Nombre', getFieldValue('nombre_d')],
+                ['Teléfono', getFieldValue('telefono_d')],
+                ['Destino (departamento)', getFieldValue('destino')],
+                ['Dirección', getFieldValue('direccion')],
+            ];
+            if (getTipoEnvio() === 'provincial') {
+                destinoDatos.push(['Provincia destino', getFieldValue('provincia')]);
+            }
+            const grupos = [
+                ['Remitente', [
+                    ...origenDatos,
+                    ['Nombre', getFieldValue('nombre_r')],
+                    ['Teléfono', getFieldValue('telefono_r')],
+                    ['Dirección', getFieldValue('direccion_r')],
+                ]],
+                ['Destinatario', destinoDatos],
+                ['Detalle del envío', [
+                    ['Contenido', getFieldValue('contenido')],
+                    ['Cantidad', getFieldValue('cantidad')],
+                    ['Peso (kg)', getFieldValue('peso') || 'No especificado'],
+                ]],
+            ];
+            grupos.forEach(([titulo, datos]) => {
+                const seccion = document.createElement('section');
+                seccion.className = 'border rounded p-3 mb-3';
+                const encabezado = document.createElement('h6');
+                encabezado.className = 'font-weight-bold text-primary';
+                encabezado.textContent = titulo;
+                const lista = document.createElement('dl');
+                lista.className = 'row mb-0';
+                datos.forEach(([etiqueta, valor]) => {
+                    const nombre = document.createElement('dt');
+                    nombre.className = 'col-sm-4';
+                    nombre.textContent = etiqueta;
+                    const detalle = document.createElement('dd');
+                    detalle.className = 'col-sm-8';
+                    detalle.textContent = String(valor ?? '').trim() || 'No especificado';
+                    lista.append(nombre, detalle);
+                });
+                seccion.append(encabezado, lista);
+                resumenEnvioCopias.append(seccion);
+            });
+            actualizarResumenCopias();
+        };
+
+        if (numeroCopiasModalSelect) {
+            numeroCopiasModalSelect.addEventListener('change', actualizarResumenCopias);
+        }
+
         form.addEventListener('submit', (event) => {
             hideDropdown();
             event.preventDefault();
@@ -997,6 +1144,18 @@
             }
 
             if (typeof window.jQuery !== 'undefined' && copiasGuiaModal) {
+                const tiposEnvio = {
+                    periurbano: { nombre: 'periurbano', clase: 'alert-success' },
+                    departamental: { nombre: 'departamental', clase: 'alert-primary' },
+                    provincial: { nombre: 'provincial', clase: 'alert-warning' },
+                };
+                const tipoSeleccionado = tiposEnvio[getTipoEnvio()];
+                if (tipoEnvioCopiasAviso && tipoEnvioCopiasTexto) {
+                    tipoEnvioCopiasAviso.hidden = !tipoSeleccionado;
+                    tipoEnvioCopiasAviso.className = `alert ${tipoSeleccionado ? tipoSeleccionado.clase : ''}`;
+                    tipoEnvioCopiasTexto.textContent = tipoSeleccionado ? tipoSeleccionado.nombre : '';
+                }
+                actualizarResumenEnvio();
                 window.jQuery(copiasGuiaModal).modal('show');
                 return;
             }
