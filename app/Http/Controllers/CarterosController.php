@@ -3440,6 +3440,12 @@ class CarterosController extends Controller
         int $id,
         Carbon $deliveryDate
     ): void {
+        if ($deliveryDate->gt(now())) {
+            throw ValidationException::withMessages([
+                'fecha_entrega' => 'La fecha y hora de entrega no pueden ser posteriores al momento actual.',
+            ]);
+        }
+
         $latestEventAt = $this->latestPackageEventTimestamp($tipoPaquete, $id);
 
         if ($latestEventAt === null || ! $deliveryDate->lt($latestEventAt)) {

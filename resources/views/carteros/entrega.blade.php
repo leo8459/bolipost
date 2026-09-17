@@ -103,6 +103,7 @@
                                                 id="fecha_entrega"
                                                 class="form-control @error('fecha_entrega') is-invalid @enderror"
                                                 value="{{ old('fecha_entrega') }}"
+                                                max="{{ now()->format('Y-m-d\\TH:i') }}"
                                                 @if($fechaEntregaMin) min="{{ $fechaEntregaMin->format('Y-m-d\\TH:i') }}" @endif
                                                 step="60"
                                                 required
@@ -110,6 +111,7 @@
                                         </div>
                                         <small class="form-text text-muted">
                                             Esta fecha y hora se registraran en la entrega y en su evento de seguimiento.
+                                            No pueden ser posteriores al momento actual.
                                         </small>
                                         @if($ultimoEventoAt)
                                             <small class="form-text text-info">
@@ -380,6 +382,27 @@
             };
 
             if (fechaEntregaInput) {
+                const serverTime = Date.parse(@json(now()->format('Y-m-d\\TH:i:s')) + 'Z');
+                const loadedAt = performance.now();
+                const updateDeliveryMax = () => {
+                    fechaEntregaInput.max = new Date(serverTime + performance.now() - loadedAt)
+                        .toISOString().slice(0, 16);
+                };
+                updateDeliveryMax();
+                setInterval(updateDeliveryMax, 1000);
+                fechaEntregaInput.addEventListener('focus', updateDeliveryMax);
+                fechaEntregaInput.addEventListener('change', function() {
+                    updateDeliveryMax();
+
+                    if (this.value && this.value > this.max) {
+                        this.value = '';
+                        showFechaEntregaModal(
+                            'La fecha y hora de entrega no pueden ser posteriores al momento actual. '
+                            + 'Si la entrega es de hoy, seleccione una hora menor o igual a la actual.'
+                        );
+                    }
+                });
+
                 fechaEntregaInput.addEventListener('invalid', function(event) {
                     if (!this.value) {
                         event.preventDefault();
@@ -387,7 +410,12 @@
                         return;
                     }
 
-                    if (this.validity.rangeUnderflow) {
+                    if (this.validity.rangeOverflow) {
+                        event.preventDefault();
+                        showFechaEntregaModal(
+                            'La fecha y hora de entrega no pueden ser posteriores al momento actual.'
+                        );
+                    } else if (this.validity.rangeUnderflow) {
                         event.preventDefault();
                         showFechaEntregaModal(
                             'La fecha de entrega no puede ser anterior al ultimo evento registrado.'
@@ -573,6 +601,14 @@
                         event.preventDefault();
                         showFechaEntregaModal(
                             'La fecha de entrega no puede ser anterior al ultimo evento registrado.'
+                        );
+                        return;
+                    }
+
+                    if (deliveryDate && deliveryDate.max && deliveryDate.value > deliveryDate.max) {
+                        event.preventDefault();
+                        showFechaEntregaModal(
+                            'La fecha y hora de entrega no pueden ser posteriores al momento actual.'
                         );
                         return;
                     }
