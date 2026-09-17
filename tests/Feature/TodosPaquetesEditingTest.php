@@ -25,6 +25,18 @@ class TodosPaquetesEditingTest extends TestCase
             $table->timestamps();
         });
 
+        Schema::create('paquetes_contrato', function (Blueprint $table): void {
+            $table->id();
+            $table->string('codigo')->unique();
+            $table->dateTime('fecha_recojo')->nullable();
+            $table->timestamps();
+        });
+        DB::table('paquetes_contrato')->insert([
+            'id' => 1,
+            'codigo' => 'CONTRATO-EDIT-1',
+            'fecha_recojo' => null,
+        ]);
+
         DB::table('paquetes_ems')->insert([
             [
                 'id' => 1,
@@ -50,6 +62,8 @@ class TodosPaquetesEditingTest extends TestCase
     protected function tearDown(): void
     {
         Schema::dropIfExists('paquetes_ems');
+        Schema::dropIfExists('paquetes_contrato');
+        Schema::dropIfExists('solicitud_clientes');
 
         parent::tearDown();
     }
@@ -84,5 +98,50 @@ class TodosPaquetesEditingTest extends TestCase
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('codigo', $exception->errors());
         }
+    }
+
+    public function test_edit_can_complete_pickup_date_and_preserves_it_when_omitted(): void
+    {
+        $controller = new TodosPaquetesController();
+        $controller->updateDatos(Request::create('/todos-paquetes/contrato/1/datos', 'PUT', [
+            'fecha_recojo' => '2026-09-16T14:35:12',
+        ]), 'contrato', 1);
+
+        $controller->updateDatos(Request::create('/todos-paquetes/contrato/1/datos', 'PUT', [
+            'codigo' => 'CONTRATO-EDIT-1',
+        ]), 'contrato', 1);
+
+        $this->assertSame('2026-09-16 14:35:12', DB::table('paquetes_contrato')->value('fecha_recojo'));
+
+        $resolveEditing = new \ReflectionMethod($controller, 'resolveEditing');
+        $editing = $resolveEditing->invoke($controller, Request::create('/todos-paquetes?edit_type=contrato&edit_id=1'));
+        $this->assertSame('2026-09-16T14:35:12', $editing['values']['fecha_recojo']);
+    }
+
+    public function test_edit_rejects_invalid_pickup_date(): void
+    {
+        try {
+            (new TodosPaquetesController())->updateDatos(Request::create('/todos-paquetes/contrato/1/datos', 'PUT', [
+                'fecha_recojo' => 'no-es-fecha',
+            ]), 'contrato', 1);
+            $this->fail('An invalid pickup date should be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('fecha_recojo', $exception->errors());
+            $this->assertNull(DB::table('paquetes_contrato')->value('fecha_recojo'));
+        }
+    }
+
+    public function test_solicitud_reprint_returns_ticket_from_the_packages_view(): void
+    {
+        Schema::create('solicitud_clientes', function (Blueprint $table): void {
+            $table->id();
+            $table->string('codigo_solicitud');
+        });
+        DB::table('solicitud_clientes')->insert(['id' => 1, 'codigo_solicitud' => 'SOL-REPRINT-1']);
+
+        $view = (new TodosPaquetesController())->reimprimirGuia('solicitud', 1);
+
+        $this->assertSame('paquetes_ems.solicitud-ticket', $view->name());
+        $this->assertSame('SOL-REPRINT-1', $view->getData()['solicitud']->codigo_solicitud);
     }
 }

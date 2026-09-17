@@ -89,6 +89,7 @@ class TodosPaquetesController extends Controller
                 'nombre_d' => 'Destinatario',
                 'telefono_d' => 'Telefono destinatario',
                 'direccion_d' => 'Direccion destinatario',
+                'fecha_recojo' => 'Fecha de recojo',
                 'provincia' => 'Provincia',
                 'peso' => 'Peso',
                 'precio' => 'Precio',
@@ -295,6 +296,10 @@ class TodosPaquetesController extends Controller
         }
 
         foreach ($config['editable'] as $field => $label) {
+            if ($field === 'fecha_recojo') {
+                $rules[$field] = ['nullable', 'date'];
+                continue;
+            }
             $rules[$field] = in_array($field, $config['numeric'] ?? [], true)
                 ? ['nullable', 'numeric']
                 : ['nullable', 'string', 'max:1000'];
@@ -342,7 +347,13 @@ class TodosPaquetesController extends Controller
         }
 
         if ($type === 'solicitud') {
-            return redirect()->route('paquetes-ems.solicitudes.ticket', ['solicitud' => $model->id]);
+            $model->loadMissing([
+                'estadoRegistro:id,nombre_estado',
+                'servicioExtra:id,nombre,descripcion',
+                'destino:id,nombre_destino',
+            ]);
+
+            return view('paquetes_ems.solicitud-ticket', ['solicitud' => $model]);
         }
 
         if ($type === 'certi') {
@@ -762,6 +773,7 @@ class TodosPaquetesController extends Controller
         $selects[] = DB::raw("COALESCE(estados.nombre_estado, 'SIN ESTADO') as estado_nombre");
         $selects[] = DB::raw($table . '.created_at as created_at');
         $selects[] = DB::raw($table . '.updated_at as updated_at');
+        $selects[] = DB::raw('NULL as fecha_recojo');
         $selects[] = DB::raw($this->searchExpression($table, $columns, $rawCodigo) . ' as search_blob');
 
         return DB::table($table)
@@ -800,6 +812,7 @@ class TodosPaquetesController extends Controller
                 DB::raw("COALESCE(estados.nombre_estado, 'SIN ESTADO') as estado_nombre"),
                 DB::raw($table . '.created_at as created_at'),
                 DB::raw($table . '.updated_at as updated_at'),
+                DB::raw($table . '.fecha_recojo as fecha_recojo'),
                 DB::raw(
                     "LOWER(CONCAT_WS(' ', " .
                     "COALESCE(" . $table . ".codigo::text, ''), " .
@@ -857,6 +870,9 @@ class TodosPaquetesController extends Controller
             'values' => collect(array_keys($config['editable']))
                 ->mapWithKeys(function ($field) use ($model) {
                     $value = $model->{$field};
+                    if ($field === 'fecha_recojo') {
+                        $value = $value?->format('Y-m-d\\TH:i:s');
+                    }
                     if (in_array($field, ['origen', 'ciudad', 'cuidad', 'destino'], true)) {
                         $value = $this->canonicalLocationName((string) $value);
                     }

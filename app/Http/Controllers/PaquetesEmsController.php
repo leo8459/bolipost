@@ -744,6 +744,7 @@ class PaquetesEmsController extends Controller
                 'paquetes_ems.peso',
                 'paquetes_ems.precio',
                 'paquetes_ems.created_at',
+                DB::raw('NULL as fecha_recojo'),
                 DB::raw("'EMS' as servicio"),
                 DB::raw("coalesce(nullif(trim(formulario.tipo_correspondencia), ''), nullif(trim(formulario.servicio_especial), ''), nullif(trim(paquetes_ems.tipo_correspondencia), ''), nullif(trim(paquetes_ems.servicio_especial), ''), '-') as servicio_especial"),
                 DB::raw("coalesce(estados.nombre_estado, 'SIN ESTADO') as estado_nombre"),
@@ -781,6 +782,7 @@ class PaquetesEmsController extends Controller
                 'paquetes_contrato.peso',
                 'paquetes_contrato.precio',
                 'paquetes_contrato.created_at',
+                'paquetes_contrato.fecha_recojo',
                 DB::raw("'CONTRATO' as servicio"),
                 DB::raw("coalesce(nullif(trim(empresa_directa.nombre), ''), nullif(trim(empresa_usuario.nombre), ''), nullif(trim(paquetes_contrato.contenido), ''), '-') as servicio_especial"),
                 DB::raw("coalesce(estados.nombre_estado, 'SIN ESTADO') as estado_nombre"),
@@ -815,6 +817,7 @@ class PaquetesEmsController extends Controller
                 'paquetes_certi.peso',
                 'paquetes_certi.precio',
                 'paquetes_certi.created_at',
+                DB::raw('NULL as fecha_recojo'),
                 DB::raw("'CERTI' as servicio"),
                 DB::raw("coalesce(nullif(trim(paquetes_certi.tipo), ''), '-') as servicio_especial"),
                 DB::raw("coalesce(estados.nombre_estado, 'SIN ESTADO') as estado_nombre"),
@@ -849,6 +852,7 @@ class PaquetesEmsController extends Controller
                 'paquetes_ordi.peso',
                 'paquetes_ordi.precio',
                 'paquetes_ordi.created_at',
+                DB::raw('NULL as fecha_recojo'),
                 DB::raw("'ORDI' as servicio"),
                 DB::raw("coalesce(nullif(trim(paquetes_ordi.observaciones), ''), nullif(trim(paquetes_ordi.aduana), ''), '-') as servicio_especial"),
                 DB::raw("coalesce(estados.nombre_estado, 'SIN ESTADO') as estado_nombre"),
@@ -883,6 +887,7 @@ class PaquetesEmsController extends Controller
                 'solicitud_clientes.peso',
                 'solicitud_clientes.precio',
                 'solicitud_clientes.created_at',
+                DB::raw('NULL as fecha_recojo'),
                 DB::raw("'SOLICITUD' as servicio"),
                 DB::raw("coalesce(nullif(trim(solicitud_clientes.servicio_especial), ''), nullif(trim(solicitud_clientes.observacion), ''), '-') as servicio_especial"),
                 DB::raw("coalesce(estados.nombre_estado, 'SIN ESTADO') as estado_nombre"),
@@ -1157,6 +1162,12 @@ class PaquetesEmsController extends Controller
 
             if ($servicio === 'CONTRATO') {
                 $contrato = RecojoContrato::query()->whereKey($id)->lockForUpdate()->first();
+
+                if ($contrato && blank($contrato->fecha_recojo)) {
+                    throw ValidationException::withMessages([
+                        'fecha_recojo' => 'No se puede devolver a origen ni a destino un envio sin fecha de recojo.',
+                    ]);
+                }
 
                 if ($contrato && (float) $contrato->peso < 0.001) {
                     if ($pesoRetorno === null || $pesoRetorno < 0.001 || $pesoRetorno > 150) {

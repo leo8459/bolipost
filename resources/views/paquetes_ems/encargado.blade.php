@@ -282,6 +282,7 @@
                                             @endif
 
                                             @if (in_array($paquete->servicio, ['EMS', 'CONTRATO', 'SOLICITUD'], true))
+                                                @php($sinFechaRecojo = $paquete->servicio === 'CONTRATO' && blank($paquete->fecha_recojo))
                                                 @if ($canReturnOriginEncargado)
                                                     <form method="POST" action="{{ route('paquetes-ems.encargado.devolver-envio') }}" class="ems-action-form" data-confirm-form data-confirm-variant="warning" data-confirm-title="Devolver a origen" data-confirm-message="Este envio volvera a ALMACEN de origen y se registrara el evento con tu usuario." data-requires-contract-weight="{{ $paquete->servicio === 'CONTRATO' && (float) $paquete->peso < 0.001 ? '1' : '0' }}" data-package-code="{{ $paquete->codigo ?: 'SIN CODIGO' }}">
                                                         @csrf
@@ -294,9 +295,9 @@
                                                         <input type="hidden" name="to" value="{{ $fechaHasta }}">
                                                         <input type="hidden" name="page" value="{{ $paquetes->currentPage() }}">
                                                         <input type="hidden" name="peso" value="">
-                                                        <button type="submit" class="btn btn-sm ems-btn-warning ems-action-btn">
+                                                        <button type="submit" class="btn btn-sm ems-btn-warning ems-action-btn" @disabled($sinFechaRecojo)>
                                                             <span>Devolver a origen</span>
-                                                            <small>Registra quien lo hizo</small>
+                                                            <small>{{ $sinFechaRecojo ? 'Falta fecha de recojo' : 'Registra quien lo hizo' }}</small>
                                                         </button>
                                                     </form>
                                                 @endif
@@ -312,9 +313,9 @@
                                                         <input type="hidden" name="to" value="{{ $fechaHasta }}">
                                                         <input type="hidden" name="page" value="{{ $paquetes->currentPage() }}">
                                                         <input type="hidden" name="peso" value="">
-                                                        <button type="submit" class="btn btn-sm ems-btn-info ems-action-btn">
+                                                        <button type="submit" class="btn btn-sm ems-btn-info ems-action-btn" @disabled($sinFechaRecojo)>
                                                             <span>Devolver a destino</span>
-                                                            <small>Registra quien lo hizo</small>
+                                                            <small>{{ $sinFechaRecojo ? 'Falta fecha de recojo' : 'Registra quien lo hizo' }}</small>
                                                         </button>
                                                     </form>
                                                 @endif

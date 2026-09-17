@@ -152,7 +152,7 @@
                                 <th>Peso / Precio</th>
                                 <th>Reporte</th>
                                 <th>Estado</th>
-                                <th>Actualizacion</th>
+                                <th>Fecha de recojo</th>
                                 <th class="tp-actions-column">Acciones</th>
                             </tr>
                         </thead>
@@ -233,8 +233,8 @@
                                     </td>
                                     <td>
                                         <div class="tp-updated">
-                                            <strong>{{ $paquete->updated_at ? \Illuminate\Support\Carbon::parse($paquete->updated_at)->format('d/m/Y') : '-' }}</strong>
-                                            <small>{{ $paquete->updated_at ? \Illuminate\Support\Carbon::parse($paquete->updated_at)->format('H:i') : '' }}</small>
+                                            <strong>{{ $paquete->fecha_recojo ? \Illuminate\Support\Carbon::parse($paquete->fecha_recojo)->format('d/m/Y') : '-' }}</strong>
+                                            <small>{{ $paquete->fecha_recojo ? \Illuminate\Support\Carbon::parse($paquete->fecha_recojo)->format('H:i') : '' }}</small>
                                             @if($paquete->justificacion)
                                                 <span title="{{ $paquete->justificacion }}">{{ \Illuminate\Support\Str::limit($paquete->justificacion, 42) }}</span>
                                             @endif
@@ -247,11 +247,11 @@
                                                 'codigo' => $paquete->codigo,
                                                 'class' => 'btn btn-sm btn-outline-info',
                                             ])
-                                            @if(in_array($paquete->type_key, ['contrato', 'ems'], true))
+                                            @if(in_array($paquete->type_key, ['contrato', 'ems', 'solicitud'], true))
                                                 <a
                                                     href="{{ route('todos-paquetes.guia', ['type' => $paquete->type_key, 'id' => $paquete->record_id]) }}"
                                                     class="btn btn-sm btn-outline-success"
-                                                    title="{{ $paquete->type_key === 'ems' ? 'Reimprimir boleta EMS' : 'Reimprimir guia de empresa' }}"
+                                                    title="{{ $paquete->type_key === 'ems' ? 'Reimprimir boleta EMS' : ($paquete->type_key === 'solicitud' ? 'Reimprimir solicitud' : 'Reimprimir guia de empresa') }}"
                                                     target="_blank"
                                                 >
                                                     <i class="fas fa-print"></i>
@@ -291,8 +291,8 @@
                                     @endif
                                     <small>CN-33: {{ $paquete->cod_especial ?: '-' }}</small>
                                 </div>
-                                <span class="tp-card-date">
-                                    {{ $paquete->updated_at ? \Illuminate\Support\Carbon::parse($paquete->updated_at)->format('d/m/Y') : '-' }}
+                                <span class="tp-card-date" title="Fecha de recojo">Recojo:
+                                    {{ $paquete->fecha_recojo ? \Illuminate\Support\Carbon::parse($paquete->fecha_recojo)->format('d/m/Y') : '-' }}
                                 </span>
                             </div>
                             <div class="tp-package-route">
@@ -338,10 +338,10 @@
                                         <i class="fas fa-file-pdf"></i> Reporte
                                     </a>
                                 @endif
-                                @if(in_array($paquete->type_key, ['contrato', 'ems'], true))
+                                @if(in_array($paquete->type_key, ['contrato', 'ems', 'solicitud'], true))
                                     <a href="{{ route('todos-paquetes.guia', ['type' => $paquete->type_key, 'id' => $paquete->record_id]) }}"
                                        class="btn btn-outline-success" target="_blank">
-                                        <i class="fas fa-print"></i> {{ $paquete->type_key === 'ems' ? 'Boleta EMS' : 'Guia' }}
+                                        <i class="fas fa-print"></i> {{ $paquete->type_key === 'ems' ? 'Boleta EMS' : ($paquete->type_key === 'solicitud' ? 'Solicitud' : 'Guia') }}
                                     </a>
                                 @endif
                                 @aclcan('edit', null, 'todos-paquetes.index')
@@ -402,6 +402,10 @@
                                                     </option>
                                                 @endforeach
                                             </select>
+                                        @elseif($field === 'fecha_recojo')
+                                            <input type="datetime-local" step="1" name="{{ $field }}"
+                                                value="{{ old($field, $editing['values'][$field] ?? '') }}"
+                                                class="form-control @error($field) is-invalid @enderror">
                                         @elseif(in_array($field, ['observacion', 'observaciones', 'direccion', 'direccion_d', 'referencia', 'justificacion'], true))
                                             <textarea name="{{ $field }}" rows="3" class="form-control @error($field) is-invalid @enderror">{{ old($field, $editing['values'][$field] ?? '') }}</textarea>
                                         @else

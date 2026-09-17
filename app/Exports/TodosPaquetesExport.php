@@ -46,7 +46,7 @@ class TodosPaquetesExport implements FromCollection, ShouldAutoSize, WithColumnF
             'PRECIO (BS)',
             'ESTADO',
             'JUSTIFICACIÓN',
-            'ACTUALIZADO',
+            'FECHA DE RECOJO',
         ];
     }
 
@@ -66,7 +66,7 @@ class TodosPaquetesExport implements FromCollection, ShouldAutoSize, WithColumnF
             $this->numericOrNull($row->precio ?? null),
             (string) ($row->estado_nombre ?? 'SIN ESTADO'),
             (string) ($row->justificacion ?? ''),
-            $this->excelDate($row->updated_at ?? null),
+            $this->excelDate($row->fecha_recojo ?? null),
         ];
     }
 
