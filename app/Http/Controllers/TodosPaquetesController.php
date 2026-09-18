@@ -208,8 +208,8 @@ class TodosPaquetesController extends Controller
         $filters['type_label'] = array_key_exists($filters['type'], self::TYPES)
             ? self::TYPES[$filters['type']]['label']
             : 'TODOS';
-        $filters['estado_label'] = $filters['estado_id'] > 0
-            ? (string) (Estado::query()->whereKey($filters['estado_id'])->value('nombre_estado') ?? 'SIN ESTADO')
+        $filters['estado_label'] = !empty($filters['estado_id'])
+            ? Estado::query()->whereIn('id', $filters['estado_id'])->orderBy('nombre_estado')->pluck('nombre_estado')->implode(', ')
             : 'TODOS';
         $filters['generated_at'] = now();
 
@@ -643,7 +643,10 @@ class TodosPaquetesController extends Controller
         return [
             'search' => trim((string) $request->query('q', '')),
             'type' => trim((string) $request->query('type', '')),
-            'estado_id' => (int) $request->query('estado_id', 0),
+            'estado_id' => collect((array) $request->query('estado_id', []))
+                ->filter(fn ($id) => is_scalar($id) && ctype_digit((string) $id) && (int) $id > 0)
+                ->map(fn ($id) => (int) $id)
+                ->unique()->values()->all(),
             'peso_min' => $pesoMin,
             'peso_max' => $pesoMax,
         ];
@@ -653,7 +656,7 @@ class TodosPaquetesController extends Controller
     {
         $query = DB::query()->fromSub($this->buildUnionQuery(), 'p')
             ->when(array_key_exists($filters['type'], self::TYPES), fn ($query) => $query->where('type_key', $filters['type']))
-            ->when($filters['estado_id'] > 0, fn ($query) => $query->where('estado_id', $filters['estado_id']))
+            ->when(!empty($filters['estado_id']), fn ($query) => $query->whereIn('estado_id', $filters['estado_id']))
             ->when($filters['search'] !== '', function ($query) use ($filters) {
                 $query->whereRaw('LOWER(search_blob) LIKE ?', ['%'.mb_strtolower($filters['search']).'%']);
             })

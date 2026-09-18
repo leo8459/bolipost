@@ -25,7 +25,7 @@
             </div>
         @endif
 
-        <div class="card tp-card mb-3">
+        <div class="card tp-card tp-filter-card mb-3">
             <div class="card-header tp-card-head">
                 <div class="tp-card-heading">
                     <span class="tp-heading-icon"><i class="fas fa-search"></i></span>
@@ -58,14 +58,20 @@
                     </div>
                     <div class="col-xl-2 col-lg-2 col-md-4 mb-3">
                         <label class="small font-weight-bold">Estado</label>
-                        <select name="estado_id" class="form-control">
-                            <option value="0">Todos</option>
-                            @foreach($estados as $estado)
-                                <option value="{{ $estado->id }}" @selected((int) $estadoId === (int) $estado->id)>
-                                    {{ $estado->nombre_estado }}
-                                </option>
-                            @endforeach
-                        </select>
+                        <details class="position-relative" id="tp-state-filter">
+                            <summary class="form-control" style="cursor: pointer; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">
+                                {{ empty($estadoId) ? 'Todos' : $estados->whereIn('id', $estadoId)->pluck('nombre_estado')->implode(', ') }}
+                            </summary>
+                            <div class="bg-white border rounded shadow p-2 position-absolute" style="z-index: 1050; min-width: 100%; max-height: 300px; overflow-y: auto;">
+                                <small class="text-muted d-block mb-2">Sin seleccionar: todos los estados.</small>
+                                @foreach($estados as $estado)
+                                    <label class="d-flex align-items-center mb-2 font-weight-normal" style="cursor: pointer; white-space: nowrap;">
+                                        <input type="checkbox" name="estado_id[]" value="{{ $estado->id }}" class="mr-2" @checked(in_array((int) $estado->id, $estadoId, true))>
+                                        {{ $estado->nombre_estado }}
+                                    </label>
+                                @endforeach
+                            </div>
+                        </details>
                     </div>
                     <div class="col-xl-1 col-lg-1 col-md-2 col-6 mb-3">
                         <label for="peso_min" class="small font-weight-bold">Peso mín.</label>
@@ -503,6 +509,31 @@
             border-radius:14px;
             box-shadow:0 10px 28px rgba(15, 23, 42, .08);
             overflow:hidden;
+        }
+        .tp-filter-card {
+            overflow:visible;
+            position:relative;
+            z-index:3;
+        }
+        .tp-filter-card > .card-header {
+            border-radius:14px 14px 0 0;
+        }
+        #tp-state-filter summary {
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:8px;
+        }
+        #tp-state-filter summary::after {
+            content:'';
+            border-left:4px solid transparent;
+            border-right:4px solid transparent;
+            border-top:5px solid #64748b;
+            flex-shrink:0;
+        }
+        #tp-state-filter > div {
+            top:calc(100% + 4px);
+            left:0;
         }
         .tp-card .card-header,
         .tp-modal .modal-header {
@@ -1059,6 +1090,14 @@
 @section('js')
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            const stateFilter = document.getElementById('tp-state-filter');
+            if (stateFilter) {
+                stateFilter.addEventListener('change', function () {
+                    const names = Array.from(stateFilter.querySelectorAll('input:checked'))
+                        .map(function (input) { return input.closest('label').textContent.trim(); });
+                    stateFilter.querySelector('summary').textContent = names.length ? names.join(', ') : 'Todos';
+                });
+            }
             const packageType = document.getElementById('packageType');
             const createForms = Array.from(document.querySelectorAll('[data-package-form]'));
             const createPrompt = document.getElementById('createFormPrompt');

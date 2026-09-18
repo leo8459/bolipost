@@ -218,6 +218,21 @@
             text-transform: uppercase;
         }
 
+        .payment-status {
+            margin: 4px 0 8px;
+            padding: 8px 4px;
+            border: 2px solid #000;
+            text-align: center;
+        }
+
+        .payment-status .value {
+            display: block;
+            font-size: 18px;
+            line-height: 1.2;
+            font-weight: 900;
+            text-transform: uppercase;
+        }
+
         .volume-notice {
             margin-top: 6px;
             padding: 7px;
@@ -409,13 +424,9 @@
             <section class="section">
                 <h2 class="section-title">Datos del envio</h2>
                 <div class="data-grid">
-                    <div class="field">
-                        <span class="label">Pago destino</span>
-                        <span class="value">{{ $solicitud->pago_destinatario ? 'SI' : 'NO' }}</span>
-                    </div>
-                    <div class="field">
-                        <span class="label">Peso</span>
-                        <span class="value">{{ $solicitud->peso !== null ? \App\Support\BolivianNumber::format((float) $solicitud->peso, 3, '.', '') . ' kg' : '-' }}</span>
+                    <div class="field full payment-status">
+                        <span class="label">Forma de pago</span>
+                        <span class="value">{{ $solicitud->pago_destinatario ? 'Pagar en destino' : 'Pagado' }}</span>
                     </div>
                     <div class="field full">
                         <span class="label">Contenido</span>
