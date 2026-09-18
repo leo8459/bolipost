@@ -27,6 +27,10 @@ class Users extends Component
     public $appliedFilterEmpresaId = '';
     public $empresaMode = false;
 
+    #[\Livewire\Attributes\Locked]
+    public $provinciaEditingId = null;
+    public $provinciaInline = '';
+
     public $editingId = null;
     public $name = '';
     public $alias = '';
@@ -76,6 +80,41 @@ class Users extends Component
         $this->resetUserForm();
         $this->applyEmpresaRoleMode();
         $this->dispatch('openUserModal');
+    }
+
+    public function editProvincia(int $userId): void
+    {
+        abort_unless($this->empresaMode, 404);
+        $this->authorizePermission('feature.users.empresas.edit');
+
+        $user = User::query()->whereNotNull('empresa_id')->findOrFail($userId);
+        $this->provinciaEditingId = $user->id;
+        $this->provinciaInline = (string) ($user->provincia_origen ?? '');
+        $this->resetValidation('provinciaInline');
+    }
+
+    public function saveProvincia(): void
+    {
+        abort_unless($this->empresaMode, 404);
+        $this->authorizePermission('feature.users.empresas.edit');
+        $this->validate(['provinciaInline' => ['nullable', 'string', 'max:255']]);
+
+        $user = User::query()->whereNotNull('empresa_id')->findOrFail((int) $this->provinciaEditingId);
+        $provincia = trim((string) $this->provinciaInline);
+        $provincia = function_exists('mb_strtoupper') ? mb_strtoupper($provincia, 'UTF-8') : strtoupper($provincia);
+        $provincia = preg_replace('/\s+/', ' ', $provincia) ?: '';
+        $user->provincia_origen = $provincia !== '' ? $provincia : null;
+        $user->save();
+
+        $this->cancelProvincia();
+        session()->flash('success', 'Provincia actualizada correctamente.');
+    }
+
+    public function cancelProvincia(): void
+    {
+        $this->provinciaEditingId = null;
+        $this->provinciaInline = '';
+        $this->resetValidation('provinciaInline');
     }
 
     public function openEditModal(int $userId): void
