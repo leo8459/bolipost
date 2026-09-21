@@ -83,6 +83,17 @@ class CnGenerationTest extends TestCase
         $this->assertStringContainsString('hoja-ruta-cn-29.pdf', (string) $response->headers->get('content-disposition'));
     }
 
+    public function test_generated_pdf_template_omits_destination_summary_country_and_declared_value(): void
+    {
+        $template = file_get_contents(resource_path('views/cn-generation/pdf.blade.php'));
+
+        $this->assertStringNotContainsString('class="summary"', $template);
+        $this->assertStringNotContainsString('PAIS</th>', $template);
+        $this->assertStringNotContainsString('VALOR DECLARADO', $template);
+        $this->assertStringNotContainsString('$row[\'pais_codigo\']', $template);
+        $this->assertStringNotContainsString('$row[\'valor_declarado\']', $template);
+    }
+
     public function test_generation_rejects_an_unknown_country(): void
     {
         $response = $this->withoutMiddleware()->from(route('dashboard.generacion-cn'))->post(route('dashboard.generacion-cn.pdf'), [

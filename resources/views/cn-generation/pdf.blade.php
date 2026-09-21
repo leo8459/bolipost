@@ -13,10 +13,7 @@
         .meta td { padding: 2px 4px; }
         .label { color: #444; font-size: 8px; text-transform: uppercase; }
         .value { font-weight: bold; }
-        .summary { margin: 10px 0; border: 1px solid #333; }
-        .summary th, .summary td { border: 1px solid #555; padding: 4px; text-align: center; }
-        .summary th { background: #eee; }
-        .detail-title { border-bottom: 2px solid #222; font-size: 10px; font-weight: bold; padding: 3px 0; }
+        .detail-title { border-bottom: 2px solid #222; font-size: 10px; font-weight: bold; margin-top: 10px; padding: 3px 0; }
         .detail { margin-top: 4px; }
         .detail th, .detail td { border: 1px solid #555; padding: 4px 3px; }
         .detail th { background: #e7e7e7; font-size: 7px; text-align: center; }
@@ -60,44 +57,27 @@
         </tr>
     </table>
 
-    <table class="summary">
-        <thead><tr><th>Pais de destino</th><th>Oficina</th><th>Despacho</th><th>Devol.</th><th>Vacios</th><th>Estado</th></tr></thead>
-        <tbody>
-            @foreach ($destinations as $destination)
-                <tr>
-                    <td>{{ $destination['pais'] }} ({{ $destination['codigo'] }})</td>
-                    <td>{{ $destination['oficina'] }}</td>
-                    <td>{{ $destination['cantidad'] }} / {{ \App\Support\BolivianNumber::format($destination['peso'], 3, ',', '.') }} kg</td>
-                    <td>0</td><td>0</td><td>LISTA</td>
-                </tr>
-            @endforeach
-        </tbody>
-    </table>
-
     <div class="detail-title">INSCRIPCION DETALLADA</div>
     <table class="detail">
         <thead>
             <tr>
-                <th width="3%">No.</th><th width="15%">ENVIO</th><th width="6%">ORIG.</th><th width="6%">DEST.</th>
-                <th width="8%">PAIS</th><th width="8%">PESO KG.</th><th width="10%">VALOR DECLARADO</th>
-                <th width="11%">C. PARTE ADEUDADA EXPED.</th><th width="11%">C. PARTE ADEUDADA DEST.</th><th>OBS.</th>
+                <th width="4%">No.</th><th width="20%">ENVIO</th><th width="8%">ORIG.</th><th width="8%">DEST.</th>
+                <th width="10%">PESO KG.</th><th width="15%">C. PARTE ADEUDADA EXPED.</th>
+                <th width="15%">C. PARTE ADEUDADA DEST.</th><th width="20%">OBS.</th>
             </tr>
         </thead>
         <tbody>
             @foreach ($rows as $index => $row)
                 <tr>
                     <td class="center">{{ $index + 1 }}</td><td>{{ $row['envio'] }}</td><td class="center">{{ $row['origen'] }}</td>
-                    <td class="center">{{ $row['destino'] }}</td><td class="center">{{ $row['pais_codigo'] }}</td>
-                    <td class="number">{{ \App\Support\BolivianNumber::format($row['peso'], 3, ',', '.') }}</td>
-                    <td class="number">{{ \App\Support\BolivianNumber::format($row['valor_declarado'], 2, ',', '.') }}</td>
+                    <td class="center">{{ $row['destino'] }}</td><td class="number">{{ \App\Support\BolivianNumber::format($row['peso'], 3, ',', '.') }}</td>
                     <td class="number">{{ \App\Support\BolivianNumber::format($row['porte_expedidor'], 2, ',', '.') }}</td>
                     <td class="number">{{ \App\Support\BolivianNumber::format($row['porte_destinatario'], 2, ',', '.') }}</td><td>{{ $row['observacion'] ?: '-' }}</td>
                 </tr>
             @endforeach
             <tr class="totals">
-                <td colspan="5">TOTAL DE LISTA ({{ $rows->count() }} encomienda(s))</td>
+                <td colspan="4">TOTAL DE LISTA ({{ $rows->count() }} encomienda(s))</td>
                 <td class="number">{{ \App\Support\BolivianNumber::format($totalPeso, 3, ',', '.') }}</td>
-                <td class="number">{{ \App\Support\BolivianNumber::format($totalValor, 2, ',', '.') }}</td>
                 <td class="number">{{ \App\Support\BolivianNumber::format($totalPorteExpedidor, 2, ',', '.') }}</td>
                 <td class="number">{{ \App\Support\BolivianNumber::format($totalPorteDestinatario, 2, ',', '.') }}</td><td></td>
             </tr>

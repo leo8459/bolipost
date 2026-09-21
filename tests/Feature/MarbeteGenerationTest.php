@@ -36,6 +36,7 @@ class MarbeteGenerationTest extends TestCase
             ->assertSee('Marbetes CN 35')
             ->assertSee('IMPC origen')
             ->assertSee('Numero de receptaculo')
+            ->assertSee('CN - Encomiendas')
             ->assertSee('Generar marbete PDF');
     }
 

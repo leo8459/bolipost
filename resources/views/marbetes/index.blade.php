@@ -73,7 +73,7 @@
                                     </select>
                                 </div>
                                 <div class="col-md-3 form-group">
-                                    <label>Tipo de correo</label>
+                                    <label>Tipo de despacho</label>
                                     <input name="tipo_correo" class="form-control text-uppercase" value="{{ old('tipo_correo', 'CERTIF. INT. AEREO') }}" maxlength="60" required>
                                 </div>
                                 <div class="col-md-3 form-group">
@@ -85,7 +85,7 @@
                                     <input type="number" name="numero_receptaculo" id="receptacleNumber" class="form-control" value="{{ old('numero_receptaculo', 1) }}" min="1" max="999" required>
                                 </div>
                                 <div class="col-md-3 form-group">
-                                    <label>Cantidad de envios</label>
+                                    <label>Cantidad de sacas</label>
                                     <input type="number" name="cantidad_envios" class="form-control" value="{{ old('cantidad_envios', 0) }}" min="0" max="999" required>
                                 </div>
                                 <div class="col-md-3 form-group">
@@ -103,7 +103,7 @@
                                     <input type="hidden" name="registrado_asegurado" value="0">
                                     <div class="custom-control custom-checkbox pt-2">
                                         <input type="checkbox" name="registrado_asegurado" value="1" id="registeredInsured" class="custom-control-input" @checked(old('registrado_asegurado', '1') == '1')>
-                                        <label for="registeredInsured" class="custom-control-label">Contiene envios registrados o asegurados</label>
+                                        <label for="registeredInsured" class="custom-control-label">Contiene sacas registradas o aseguradas</label>
                                     </div>
                                 </div>
                             </div>

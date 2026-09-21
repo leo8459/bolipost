@@ -140,16 +140,8 @@ class CnGenerationController extends Controller
             'transporte' => self::TRANSPORT,
             'rows' => $rows,
             'totalPeso' => $rows->sum('peso'),
-            'totalValor' => $rows->sum('valor_declarado'),
             'totalPorteExpedidor' => $rows->sum('porte_expedidor'),
             'totalPorteDestinatario' => $rows->sum('porte_destinatario'),
-            'destinations' => $rows->groupBy('pais_codigo')->map(fn ($items) => [
-                'codigo' => $items->first()['pais_codigo'],
-                'pais' => $items->first()['pais_nombre'],
-                'oficina' => $items->first()['oficina_destino'],
-                'cantidad' => $items->count(),
-                'peso' => $items->sum('peso'),
-            ])->values(),
         ]);
 
         $pdf = Pdf::loadView('cn-generation.pdf', $data)->setPaper('a4', 'portrait');

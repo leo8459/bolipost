@@ -25,6 +25,7 @@
         .transport-table { border-collapse: collapse; margin-top: 5mm; width: 100%; }
         .transport-table td { border-bottom: 1px solid #777; padding: 2.4mm 1mm; }
         .transport-table td:first-child { font-size: 9px; text-transform: uppercase; width: 23mm; }
+        .destination-code { font-size: 20px; font-weight: bold; line-height: 1.1; margin-top: 4mm; padding-right: 6mm; text-align: right; }
         .upu-note { bottom: 2.5mm; color: #555; font-size: 7px; left: 6mm; position: absolute; }
     </style>
 </head>
@@ -43,10 +44,10 @@
                 <div class="line"><span class="caption">De:</span><span class="value">{{ $origen_impc }}</span></div>
                 <div class="line"><span class="caption">Para:</span><span class="value">{{ $destino_impc }}</span></div>
                 <div class="mail-type">{{ $tipo_correo }}</div>
-                <div class="line"><span class="caption">Correo:</span><span class="value">{{ $numero_despacho_formateado }}</span></div>
+                <div class="line"><span class="caption">Despacho:</span><span class="value">{{ $numero_despacho_formateado }}</span></div>
                 <div class="line"><span class="caption">Fecha:</span><span class="value">{{ \Illuminate\Support\Carbon::parse($fecha)->format('d/m/Y') }}</span></div>
                 <div class="line"><span class="caption">Recept.:</span><span class="value">{{ $numero_receptaculo_formateado }}/{{ $subclase }}</span></div>
-                <div class="line"><span class="caption">Envios:</span><span class="value">{{ $cantidad_envios_formateada }}</span></div>
+                <div class="line"><span class="caption">Sacas:</span><span class="value">{{ $cantidad_envios_formateada }}</span></div>
                 <div class="line"><span class="caption">Peso/kg:</span><span class="value">{{ \App\Support\BolivianNumber::format($peso, 1, ',', '.') }}</span></div>
             </div>
             <div class="right">
@@ -55,8 +56,9 @@
                 <table class="transport-table">
                     <tr><td>Vuelo:</td><td class="value">{{ $vuelo ?: '-' }}</td></tr>
                     <tr><td>Tren:</td><td class="value">{{ $tren ?: '-' }}</td></tr>
-                    <tr><td>Descarga:</td><td class="value">{{ $descarga ?: '-' }}</td></tr>
+                    <tr><td>Pais destino:</td><td class="value">{{ $descarga ?: '-' }}</td></tr>
                 </table>
+                <div class="destination-code">{{ $descarga ?: '-' }}</div>
             </div>
             <div class="upu-note">Identificador de receptaculo UPU S9 - Categoria A</div>
         </div>

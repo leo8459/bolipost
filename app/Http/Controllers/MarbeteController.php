@@ -58,6 +58,7 @@ class MarbeteController extends Controller
         'UR' => 'UR - Correspondencia registrada',
         'UA' => 'UA - Cartas',
         'MN' => 'MN - Mixto',
+        'CN' => 'CN - Encomiendas',
     ];
 
     public function index()
