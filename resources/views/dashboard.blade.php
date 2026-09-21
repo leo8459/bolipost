@@ -227,26 +227,6 @@
                                 <label class="custom-control-label" for="cfg_cards_principales">Tarjetas principales</label>
                             </div>
                             <div class="custom-control custom-checkbox mr-4 mb-2">
-                                <input type="checkbox" class="custom-control-input" id="cfg_cards_periodo" data-setting-widget="cards_periodo">
-                                <label class="custom-control-label" for="cfg_cards_periodo">Tarjetas por periodo</label>
-                            </div>
-                            <div class="custom-control custom-checkbox mr-4 mb-2">
-                                <input type="checkbox" class="custom-control-input" id="cfg_alertas_operativas" data-setting-widget="alertas_operativas">
-                                <label class="custom-control-label" for="cfg_alertas_operativas">Alertas operativas</label>
-                            </div>
-                            <div class="custom-control custom-checkbox mr-4 mb-2">
-                                <input type="checkbox" class="custom-control-input" id="cfg_ayuda_graficos" data-setting-widget="ayuda_graficos">
-                                <label class="custom-control-label" for="cfg_ayuda_graficos">Ayuda de graficos</label>
-                            </div>
-                            <div class="custom-control custom-checkbox mr-4 mb-2">
-                                <input type="checkbox" class="custom-control-input" id="cfg_chart_modulos" data-setting-widget="chart_modulos">
-                                <label class="custom-control-label" for="cfg_chart_modulos">Grafico distribucion</label>
-                            </div>
-                            <div class="custom-control custom-checkbox mr-4 mb-2">
-                                <input type="checkbox" class="custom-control-input" id="cfg_chart_estados" data-setting-widget="chart_estados">
-                                <label class="custom-control-label" for="cfg_chart_estados">Grafico estados</label>
-                            </div>
-                            <div class="custom-control custom-checkbox mr-4 mb-2">
                                 <input type="checkbox" class="custom-control-input" id="cfg_chart_tendencia" data-setting-widget="chart_tendencia">
                                 <label class="custom-control-label" for="cfg_chart_tendencia">Grafico tendencia</label>
                             </div>
@@ -366,133 +346,6 @@
                         <small class="metric-note">Contratos no sumados por tema tarifario.</small>
                     </div>
                     <div class="metric-icon"><i class="fas fa-coins"></i></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row mt-1" data-widget="cards_periodo">
-        <div class="col-lg-2 col-md-4 col-6">
-            <div class="kpi-mini">
-                <small>Registrados Hoy</small>
-                <h4 class="js-counter" data-counter-target="{{ $kpisPeriodo['registros']['dia'] }}" data-counter-format="int">{{ \App\Support\BolivianNumber::format($kpisPeriodo['registros']['dia']) }}</h4>
-            </div>
-        </div>
-        <div class="col-lg-2 col-md-4 col-6">
-            <div class="kpi-mini">
-                <small>Registrados Semana</small>
-                <h4 class="js-counter" data-counter-target="{{ $kpisPeriodo['registros']['semana'] }}" data-counter-format="int">{{ \App\Support\BolivianNumber::format($kpisPeriodo['registros']['semana']) }}</h4>
-            </div>
-        </div>
-        <div class="col-lg-2 col-md-4 col-6">
-            <div class="kpi-mini">
-                <small>Registrados Mes</small>
-                <h4 class="js-counter" data-counter-target="{{ $kpisPeriodo['registros']['mes'] }}" data-counter-format="int">{{ \App\Support\BolivianNumber::format($kpisPeriodo['registros']['mes']) }}</h4>
-            </div>
-        </div>
-        <div class="col-lg-2 col-md-4 col-6">
-            <div class="kpi-mini kpi-ok">
-                <small>Entregados Hoy</small>
-                <h4 class="js-counter" data-counter-target="{{ $kpisPeriodo['entregas']['dia'] }}" data-counter-format="int">{{ \App\Support\BolivianNumber::format($kpisPeriodo['entregas']['dia']) }}</h4>
-            </div>
-        </div>
-        <div class="col-lg-2 col-md-4 col-6">
-            <div class="kpi-mini kpi-ok">
-                <small>Entregados Semana</small>
-                <h4 class="js-counter" data-counter-target="{{ $kpisPeriodo['entregas']['semana'] }}" data-counter-format="int">{{ \App\Support\BolivianNumber::format($kpisPeriodo['entregas']['semana']) }}</h4>
-            </div>
-        </div>
-        <div class="col-lg-2 col-md-4 col-6">
-            <div class="kpi-mini kpi-ok">
-                <small>Entregados Mes</small>
-                <h4 class="js-counter" data-counter-target="{{ $kpisPeriodo['entregas']['mes'] }}" data-counter-format="int">{{ \App\Support\BolivianNumber::format($kpisPeriodo['entregas']['mes']) }}</h4>
-            </div>
-        </div>
-    </div>
-
-    <div class="row mt-1" data-widget="alertas_operativas">
-        <div class="col-md-4">
-            <div class="alert alert-success mb-2">
-                <strong>En plazo:</strong> {{ \App\Support\BolivianNumber::format($totales['correctos']) }}
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="alert alert-warning mb-2">
-                <strong>En retraso:</strong> {{ \App\Support\BolivianNumber::format($totales['atrasados']) }}
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="alert alert-danger mb-2">
-                <strong>Ya en rezago:</strong> {{ \App\Support\BolivianNumber::format($totales['rezago']) }}
-            </div>
-        </div>
-    </div>
-
-    <div class="alert alert-light border mb-3" data-widget="ayuda_graficos">
-        <strong>Como leer este panel:</strong>
-        <span class="badge badge-success ml-1">Verde = entregado</span>
-        <span class="badge badge-warning ml-1">Amarillo = pendiente</span>
-        <span class="badge badge-danger ml-1">Rojo = rezago</span>
-        <span class="ml-2 text-muted">Los pendientes y sus plazos se cuentan desde que el recojo o la recepcion del envio queda registrado. Las solicitudes todavia no recogidas no ingresan en En plazo, Retraso ni Rezago.</span>
-    </div>
-
-    <div class="row">
-        <div class="col-lg-5" data-widget="chart_modulos">
-            <div class="card chart-card" id="cardChartModulos">
-                <div class="card-header chart-header-flex">
-                    <div>
-                        <strong>Distribucion por modulo</strong>
-                        <div class="chart-helper">Muestra donde se concentra el volumen total.</div>
-                    </div>
-                    <div class="chart-type-wrap">
-                        <button type="button" class="btn btn-sm btn-outline-secondary chart-action-btn" data-chart-download="chartModulos" title="Descargar PNG">
-                            <i class="fas fa-download"></i>
-                        </button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary chart-action-btn" data-chart-fullscreen="cardChartModulos" title="Pantalla completa">
-                            <i class="fas fa-expand"></i>
-                        </button>
-                        <label class="chart-type-label mb-0">Tipo</label>
-                        <select id="chartModulosType" class="form-control form-control-sm chart-type-select">
-                            <option value="doughnut">Donut</option>
-                            <option value="pie">Torta</option>
-                            <option value="bar">Barras</option>
-                            <option value="polarArea">Polar</option>
-                            <option value="line">Lineal</option>
-                            <option value="radar">Radar</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="card-body chart-canvas-body chart-canvas-body-md">
-                    <canvas id="chartModulos" height="200"></canvas>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-7" data-widget="chart_estados">
-            <div class="card chart-card" id="cardChartEstados">
-                <div class="card-header chart-header-flex">
-                    <div>
-                        <strong>Estado operativo por modulo</strong>
-                        <div class="chart-helper">Compara entregados, en plazo, retraso y rezago por modulo.</div>
-                    </div>
-                    <div class="chart-type-wrap">
-                        <button type="button" class="btn btn-sm btn-outline-secondary chart-action-btn" data-chart-download="chartEstados" title="Descargar PNG">
-                            <i class="fas fa-download"></i>
-                        </button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary chart-action-btn" data-chart-fullscreen="cardChartEstados" title="Pantalla completa">
-                            <i class="fas fa-expand"></i>
-                        </button>
-                        <label class="chart-type-label mb-0">Tipo</label>
-                        <select id="chartEstadosType" class="form-control form-control-sm chart-type-select">
-                            <option value="bar">Barras</option>
-                            <option value="bar_h">Barras horizontales</option>
-                            <option value="line">Lineal</option>
-                            <option value="area">Area</option>
-                            <option value="radar">Radar</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="card-body chart-canvas-body chart-canvas-body-md">
-                    <canvas id="chartEstados" height="200"></canvas>
                 </div>
             </div>
         </div>
@@ -618,26 +471,34 @@
                                 <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $item->total) }}</td>
                                 <td class="text-right text-success">{{ \App\Support\BolivianNumber::format((int) $item->entregados) }}</td>
                                 <td class="text-right">
-                                    <button
-                                        type="button"
-                                        class="btn btn-link btn-sm p-0 text-info font-weight-bold"
-                                        data-toggle="modal"
-                                        data-target="#departamentoTransitoModal{{ $item->puesto }}"
-                                        title="Ver paquetes en transito de {{ $item->departamento }}"
-                                    >
+                                    @if($item->details_loaded ?? true)
+                                        <button
+                                            type="button"
+                                            class="btn btn-link btn-sm p-0 text-info font-weight-bold"
+                                            data-toggle="modal"
+                                            data-target="#departamentoTransitoModal{{ $item->puesto }}"
+                                            title="Ver paquetes en transito de {{ $item->departamento }}"
+                                        >
+                                            {{ \App\Support\BolivianNumber::format((int) ($item->transito ?? 0)) }}
+                                        </button>
+                                    @else
                                         {{ \App\Support\BolivianNumber::format((int) ($item->transito ?? 0)) }}
-                                    </button>
+                                    @endif
                                 </td>
                                 <td class="text-right">
-                                    <button
-                                        type="button"
-                                        class="btn btn-link btn-sm p-0 text-warning font-weight-bold dashboard-pending-link"
-                                        data-toggle="modal"
-                                        data-target="#departamentoPendientesModal{{ $item->puesto }}"
-                                        title="Ver paquetes pendientes de {{ $item->departamento }}"
-                                    >
+                                    @if($item->details_loaded ?? true)
+                                        <button
+                                            type="button"
+                                            class="btn btn-link btn-sm p-0 text-warning font-weight-bold dashboard-pending-link"
+                                            data-toggle="modal"
+                                            data-target="#departamentoPendientesModal{{ $item->puesto }}"
+                                            title="Ver paquetes pendientes de {{ $item->departamento }}"
+                                        >
+                                            {{ \App\Support\BolivianNumber::format((int) $item->pendientes) }}
+                                        </button>
+                                    @else
                                         {{ \App\Support\BolivianNumber::format((int) $item->pendientes) }}
-                                    </button>
+                                    @endif
                                 </td>
                                 <td class="text-right">
                                     <div class="tasa-entrega-wrap">
@@ -652,15 +513,19 @@
                                     <small class="text-muted">{{ \App\Support\BolivianNumber::format((int) $item->top_entregador_total) }} entregas</small>
                                 </td>
                                 <td class="text-center">
-                                    <button
-                                        type="button"
-                                        class="btn btn-sm btn-outline-primary"
-                                        data-toggle="modal"
-                                        data-target="#departamentoDetalleModal{{ $item->puesto }}"
-                                        title="Ver paquetes entregados"
-                                    >
-                                        <i class="fas fa-eye"></i>
-                                    </button>
+                                    @if($item->details_loaded ?? true)
+                                        <button
+                                            type="button"
+                                            class="btn btn-sm btn-outline-primary"
+                                            data-toggle="modal"
+                                            data-target="#departamentoDetalleModal{{ $item->puesto }}"
+                                            title="Ver paquetes entregados"
+                                        >
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    @else
+                                        <span class="text-muted" title="El detalle se carga desde el reporte">-</span>
+                                    @endif
                                 </td>
                             </tr>
                         @empty
@@ -674,6 +539,7 @@
         </div>
     </div>
 
+    @if(($rankingDepartamentos ?? collect())->contains(fn ($item) => (bool) ($item->details_loaded ?? true)))
     @foreach(($rankingDepartamentos ?? collect()) as $item)
         @php($totalesModulo = $item->entregados_por_modulo ?? [])
         @php($totalesTransitoModulo = $item->transito_por_modulo ?? [])
@@ -1141,6 +1007,7 @@
             </div>
         </div>
     @endforeach
+    @endif
 
     <div class="row">
         <div class="col-lg-8">
@@ -1585,21 +1452,13 @@
 @section('js')
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script>
-        const chartModulosData = @json($chartModulos);
-        const chartEstadosData = @json($chartEstados);
         const chartVersusData = @json($chartVersus);
         const trendLabels = @json($trendLabels);
         const trendSeries = @json($trendSeries);
 
-        let chartModulos = null;
-        let chartEstados = null;
         let chartVersus = null;
         let chartTendencia = null;
 
-        const colors = ['#20539a', '#28a745', '#f39c12', '#17a2b8'];
-
-        const selectModulos = document.getElementById('chartModulosType');
-        const selectEstados = document.getElementById('chartEstadosType');
         const selectVersus = document.getElementById('chartVersusType');
         const selectTendencia = document.getElementById('chartTendenciaType');
         const settingsWidgetChecks = document.querySelectorAll('[data-setting-widget]');
@@ -1633,11 +1492,6 @@
             widgets: {
                 guia_rapida: true,
                 cards_principales: true,
-                cards_periodo: true,
-                alertas_operativas: true,
-                ayuda_graficos: true,
-                chart_modulos: true,
-                chart_estados: true,
                 chart_tendencia: true,
                 chart_versus: true,
                 tabla_resumen: true,
@@ -1817,7 +1671,7 @@
             executeFilterSubmission(message);
         };
 
-        const getRenderedCharts = () => [chartModulos, chartEstados, chartVersus, chartTendencia].filter(Boolean);
+        const getRenderedCharts = () => [chartVersus, chartTendencia].filter(Boolean);
 
         const resizeAllCharts = () => {
             getRenderedCharts().forEach((chart) => {
@@ -2080,11 +1934,6 @@
                 config.widgets = {
                     guia_rapida: true,
                     cards_principales: true,
-                    cards_periodo: true,
-                    alertas_operativas: true,
-                    ayuda_graficos: false,
-                    chart_modulos: true,
-                    chart_estados: true,
                     chart_tendencia: false,
                     chart_versus: true,
                     tabla_resumen: true,
@@ -2107,11 +1956,6 @@
                 config.widgets = {
                     guia_rapida: true,
                     cards_principales: true,
-                    cards_periodo: true,
-                    alertas_operativas: true,
-                    ayuda_graficos: true,
-                    chart_modulos: true,
-                    chart_estados: true,
                     chart_tendencia: true,
                     chart_versus: true,
                     tabla_resumen: true,
@@ -2153,17 +1997,9 @@
         };
 
         const safeType = (value, allowed, fallback) => allowed.includes(value) ? value : fallback;
-        const savedModulos = safeType(localStorage.getItem('dash_chart_modulos') || 'doughnut', ['doughnut', 'pie', 'bar', 'polarArea', 'line', 'radar'], 'doughnut');
-        const savedEstados = safeType(localStorage.getItem('dash_chart_estados') || 'bar', ['bar', 'line', 'radar', 'bar_h', 'area'], 'bar');
         const savedVersus = safeType(localStorage.getItem('dash_chart_versus') || 'doughnut', ['doughnut', 'pie', 'bar', 'bar_h', 'line', 'area', 'radar', 'polarArea'], 'doughnut');
         const savedTendencia = safeType(localStorage.getItem('dash_chart_tendencia') || 'line', ['line', 'bar', 'area', 'radar', 'bar_h'], 'line');
 
-        if (selectModulos) {
-            selectModulos.value = savedModulos;
-        }
-        if (selectEstados) {
-            selectEstados.value = savedEstados;
-        }
         if (selectVersus) {
             selectVersus.value = savedVersus;
         }
@@ -2179,132 +2015,6 @@
         initPendingModalFilters();
         initTransitModalFilters();
         updateFullscreenButtons();
-
-        function renderChartModulos(type) {
-            if (chartModulos) {
-                chartModulos.destroy();
-            }
-
-            const isCartesian = ['bar', 'line'].includes(type);
-            const isRadar = type === 'radar';
-            const dataset = {
-                label: 'Paquetes',
-                data: chartModulosData.totales,
-                backgroundColor: isCartesian ? '#20539a' : (isRadar ? 'rgba(32, 83, 154, 0.25)' : colors),
-                borderColor: isCartesian || isRadar ? '#20539a' : '#fff',
-                borderWidth: 1,
-            };
-
-            if (type === 'line') {
-                dataset.fill = false;
-                dataset.tension = .25;
-            }
-            if (isRadar) {
-                dataset.fill = true;
-            }
-
-            const options = {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    }
-                }
-            };
-
-            if (isCartesian) {
-                options.scales = {
-                    y: {
-                        beginAtZero: true,
-                        ticks: { precision: 0 }
-                    }
-                };
-            } else if (isRadar) {
-                options.scales = {
-                    r: {
-                        beginAtZero: true,
-                        ticks: { precision: 0 }
-                    }
-                };
-            }
-
-            chartModulos = new Chart(document.getElementById('chartModulos'), {
-                type,
-                data: {
-                    labels: chartModulosData.labels,
-                    datasets: [dataset]
-                },
-                options
-            });
-        }
-
-        function renderChartEstados(type) {
-            if (chartEstados) {
-                chartEstados.destroy();
-            }
-
-            const chartType = type === 'area' ? 'line' : (type === 'bar_h' ? 'bar' : type);
-            const datasets = [
-                { label: 'Entregados', data: chartEstadosData.entregados, backgroundColor: '#28a745', borderColor: '#28a745' },
-                { label: 'En plazo', data: chartEstadosData.correctos, backgroundColor: '#20c997', borderColor: '#20c997' },
-                { label: 'Retraso', data: chartEstadosData.retraso, backgroundColor: '#f39c12', borderColor: '#f39c12' },
-                { label: 'Rezago', data: chartEstadosData.rezago, backgroundColor: '#dc3545', borderColor: '#dc3545' },
-            ];
-
-            if (chartType === 'line') {
-                datasets.forEach((dataset) => {
-                    dataset.fill = type === 'area';
-                    dataset.tension = .25;
-                    if (type === 'area') {
-                        dataset.backgroundColor = dataset.backgroundColor + '33';
-                    }
-                });
-            }
-
-            if (chartType === 'radar') {
-                datasets.forEach((dataset) => {
-                    dataset.fill = true;
-                    dataset.backgroundColor = dataset.backgroundColor + '33';
-                });
-            }
-
-            const options = {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'bottom' }
-                }
-            };
-
-            if (chartType === 'bar') {
-                options.scales = {
-                    x: { stacked: true },
-                    y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } }
-                };
-                if (type === 'bar_h') {
-                    options.indexAxis = 'y';
-                }
-            } else if (chartType === 'line') {
-                options.interaction = { mode: 'index', intersect: false };
-                options.scales = {
-                    y: { beginAtZero: true, ticks: { precision: 0 } }
-                };
-            } else if (chartType === 'radar') {
-                options.scales = {
-                    r: { beginAtZero: true, ticks: { precision: 0 } }
-                };
-            }
-
-            chartEstados = new Chart(document.getElementById('chartEstados'), {
-                type: chartType,
-                data: {
-                    labels: chartEstadosData.labels,
-                    datasets
-                },
-                options
-            });
-        }
 
         function renderChartVersus(typeChoice) {
             if (chartVersus) {
@@ -2446,8 +2156,6 @@
             });
         }
 
-        renderChartModulos(savedModulos);
-        renderChartEstados(savedEstados);
         renderChartVersus(savedVersus);
         renderChartTendencia(savedTendencia);
 
@@ -2576,22 +2284,6 @@
         window.addEventListener('resize', () => {
             resizeAllCharts();
         });
-
-        if (selectModulos) {
-            selectModulos.addEventListener('change', (event) => {
-                const type = event.target.value;
-                localStorage.setItem('dash_chart_modulos', type);
-                renderChartModulos(type);
-            });
-        }
-
-        if (selectEstados) {
-            selectEstados.addEventListener('change', (event) => {
-                const type = event.target.value;
-                localStorage.setItem('dash_chart_estados', type);
-                renderChartEstados(type);
-            });
-        }
 
         if (selectVersus) {
             selectVersus.addEventListener('change', (event) => {

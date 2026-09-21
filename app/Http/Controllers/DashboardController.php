@@ -40,6 +40,7 @@ class DashboardController extends Controller
     private const DASHBOARD_ALERT_CACHE_SECONDS = 20;
     private const DASHBOARD_HEAVY_ALERT_CACHE_SECONDS = 300;
     private const DASHBOARD_MAX_EXECUTION_SECONDS = 180;
+    private const DASHBOARD_INLINE_DEPARTMENT_MAX_ROWS = 100000;
     private const DESTINOS_LARGA_DISTANCIA = [
         'SANTA CRUZ',
         'TRINIDAD',
@@ -135,7 +136,7 @@ class DashboardController extends Controller
         $data = Cache::remember(
             $this->dashboardCacheKey($request),
             now()->addSeconds(self::DASHBOARD_CACHE_SECONDS),
-            fn () => $this->buildDashboardData($request, false)
+            fn () => $this->buildDashboardData($request, false, false)
         );
 
         // Las metricas pesadas usan cache, pero las alertas tienen una ventana
@@ -169,7 +170,7 @@ class DashboardController extends Controller
             'date' => now()->toDateString(),
         ];
 
-        return 'dashboard:v4:' . sha1(json_encode($filters, JSON_UNESCAPED_UNICODE));
+        return 'dashboard:v5:' . sha1(json_encode($filters, JSON_UNESCAPED_UNICODE));
     }
 
     private function cachedDashboardAlerts($authUser): array
@@ -484,7 +485,11 @@ class DashboardController extends Controller
         }, $filename);
     }
 
-    private function buildDashboardData(Request $request, bool $includeAlerts = true): array
+    private function buildDashboardData(
+        Request $request,
+        bool $includeAlerts = true,
+        bool $includeDepartmentDetails = true
+    ): array
     {
         $modulosSeleccionados = $this->resolveModulosSeleccionados($request);
         [$desde, $hasta, $rangoLabel, $rangoKey] = $this->resolveRangoFechas($request);
@@ -495,8 +500,6 @@ class DashboardController extends Controller
         $estadoEntregadoId = $this->resolveEstadoIdByName('ENTREGADO');
         $estadoCanceladoId = $this->resolveEstadoIdByName('CANCELADO');
         $estadoRezagoId = $this->resolveEstadoIdByName('REZAGO');
-        $estadoSolicitudId = $this->resolveEstadoIdByName('SOLICITUD');
-
         $resumenPorModulo = [];
 
         foreach ($modulosSeleccionados as $moduloKey) {
@@ -505,16 +508,27 @@ class DashboardController extends Controller
             $this->applyDateFilter($query, 'created_at', $desde, $hasta);
             $this->applyDepartamentoFilter($query, $config, $departamento);
 
-            $querySinCancelados = clone $query;
-            $this->excludeCanceledState($querySinCancelados, $config['estado_column'], $estadoCanceladoId);
+            $stateColumn = $config['estado_column'];
+            $notCanceledSql = $estadoCanceladoId
+                ? "{$stateColumn} IS NULL OR {$stateColumn} <> " . (int) $estadoCanceladoId
+                : 'TRUE';
+            $deliveredSql = $estadoEntregadoId
+                ? "{$stateColumn} = " . (int) $estadoEntregadoId
+                : 'FALSE';
+            $aggregate = $query
+                ->selectRaw("SUM(CASE WHEN ({$notCanceledSql}) THEN 1 ELSE 0 END) as total")
+                ->selectRaw("SUM(CASE WHEN ({$notCanceledSql}) AND ({$deliveredSql}) THEN 1 ELSE 0 END) as entregados")
+                ->selectRaw("SUM(CASE WHEN " . ($estadoCanceladoId ? "{$stateColumn} = " . (int) $estadoCanceladoId : 'FALSE') . " THEN 1 ELSE 0 END) as cancelados")
+                ->selectRaw("COALESCE(SUM(CASE WHEN ({$notCanceledSql}) THEN COALESCE({$config['peso_column']}, 0) ELSE 0 END), 0) as peso_total")
+                ->when(!empty($config['precio_column']), function ($query) use ($notCanceledSql, $config) {
+                    $query->selectRaw("COALESCE(SUM(CASE WHEN ({$notCanceledSql}) THEN COALESCE({$config['precio_column']}, 0) ELSE 0 END), 0) as ingresos");
+                }, function ($query) {
+                    $query->selectRaw('0 as ingresos');
+                })
+                ->first();
 
-            $total = (int) (clone $querySinCancelados)->count();
-            $entregados = $estadoEntregadoId
-                ? (int) (clone $querySinCancelados)->where($config['estado_column'], $estadoEntregadoId)->count()
-                : 0;
-            $cancelados = $estadoCanceladoId
-                ? (int) (clone $query)->where($config['estado_column'], $estadoCanceladoId)->count()
-                : 0;
+            $total = (int) ($aggregate->total ?? 0);
+            $entregados = (int) ($aggregate->entregados ?? 0);
             $situacionInventario = $this->countSituacionInventarioByIndicadorLogic(
                 $moduloKey,
                 $config,
@@ -527,25 +541,10 @@ class DashboardController extends Controller
             $atrasados = (int) ($situacionInventario['retraso'] ?? 0);
             $rezago = (int) ($situacionInventario['rezago'] ?? 0);
 
-            $solicitudes = $estadoSolicitudId
-                ? (int) (clone $querySinCancelados)->where($config['estado_column'], $estadoSolicitudId)->count()
-                : 0;
-
             // Un pendiente operativo empieza cuando ya existe su recojo/recepcion.
             // Los registros sin fecha o evento inicial quedan en "sin datos" y no
             // deben inflar Pendientes, En plazo, Retraso ni Rezago.
             $pendientes = $correctos + $atrasados + $rezago;
-
-            $pesoTotal = (float) (clone $querySinCancelados)->sum(
-                DB::raw('coalesce(' . $config['peso_column'] . ', 0)')
-            );
-
-            $ingresos = 0.0;
-            if (!empty($config['precio_column'])) {
-                $ingresos = (float) (clone $querySinCancelados)->sum(
-                    DB::raw('coalesce(' . $config['precio_column'] . ', 0)')
-                );
-            }
 
             $resumenPorModulo[$moduloKey] = [
                 'key' => $moduloKey,
@@ -556,8 +555,8 @@ class DashboardController extends Controller
                 'correctos' => $correctos,
                 'atrasados' => $atrasados,
                 'rezago' => $rezago,
-                'peso_total' => round($pesoTotal, 3),
-                'ingresos' => round($ingresos, 2),
+                'peso_total' => round((float) ($aggregate->peso_total ?? 0), 3),
+                'ingresos' => round((float) ($aggregate->ingresos ?? 0), 2),
                 'tasa_entrega' => $total > 0 ? round(($entregados * 100) / $total, 1) : 0.0,
             ];
         }
@@ -577,7 +576,6 @@ class DashboardController extends Controller
             ? round(($totales['entregados'] * 100) / $totales['paquetes'], 1)
             : 0.0;
 
-        $kpisPeriodo = $this->buildKpisPeriodo($modulosSeleccionados, $departamento);
         [$trendLabels, $trendSeries, $rangoTendenciaLabel] = $this->buildTrendSeries(
             $modulosSeleccionados,
             $desde,
@@ -588,9 +586,18 @@ class DashboardController extends Controller
             $departamento
         );
 
-        $rankingEntregadores = $this->buildRankingEntregadores($modulosSeleccionados, $desde, $hasta, null, $departamento);
-        $rankingDepartamentos = $this->buildRankingDepartamentos($modulosSeleccionados, $desde, $hasta);
-        $rankingRegistradores = $this->buildRankingRegistradores($modulosSeleccionados, $desde, $hasta, $departamento);
+        $includeDepartmentRanking = $includeDepartmentDetails
+            || $totales['paquetes'] <= self::DASHBOARD_INLINE_DEPARTMENT_MAX_ROWS;
+        $includeInlineRankings = $includeDepartmentRanking;
+        $rankingEntregadores = $includeInlineRankings
+            ? $this->buildRankingEntregadores($modulosSeleccionados, $desde, $hasta, null, $departamento)
+            : collect();
+        $rankingDepartamentos = $includeDepartmentRanking
+            ? $this->buildRankingDepartamentos($modulosSeleccionados, $desde, $hasta, $includeDepartmentDetails)
+            : collect();
+        $rankingRegistradores = $includeInlineRankings
+            ? $this->buildRankingRegistradores($modulosSeleccionados, $desde, $hasta, $departamento)
+            : collect();
         $insightsEjecutivos = $this->buildExecutiveInsights(
             $totales,
             $resumenPorModulo,
@@ -617,19 +624,6 @@ class DashboardController extends Controller
             'departamentosDisponibles' => self::DESTINOS_BASE,
             'resumenPorModulo' => $resumenPorModulo,
             'totales' => $totales,
-            'kpisPeriodo' => $kpisPeriodo,
-            'chartModulos' => [
-                'labels' => array_values(array_column($resumenPorModulo, 'label')),
-                'totales' => array_values(array_column($resumenPorModulo, 'total')),
-            ],
-            'chartEstados' => [
-                'labels' => array_values(array_column($resumenPorModulo, 'label')),
-                'entregados' => array_values(array_column($resumenPorModulo, 'entregados')),
-                'pendientes' => array_values(array_column($resumenPorModulo, 'pendientes')),
-                'correctos' => array_values(array_column($resumenPorModulo, 'correctos')),
-                'retraso' => array_values(array_column($resumenPorModulo, 'atrasados')),
-                'rezago' => array_values(array_column($resumenPorModulo, 'rezago')),
-            ],
             'chartVersus' => [
                 'labels' => ['Entregados', 'Pendientes'],
                 'totales' => [(int) $totales['entregados'], (int) $totales['pendientes']],
@@ -703,27 +697,31 @@ class DashboardController extends Controller
                 $query->where('t.' . $config['estado_column'], '!=', $estadoEntregadoId);
             }
 
-            $startColumn = $moduloKey === 'contrato'
-                ? DB::raw('coalesce(t.fecha_recojo, t.created_at) as start_at')
-                : DB::raw('t.created_at as start_at');
+            $startExpression = $moduloKey === 'contrato'
+                ? 'coalesce(t.fecha_recojo, t.created_at)'
+                : 't.created_at';
             $departmentExpression = $this->effectiveDepartamentoExpression($config, 't');
 
+            // Agrupar por hora mantiene exactitud operativa suficiente para la
+            // alerta y evita materializar millones de paquetes en PHP.
             $rows = $query
-                ->select([
-                    $startColumn,
-                    DB::raw(($departmentExpression !== '' ? $departmentExpression : "''") . ' as departamento'),
-                ])
+                ->selectRaw("date_trunc('hour', {$startExpression}) as start_hour")
+                ->selectRaw(($departmentExpression !== '' ? $departmentExpression : "''") . ' as departamento')
+                ->selectRaw('COUNT(*) as total')
+                ->groupByRaw("date_trunc('hour', {$startExpression})")
+                ->when($departmentExpression !== '', fn ($alertQuery) => $alertQuery->groupByRaw($departmentExpression))
                 ->get();
 
             foreach ($rows as $row) {
-                if ($this->hasExceededBusinessHours($row->start_at ?? null, 72)) {
-                    $pendingCount++;
+                if ($this->hasExceededBusinessHours($row->start_hour ?? null, 72)) {
+                    $total = (int) ($row->total ?? 0);
+                    $pendingCount += $total;
 
                     if ($hasGlobalDepartmentAccess) {
                         $department = $this->normalizePendingAlertDepartment(
                             (string) ($row->departamento ?? '')
                         );
-                        $pendingByDepartment[$department] = ($pendingByDepartment[$department] ?? 0) + 1;
+                        $pendingByDepartment[$department] = ($pendingByDepartment[$department] ?? 0) + $total;
                     }
                 }
             }
@@ -1298,114 +1296,62 @@ class DashboardController extends Controller
         ?Carbon $to,
         string $departamento = ''
     ): array {
-        $query = null;
-        $now = now();
-        $resumen = [
-            'correcto' => 0,
-            'retraso' => 0,
-            'rezago' => 0,
-            'sin_datos' => 0,
-        ];
+        $startSub = DB::table($config['event_table'])
+            ->select('codigo', DB::raw('MIN(created_at) as start_at'))
+            ->whereIn('evento_id', $config['operational_start_events'])
+            ->groupBy('codigo');
 
-        if ($moduloKey === 'contrato') {
-            $recojoSub = DB::table($config['event_table'])
-                ->select('codigo', DB::raw('MIN(created_at) as recojo_at'))
-                ->whereIn('evento_id', $config['operational_start_events'])
-                ->groupBy('codigo');
+        $query = DB::table($config['table'] . ' as t')
+            ->leftJoinSub($startSub, 'operational_start', function ($join) {
+                $join->on('operational_start.codigo', '=', 't.codigo');
+            });
 
-            $query = DB::table($config['table'] . ' as t')
-                ->leftJoinSub($recojoSub, 'ev_recojo', function ($join) {
-                    $join->on('ev_recojo.codigo', '=', 't.codigo');
-                })
-                ->select([
-                    't.id',
-                    't.destino',
-                    't.provincia',
-                    't.fecha_recojo',
-                    't.created_at',
-                    'ev_recojo.recojo_at',
-                ]);
-            $this->applyNoEntregadoScope($query, 't.estados_id', $estadoEntregadoId);
-            $this->applyDateFilter($query, 't.created_at', $from, $to);
-            $this->applyDepartamentoFilter($query, $config, $departamento, 't');
+        $this->applyNoEntregadoScope($query, 't.' . $config['estado_column'], $estadoEntregadoId);
+        $this->applyDateFilter($query, 't.created_at', $from, $to);
+        $this->applyDepartamentoFilter($query, $config, $departamento, 't');
 
-            foreach ($query->orderBy('t.id')->cursor() as $row) {
-                $inicio = $this->safeCarbonValue($row->recojo_at ?? null);
-                $esProvincia = trim((string) ($row->provincia ?? '')) !== '';
-                $umbral = $this->resolveEmsThresholdDays((string) ($row->destino ?? ''), $esProvincia);
-                $bucket = $this->resolveSituacionBucket($inicio, $now, (int) $umbral['green'], (int) $umbral['yellow']);
-                $resumen[$bucket]++;
-            }
-
-            return $resumen;
-        }
+        $startAt = 'operational_start.start_at';
+        $elapsedDays = "EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - {$startAt})) / 86400.0";
 
         if ($moduloKey === 'ems') {
-            $solicitudSub = DB::table('eventos_ems')
-                ->select('codigo', DB::raw('MIN(created_at) as solicitud_at'))
-                ->where('evento_id', self::EVENTO_EMS_SOLICITUD_ID)
-                ->groupBy('codigo');
-
-            $query = DB::table($config['table'] . ' as t')
-                ->leftJoinSub($solicitudSub, 'ev_solicitud', function ($join) {
-                    $join->on('ev_solicitud.codigo', '=', 't.codigo');
-                })
-                ->select([
-                    't.id',
-                    't.ciudad as destino',
-                    't.created_at',
-                    'ev_solicitud.solicitud_at',
-                ]);
-            $this->applyNoEntregadoScope($query, 't.estado_id', $estadoEntregadoId);
-            $this->applyDateFilter($query, 't.created_at', $from, $to);
-            $this->applyDepartamentoFilter($query, $config, $departamento, 't');
-
-            foreach ($query->orderBy('t.id')->cursor() as $row) {
-                $inicio = $this->safeCarbonValue($row->solicitud_at ?? null);
-                $destino = (string) ($row->destino ?? '');
-                $esProvincia = $this->isEmsProvincia($destino);
-                $umbral = $this->resolveEmsThresholdDays($destino, $esProvincia);
-                $bucket = $this->resolveSituacionBucket($inicio, $now, (int) $umbral['green'], (int) $umbral['yellow']);
-                $resumen[$bucket]++;
-            }
-
-            return $resumen;
+            $greenDays = $this->emsGreenDaysSql('t.ciudad');
+            $yellowDays = "({$greenDays} + 1)";
+        } elseif ($moduloKey === 'contrato') {
+            $greenDays = $this->emsGreenDaysSql('t.destino', 't.provincia');
+            $yellowDays = "({$greenDays} + 1)";
+        } else {
+            $greenDays = (string) self::CERTI_ORDI_GREEN_DAYS;
+            $yellowDays = (string) self::CERTI_ORDI_YELLOW_DAYS;
         }
 
-        if (in_array($moduloKey, ['certi', 'ordi'], true)) {
-            $inicioSub = DB::table($config['event_table'])
-                ->select('codigo', DB::raw('MIN(created_at) as primer_evento_at'))
-                ->whereIn('evento_id', $config['operational_start_events'])
-                ->groupBy('codigo');
+        $row = $query
+            ->selectRaw("COALESCE(SUM(CASE WHEN {$startAt} IS NOT NULL AND {$elapsedDays} <= {$greenDays} THEN 1 ELSE 0 END), 0) as correcto")
+            ->selectRaw("COALESCE(SUM(CASE WHEN {$startAt} IS NOT NULL AND {$elapsedDays} > {$greenDays} AND {$elapsedDays} <= {$yellowDays} THEN 1 ELSE 0 END), 0) as retraso")
+            ->selectRaw("COALESCE(SUM(CASE WHEN {$startAt} IS NOT NULL AND {$elapsedDays} > {$yellowDays} THEN 1 ELSE 0 END), 0) as rezago")
+            ->selectRaw("COALESCE(SUM(CASE WHEN {$startAt} IS NULL THEN 1 ELSE 0 END), 0) as sin_datos")
+            ->first();
 
-            $query = DB::table($config['table'] . ' as t')
-                ->leftJoinSub($inicioSub, 'ev_inicio', function ($join) {
-                    $join->on('ev_inicio.codigo', '=', 't.codigo');
-                })
-                ->select([
-                    't.id',
-                    't.created_at',
-                    'ev_inicio.primer_evento_at',
-                ]);
-            $this->applyNoEntregadoScope($query, 't.' . $config['estado_column'], $estadoEntregadoId);
-            $this->applyDateFilter($query, 't.created_at', $from, $to);
-            $this->applyDepartamentoFilter($query, $config, $departamento, 't');
+        return [
+            'correcto' => (int) ($row->correcto ?? 0),
+            'retraso' => (int) ($row->retraso ?? 0),
+            'rezago' => (int) ($row->rezago ?? 0),
+            'sin_datos' => (int) ($row->sin_datos ?? 0),
+        ];
+    }
 
-            foreach ($query->orderBy('t.id')->cursor() as $row) {
-                $inicio = $this->safeCarbonValue($row->primer_evento_at ?? null);
-                $bucket = $this->resolveSituacionBucket(
-                    $inicio,
-                    $now,
-                    self::CERTI_ORDI_GREEN_DAYS,
-                    self::CERTI_ORDI_YELLOW_DAYS
-                );
-                $resumen[$bucket]++;
-            }
+    private function emsGreenDaysSql(string $destinationColumn, ?string $provinceColumn = null): string
+    {
+        $destination = "upper(trim(coalesce({$destinationColumn}, '')))";
+        $longDistance = "({$destination} LIKE '%SANTA CRUZ%' OR {$destination} LIKE '%TRINIDAD%' OR {$destination} LIKE '%TARIJA%')";
+        $baseDestinations = "{$destination} IN ('LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI', 'TARIJA', 'SUCRE', 'TRINIDAD', 'COBIJA')";
 
-            return $resumen;
+        if ($provinceColumn !== null) {
+            $isProvince = "trim(coalesce({$provinceColumn}, '')) <> ''";
+        } else {
+            $isProvince = "({$destination} <> '' AND NOT {$baseDestinations})";
         }
 
-        return $resumen;
+        return "(CASE WHEN {$longDistance} THEN 2 ELSE 1 END + CASE WHEN {$isProvince} THEN 1 ELSE 0 END)";
     }
 
     private function resolveSituacionBucket(?Carbon $inicio, Carbon $fin, int $greenDays, int $yellowDays): string
@@ -1811,14 +1757,19 @@ class DashboardController extends Controller
         return $this->resolveRankingUsuarios($queries, 'total_ventanilla', $limit, $departamentoCartero);
     }
 
-    private function buildRankingDepartamentos(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to)
+    private function buildRankingDepartamentos(
+        array $modulosSeleccionados,
+        ?Carbon $from,
+        ?Carbon $to,
+        bool $includeDetails = true
+    )
     {
         $estadoEntregadoId = $this->resolveEstadoIdByName('ENTREGADO');
         $estadoCanceladoId = $this->resolveEstadoIdByName('CANCELADO');
         $estadoTransitoId = $this->resolveEstadoIdByName('TRANSITO');
 
         $rows = collect($this->departamentoAliasMap())
-            ->map(function (array $aliases, string $departamento) use ($modulosSeleccionados, $from, $to, $estadoEntregadoId, $estadoCanceladoId, $estadoTransitoId) {
+            ->map(function (array $aliases, string $departamento) use ($modulosSeleccionados, $from, $to, $estadoEntregadoId, $estadoCanceladoId, $estadoTransitoId, $includeDetails) {
                 $total = 0;
                 $entregados = 0;
                 $cancelados = 0;
@@ -1842,12 +1793,18 @@ class DashboardController extends Controller
                         : 0;
                 }
 
-                $detalleTransito = $this->buildDepartamentoTransitoDetails($modulosSeleccionados, $from, $to, $aliases, $estadoTransitoId, $departamento);
+                $detalleTransito = $includeDetails
+                    ? $this->buildDepartamentoTransitoDetails($modulosSeleccionados, $from, $to, $aliases, $estadoTransitoId, $departamento)
+                    : $this->buildDepartamentoTransitoSummary($modulosSeleccionados, $from, $to, $aliases, $estadoTransitoId);
                 $transito = (int) array_sum($detalleTransito['totales']);
                 $cumplimiento = $total > 0 ? round(($entregados * 100) / $total, 1) : 0.0;
                 $topEntregador = $this->buildTopEntregadorDepartamento($modulosSeleccionados, $from, $to, $aliases);
-                $detalleEntregados = $this->buildDepartamentoDeliveredDetails($modulosSeleccionados, $from, $to, $aliases);
-                $detallePendientes = $this->buildDepartamentoPendingDetails($modulosSeleccionados, $from, $to, $aliases, $estadoEntregadoId, $estadoCanceladoId, $estadoTransitoId);
+                $detalleEntregados = $includeDetails
+                    ? $this->buildDepartamentoDeliveredDetails($modulosSeleccionados, $from, $to, $aliases)
+                    : $this->buildDepartamentoDeliveredSummary($modulosSeleccionados, $from, $to, $aliases);
+                $detallePendientes = $includeDetails
+                    ? $this->buildDepartamentoPendingDetails($modulosSeleccionados, $from, $to, $aliases, $estadoEntregadoId, $estadoCanceladoId, $estadoTransitoId)
+                    : $this->buildDepartamentoPendingSummary($modulosSeleccionados, $from, $to, $aliases, $estadoEntregadoId, $estadoCanceladoId, $estadoTransitoId);
                 $pendientes = (int) array_sum($detallePendientes['totales']);
 
                 return (object) [
@@ -1867,6 +1824,7 @@ class DashboardController extends Controller
                     'pendientes_por_modulo' => $detallePendientes['totales'],
                     'pendientes_detalle' => $detallePendientes['rows'],
                     'pendientes_grupos' => $detallePendientes['grupos'],
+                    'details_loaded' => $includeDetails,
                 ];
             });
 
@@ -1904,6 +1862,88 @@ class DashboardController extends Controller
         }
 
         return $this->resolveRankingUsuarios($queries, 'total_entregados', 1)->first();
+    }
+
+    private function buildDepartamentoTransitoSummary(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, array $aliases, ?int $estadoTransitoId): array
+    {
+        $totales = array_fill_keys(['EMS', 'CONTRATOS', 'CERTIFICADOS', 'ORDINARIOS'], 0);
+        if (!$estadoTransitoId) {
+            return ['totales' => $totales, 'rows' => [], 'grupos' => []];
+        }
+
+        foreach ($modulosSeleccionados as $moduloKey) {
+            $config = self::MODULOS[$moduloKey];
+            $query = DB::table($config['table'] . ' as t')
+                ->where('t.' . $config['estado_column'], $estadoTransitoId);
+
+            $this->applyDateFilter($query, 't.created_at', $from, $to);
+            $this->applyOrigenAliasesFilter($query, $config, $aliases, 't');
+            $totales[$config['label']] = (int) $query->count();
+        }
+
+        return ['totales' => $totales, 'rows' => [], 'grupos' => []];
+    }
+
+    private function buildDepartamentoDeliveredSummary(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, array $aliases): array
+    {
+        $totales = array_fill_keys(['EMS', 'CONTRATOS', 'CERTIFICADOS', 'ORDINARIOS'], 0);
+        $estadoCanceladoId = $this->resolveEstadoIdByName('CANCELADO');
+
+        foreach ($modulosSeleccionados as $moduloKey) {
+            $config = self::MODULOS[$moduloKey];
+            $eventTable = $config['event_table'];
+            $query = DB::table($eventTable . ' as delivered')
+                ->where('delivered.evento_id', self::EVENTO_ENTREGADO_ID)
+                ->join($config['table'] . ' as package', 'package.codigo', '=', 'delivered.codigo')
+                ->selectRaw('COUNT(DISTINCT delivered.codigo) as total');
+
+            $this->applyDateFilter($query, 'delivered.created_at', $from, $to);
+            $this->applyDepartamentoAliasesFilter($query, $config, $aliases, 'package');
+            $this->excludeCanceledState($query, 'package.' . $config['estado_column'], $estadoCanceladoId);
+            $totales[$config['label']] = (int) ($query->value('total') ?? 0);
+        }
+
+        return ['totales' => $totales, 'rows' => []];
+    }
+
+    private function buildDepartamentoPendingSummary(
+        array $modulosSeleccionados,
+        ?Carbon $from,
+        ?Carbon $to,
+        array $aliases,
+        ?int $estadoEntregadoId,
+        ?int $estadoCanceladoId,
+        ?int $estadoTransitoId
+    ): array {
+        $totales = array_fill_keys(['EMS', 'CONTRATOS', 'CERTIFICADOS', 'ORDINARIOS'], 0);
+        $estadoSolicitudId = $this->resolveEstadoIdByName('SOLICITUD');
+
+        foreach ($modulosSeleccionados as $moduloKey) {
+            $config = self::MODULOS[$moduloKey];
+            $stateColumn = 't.' . $config['estado_column'];
+            $query = DB::table($config['table'] . ' as t')
+                ->whereExists(function (Builder $eventQuery) use ($config): void {
+                    $eventQuery->selectRaw('1')
+                        ->from($config['event_table'] . ' as operational_start')
+                        ->whereColumn('operational_start.codigo', 't.codigo')
+                        ->whereIn('operational_start.evento_id', $config['operational_start_events']);
+                });
+
+            $this->applyDateFilter($query, 't.created_at', $from, $to);
+            $this->applyPendingDepartamentoAliasesFilter($query, $config, $aliases, 't');
+
+            foreach ([$estadoEntregadoId, $estadoCanceladoId, $estadoTransitoId, $estadoSolicitudId] as $excludedState) {
+                if ($excludedState) {
+                    $query->where(function (Builder $sub) use ($stateColumn, $excludedState): void {
+                        $sub->whereNull($stateColumn)->orWhere($stateColumn, '<>', $excludedState);
+                    });
+                }
+            }
+
+            $totales[$config['label']] = (int) $query->count();
+        }
+
+        return ['totales' => $totales, 'rows' => [], 'grupos' => []];
     }
 
     private function buildDepartamentoDeliveredDetails(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, array $aliases): array
