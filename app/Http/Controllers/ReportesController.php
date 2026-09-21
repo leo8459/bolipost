@@ -1252,6 +1252,7 @@ class ReportesController extends Controller
     private function buildCommercialPerformanceData(Request $request): array
     {
         @set_time_limit(300);
+        @ini_set('memory_limit', '1024M');
         $request->query->set('limit', 'all');
 
         $baseRequest = $request->duplicate();
@@ -1266,8 +1267,9 @@ class ReportesController extends Controller
             ->values()
             ->all();
 
-        $rows = collect($data['rows'] ?? [])
-            ->concat($this->fetchCommercialSolicitudRows($request))
+        $rows = $this->filterRowsWithoutCanceled(
+            collect($data['rows'] ?? [])->concat($this->fetchCommercialSolicitudRows($request))
+        )
             ->map(function (array $row) {
                 $line = $this->resolveCommercialLine((string) ($row['servicio'] ?? ''), (string) ($row['modulo_key'] ?? ''));
                 $serviceName = $this->resolveCommercialServiceName($line, (string) ($row['servicio'] ?? ''), (string) ($row['modulo_key'] ?? ''));

@@ -29,6 +29,7 @@ class TodosPaquetesExportTest extends TestCase
                 'estado_nombre' => 'ENTREGADO',
                 'justificacion' => '',
                 'updated_at' => '2026-07-21 08:43:00',
+                'fecha_recojo' => '2026-07-16 14:30:00',
             ],
             (object) [
                 'tipo' => 'CONTRATO',
@@ -68,6 +69,9 @@ class TodosPaquetesExportTest extends TestCase
             $this->assertStringContainsString('Total de registros: 2', (string) $sheet->getCell('A3')->getValue());
             $this->assertSame('CÓDIGO', $sheet->getCell('B5')->getValue());
             $this->assertSame('C0061A51965BO', $sheet->getCell('B6')->getValue());
+            $this->assertSame('FECHA DE RECOJO', $sheet->getCell('N5')->getValue());
+            $this->assertSame('16/07/2026 14:30', $sheet->getCell('N6')->getFormattedValue());
+            $this->assertNull($sheet->getCell('N7')->getValue());
             $this->assertSame(585.0, $sheet->getCell('J6')->getValue());
             $this->assertSame('A5:N7', $sheet->getAutoFilter()->getRange());
             $this->assertSame('A6', $sheet->getFreezePane());

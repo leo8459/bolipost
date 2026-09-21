@@ -953,6 +953,11 @@ class DashboardController extends Controller
             return $row;
         })->values();
 
+        $details = $this->buildCarteroPendingDetails($rows->pluck('id')->all(), $estadoCarteroId);
+        foreach ($rows as $row) {
+            $row->detalle = $details->get($row->id, collect());
+        }
+
         return [
             'enabled' => $rows->isNotEmpty(),
             'scope' => $hasGlobalDepartmentAccess ? 'nacional' : 'regional',
@@ -961,6 +966,71 @@ class DashboardController extends Controller
                 ? $this->completeDepartmentPendingSummary($rows)
                 : collect(),
         ];
+    }
+
+    private function buildCarteroPendingDetails(array $userIds, int $estadoCarteroId)
+    {
+        $details = collect();
+        if ($userIds === []) {
+            return $details;
+        }
+
+        $types = [
+            ['ems', 'id_paquetes_ems', 'paquetes_ems', 'estado_id', 'codigo', 'ciudad', 'eventos_ems', [295]],
+            ['certi', 'id_paquetes_certi', 'paquetes_certi', 'fk_estado', 'codigo', 'cuidad', 'eventos_certi', [168]],
+            ['ordi', 'id_paquetes_ordi', 'paquetes_ordi', 'fk_estado', 'codigo', 'ciudad', 'eventos_ordi', [295]],
+            ['contrato', 'id_paquetes_contrato', 'paquetes_contrato', 'estados_id', 'codigo', 'destino', 'eventos_contrato', [295]],
+            ['solicitud', 'id_solicitud_cliente', 'solicitud_clientes', 'estado_id', 'codigo_solicitud', 'ciudad', 'eventos_tiktoker', [295]],
+        ];
+        $now = now();
+        foreach ($types as [$type, $foreignKey, $table, $state, $code, $destination, $events, $startEvents]) {
+            $packageCodeSql = $type === 'solicitud'
+                ? "COALESCE(NULLIF(TRIM(p.codigo_solicitud), ''), NULLIF(TRIM(p.barcode), ''))"
+                : 'p.'.$code;
+            $packageCode = DB::raw($packageCodeSql);
+            // La ultima asignacion/cambio evita usar la fecha de una asignacion anterior.
+            $assignmentEvents = DB::table($events.' as ep')
+                ->join('eventos as e', 'e.id', '=', 'ep.evento_id')
+                ->where(function ($query) {
+                    $query->whereIn('e.nombre_evento', [
+                        \App\Support\CarteroEvent::ASIGNADO,
+                        \App\Support\CarteroEvent::CAMBIADO,
+                        \App\Support\EncargadoEvent::CARTERO_CAMBIADO,
+                    ])->orWhere('e.nombre_evento', 'like', '%Asignado a CARTERO%');
+                })
+                ->select('ep.codigo', DB::raw('MAX(ep.created_at) as assigned_at'))
+                ->groupBy('ep.codigo');
+            $start = DB::table($events)->whereIn('evento_id', $startEvents)
+                ->select('codigo', DB::raw('MIN(created_at) as started_at'))->groupBy('codigo');
+            $packages = DB::table('cartero as c')
+                ->join($table.' as p', 'p.id', '=', 'c.'.$foreignKey)
+                ->leftJoinSub($assignmentEvents, 'assignment', fn ($join) => $join->on('assignment.codigo', '=', $packageCode))
+                ->leftJoinSub($start, 'start', fn ($join) => $join->on('start.codigo', '=', $packageCode))
+                ->whereIn('c.id_user', $userIds)
+                ->where('c.id_estados', $estadoCarteroId)->where('p.'.$state, $estadoCarteroId)
+                ->select('c.id_user', 'p.created_at as generated_at',
+                    'p.'.$destination.' as destino', 'assignment.assigned_at', 'start.started_at', 'c.created_at as first_assignment_at');
+            $packages->selectRaw($packageCodeSql.' as codigo');
+            if ($type === 'contrato') {
+                $packages->addSelect('p.provincia');
+            }
+            foreach ($packages->get() as $package) {
+                $package->tipo = self::MODULOS[$type]['label'] ?? 'SOLICITUD';
+                $package->assignment_estimated = empty($package->assigned_at);
+                $package->assigned_at = $package->assigned_at ?? $package->first_assignment_at;
+                $thresholds = in_array($type, ['certi', 'ordi'], true)
+                    ? ['green' => self::CERTI_ORDI_GREEN_DAYS, 'yellow' => self::CERTI_ORDI_YELLOW_DAYS]
+                    : $this->resolveEmsThresholdDays((string) $package->destino,
+                        $type === 'contrato' ? trim((string) ($package->provincia ?? '')) !== '' : $this->isEmsProvincia((string) $package->destino));
+                $startAt = $this->safeCarbonValue($package->started_at);
+                $package->situacion = $this->resolveSituacionBucket($startAt, $now, $thresholds['green'], $thresholds['yellow']);
+                $package->dias_atraso = $startAt ? max(0, $startAt->diffInSeconds($now, false) / 86400 - $thresholds['green']) : null;
+                $package->dias_rezago = $startAt ? max(0, $startAt->diffInSeconds($now, false) / 86400 - $thresholds['yellow']) : null;
+                $details->push($package);
+            }
+        }
+
+        return $details->sortBy('assigned_at')->groupBy('id_user');
     }
 
     /**

@@ -35,6 +35,7 @@ class CarterosAssignedStateConsistencyTest extends TestCase
     protected function tearDown(): void
     {
         foreach ([
+            'eventos_ems', 'eventos_certi', 'eventos_ordi', 'eventos_contrato', 'eventos_tiktoker', 'eventos',
             'cartero',
             'solicitud_clientes',
             'paquetes_contrato',
@@ -88,6 +89,38 @@ class CarterosAssignedStateConsistencyTest extends TestCase
 
         $this->assertTrue($summary['enabled']);
         $this->assertSame(1, $laPaz->total_pendientes);
+        $this->assertSame('CONTRATO-ACTIVO', $laPaz->rows->first()->detalle->first()->codigo);
+        $this->assertSame('sin_datos', $laPaz->rows->first()->detalle->first()->situacion);
+        $this->assertTrue($laPaz->rows->first()->detalle->first()->assignment_estimated);
+    }
+
+    public function test_pending_details_use_latest_assignment_and_operational_start_for_overdue_days(): void
+    {
+        $this->travelTo(\Carbon\Carbon::parse('2026-09-17 12:00:00'));
+        try {
+            DB::table('paquetes_contrato')->insert($this->contractRow(1, 'GUIA-MORA', 13));
+            DB::table('cartero')->insert($this->assignmentRow(1, 1, 13));
+            DB::table('eventos')->insert([
+                ['id' => 295, 'nombre_evento' => 'Recojo'],
+                ['id' => 900, 'nombre_evento' => \App\Support\CarteroEvent::ASIGNADO],
+                ['id' => 901, 'nombre_evento' => \App\Support\CarteroEvent::CAMBIADO],
+            ]);
+            DB::table('eventos_contrato')->insert([
+                ['codigo' => 'GUIA-MORA', 'evento_id' => 295, 'created_at' => now()->subDays(10)],
+                ['codigo' => 'GUIA-MORA', 'evento_id' => 900, 'created_at' => now()->subDays(5)],
+                ['codigo' => 'GUIA-MORA', 'evento_id' => 901, 'created_at' => now()->subDays(2)],
+            ]);
+            $method = new ReflectionMethod(DashboardController::class, 'buildCarteroPendingDetails');
+            $detail = $method->invoke(app(DashboardController::class), [38], 13)->get(38)->first();
+            $this->assertSame(now()->subDays(2)->toDateTimeString(), $detail->assigned_at);
+            $this->assertFalse($detail->assignment_estimated);
+            $this->assertSame('rezago', $detail->situacion);
+            $this->assertEquals(9, $detail->dias_atraso);
+            $this->assertEquals(8, $detail->dias_rezago);
+            $this->assertTrue($method->invoke(app(DashboardController::class), [99], 13)->isEmpty());
+        } finally {
+            $this->travelBack();
+        }
     }
 
     public function test_changing_package_state_from_all_packages_synchronizes_cartero_assignment(): void
@@ -172,6 +205,18 @@ class CarterosAssignedStateConsistencyTest extends TestCase
 
     private function createTables(): void
     {
+        Schema::create('eventos', function (Blueprint $table): void {
+            $table->id();
+            $table->string('nombre_evento');
+        });
+        foreach (['eventos_ems', 'eventos_certi', 'eventos_ordi', 'eventos_contrato', 'eventos_tiktoker'] as $name) {
+            Schema::create($name, function (Blueprint $table): void {
+                $table->id();
+                $table->string('codigo');
+                $table->unsignedBigInteger('evento_id');
+                $table->timestamps();
+            });
+        }
         Schema::create('estados', function (Blueprint $table): void {
             $table->id();
             $table->string('nombre_estado');
@@ -226,6 +271,7 @@ class CarterosAssignedStateConsistencyTest extends TestCase
             $table->string('nombre_d')->nullable();
             $table->string('telefono_d')->nullable();
             $table->string('destino')->nullable();
+            $table->string('provincia')->nullable();
             $table->string('direccion_d')->nullable();
             $table->decimal('peso')->nullable();
             $table->unsignedBigInteger('estados_id');

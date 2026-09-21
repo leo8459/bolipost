@@ -344,6 +344,12 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
             ->name('contract-expiration-email.send');
         Route::patch('/administrador/correo-electronico/envio-automatico', [ContractExpirationEmailController::class, 'updateAutomaticSending'])
             ->name('contract-expiration-email.automatic-sending.update');
+        Route::post('/administrador/correo-electronico/cierre-diario/enviar', [ContractExpirationEmailController::class, 'sendDailyClosing'])
+            ->name('contract-expiration-email.daily-closing.send');
+        Route::get('/administrador/correo-electronico/cierre-diario', [ContractExpirationEmailController::class, 'dailyClosing'])
+            ->name('contract-expiration-email.daily-closing.index');
+        Route::patch('/administrador/correo-electronico/cierre-diario', [ContractExpirationEmailController::class, 'updateDailyClosing'])
+            ->name('contract-expiration-email.daily-closing.update');
     });
 
     Route::get('/configuracion/aplicacion', [AppConfigController::class, 'edit'])->name('configuracion.aplicacion.edit');
@@ -431,6 +437,9 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     // gets
     Route::get('/plantilla', [PlantillaController::class, 'getplantilla']);
     Route::get('/bastiones/paquetes', [BastionController::class, 'index'])->name('bastiones.index');
+    Route::get('/bastiones/reporte', [\App\Http\Controllers\BastionReportController::class, 'index'])->name('bastiones.reporte');
+    Route::get('/bastiones/reporte/excel', [\App\Http\Controllers\BastionReportController::class, 'excel'])->name('bastiones.reporte.excel');
+    Route::get('/bastiones/reporte/imagen/{codigo}', [DeliveryImageController::class, 'bastionReport'])->name('bastiones.reporte.imagen');
     Route::post('/bastiones/paquetes/{tipo}/{id}/recuperar', [BastionController::class, 'recuperar'])
         ->whereIn('tipo', ['ems', 'contratos', 'certificados', 'ordinarios'])
         ->whereNumber('id')

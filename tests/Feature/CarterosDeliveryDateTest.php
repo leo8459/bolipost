@@ -39,6 +39,8 @@ class CarterosDeliveryDateTest extends TestCase
 
     protected function tearDown(): void
     {
+        Carbon::setTestNow();
+
         Schema::dropIfExists('eventos_contrato');
         Schema::dropIfExists('paquetes_contrato');
 
@@ -124,6 +126,40 @@ class CarterosDeliveryDateTest extends TestCase
                 $exception->errors()['fecha_entrega'][0]
             );
         }
+    }
+
+    public function test_delivery_datetime_cannot_be_after_current_time_without_previous_events(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-09-17 17:12:00'));
+
+        try {
+            $this->invokePrivateMethod(
+                new CarterosController(),
+                'validateDeliveryDateAgainstLastEvent',
+                ['CONTRATO', 20051, Carbon::parse('2026-09-17 17:13:00')]
+            );
+            $this->fail('Se permitio una fecha de entrega posterior al momento actual.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(
+                'La fecha y hora de entrega no pueden ser posteriores al momento actual.',
+                $exception->errors()['fecha_entrega'][0]
+            );
+        }
+    }
+
+    public function test_delivery_datetime_accepts_current_time_and_past_dates(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-09-17 17:12:00'));
+
+        foreach (['2026-09-17 17:12:00', '2026-09-17 17:11:00', '2026-09-16 17:12:00'] as $date) {
+            $this->invokePrivateMethod(
+                new CarterosController(),
+                'validateDeliveryDateAgainstLastEvent',
+                ['CONTRATO', 20051, Carbon::parse($date)]
+            );
+        }
+
+        $this->assertTrue(true);
     }
 
     private function invokePrivateMethod(object $target, string $method, array $arguments): mixed

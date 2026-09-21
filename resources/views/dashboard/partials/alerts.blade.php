@@ -491,7 +491,7 @@
 
 @foreach($carteroPendingDepartments as $index => $department)
     <div class="modal fade" id="carteroPendingDepartmentModal{{ $index }}" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header bg-secondary text-white">
                     <h5 class="modal-title">
@@ -520,6 +520,46 @@
                                     <tr>
                                         <td>{{ $row->name }}</td>
                                         <td class="text-right">{{ \App\Support\BolivianNumber::format((int) ($row->pendientes ?? 0)) }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td colspan="2">
+                                            <details class="mb-2">
+                                                <summary class="text-primary" style="cursor: pointer">Ver detalle de guías de {{ $row->name }}</summary>
+                                                <p class="small text-muted mt-2">El tiempo con el cartero se cuenta desde la última asignación. El atraso y el rezago siguen los plazos del dashboard desde el recojo o recepción. Los tiempos se expresan en días calendario.</p>
+                                                <div class="table-responsive">
+                                                    <table class="table table-sm table-bordered mt-2">
+                                                        <thead><tr>
+                                                            <th>Guía</th><th>Servicio</th><th>Generado</th><th>Asignado al cartero</th>
+                                                            <th>Desde generación</th><th>Con el cartero</th><th>Situación</th><th>Atraso</th><th>Rezago</th>
+                                                        </tr></thead>
+                                                        <tbody>
+                                                            @forelse(($row->detalle ?? collect()) as $package)
+                                                                @php
+                                                                    $generated = $package->generated_at ? \Carbon\Carbon::parse($package->generated_at) : null;
+                                                                    $assigned = $package->assigned_at ? \Carbon\Carbon::parse($package->assigned_at) : null;
+                                                                    $status = ['correcto' => ['success', 'En plazo'], 'retraso' => ['warning', 'Retraso'], 'rezago' => ['danger', 'Rezago'], 'sin_datos' => ['secondary', 'Sin fecha de recojo/recepción']][$package->situacion];
+                                                                @endphp
+                                                                <tr>
+                                                                    <td>{{ $package->codigo }}</td><td>{{ $package->tipo }}</td>
+                                                                    <td class="text-nowrap">{{ $generated?->format('d/m/Y H:i') ?? 'Sin registro' }}</td>
+                                                                    <td class="text-nowrap">{{ $assigned?->format('d/m/Y H:i') ?? 'Sin registro' }}
+                                                                        @if($package->assignment_estimated)<small class="d-block text-muted">Primer registro de asignación*</small>@endif
+                                                                    </td>
+                                                                    <td>{{ $generated ? number_format(max(0, $generated->diffInSeconds(now(), false) / 86400), 1, ',', '.') . ' días' : 'Sin registro' }}</td>
+                                                                    <td>{{ $assigned ? number_format(max(0, $assigned->diffInSeconds(now(), false) / 86400), 1, ',', '.') . ' días' : 'Sin registro' }}</td>
+                                                                    <td><span class="badge badge-{{ $status[0] }}">{{ $status[1] }}</span></td>
+                                                                    <td>{{ $package->dias_atraso !== null ? number_format($package->dias_atraso, 1, ',', '.') . ' días' : 'Sin registro' }}</td>
+                                                                    <td>{{ $package->dias_rezago !== null ? number_format($package->dias_rezago, 1, ',', '.') . ' días' : 'Sin registro' }}</td>
+                                                                </tr>
+                                                            @empty
+                                                                <tr><td colspan="9" class="text-muted text-center">No hay detalle disponible.</td></tr>
+                                                            @endforelse
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                                <small class="text-muted">* Si falta el evento de asignación, se muestra el primer registro disponible; puede corresponder a una asignación anterior.</small>
+                                            </details>
+                                        </td>
                                     </tr>
                                 @endforeach
                             </tbody>

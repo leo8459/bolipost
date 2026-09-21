@@ -89,6 +89,7 @@ class TodosPaquetesController extends Controller
                 'nombre_d' => 'Destinatario',
                 'telefono_d' => 'Telefono destinatario',
                 'direccion_d' => 'Direccion destinatario',
+                'fecha_recojo' => 'Fecha de recojo',
                 'provincia' => 'Provincia',
                 'peso' => 'Peso',
                 'precio' => 'Precio',
@@ -207,8 +208,8 @@ class TodosPaquetesController extends Controller
         $filters['type_label'] = array_key_exists($filters['type'], self::TYPES)
             ? self::TYPES[$filters['type']]['label']
             : 'TODOS';
-        $filters['estado_label'] = $filters['estado_id'] > 0
-            ? (string) (Estado::query()->whereKey($filters['estado_id'])->value('nombre_estado') ?? 'SIN ESTADO')
+        $filters['estado_label'] = !empty($filters['estado_id'])
+            ? Estado::query()->whereIn('id', $filters['estado_id'])->orderBy('nombre_estado')->pluck('nombre_estado')->implode(', ')
             : 'TODOS';
         $filters['generated_at'] = now();
 
@@ -295,6 +296,10 @@ class TodosPaquetesController extends Controller
         }
 
         foreach ($config['editable'] as $field => $label) {
+            if ($field === 'fecha_recojo') {
+                $rules[$field] = ['nullable', 'date'];
+                continue;
+            }
             $rules[$field] = in_array($field, $config['numeric'] ?? [], true)
                 ? ['nullable', 'numeric']
                 : ['nullable', 'string', 'max:1000'];
@@ -342,7 +347,13 @@ class TodosPaquetesController extends Controller
         }
 
         if ($type === 'solicitud') {
-            return redirect()->route('paquetes-ems.solicitudes.ticket', ['solicitud' => $model->id]);
+            $model->loadMissing([
+                'estadoRegistro:id,nombre_estado',
+                'servicioExtra:id,nombre,descripcion',
+                'destino:id,nombre_destino',
+            ]);
+
+            return view('paquetes_ems.solicitud-ticket', ['solicitud' => $model]);
         }
 
         if ($type === 'certi') {
@@ -632,7 +643,10 @@ class TodosPaquetesController extends Controller
         return [
             'search' => trim((string) $request->query('q', '')),
             'type' => trim((string) $request->query('type', '')),
-            'estado_id' => (int) $request->query('estado_id', 0),
+            'estado_id' => collect((array) $request->query('estado_id', []))
+                ->filter(fn ($id) => is_scalar($id) && ctype_digit((string) $id) && (int) $id > 0)
+                ->map(fn ($id) => (int) $id)
+                ->unique()->values()->all(),
             'peso_min' => $pesoMin,
             'peso_max' => $pesoMax,
         ];
@@ -642,7 +656,7 @@ class TodosPaquetesController extends Controller
     {
         $query = DB::query()->fromSub($this->buildUnionQuery(), 'p')
             ->when(array_key_exists($filters['type'], self::TYPES), fn ($query) => $query->where('type_key', $filters['type']))
-            ->when($filters['estado_id'] > 0, fn ($query) => $query->where('estado_id', $filters['estado_id']))
+            ->when(!empty($filters['estado_id']), fn ($query) => $query->whereIn('estado_id', $filters['estado_id']))
             ->when($filters['search'] !== '', function ($query) use ($filters) {
                 $query->whereRaw('LOWER(search_blob) LIKE ?', ['%'.mb_strtolower($filters['search']).'%']);
             })
@@ -762,6 +776,7 @@ class TodosPaquetesController extends Controller
         $selects[] = DB::raw("COALESCE(estados.nombre_estado, 'SIN ESTADO') as estado_nombre");
         $selects[] = DB::raw($table . '.created_at as created_at');
         $selects[] = DB::raw($table . '.updated_at as updated_at');
+        $selects[] = DB::raw('NULL as fecha_recojo');
         $selects[] = DB::raw($this->searchExpression($table, $columns, $rawCodigo) . ' as search_blob');
 
         return DB::table($table)
@@ -800,6 +815,7 @@ class TodosPaquetesController extends Controller
                 DB::raw("COALESCE(estados.nombre_estado, 'SIN ESTADO') as estado_nombre"),
                 DB::raw($table . '.created_at as created_at'),
                 DB::raw($table . '.updated_at as updated_at'),
+                DB::raw($table . '.fecha_recojo as fecha_recojo'),
                 DB::raw(
                     "LOWER(CONCAT_WS(' ', " .
                     "COALESCE(" . $table . ".codigo::text, ''), " .
@@ -857,6 +873,9 @@ class TodosPaquetesController extends Controller
             'values' => collect(array_keys($config['editable']))
                 ->mapWithKeys(function ($field) use ($model) {
                     $value = $model->{$field};
+                    if ($field === 'fecha_recojo') {
+                        $value = $value?->format('Y-m-d\\TH:i:s');
+                    }
                     if (in_array($field, ['origen', 'ciudad', 'cuidad', 'destino'], true)) {
                         $value = $this->canonicalLocationName((string) $value);
                     }

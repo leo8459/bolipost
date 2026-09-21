@@ -396,6 +396,11 @@ class Recojo extends Component
                         ->orWhereNull('estados_id');
                 });
             })
+            ->when(! $this->isAlmacenMode, function ($query) {
+                $query->whereHas('estadoRegistro', function ($estadoQuery) {
+                    $estadoQuery->whereRaw('trim(upper(nombre_estado)) = ?', ['SOLICITUD']);
+                });
+            })
             ->when(! $this->isAlmacenMode && ! $hasGlobalDepartmentAccess, function ($query) use ($authUserId) {
                 if ($authUserId > 0) {
                     $query->where('user_id', $authUserId);

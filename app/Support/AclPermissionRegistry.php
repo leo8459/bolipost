@@ -527,6 +527,8 @@ class AclPermissionRegistry
      * @var array<string, array<int, string>>
      */
     private const ROUTE_ACCESS_PERMISSION_OVERRIDES = [
+        'bastiones.reporte.imagen' => ['bastiones.reporte'],
+        'bastiones.reporte.excel' => ['bastiones.reporte'],
         'dashboard.conciliacion.conciliaciones.documento' => [
             'feature.conciliacion.conciliaciones.conciliar',
             'feature.conciliacion.conciliaciones.editar',

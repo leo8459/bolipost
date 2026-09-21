@@ -107,6 +107,49 @@ class UsersBulkCompanyDeactivationTest extends TestCase
         parent::tearDown();
     }
 
+    public function test_it_edits_only_the_province_inline_and_can_cancel_or_clear_it(): void
+    {
+        $administrator = User::factory()->create();
+        $administrator->givePermissionTo(Permission::create([
+            'name' => 'feature.users.empresas.edit', 'guard_name' => 'web',
+        ]));
+        $company = Empresa::create(['nombre' => 'Empresa', 'codigo_cliente' => 'CLI-100']);
+        $user = User::factory()->create(['empresa_id' => $company->id, 'provincia_origen' => 'MURILLO']);
+        $before = $user->getAttributes();
+
+        $component = Livewire::actingAs($administrator)->test(Users::class, ['empresaMode' => true]);
+        $component->call('editProvincia', $user->id)
+            ->assertSet('provinciaInline', 'MURILLO')
+            ->assertSee('Guardar')
+            ->set('provinciaInline', '  muñecas   norte  ')
+            ->call('saveProvincia')->assertHasNoErrors()
+            ->assertSet('provinciaEditingId', null);
+        $this->assertSame('MUÑECAS NORTE', $user->refresh()->provincia_origen);
+        foreach (['name', 'email', 'alias', 'empresa_id', 'password', 'ciudad', 'regionales'] as $field) {
+            $this->assertSame($before[$field] ?? null, $user->getAttributes()[$field] ?? null);
+        }
+
+        $component->call('editProvincia', $user->id)->set('provinciaInline', 'OTRA')
+            ->call('cancelProvincia')->assertSet('provinciaEditingId', null);
+        $this->assertSame('MUÑECAS NORTE', $user->refresh()->provincia_origen);
+        $component->call('editProvincia', $user->id)->set('provinciaInline', str_repeat('A', 256))
+            ->call('saveProvincia')->assertHasErrors(['provinciaInline' => 'max']);
+        $component->set('provinciaInline', '   ')->call('saveProvincia')->assertHasNoErrors();
+        $this->assertNull($user->refresh()->provincia_origen);
+    }
+
+    public function test_inline_province_edit_requires_permission(): void
+    {
+        $administrator = User::factory()->create();
+        $company = Empresa::create(['nombre' => 'Empresa', 'codigo_cliente' => 'CLI-100']);
+        $user = User::factory()->create(['empresa_id' => $company->id, 'provincia_origen' => 'MURILLO']);
+        Livewire::actingAs($administrator)->test(Users::class, ['empresaMode' => true])
+            ->call('editProvincia', $user->id)->assertForbidden();
+        Livewire::actingAs($administrator)->test(Users::class, ['empresaMode' => true])
+            ->set('provinciaInline', 'OTRA')->call('saveProvincia')->assertForbidden();
+        $this->assertSame('MURILLO', $user->refresh()->provincia_origen);
+    }
+
     public function test_it_filters_explicitly_and_changes_status_only_for_the_selected_dependent_company(): void
     {
         $administrator = User::factory()->create();

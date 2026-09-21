@@ -653,13 +653,36 @@
                         </thead>
                         <tbody>
                             @forelse ($users as $user)
-                                <tr>
+                                <tr wire:key="user-row-{{ $user->id }}">
                                     <td>{{ ($users->currentPage() - 1) * $users->perPage() + $loop->iteration }}</td>
                                     <td>{{ $user->name }}</td>
                                     <td><span class="badge badge-primary">{{ $user->alias ?? '-' }}</span></td>
                                     <td>{{ $user->email }}</td>
                                     <td>{{ $user->regionalesTexto() ?: '-' }}</td>
-                                    <td>{{ $user->provincia_origen ?: '-' }}</td>
+                                    <td>
+                                        @if($empresaMode && (int) $provinciaEditingId === (int) $user->id)
+                                            <form wire:submit.prevent="saveProvincia" style="min-width: 200px;">
+                                                <input type="text" wire:model="provinciaInline" maxlength="255"
+                                                    class="form-control form-control-sm text-uppercase @error('provinciaInline') is-invalid @enderror"
+                                                    aria-label="Provincia origen de {{ $user->name }}"
+                                                    wire:keydown.escape="cancelProvincia">
+                                                @error('provinciaInline') <small class="text-danger d-block">{{ $message }}</small> @enderror
+                                                <div class="d-flex mt-1" style="gap: 4px;">
+                                                    <button type="submit" class="btn btn-sm btn-primary" wire:loading.attr="disabled" wire:target="saveProvincia">Guardar</button>
+                                                    <button type="button" class="btn btn-sm btn-secondary" wire:click="cancelProvincia" wire:loading.attr="disabled" wire:target="saveProvincia">Cancelar</button>
+                                                </div>
+                                            </form>
+                                        @else
+                                            {{ $user->provincia_origen ?: '-' }}
+                                            @if($empresaMode && !$user->trashed() && (auth()->user()?->can('feature.users.empresas.edit') || auth()->user()?->can('feature.users.empresas.manage') || auth()->user()?->can('users.edit') || auth()->user()?->can('users.update')))
+                                                <button type="button" class="btn btn-sm btn-outline-primary ml-1"
+                                                    wire:click="editProvincia({{ $user->id }})" title="Editar provincia"
+                                                    aria-label="Editar provincia de {{ $user->name }}">
+                                                    <i class="fa fa-edit" aria-hidden="true"></i>
+                                                </button>
+                                            @endif
+                                        @endif
+                                    </td>
                                     @unless($empresaMode)
                                         <td>
                                             @if ($user->sucursal)
