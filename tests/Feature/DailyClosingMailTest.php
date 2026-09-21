@@ -79,7 +79,7 @@ class DailyClosingMailTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_report_counts_daily_events_and_accumulated_pending_without_old_assignments(): void
+    public function test_report_only_counts_and_lists_movements_inside_the_daily_cutoff(): void
     {
         foreach (['paquetes_contrato' => 'estados_id', 'paquetes_ems' => 'estado_id'] as $table => $state) {
             foreach ([1 => 1, 2 => 2, 3 => 3, 4 => 4, 5 => 1] as $id => $status) {
@@ -100,13 +100,12 @@ class DailyClosingMailTest extends TestCase
         $contracts = $report['modules'][0];
         $this->assertSame(3, $contracts['registered']);
         $this->assertSame(1, $contracts['delivered']);
-        $this->assertSame(2, $contracts['pending']->count());
-        $this->assertSame(1, $contracts['unassigned']);
-        $this->assertSame([['name' => 'Luis', 'pending' => 1]], $contracts['couriers']->all());
+        $this->assertCount(2, $contracts['movements']);
+        $this->assertSame(1, $contracts['moved_packages']);
         $this->assertSame(2, (int) $contracts['activity']->first()->movimientos);
-        $this->assertSame(2, $report['modules'][1]['pending']->count());
+        $this->assertCount(0, $report['modules'][1]['movements']);
         $mail = new DailyClosingMail($report);
-        $this->assertStringContainsString('Sin movimientos registrados hoy', $mail->render());
+        $this->assertStringContainsString('Sin movimientos registrados en la fecha elegida', $mail->render());
         $this->assertCount(1, $mail->attachments());
     }
 
@@ -133,6 +132,23 @@ class DailyClosingMailTest extends TestCase
         Mail::assertNothingSent();
     }
 
+    public function test_manual_controller_sends_the_selected_date(): void
+    {
+        Mail::fake();
+        app(ContractExpirationMailService::class)->saveRecipients(['admin@example.com']);
+        $request = \Illuminate\Http\Request::create('/administrador/correo-electronico/cierre-diario/enviar', 'POST', [
+            'date' => '2026-09-15',
+        ]);
+
+        app(\App\Http\Controllers\ContractExpirationEmailController::class)->sendDailyClosing(
+            $request,
+            app(ContractExpirationMailService::class),
+            app(DailyClosingMailService::class)
+        );
+
+        Mail::assertSent(DailyClosingMail::class, fn (DailyClosingMail $mail) => $mail->report['date'] === '2026-09-15');
+    }
+
     public function test_bolivian_day_is_converted_to_the_storage_timezone(): void
     {
         config(['app.timezone' => 'UTC']);
@@ -145,10 +161,53 @@ class DailyClosingMailTest extends TestCase
         $report = app(DailyClosingMailService::class)->report();
         $this->assertSame('2026-09-16', $report['date']);
         $this->assertSame(2, $report['modules'][1]['registered']);
-        $this->assertSame(3, $report['modules'][1]['pending']->count());
+        $this->assertCount(0, $report['modules'][1]['movements']);
     }
 
-    public function test_excel_separates_departments_preserves_codes_and_includes_every_pending(): void
+    public function test_a_manually_selected_day_uses_the_complete_selected_day(): void
+    {
+        DB::table('paquetes_ems')->insert(['codigo' => 'EMS-1', 'ciudad' => 'La Paz', 'created_at' => '2026-09-15 08:00:00']);
+        DB::table('eventos')->insert(['id' => 300, 'nombre_evento' => 'En tránsito']);
+        DB::table('eventos_ems')->insert([
+            ['codigo' => 'EMS-1', 'evento_id' => 300, 'created_at' => '2026-09-15 23:30:00'],
+            ['codigo' => 'EMS-1', 'evento_id' => 300, 'created_at' => '2026-09-16 09:00:00'],
+        ]);
+
+        $report = app(DailyClosingMailService::class)->reportForDate('2026-09-15');
+
+        $this->assertSame('2026-09-15', $report['date']);
+        $this->assertCount(1, $report['modules'][1]['movements']);
+        $this->assertSame('15/09/2026 23:30:00', $report['modules'][1]['movements']->first()->event_date);
+    }
+
+    public function test_lifetime_report_combines_and_filters_contract_and_ems_movements(): void
+    {
+        DB::table('eventos')->insert(['id' => 300, 'nombre_evento' => 'En tránsito']);
+        DB::table('paquetes_contrato')->insert(['codigo' => 'CON-1', 'destino' => 'Sucre', 'created_at' => '2026-09-10 08:00:00']);
+        DB::table('paquetes_ems')->insert(['codigo' => 'EMS-1', 'ciudad' => 'La Paz', 'created_at' => '2026-09-10 08:00:00']);
+        DB::table('eventos_contrato')->insert(['codigo' => 'CON-1', 'evento_id' => 300, 'user_id' => 1, 'created_at' => '2026-09-11 10:00:00']);
+        DB::table('eventos_ems')->insert(['codigo' => 'EMS-1', 'evento_id' => 300, 'user_id' => 2, 'created_at' => '2026-09-12 10:00:00']);
+
+        $controller = app(\App\Http\Controllers\ReportesController::class);
+        $allResponse = $controller->lifetimeMovements(
+            \Illuminate\Http\Request::create('/reportes/movimiento-toda-la-vida', 'GET')
+        );
+        $allData = $allResponse->getData();
+        $this->assertSame(2, $allData['movements']->total());
+        $this->assertSame(1, (int) $allData['summary']->get('Contratos')->movements);
+        $this->assertSame(1, (int) $allData['summary']->get('EMS')->movements);
+
+        $response = $controller->lifetimeMovements(
+            \Illuminate\Http\Request::create('/reportes/movimiento-toda-la-vida', 'GET', ['service' => 'ems'])
+        );
+        $data = $response->getData();
+
+        $this->assertSame(1, $data['movements']->total());
+        $this->assertSame('EMS-1', $data['movements']->first()->code);
+        $this->assertSame(1, (int) $data['summary']->get('EMS')->movements);
+    }
+
+    public function test_excel_separates_departments_and_only_includes_movements_from_the_day(): void
     {
         DB::table('paquetes_ems')->insert([
             ['codigo' => '00123', 'origen' => 'COCHABAMBA', 'ciudad' => 'La Paz', 'created_at' => '2026-09-16 10:00:00'],
@@ -174,6 +233,16 @@ class DailyClosingMailTest extends TestCase
         try {
             file_put_contents($path, $bytes);
             $book = \PhpOffice\PhpSpreadsheet\IOFactory::load($path);
+            $this->assertSame(['Resumen', 'LA PAZ', 'POTOSI'], $book->getSheetNames());
+            $this->assertSame('00123', $book->getSheetByName('LA PAZ')->getCell('B2')->getValue());
+            $this->assertSame('Contratos', $book->getSheetByName('POTOSI')->getCell('A2')->getValue());
+            $this->assertSame('Luis', $book->getSheetByName('LA PAZ')->getCell('I2')->getValue());
+            $this->assertSame('16/09/2026 12:00:00', $book->getSheetByName('LA PAZ')->getCell('K2')->getValue());
+            $this->assertSame(2, collect(array_slice($book->getAllSheets(), 1))->sum(fn ($sheet) => $sheet->getHighestDataRow() - 1));
+            $this->assertSame('cierre-diario-2026-09-16.xlsx', (new DailyClosingMail($report))->attachments()[0]->as);
+            $book->disconnectWorksheets();
+
+            /* Expectations for the former accumulated-pending workbook:
             $this->assertSame(['Resumen', ...\App\Exports\DailyClosingExport::DEPARTMENTS, 'SIN DEPARTAMENTO', 'Historial'], $book->getSheetNames());
             $this->assertSame('00123', $book->getSheetByName('LA PAZ')->getCell('B2')->getValue());
             $this->assertSame('Origen', $book->getSheetByName('LA PAZ')->getCell('C1')->getValue());
@@ -208,6 +277,7 @@ class DailyClosingMailTest extends TestCase
             $this->assertSame(4, $total);
             $this->assertSame('cierre-diario-2026-09-16.xlsx', (new DailyClosingMail($report))->attachments()[0]->as);
             $book->disconnectWorksheets();
+            */
         } finally {
             unlink($path);
         }

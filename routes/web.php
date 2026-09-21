@@ -267,6 +267,9 @@ Route::get('/entregas/export/excel', [DashboardController::class, 'exportEntrega
 Route::get('/reportes', [ReportesController::class, 'index'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('reportes.index');
+Route::get('/reportes/movimiento-toda-la-vida', [ReportesController::class, 'lifetimeMovements'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('reportes.lifetime-movements');
 Route::get('/performance', [PerformanceController::class, 'index'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('performance.index');
@@ -596,6 +599,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::delete('/alertas-empresa/{alertaEmpresa}', [AlertaEmpresaController::class, 'destroy'])->name('alertas-empresa.destroy');
     Route::get('/codigo-empresa', [CodigoEmpresaController::class, 'index'])->name('codigo-empresa.index');
     Route::get('/paquetes-contrato', [RecojoController::class, 'index'])->name('paquetes-contrato.index');
+    Route::get('/paquetes-contrato/mis-paquetes', [RecojoController::class, 'misPaquetes'])->name('paquetes-contrato.mis-paquetes');
     Route::get('/paquetes-contrato/recoger-envios', [RecojoController::class, 'recogerEnvios'])->name('paquetes-contrato.recoger-envios');
     Route::get('/paquetes-contrato/almacen', [RecojoController::class, 'almacen'])->name('paquetes-contrato.almacen');
     Route::get('/paquetes-contrato/entregados', [RecojoController::class, 'entregados'])->name('paquetes-contrato.entregados');

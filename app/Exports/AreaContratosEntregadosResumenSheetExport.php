@@ -229,10 +229,7 @@ class AreaContratosEntregadosResumenSheetExport implements FromArray, ShouldAuto
 
     private function resolveHeaderTitle(): string
     {
-        $empresa = $this->filters['empresa'] ?? null;
-        $nombre = trim((string) ($empresa->nombre ?? 'TODAS LAS EMPRESAS'));
-
-        return 'CLIENTE ' . $nombre . ' EXPRESS MAIL SERVICE-EMS';
+        return 'PLANILLA DE EJECUCION DE SERVICIOS';
     }
 
     private function resolvePeriodLabel(): string

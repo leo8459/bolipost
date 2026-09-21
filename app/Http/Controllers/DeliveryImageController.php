@@ -91,6 +91,14 @@ class DeliveryImageController extends Controller
             ->leftJoin('cartero as c', 'c.' . $carteroColumn, '=', 'p.id')
             ->where('p.id', $id);
 
+        if ($table === 'paquetes_contrato' && strtolower($kind) === 'devolucion') {
+            return $query->whereNotNull('c.imagen_devolucion')
+                ->where('c.imagen_devolucion', '<>', '')
+                ->orderByDesc('c.updated_at')
+                ->orderByDesc('c.id')
+                ->value('c.imagen_devolucion');
+        }
+
         $this->whereImageAvailable($query, $kind, 'p');
 
         return $query

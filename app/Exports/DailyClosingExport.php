@@ -13,62 +13,73 @@ class DailyClosingExport implements WithMultipleSheets
 
     public function sheets(): array
     {
-        $summary = [['Cierre diario', $this->report['cutoff'].' (Bolivia)'],
-            ['Servicio', 'Registrados hoy', 'Entregados hoy', 'Pendientes', 'Sin cartero activo']];
+        $summary = [
+            ['Cierre diario', $this->report['date'].' (Bolivia)'],
+            ['Servicio', 'Registrados', 'Entregados', 'Movimientos', 'Envíos con movimiento'],
+        ];
         $groups = array_fill_keys(self::DEPARTMENTS, []);
         $groups['SIN DEPARTAMENTO'] = [];
-        $historyRows = [['Servicio', 'Código', 'Origen', 'Provincia de origen', 'Destino', 'Provincia de destino', 'Estado o evento registrado', 'Fecha y hora (Bolivia)']];
+
         foreach ($this->report['modules'] as $module) {
-            $summary[] = [$module['name'], $module['registered'], $module['delivered'], $module['pending']->count(), $module['unassigned']];
-            foreach ($module['pending'] as $row) {
-                $destination = strtoupper(trim(Str::ascii((string) $row->destino)));
-                $destination = preg_replace('/\s+/', ' ', $destination);
-                $department = match ($destination) {
-                    'SUCRE' => 'CHUQUISACA',
-                    'TRINIDAD' => 'BENI',
-                    'COBIJA' => 'PANDO',
-                    'EL ALTO' => 'LA PAZ',
-                    default => in_array($destination, self::DEPARTMENTS, true) ? $destination : 'SIN DEPARTAMENTO',
-                };
-                $history = $row->history ?? [];
-                $historyText = implode("\n", array_map(fn ($event) => $event['date'].' · '.$this->eventWithUser($event), $history));
-                if (mb_strlen($historyText) > 32000) {
-                    $historyText = mb_substr($historyText, 0, 31900)."\nHistorial completo en la hoja Historial.";
-                }
-                $provinceOrigin = trim((string) ($row->provincia_origen ?? '')) ?: 'Sin provincia registrada';
-                $provinceDestination = trim((string) ($row->provincia_destino ?? '')) ?: 'Sin provincia registrada';
-                $groups[$department][] = [$module['name'], $row->codigo, $row->origen ?? 'Sin origen', $provinceOrigin, $row->destino, $provinceDestination, $row->estado ?? 'Sin estado', $row->cartero ?? 'Sin cartero activo', $row->created_at, $historyText ?: 'Sin eventos registrados'];
-                foreach ($history as $event) {
-                    $historyRows[] = [$module['name'], $row->codigo, $row->origen ?? 'Sin origen', $provinceOrigin, $row->destino, $provinceDestination, $this->eventWithUser($event), $event['date']];
-                }
+            $summary[] = [
+                $module['name'],
+                $module['registered'],
+                $module['delivered'],
+                $module['movements']->count(),
+                $module['moved_packages'],
+            ];
+
+            foreach ($module['movements'] as $movement) {
+                $department = $this->departmentFor($movement->destino);
+                $groups[$department][] = [
+                    $module['name'],
+                    $movement->codigo,
+                    $movement->origen ?: 'Sin origen',
+                    trim((string) ($movement->provincia_origen ?? '')) ?: 'Sin provincia registrada',
+                    $movement->destino ?: 'Sin destino',
+                    trim((string) ($movement->provincia_destino ?? '')) ?: 'Sin provincia registrada',
+                    $movement->nombre_evento ?? 'Evento '.$movement->evento_id,
+                    $movement->estado ?: 'Sin estado',
+                    $movement->user_name ?: 'Usuario no disponible',
+                    $movement->cartero ?: 'Sin cartero',
+                    $movement->event_date,
+                ];
             }
         }
+
         $summary[] = [];
-        $summary[] = ['Departamento de destino', 'Pendientes contratos', 'Pendientes EMS', 'Total'];
+        $summary[] = ['Departamento de destino', 'Movimientos contratos', 'Movimientos EMS', 'Total'];
         foreach ($groups as $department => $rows) {
-            $contracts = count(array_filter($rows, fn ($row) => $row[0] === 'Contratos'));
-            $ems = count(array_filter($rows, fn ($row) => $row[0] === 'EMS'));
+            $contracts = count(array_filter($rows, fn (array $row) => $row[0] === 'Contratos'));
+            $ems = count(array_filter($rows, fn (array $row) => $row[0] === 'EMS'));
             $summary[] = [$department, $contracts, $ems, count($rows)];
         }
+
         $sheets = [new DailyClosingSheet('Resumen', $summary, 2)];
         foreach ($groups as $department => $rows) {
-            if ($department === 'SIN DEPARTAMENTO' && $rows === []) {
+            if ($rows === []) {
                 continue;
             }
             $sheets[] = new DailyClosingSheet($department, [
-                ['Servicio', 'Código', 'Origen', 'Provincia de origen', 'Destino', 'Provincia de destino', 'Estado actual', 'Cartero', 'Fecha de registro', 'Historial de estados y eventos'],
+                ['Servicio', 'Código', 'Origen', 'Provincia de origen', 'Destino', 'Provincia de destino', 'Evento', 'Estado actual', 'Usuario', 'Cartero actual', 'Fecha y hora (Bolivia)'],
                 ...$rows,
             ]);
         }
-        $sheets[] = new DailyClosingSheet('Historial', $historyRows);
 
         return $sheets;
     }
 
-    private function eventWithUser(array $event): string
+    private function departmentFor(?string $destination): string
     {
-        $user = trim((string) ($event['user'] ?? '')) ?: 'Usuario no disponible';
+        $normalized = strtoupper(trim(Str::ascii((string) $destination)));
+        $normalized = preg_replace('/\s+/', ' ', $normalized);
 
-        return $event['event'].' ('.$user.')';
+        return match ($normalized) {
+            'SUCRE' => 'CHUQUISACA',
+            'TRINIDAD' => 'BENI',
+            'COBIJA' => 'PANDO',
+            'EL ALTO' => 'LA PAZ',
+            default => in_array($normalized, self::DEPARTMENTS, true) ? $normalized : 'SIN DEPARTAMENTO',
+        };
     }
 }

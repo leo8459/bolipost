@@ -527,6 +527,7 @@ class AclPermissionRegistry
      * @var array<string, array<int, string>>
      */
     private const ROUTE_ACCESS_PERMISSION_OVERRIDES = [
+        'reportes.lifetime-movements' => ['reportes.scope'],
         'bastiones.reporte.imagen' => ['bastiones.reporte'],
         'bastiones.reporte.excel' => ['bastiones.reporte'],
         'dashboard.conciliacion.conciliaciones.documento' => [
@@ -802,6 +803,14 @@ class AclPermissionRegistry
             'feature.tarifa-contrato.export',
         ],
         'paquetes-contrato.index' => [
+            'paquetes-contrato.index',
+            'feature.paquetes-contrato.index.create',
+            'feature.paquetes-contrato.create.create',
+            'feature.paquetes-contrato.index.manage',
+            'feature.paquetes-contrato.create-con-tarifa.create',
+        ],
+        'paquetes-contrato.mis-paquetes' => [
+            'paquetes-contrato.mis-paquetes',
             'paquetes-contrato.index',
             'feature.paquetes-contrato.index.create',
             'feature.paquetes-contrato.create.create',

@@ -75,6 +75,27 @@ class Recojo extends Model
         return $this->belongsTo(Estado::class, 'estados_id');
     }
 
+    public function asignacionConFotoDevolucion()
+    {
+        return $this->hasOne(Cartero::class, 'id_paquetes_contrato')
+            ->whereNotNull('imagen_devolucion')
+            ->where('imagen_devolucion', '<>', '')
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id');
+    }
+
+    public function esDevolucion(): bool
+    {
+        return in_array(mb_strtoupper(trim((string) $this->estadoRegistro?->nombre_estado)), ['DEVOLUCION', 'DEVOLUCIÓN'], true);
+    }
+
+    public function imagenParaReporte(): ?string
+    {
+        return $this->esDevolucion()
+            ? $this->asignacionConFotoDevolucion?->imagen_devolucion
+            : $this->imagen;
+    }
+
     public function tarifaContrato()
     {
         return $this->belongsTo(TarifaContrato::class, 'tarifa_contrato_id');

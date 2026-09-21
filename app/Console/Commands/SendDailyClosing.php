@@ -12,7 +12,7 @@ class SendDailyClosing extends Command
 {
     protected $signature = 'operations:send-daily-closing {--force : Reenviar el cierre de hoy}';
 
-    protected $description = 'Envia el cierre diario de contratos y EMS con pendientes por cartero';
+    protected $description = 'Envia los movimientos diarios de contratos y EMS';
 
     public function handle(DailyClosingMailService $service, ContractExpirationMailService $recipientsService): int
     {

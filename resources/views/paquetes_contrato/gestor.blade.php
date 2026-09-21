@@ -81,10 +81,10 @@
                             </a>
                         @endif
                         @if($canContratoGestorReport)
-                            <a href="{{ route('paquetes-contrato.gestor.pdf', ['q' => $search, 'estado' => $estadoFiltro]) }}"
+                            <button type="button" data-toggle="modal" data-target="#gestorPdfModal"
                                 class="btn gestor-btn-pdf">
                                 <i class="fas fa-file-pdf mr-1"></i> Descargar PDF
-                            </a>
+                            </button>
                         @endif
                     </div>
                 </form>
@@ -208,6 +208,44 @@
             </div>
         </div>
     </div>
+    @if($canContratoGestorReport)
+        @if(session('error'))
+            <div class="alert alert-warning mt-3" role="alert">{{ session('error') }}</div>
+        @endif
+        @if($errors->has('fecha_desde') || $errors->has('fecha_hasta'))
+            <div class="alert alert-danger mt-3" role="alert">
+                {{ $errors->first('fecha_desde') ?: $errors->first('fecha_hasta') }}
+            </div>
+        @endif
+        <div class="modal fade" id="gestorPdfModal" tabindex="-1" aria-labelledby="gestorPdfTitle" aria-hidden="true">
+            <div class="modal-dialog">
+                <form method="GET" action="{{ route('paquetes-contrato.gestor.pdf') }}" class="modal-content">
+                    <input type="hidden" name="q" value="{{ $search }}">
+                    <input type="hidden" name="estado" value="{{ $estadoFiltro }}">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="gestorPdfTitle">Reporte PDF por fecha de recojo</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>El PDF incluye ENTREGADO y DEVOLUCION con sus fotos correspondientes. Selecciona el rango de fechas de recojo; se incluyen ambos días y se mantiene el filtro de búsqueda.</p>
+                        <div class="form-group">
+                            <label for="pdf-fecha-desde">Desde</label>
+                            <input type="date" id="pdf-fecha-desde" name="fecha_desde" class="form-control" value="{{ old('fecha_desde') }}" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="pdf-fecha-hasta">Hasta</label>
+                            <input type="date" id="pdf-fecha-hasta" name="fecha_hasta" class="form-control" value="{{ old('fecha_hasta') }}" required>
+                        </div>
+                        <small class="text-muted">Los paquetes sin fecha de recojo no se incluyen en este reporte.</small>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn gestor-btn-pdf"><i class="fas fa-file-pdf mr-1"></i> Descargar PDF</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endif
 @endsection
 
 @section('css')

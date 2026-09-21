@@ -11,6 +11,7 @@ use App\Models\Recojo;
 use App\Models\SolicitudCliente;
 use App\Support\BitacoraCn33Service;
 use App\Support\BoliviaBusinessCalendar;
+use App\Support\DeliveryFulfillment;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Database\Query\Builder;
@@ -375,9 +376,11 @@ class DashboardController extends Controller
                 $row->asignado_certi = (int) ($asignadoRow->certi ?? 0);
                 $row->asignado_ordi = (int) ($asignadoRow->ordi ?? 0);
                 $row->pendientes_asignados = max(0, $row->total_asignados - $row->total_cartero_entregados);
-                $row->cumplimiento_asignados = $row->total_asignados > 0
-                    ? round(($row->total_cartero_entregados * 100) / $row->total_asignados, 1)
-                    : 0.0;
+                $row->cumplimiento_asignados = DeliveryFulfillment::percentage(
+                    $row->total_asignados,
+                    $row->total_cartero_entregados,
+                    $row->total_ventanilla
+                );
 
                 $porServicio = [
                     'EMS' => $row->ems,

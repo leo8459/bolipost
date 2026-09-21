@@ -354,6 +354,7 @@ class AreaContratosController extends Controller
             : null;
 
         $rows = $this->buildContratosReportQuery($search, $empresaIds, $from, $to)
+            ->with('asignacionConFotoDevolucion')
             ->orderBy('origen')
             ->orderBy('fecha_recojo')
             ->orderBy('id')
@@ -385,7 +386,7 @@ class AreaContratosController extends Controller
 
     public function downloadImagenEntrega(Recojo $contrato)
     {
-        $imagePath = trim((string) ($contrato->imagen ?? ''));
+        $imagePath = trim((string) $contrato->imagenParaReporte());
 
         abort_if($imagePath === '', 404);
 
@@ -413,7 +414,7 @@ class AreaContratosController extends Controller
 
         $extension = pathinfo($imagePath, PATHINFO_EXTENSION);
         $code = preg_replace('/[^A-Za-z0-9_-]+/', '-', (string) ($contrato->codigo ?: $contrato->id)) ?: (string) $contrato->id;
-        $filename = 'imagen-entrega-'.trim($code, '-');
+        $filename = ($contrato->esDevolucion() ? 'imagen-devolucion-' : 'imagen-entrega-').trim($code, '-');
         if ($extension !== '') {
             $filename .= '.'.$extension;
         }
@@ -439,7 +440,7 @@ class AreaContratosController extends Controller
             default => 'img',
         };
         $code = preg_replace('/[^A-Za-z0-9_-]+/', '-', (string) ($contrato->codigo ?: $contrato->id)) ?: (string) $contrato->id;
-        $filename = 'imagen-entrega-'.trim($code, '-').'.'.$extension;
+        $filename = ($contrato->esDevolucion() ? 'imagen-devolucion-' : 'imagen-entrega-').trim($code, '-').'.'.$extension;
 
         return response($binary, 200, [
             'Content-Type' => $mime,

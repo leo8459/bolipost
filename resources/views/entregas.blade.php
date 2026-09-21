@@ -232,7 +232,11 @@
         $totalVentanilla = (int) $entregadores->sum('total_ventanilla');
         $totalCarteroEntregados = (int) $entregadores->sum('total_cartero_entregados');
         $totalPendientesAsignados = (int) $entregadores->sum('pendientes_asignados');
-        $cumplimientoGeneral = $totalAsignados > 0 ? round(($totalCarteroEntregados * 100) / $totalAsignados, 1) : 0;
+        $cumplimientoGeneral = \App\Support\DeliveryFulfillment::percentage(
+            $totalAsignados,
+            $totalCarteroEntregados,
+            $totalVentanilla
+        );
         $totalEms = (int) $entregadores->sum('ems');
         $totalContratos = (int) $entregadores->sum('contrato');
         $totalCarteros = (int) $entregadores->count();
@@ -308,7 +312,7 @@
         <div class="entregas-kpi"><span>Entregados ventanilla</span><strong>{{ \App\Support\BolivianNumber::format($totalVentanilla) }}</strong></div>
         <div class="entregas-kpi"><span>Total entregados</span><strong>{{ \App\Support\BolivianNumber::format($totalGeneral) }}</strong></div>
         <div class="entregas-kpi"><span>Pendientes asignados</span><strong>{{ \App\Support\BolivianNumber::format($totalPendientesAsignados) }}</strong></div>
-        <div class="entregas-kpi"><span>Cumplimiento</span><strong>{{ \App\Support\BolivianNumber::format($cumplimientoGeneral, 1) }}%</strong></div>
+        <div class="entregas-kpi"><span title="Incluye entregas por cartero y por ventanilla">Cumplimiento</span><strong>{{ \App\Support\BolivianNumber::format($cumplimientoGeneral, 1) }}%</strong></div>
     </div>
 
     <div class="card entregas-card">
@@ -346,7 +350,7 @@
                             <th title="Entregados por ventanilla">Vent.</th>
                             <th title="Total entregados">Total</th>
                             <th title="Pendientes asignados">Pend.</th>
-                            <th title="Cumplimiento">Cumpl.</th>
+                            <th title="Cumplimiento: incluye entregas por cartero y por ventanilla">Cumpl.</th>
                             <th class="text-right">EMS</th>
                             <th class="text-right">Contr.</th>
                             <th class="text-right">Cert.</th>
@@ -357,8 +361,8 @@
                     <tbody>
                         @forelse($entregadores as $item)
                             @php
-                                $cumplimiento = (float) $item->cumplimiento_asignados;
-                                $cumplimientoBar = min(100, max(0, $cumplimiento));
+                                $cumplimiento = min(100.0, max(0.0, (float) $item->cumplimiento_asignados));
+                                $cumplimientoBar = $cumplimiento;
                             @endphp
                             <tr>
                                 <td><span class="excel-rank">{{ $loop->iteration }}</span></td>

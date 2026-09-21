@@ -9,6 +9,7 @@
         body { margin: 0; font-family: DejaVu Sans, sans-serif; color: #1f2937; font-size: 10px; }
         .header { border-bottom: 2px solid #20539A; padding-bottom: 10px; margin-bottom: 14px; }
         .brand { font-size: 20px; font-weight: 800; color: #20539A; letter-spacing: .4px; }
+        .report-purpose { margin-top: 3px; color: #20539A; font-size: 10px; font-weight: 800; letter-spacing: .15px; text-transform: uppercase; }
         .subtitle { margin-top: 4px; color: #64748b; font-size: 10px; }
         .meta { margin-top: 8px; width: 100%; border-collapse: collapse; }
         .meta td { vertical-align: top; }
@@ -44,6 +45,7 @@
                         </div>
                     @endif
                     <div class="brand">Reporte Profesional de Contratos Entregados</div>
+                    <div class="report-purpose">ESTO ES UN INFORME DE REPRESENTACION GRAFICA DE LA PLANILLA DE EJECUCION DE SERVICIOS</div>
                     <div class="subtitle">Correos de Bolivia | Seguimiento de entregas por rango de fechas</div>
                 </td>
                 <td class="meta-right">

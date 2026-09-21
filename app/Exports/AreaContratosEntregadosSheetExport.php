@@ -2,6 +2,7 @@
 
 namespace App\Exports;
 
+use App\Models\Recojo;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
@@ -83,7 +84,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
                 'A QUIEN SE ENTREGO',
                 'NOMBRE DEL CARTERO',
                 'OBSERVACIONES',
-                'IMAGEN DE ENTREGA',
+                'IMAGEN DE ENTREGA / DEVOLUCION',
             ],
         ];
     }
@@ -125,7 +126,9 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
             (string) ($model->nombre_d ?? ''),
             (string) optional($model->user)->name,
             (string) ($model->observacion ?? ''),
-            $this->hasDeliveryImage($model) ? 'Imagen de entrega' : '',
+            $this->hasDeliveryImage($model)
+                ? ($model instanceof Recojo && $model->esDevolucion() ? 'Imagen de devolucion' : 'Imagen de entrega')
+                : '',
         ];
     }
 
@@ -171,7 +174,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
                     $drawing->setWorksheet($sheet);
                 }
 
-                $sheet->setCellValue('A4', 'REPORTE DE CONTRATOS');
+                $sheet->setCellValue('A4', 'PLANILLA DE EJECUCION DE SERVICIOS');
                 $sheet->setCellValue('A5', 'ORIGEN:');
                 $sheet->setCellValue('C5', $this->origin);
                 $sheet->setCellValue('A6', 'SERVICIO:');
@@ -316,6 +319,35 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
                 $sheet->getStyle("M{$totalRow}:O{$totalRow}")
                     ->getNumberFormat()
                     ->setFormatCode('#,##0.00');
+
+                // Firma al final de cada hoja, debajo de los departamentos y sus totales.
+                $realizadoRow = $totalRow + 4;
+                $lineaRow = $realizadoRow + 1;
+                $nombreRow = $realizadoRow + 2;
+                $cargoRow = $realizadoRow + 3;
+                $institucionRow = $realizadoRow + 4;
+                $loggedUser = $this->filters['logged_user'] ?? auth()->user();
+                $realizadoPor = trim((string) ($loggedUser->name ?? '')) ?: 'USUARIO DEL SISTEMA';
+
+                $sheet->setCellValue("B{$realizadoRow}", 'REALIZADO POR:');
+                $sheet->setCellValue("G{$realizadoRow}", 'REVISADO POR:');
+                $sheet->mergeCells("B{$lineaRow}:D{$lineaRow}");
+                $sheet->mergeCells("G{$lineaRow}:I{$lineaRow}");
+                $sheet->setCellValue("B{$nombreRow}", $realizadoPor);
+                $sheet->setCellValue("G{$nombreRow}", 'Lucy Tinta Torrez');
+                $sheet->setCellValue("B{$cargoRow}", 'CORREOS DE BOLIVIA');
+                $sheet->setCellValue("G{$cargoRow}", 'ENCARGADO DE CONTRATOS');
+                $sheet->setCellValue("B{$institucionRow}", 'CORREOS DE BOLIVIA');
+                $sheet->setCellValue("G{$institucionRow}", 'CORREOS DE BOLIVIA');
+
+                $sheet->getStyle("B{$realizadoRow}:I{$institucionRow}")->applyFromArray([
+                    'alignment' => [
+                        'horizontal' => Alignment::HORIZONTAL_CENTER,
+                    ],
+                ]);
+                $sheet->getStyle("B{$realizadoRow}:I{$realizadoRow}")->getFont()->setBold(true);
+                $sheet->getStyle("B{$lineaRow}:I{$lineaRow}")->getBorders()->getBottom()->setBorderStyle(Border::BORDER_THIN);
+                $sheet->getStyle("B{$nombreRow}:I{$institucionRow}")->getFont()->getColor()->setRGB('4A5568');
             },
         ];
     }
@@ -404,7 +436,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
 
     private function resolveDeliveryImageUrl(Model $model): ?string
     {
-        $imagePath = trim((string) ($model->imagen ?? ''));
+        $imagePath = trim((string) ($model instanceof Recojo ? $model->imagenParaReporte() : $model->imagen));
         if ($imagePath === '' || ! isset($model->id)) {
             return null;
         }
@@ -418,7 +450,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
 
     private function hasDeliveryImage(Model $model): bool
     {
-        return trim((string) ($model->imagen ?? '')) !== '';
+        return trim((string) ($model instanceof Recojo ? $model->imagenParaReporte() : $model->imagen)) !== '';
     }
 
     private function addDeliveryImageLinks($sheet, int $dataStartRow): void

@@ -535,6 +535,12 @@ return [
             'icon' => 'fas fa-file-pdf',
             'submenu' => [
                 [
+                    'text' => 'Movimiento de toda la vida',
+                    'url' => '/reportes/movimiento-toda-la-vida',
+                    'icon' => 'fas fa-history',
+                    'can' => 'reportes.scope',
+                ],
+                [
                     'text' => 'Mis ventas',
                     'url' => '/mis-ventas',
                     'icon' => 'fas fa-cash-register',
@@ -722,6 +728,11 @@ return [
                             'text' => 'Solicitud de Correspondencia',
                             'url' => 'paquetes-contrato',
                             'icon' => 'fas fa-tasks',
+                        ],
+                        [
+                            'text' => 'Todos mis paquetes',
+                            'url' => 'paquetes-contrato/mis-paquetes',
+                            'icon' => 'fas fa-boxes',
                         ],
                         [
                             'text' => 'Contratos entregados',

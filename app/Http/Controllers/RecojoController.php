@@ -50,6 +50,57 @@ class RecojoController extends Controller
         return view('paquetes_contrato.index');
     }
 
+    public function misPaquetes(Request $request)
+    {
+        $filters = $request->validate([
+            'q' => ['nullable', 'string', 'max:120'],
+            'estado_id' => ['nullable', 'integer', 'exists:estados,id'],
+            'fecha_desde' => ['nullable', 'date_format:Y-m-d'],
+            'fecha_hasta' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:fecha_desde'],
+        ], [
+            'fecha_hasta.after_or_equal' => 'La fecha hasta debe ser igual o posterior a la fecha desde.',
+        ]);
+
+        $userId = (int) $request->user()->id;
+        $search = trim((string) ($filters['q'] ?? ''));
+        $estadoId = (int) ($filters['estado_id'] ?? 0);
+        $fechaDesde = (string) ($filters['fecha_desde'] ?? '');
+        $fechaHasta = (string) ($filters['fecha_hasta'] ?? '');
+
+        $paquetes = Recojo::query()
+            ->with('estadoRegistro:id,nombre_estado')
+            ->where('user_id', $userId)
+            ->when($estadoId > 0, fn ($query) => $query->where('estados_id', $estadoId))
+            ->when($fechaDesde !== '', fn ($query) => $query->whereDate('created_at', '>=', $fechaDesde))
+            ->when($fechaHasta !== '', fn ($query) => $query->whereDate('created_at', '<=', $fechaHasta))
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($subQuery) use ($search) {
+                    $subQuery->where('codigo', 'like', '%'.$search.'%')
+                        ->orWhere('codigo_madre', 'like', '%'.$search.'%')
+                        ->orWhere('cod_especial', 'like', '%'.$search.'%')
+                        ->orWhere('origen', 'like', '%'.$search.'%')
+                        ->orWhere('destino', 'like', '%'.$search.'%')
+                        ->orWhere('nombre_r', 'like', '%'.$search.'%')
+                        ->orWhere('nombre_d', 'like', '%'.$search.'%')
+                        ->orWhereHas('estadoRegistro', fn ($estadoQuery) => $estadoQuery
+                            ->where('nombre_estado', 'like', '%'.$search.'%'));
+                });
+            })
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('paquetes_contrato.mis-paquetes', [
+            'paquetes' => $paquetes,
+            'estados' => Estado::query()->orderBy('nombre_estado')->get(['id', 'nombre_estado']),
+            'search' => $search,
+            'estadoId' => $estadoId,
+            'fechaDesde' => $fechaDesde,
+            'fechaHasta' => $fechaHasta,
+        ]);
+    }
+
     public function recogerEnvios()
     {
         return view('paquetes_contrato.recoger-envios');
@@ -233,25 +284,55 @@ class RecojoController extends Controller
         $user = Auth::user();
         abort_unless($user && $user->can('feature.paquetes-contrato.gestor.report'), 403);
 
+        $validator = Validator::make($request->all(), [
+            'fecha_desde' => ['required', 'date_format:Y-m-d'],
+            'fecha_hasta' => ['required', 'date_format:Y-m-d', 'after_or_equal:fecha_desde'],
+        ], [
+            'fecha_desde.required' => 'Selecciona la fecha inicial de recojo.',
+            'fecha_hasta.required' => 'Selecciona la fecha final de recojo.',
+            'fecha_desde.date_format' => 'La fecha inicial debe ser una fecha válida.',
+            'fecha_hasta.date_format' => 'La fecha final debe ser una fecha válida.',
+            'fecha_hasta.after_or_equal' => 'La fecha final debe ser igual o posterior a la fecha inicial.',
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()->route('paquetes-contrato.gestor', $request->only(['q', 'estado']))
+                ->withErrors($validator)->withInput($request->all());
+        }
+
+        $fechas = $validator->validated();
+        $fechaDesde = Carbon::createFromFormat('Y-m-d', $fechas['fecha_desde'])->startOfDay();
+        $fechaHasta = Carbon::createFromFormat('Y-m-d', $fechas['fecha_hasta'])->startOfDay();
+
         $context = $this->gestorContext($request, $user);
         $contratos = $this->aplicarFiltrosGestor(
             clone $context['baseQuery'],
-            $context['estadoFiltro'],
+            'todos',
             $context['estadoEntregadoId'],
             $context['estadoCanceladoId'],
             $context['search']
         )
+            ->with('asignacionConFotoDevolucion')
+            ->whereHas('estadoRegistro', function ($query) {
+                $query->whereRaw('TRIM(UPPER(nombre_estado)) IN (?, ?, ?)', ['ENTREGADO', 'DEVOLUCION', 'DEVOLUCIÓN']);
+            })
+            ->where('paquetes_contrato.fecha_recojo', '>=', $fechaDesde)
+            ->where('paquetes_contrato.fecha_recojo', '<', $fechaHasta->copy()->addDay())
             ->orderByDesc('id')
             ->get();
 
         if ($contratos->isEmpty()) {
             return redirect()
                 ->route('paquetes-contrato.gestor', $request->only(['q', 'estado']))
-                ->with('error', 'No hay contratos para generar el reporte con los filtros seleccionados.');
+                ->withInput($request->all())
+                ->with('error', 'No hay contratos con fecha de recojo en el rango y los filtros seleccionados.');
         }
 
         $contratos->each(function (Recojo $contrato) {
-            $imagenPdf = $this->imagenGestorParaPdf($contrato->imagen_entrega_gestor ?: $contrato->imagen);
+            $imagen = $contrato->esDevolucion()
+                ? $contrato->imagenParaReporte()
+                : ($contrato->imagen_entrega_gestor ?: $contrato->imagen);
+            $imagenPdf = $this->imagenGestorParaPdf($imagen);
             $contrato->setAttribute('imagen_pdf', $imagenPdf);
             $contrato->setAttribute(
                 'imagen_descarga_url',
@@ -266,9 +347,11 @@ class RecojoController extends Controller
         $pdf = Pdf::loadView('paquetes_contrato.gestor-pdf', [
             'contratos' => $contratos,
             'empresa' => $context['empresa'],
-            'estadoFiltro' => $context['estadoFiltro'],
+            'estadoFiltro' => 'entregados-devolucion',
             'search' => $context['search'],
             'generatedAt' => $generatedAt,
+            'fechaDesde' => $fechaDesde,
+            'fechaHasta' => $fechaHasta,
             'usuarioNombre' => trim((string) $user->name),
             'totalPeso' => (float) $contratos->sum('peso'),
             'totalImagenes' => $contratos->whereNotNull('imagen_pdf')->count(),
@@ -279,7 +362,7 @@ class RecojoController extends Controller
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
-        }, 'reporte-contratos-'.$codigoCliente.'-'.$context['estadoFiltro'].'-'.$generatedAt->format('Ymd-His').'.pdf');
+        }, 'reporte-contratos-'.$codigoCliente.'-entregados-devolucion-'.$generatedAt->format('Ymd-His').'.pdf');
     }
 
     private function gestorContext(Request $request, ?User $user): array
@@ -403,7 +486,7 @@ class RecojoController extends Controller
             [
                 'type' => 'contrato',
                 'id' => $contrato->id,
-                'kind' => 'entrega',
+                'kind' => $contrato->esDevolucion() ? 'devolucion' : 'entrega',
             ],
             false
         );

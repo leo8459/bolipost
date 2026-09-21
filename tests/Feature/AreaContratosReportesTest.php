@@ -10,6 +10,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Excel as ExcelWriter;
 use Maatwebsite\Excel\Facades\Excel;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -32,6 +33,13 @@ class AreaContratosReportesTest extends TestCase
         Schema::create('estados', function (Blueprint $table) {
             $table->id();
             $table->string('nombre_estado');
+            $table->timestamps();
+        });
+
+        Schema::create('cartero', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('id_paquetes_contrato');
+            $table->text('imagen_devolucion')->nullable();
             $table->timestamps();
         });
 
@@ -74,10 +82,58 @@ class AreaContratosReportesTest extends TestCase
     protected function tearDown(): void
     {
         Schema::dropIfExists('paquetes_contrato');
+        Schema::dropIfExists('cartero');
         Schema::dropIfExists('estados');
         Schema::dropIfExists('empresa');
 
         parent::tearDown();
+    }
+
+    public function test_excel_y_descarga_usan_foto_segun_estado(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('devolucion.png', 'foto-devolucion-reciente');
+        Storage::disk('public')->put('entrega.png', 'foto-entrega-original');
+        DB::table('estados')->insert([
+            ['id' => 3, 'nombre_estado' => 'DEVOLUCION'],
+            ['id' => 4, 'nombre_estado' => 'ENTREGADO'],
+        ]);
+        DB::table('paquetes_contrato')->whereIn('id', [1, 2, 3])->update(['imagen' => 'entrega.png']);
+        DB::table('paquetes_contrato')->whereIn('id', [1, 3])->update(['estados_id' => 3]);
+        DB::table('paquetes_contrato')->where('id', 2)->update(['estados_id' => 4]);
+        DB::table('cartero')->insert([
+            ['id_paquetes_contrato' => 1, 'imagen_devolucion' => 'vieja.png', 'updated_at' => '2026-09-17 12:00:00'],
+            ['id_paquetes_contrato' => 1, 'imagen_devolucion' => 'devolucion.png', 'updated_at' => '2026-09-18 12:00:00'],
+            ['id_paquetes_contrato' => 1, 'imagen_devolucion' => '', 'updated_at' => '2026-09-18 13:00:00'],
+            ['id_paquetes_contrato' => 2, 'imagen_devolucion' => 'devolucion.png', 'updated_at' => '2026-09-18 12:00:00'],
+        ]);
+        $rows = Recojo::with(['estadoRegistro', 'asignacionConFotoDevolucion'])
+            ->whereIn('id', [1, 2, 3])->orderBy('id')->get();
+        $this->assertSame('devolucion.png', $rows[0]->imagenParaReporte());
+        $this->assertSame('entrega.png', $rows[1]->imagenParaReporte());
+        $this->assertNull($rows[2]->imagenParaReporte());
+
+        $contents = Excel::raw(new AreaContratosEntregadosExport($rows), ExcelWriter::XLSX);
+        $path = tempnam(sys_get_temp_dir(), 'contratos-fotos-');
+        try {
+            file_put_contents($path, $contents);
+            $sheet = IOFactory::load($path)->getSheet(0);
+            $this->assertSame('DESCARGAR IMAGEN', $sheet->getCell('U13')->getValue());
+            $this->assertSame('DESCARGAR IMAGEN', $sheet->getCell('U14')->getValue());
+            $this->assertEmpty($sheet->getCell('U15')->getValue());
+            $this->assertFalse($sheet->getCell('U15')->hasHyperlink());
+        } finally {
+            unlink($path);
+        }
+
+        $response = $this->get(route('area-contratos.imagen-entrega.download', ['contrato' => 1]));
+        $response->assertOk();
+        $response->assertDownload('imagen-devolucion-CONTRATO-1.png');
+        $this->assertSame('foto-devolucion-reciente', $response->streamedContent());
+        $response = $this->get(route('area-contratos.imagen-entrega.download', ['contrato' => 2]));
+        $response->assertDownload('imagen-entrega-CONTRATO-2.png');
+        $this->assertSame('foto-entrega-original', $response->streamedContent());
+        $this->get(route('area-contratos.imagen-entrega.download', ['contrato' => 3]))->assertNotFound();
     }
 
     public function test_resume_en_la_base_de_datos_sin_cargar_todos_los_contratos(): void

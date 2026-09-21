@@ -43,6 +43,7 @@
         $logoPath = public_path('images/AGBClogo1.png');
         $logoB64 = file_exists($logoPath) ? base64_encode(file_get_contents($logoPath)) : null;
         $estadoLabel = match ($estadoFiltro) {
+            'entregados-devolucion' => 'Entregados y devolucion',
             'entregados' => 'Entregados',
             'todos' => 'Todos',
             default => 'Pendientes',
@@ -61,7 +62,7 @@
                         <img src="data:image/png;base64,{{ $logoB64 }}" class="logo" alt="Correos de Bolivia">
                     @endif
                     <div class="title">Reporte de paquetes de contrato</div>
-                    <div class="subtitle">Detalle por codigo cliente con evidencias fotograficas de entrega</div>
+                    <div class="subtitle">Detalle por codigo cliente con fotos de entrega y devolucion</div>
                 </td>
                 <td class="meta">
                     <div><strong>Empresa:</strong> {{ $empresa?->nombre ?: 'Sin empresa' }}</div>
@@ -83,6 +84,7 @@
     </table>
 
     <div class="filters">
+        <span class="filter"><strong>Fecha de recojo:</strong> {{ $fechaDesde->format('d/m/Y') }} al {{ $fechaHasta->format('d/m/Y') }}</span>
         <span class="filter"><strong>Estado:</strong> {{ $estadoLabel }}</span>
         @if($search !== '')
             <span class="filter"><strong>Busqueda:</strong> {{ $search }}</span>
@@ -94,7 +96,7 @@
     <table class="report">
         <thead>
             <tr>
-                <th style="width: 11%;">Codigo / fecha</th>
+                <th style="width: 11%;">Codigo / fecha de recojo</th>
                 <th style="width: 8%;">Estado</th>
                 <th style="width: 13%;">Ruta</th>
                 <th style="width: 18%;">Remitente</th>
@@ -109,7 +111,7 @@
                 <tr>
                     <td>
                         <div class="code">{{ $contrato->codigo }}</div>
-                        <div class="muted">{{ optional($contrato->created_at)->format('d/m/Y H:i') ?: '-' }}</div>
+                        <div class="muted">{{ optional($contrato->fecha_recojo)->format('d/m/Y H:i') ?: '-' }}</div>
                     </td>
                     <td class="state">{{ optional($contrato->estadoRegistro)->nombre_estado ?: '-' }}</td>
                     <td>

@@ -35,8 +35,8 @@
                     <span class="badge {{ $dailyClosingEnabled ? 'badge-success' : 'badge-secondary' }} float-right">{{ $dailyClosingEnabled ? 'Activo' : 'Inactivo' }}</span>
                 </div>
                 <div class="card-body">
-                    <p>Todos los días a las <strong>20:00, hora de Bolivia</strong>, se enviará el resumen a los correos guardados en esta página: registros, entregas y movimientos del día, pendientes acumulados y pendientes por cartero.</p>
-                    <p class="text-muted">Incluye un Excel dividido por departamento de destino con todos los pendientes: código, destino, estado y cartero. El envío manual usa la hora actual como corte y permite recibir otro cierre a las 20:00. El cierre es un reporte informativo; puede seguir trabajando después del corte.</p>
+                    <p>Todos los días a las <strong>20:00, hora de Bolivia</strong>, se enviará a los correos guardados el resumen de registros, entregas y movimientos realizados durante ese día.</p>
+                    <p class="text-muted">El Excel incluye únicamente los movimientos de la fecha del cierre, dividido por departamento de destino. Desde Cierre diario también puede elegir manualmente otra fecha para revisar y enviar.</p>
                     <div class="d-flex flex-wrap">
                         <form method="POST" action="{{ route('contract-expiration-email.daily-closing.send') }}" class="mr-2 mb-2">
                             @csrf

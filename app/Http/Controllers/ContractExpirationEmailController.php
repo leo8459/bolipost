@@ -22,12 +22,21 @@ class ContractExpirationEmailController extends Controller
         ]);
     }
 
-    public function dailyClosing(ContractExpirationMailService $mailService, DailyClosingMailService $closingService)
+    public function dailyClosing(Request $request, ContractExpirationMailService $mailService, DailyClosingMailService $closingService)
     {
+        $data = $request->validate([
+            'date' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
+        ], [
+            'date.date_format' => 'Seleccione una fecha válida.',
+            'date.before_or_equal' => 'No se puede preparar un cierre de una fecha futura.',
+        ]);
+        $selectedDate = $data['date'] ?? now('America/La_Paz')->toDateString();
+
         return view('configuracion.daily-closing-email', [
             'recipients' => $mailService->recipients(),
             'dailyClosingEnabled' => $closingService->automaticSendingEnabled(),
-            'report' => $closingService->report(),
+            'selectedDate' => $selectedDate,
+            'report' => $closingService->reportForDate($selectedDate),
         ]);
     }
 
@@ -39,21 +48,31 @@ class ContractExpirationEmailController extends Controller
         return back()->with('status', 'Configuración del cierre diario guardada correctamente.');
     }
 
-    public function sendDailyClosing(ContractExpirationMailService $mailService, DailyClosingMailService $service)
+    public function sendDailyClosing(Request $request, ContractExpirationMailService $mailService, DailyClosingMailService $service)
     {
+        $data = $request->validate([
+            'date' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
+        ], [
+            'date.required' => 'Seleccione el día que desea enviar.',
+            'date.date_format' => 'Seleccione una fecha válida.',
+            'date.before_or_equal' => 'No se puede enviar un cierre de una fecha futura.',
+        ]);
         $recipients = $mailService->recipients();
         if ($recipients === []) {
             return back()->with('warning', 'Primero debe guardar al menos un correo electrónico.');
         }
         try {
-            $sent = $service->send($recipients);
+            $report = $service->reportForDate($data['date']);
+            $sent = $service->send($recipients, $report);
         } catch (Throwable $exception) {
             Log::error('No se pudo enviar el cierre diario.', ['exception' => $exception]);
 
             return back()->with('error', 'No se pudo enviar el cierre diario. Revise la configuración del servidor de correo e intente nuevamente.');
         }
 
-        return back()->with('status', "Cierre diario enviado correctamente a {$sent} destinatario(s).");
+        return redirect()
+            ->route('contract-expiration-email.daily-closing.index', ['date' => $data['date']])
+            ->with('status', "Cierre del {$data['date']} enviado correctamente a {$sent} destinatario(s).");
     }
 
     public function updateAutomaticSending(Request $request, ContractExpirationMailService $mailService)

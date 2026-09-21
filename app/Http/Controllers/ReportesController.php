@@ -55,6 +55,61 @@ class ReportesController extends Controller
         return view('reportes.index', $data);
     }
 
+    public function lifetimeMovements(Request $request)
+    {
+        $filters = $request->validate([
+            'q' => ['nullable', 'string', 'max:150'],
+            'service' => ['nullable', 'in:all,contrato,ems'],
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+        ]);
+
+        $search = trim((string) ($filters['q'] ?? ''));
+        $service = $filters['service'] ?? 'all';
+        $from = $filters['from'] ?? null;
+        $to = $filters['to'] ?? null;
+        $queries = [];
+
+        if (in_array($service, ['all', 'contrato'], true)) {
+            $queries[] = $this->lifetimeMovementQuery(
+                'Contratos', 'eventos_contrato', 'paquetes_contrato', 'estados_id', 'destino', $search, $from, $to
+            );
+        }
+        if (in_array($service, ['all', 'ems'], true)) {
+            $queries[] = $this->lifetimeMovementQuery(
+                'EMS', 'eventos_ems', 'paquetes_ems', 'estado_id', 'ciudad', $search, $from, $to
+            );
+        }
+
+        $union = array_shift($queries);
+        foreach ($queries as $query) {
+            $union->unionAll($query);
+        }
+
+        $base = DB::query()->fromSub($union, 'movement_history');
+        $summary = (clone $base)
+            ->select('service')
+            ->selectRaw('COUNT(*) as movements')
+            ->selectRaw('COUNT(DISTINCT code) as packages')
+            ->groupBy('service')
+            ->get()
+            ->keyBy('service');
+        $movements = (clone $base)
+            ->orderByDesc('moved_at')
+            ->orderByDesc('movement_id')
+            ->paginate(100)
+            ->withQueryString();
+
+        return view('reportes.lifetime-movements', [
+            'movements' => $movements,
+            'summary' => $summary,
+            'search' => $search,
+            'service' => $service,
+            'from' => $from,
+            'to' => $to,
+        ]);
+    }
+
     public function exportExcel(Request $request, string $scope)
     {
         $scope = $this->normalizeScope($scope);
@@ -878,6 +933,52 @@ class ReportesController extends Controller
             'peso_total' => round((float) $rows->sum('peso'), 3),
             'precio_total' => round((float) $rows->sum('precio'), 2),
         ];
+    }
+
+    private function lifetimeMovementQuery(
+        string $label,
+        string $eventsTable,
+        string $packagesTable,
+        string $stateColumn,
+        string $destinationColumn,
+        string $search,
+        ?string $from,
+        ?string $to
+    ): Builder {
+        $query = DB::table($eventsTable.' as movement')
+            ->leftJoin($packagesTable.' as package', 'package.codigo', '=', 'movement.codigo')
+            ->leftJoin('eventos as event', 'event.id', '=', 'movement.evento_id')
+            ->leftJoin('users as actor', 'actor.id', '=', 'movement.user_id')
+            ->leftJoin('estados as state', 'state.id', '=', 'package.'.$stateColumn)
+            ->selectRaw('? as service', [$label])
+            ->addSelect([
+                'movement.id as movement_id',
+                'movement.codigo as code',
+                'movement.evento_id as event_id',
+                'event.nombre_evento as event_name',
+                'actor.name as user_name',
+                'package.origen as origin',
+                'package.'.$destinationColumn.' as destination',
+                'state.nombre_estado as current_state',
+                'movement.created_at as moved_at',
+            ]);
+
+        if ($from) {
+            $query->where('movement.created_at', '>=', Carbon::parse($from, 'America/La_Paz')->startOfDay()->setTimezone(config('app.timezone')));
+        }
+        if ($to) {
+            $query->where('movement.created_at', '<=', Carbon::parse($to, 'America/La_Paz')->endOfDay()->setTimezone(config('app.timezone')));
+        }
+        if ($search !== '') {
+            $like = '%'.mb_strtolower($search).'%';
+            $query->where(function (Builder $sub) use ($like) {
+                $sub->whereRaw("LOWER(COALESCE(movement.codigo, '')) LIKE ?", [$like])
+                    ->orWhereRaw("LOWER(COALESCE(event.nombre_evento, '')) LIKE ?", [$like])
+                    ->orWhereRaw("LOWER(COALESCE(actor.name, '')) LIKE ?", [$like]);
+            });
+        }
+
+        return $query;
     }
 
     private function buildGlobalIngresoPdfStatistics(Collection $rows): array
