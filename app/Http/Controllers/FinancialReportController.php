@@ -50,6 +50,15 @@ class FinancialReportController extends Controller
         return view('financial-reports.services', $this->buildServicesReportData($request, false));
     }
 
+    public function cashierFlow(Request $request)
+    {
+        $data = $this->buildServicesReportData($request, false, false);
+        $data['regionalRows'] = $this->buildRegionalBreakdown($data['services']);
+        $data['cashierRows'] = $this->buildCashierBreakdown($data['services']);
+
+        return view('financial-reports.cashier-flow', $data);
+    }
+
     public function invoicedContracts(Request $request)
     {
         $data = $this->buildServicesReportData($request, true);
@@ -105,8 +114,11 @@ class FinancialReportController extends Controller
         return $pdf->download('reporte-ejecutivo-ventas-servicios-'.$data['anio'].'-'.now()->format('Ymd_His').'.pdf');
     }
 
-    private function buildServicesReportData(Request $request, ?bool $forceOnlyContracts = null): array
-    {
+    private function buildServicesReportData(
+        Request $request,
+        ?bool $forceOnlyContracts = null,
+        bool $reconcileContracts = true
+    ): array {
         $validated = $request->validate([
             'servicio' => ['nullable', 'string', 'max:180'],
             'servicios' => ['nullable', 'array', 'max:50'],
@@ -158,6 +170,8 @@ class FinancialReportController extends Controller
                         'ultimaFecha' => null,
                         'descripcionMuestra' => null,
                         '_meses' => [],
+                        '_porRegionales' => [],
+                        '_porPersonas' => [],
                     ]);
 
                     foreach (['cantidadVentas', 'cantidadDetalles', 'totalCantidad', 'totalMonto'] as $totalKey) {
@@ -171,6 +185,14 @@ class FinancialReportController extends Controller
                     if (blank($current['descripcionMuestra']) && filled($row['descripcionMuestra'] ?? null)) {
                         $current['descripcionMuestra'] = $row['descripcionMuestra'];
                     }
+                    $current['_porRegionales'] = [
+                        ...($current['_porRegionales'] ?? []),
+                        ...collect($row['porRegionales'] ?? [])->map(fn ($item) => (array) $item)->all(),
+                    ];
+                    $current['_porPersonas'] = [
+                        ...($current['_porPersonas'] ?? []),
+                        ...collect($row['porPersonas'] ?? [])->map(fn ($item) => (array) $item)->all(),
+                    ];
                     $current['_meses'][] = $month;
                     $current['_meses'] = array_values(array_unique($current['_meses']));
                     $aggregated->put($name, $current);
@@ -194,7 +216,7 @@ class FinancialReportController extends Controller
             ->sortByDesc('totalMonto')
             ->values();
         $contractReceivables = $this->contractReceivables($services, $selectedMonths, $year);
-        if (! $onlyContracts && $contractReceivables['has_contracts']) {
+        if ($reconcileContracts && ! $onlyContracts && $contractReceivables['has_contracts']) {
             $validatedSales = $contractReceivables['validated_sales'];
             $validatedAmount = $contractReceivables['validated_amount'];
 
@@ -467,6 +489,89 @@ class FinancialReportController extends Controller
                     'ultimaFecha' => $children->pluck('ultimaFecha')->filter()->max(),
                     '_meses' => $children->pluck('_meses')->flatten()->unique()->sort()->values()->all(),
                     '_children' => $children->sortByDesc('totalMonto')->values(),
+                ];
+            })
+            ->sortByDesc('totalMonto')
+            ->values();
+    }
+
+    private function buildRegionalBreakdown(Collection $services): Collection
+    {
+        return $services
+            ->flatMap(fn (array $service) => collect($service['_porRegionales'] ?? []))
+            ->map(function ($row): array {
+                $row = (array) $row;
+                $regional = mb_strtoupper(trim((string) ($row['regional'] ?? '')));
+
+                return [
+                    'regional' => $regional !== '' ? $regional : 'SIN REGIONAL',
+                    'codigosSucursal' => collect($row['codigosSucursal'] ?? [])
+                        ->map(fn ($code) => trim((string) $code))
+                        ->filter(fn ($code) => $code !== '')
+                        ->values()
+                        ->all(),
+                    'cantidadVentas' => (float) ($row['cantidadVentas'] ?? 0),
+                    'cantidadDetalles' => (float) ($row['cantidadDetalles'] ?? 0),
+                    'totalCantidad' => (float) ($row['totalCantidad'] ?? 0),
+                    'totalMonto' => (float) ($row['totalMonto'] ?? 0),
+                ];
+            })
+            ->groupBy('regional')
+            ->map(function (Collection $rows, string $regional): array {
+                return [
+                    'regional' => $regional,
+                    'codigosSucursal' => $rows->pluck('codigosSucursal')->flatten()->unique()->sort()->values()->all(),
+                    'cantidadVentas' => $rows->sum('cantidadVentas'),
+                    'cantidadDetalles' => $rows->sum('cantidadDetalles'),
+                    'totalCantidad' => $rows->sum('totalCantidad'),
+                    'totalMonto' => $rows->sum('totalMonto'),
+                ];
+            })
+            ->sortByDesc('totalMonto')
+            ->values();
+    }
+
+    private function buildCashierBreakdown(Collection $services): Collection
+    {
+        return $services
+            ->flatMap(fn (array $service) => collect($service['_porPersonas'] ?? []))
+            ->map(function ($row): array {
+                $row = (array) $row;
+                $id = trim((string) ($row['usuarioId'] ?? ''));
+                $name = trim((string) ($row['usuarioNombre'] ?? ''));
+                $email = trim((string) ($row['usuarioEmail'] ?? ''));
+                $alias = trim((string) ($row['usuarioAlias'] ?? ''));
+                $identity = $id !== ''
+                    ? 'id:'.$id
+                    : ($email !== '' ? 'email:'.mb_strtolower($email) : 'user:'.mb_strtolower($alias !== '' ? $alias : $name));
+
+                return [
+                    '_identity' => $identity !== 'user:' ? $identity : 'user:sin-identificar',
+                    'usuarioId' => $id,
+                    'usuarioNombre' => $name !== '' ? $name : 'USUARIO SIN IDENTIFICAR',
+                    'usuarioEmail' => $email,
+                    'usuarioAlias' => $alias,
+                    'usuarioCarnet' => trim((string) ($row['usuarioCarnet'] ?? '')),
+                    'cantidadVentas' => (float) ($row['cantidadVentas'] ?? 0),
+                    'cantidadDetalles' => (float) ($row['cantidadDetalles'] ?? 0),
+                    'totalCantidad' => (float) ($row['totalCantidad'] ?? 0),
+                    'totalMonto' => (float) ($row['totalMonto'] ?? 0),
+                ];
+            })
+            ->groupBy('_identity')
+            ->map(function (Collection $rows): array {
+                $first = $rows->first();
+
+                return [
+                    'usuarioId' => $first['usuarioId'],
+                    'usuarioNombre' => $first['usuarioNombre'],
+                    'usuarioEmail' => $first['usuarioEmail'],
+                    'usuarioAlias' => $first['usuarioAlias'],
+                    'usuarioCarnet' => $first['usuarioCarnet'],
+                    'cantidadVentas' => $rows->sum('cantidadVentas'),
+                    'cantidadDetalles' => $rows->sum('cantidadDetalles'),
+                    'totalCantidad' => $rows->sum('totalCantidad'),
+                    'totalMonto' => $rows->sum('totalMonto'),
                 ];
             })
             ->sortByDesc('totalMonto')

@@ -33,12 +33,48 @@
         </div>
     @endif
 
+    @php
+        $executiveDetailIncome = (float) ($service['totalMonto'] ?? 0);
+        $executiveLead = 'El detalle seleccionado reúne '
+            . \App\Support\BolivianNumber::format((float) ($service['cantidadVentas'] ?? 0))
+            . ' ventas registradas, '
+            . \App\Support\BolivianNumber::format((float) ($service['cantidadDetalles'] ?? 0))
+            . ' líneas de detalle y Bs '
+            . \App\Support\BolivianNumber::format($executiveDetailIncome, 2)
+            . ' en ingresos de ventanilla.';
+        $executiveItems = [
+            [
+                'label' => 'Servicios consultados',
+                'value' => \App\Support\BolivianNumber::format(count($selectedServices)),
+                'detail' => count($selectedServices) === 1 ? ($selectedServices[0] ?? 'Sin servicio') : 'Servicios combinados en un solo resultado.',
+                'icon' => 'fa-layer-group',
+                'color' => 'primary',
+            ],
+            [
+                'label' => 'Ventas registradas',
+                'value' => \App\Support\BolivianNumber::format((float) ($service['cantidadVentas'] ?? 0)),
+                'detail' => \App\Support\BolivianNumber::format((float) ($service['cantidadDetalles'] ?? 0)) . ' líneas de detalle.',
+                'icon' => 'fa-file-invoice',
+                'color' => 'info',
+            ],
+            [
+                'label' => 'Ingresos de ventanilla',
+                'value' => 'Bs ' . \App\Support\BolivianNumber::format($executiveDetailIncome, 2),
+                'detail' => \App\Support\BolivianNumber::format((float) ($service['totalCantidad'] ?? 0), 2) . ' de cantidad total de paquetería.',
+                'icon' => 'fa-money-bill-wave',
+                'color' => 'success',
+            ],
+        ];
+        $executiveNote = 'La tabla inferior contiene ' . \App\Support\BolivianNumber::format($rows->total()) . ' registros para revisar códigos, fechas y montos individuales.';
+    @endphp
+    @include('financial-reports.partials.executive-summary')
+
     <div class="row">
         @foreach([
-            ['Ventas', $service['cantidadVentas'] ?? 0, 'fa-file-invoice', 'primary'],
+            ['Ventas registradas', $service['cantidadVentas'] ?? 0, 'fa-file-invoice', 'primary'],
             ['Detalles', $service['cantidadDetalles'] ?? 0, 'fa-list', 'info'],
-            ['Cantidad total', $service['totalCantidad'] ?? 0, 'fa-boxes', 'warning'],
-            ['Monto total', 'Bs ' . \App\Support\BolivianNumber::format((float) ($service['totalMonto'] ?? 0), 2), 'fa-money-bill-wave', 'success'],
+            ['Cantidad total de paquetería', $service['totalCantidad'] ?? 0, 'fa-boxes', 'warning'],
+            ['Ingresos de ventanilla', 'Bs ' . \App\Support\BolivianNumber::format((float) ($service['totalMonto'] ?? 0), 2), 'fa-money-bill-wave', 'success'],
         ] as [$label, $value, $icon, $color])
             <div class="col-sm-6 col-xl-3 mb-3">
                 <div class="info-box bg-white border mb-0">

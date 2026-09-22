@@ -61,6 +61,10 @@ class FinancialReportTest extends TestCase
 
         $response->assertOk()
             ->assertSee('Ventas por servicio')
+            ->assertSee('Reporte ejecutivo resumido')
+            ->assertSee('Servicio con mayor ingreso')
+            ->assertSee('Filtrando datos')
+            ->assertSee('Espere por favor, estamos preparando su reporte.')
             ->assertSee('Buscar un servicio por nombre')
             ->assertSee('Filtrar')
             ->assertSee('Servicio Internacional')
@@ -297,8 +301,8 @@ class FinancialReportTest extends TestCase
         ]));
 
         $response->assertOk()
-            ->assertSee('Contratos por cobrar')
-            ->assertSee('Bs 300.00')
+            ->assertSee('Cuentas por cobrar')
+            ->assertSee('Bs 300,00')
             ->assertSee('Contratos validados')
             ->assertViewHas('summary', fn (array $summary): bool => $summary['cantidadVentas'] === 3.0
                 && $summary['totalMonto'] === 350.0
@@ -372,6 +376,11 @@ class FinancialReportTest extends TestCase
 
         $response->assertOk()
             ->assertSee('Detalle de ventas por servicio')
+            ->assertSee('Reporte ejecutivo resumido')
+            ->assertSee('Servicios consultados')
+            ->assertSee('Ventas registradas')
+            ->assertSee('Cantidad total de paquetería')
+            ->assertSee('Ingresos de ventanilla')
             ->assertSee('Seleccione los meses')
             ->assertSee('BO-1')
             ->assertDontSee('BO-51')
@@ -430,5 +439,97 @@ class FinancialReportTest extends TestCase
             );
 
         Http::assertSentCount(6);
+    }
+
+    public function test_cashier_flow_consolidates_regional_and_cashier_totals(): void
+    {
+        Http::fake(function (Request $request) {
+            $isJuly = (int) $request['mes'] === 7;
+
+            return Http::response(json_encode([
+                'servicios' => [[
+                    'servicio' => 'Servicio Internacional',
+                    'cantidadVentas' => 3,
+                    'cantidadDetalles' => 3,
+                    'totalCantidad' => 3,
+                    'totalMonto' => 150,
+                    'ultimaFecha' => $isJuly ? '2026-07-20' : '2026-08-20',
+                    'porRegionales' => [
+                        [
+                            'regional' => 'LA PAZ',
+                            'codigosSucursal' => ['0'],
+                            'cantidadVentas' => 2,
+                            'cantidadDetalles' => 2,
+                            'totalCantidad' => 2,
+                            'totalMonto' => $isJuly ? 100 : 125,
+                        ],
+                        [
+                            'regional' => 'COCHABAMBA',
+                            'codigosSucursal' => ['2'],
+                            'cantidadVentas' => 1,
+                            'cantidadDetalles' => 1,
+                            'totalCantidad' => 1,
+                            'totalMonto' => $isJuly ? 50 : 25,
+                        ],
+                    ],
+                    'porPersonas' => [
+                        [
+                            'usuarioId' => '10',
+                            'usuarioNombre' => 'CAJERO UNO',
+                            'usuarioEmail' => 'cajero1@example.test',
+                            'usuarioAlias' => 'cajero1',
+                            'usuarioCarnet' => '1000',
+                            'cantidadVentas' => 2,
+                            'cantidadDetalles' => 2,
+                            'totalCantidad' => 2,
+                            'totalMonto' => $isJuly ? 100 : 125,
+                        ],
+                        [
+                            'usuarioId' => '20',
+                            'usuarioNombre' => 'CAJERO DOS',
+                            'usuarioEmail' => 'cajero2@example.test',
+                            'usuarioAlias' => 'cajero2',
+                            'usuarioCarnet' => '2000',
+                            'cantidadVentas' => 1,
+                            'cantidadDetalles' => 1,
+                            'totalCantidad' => 1,
+                            'totalMonto' => $isJuly ? 50 : 25,
+                        ],
+                    ],
+                ]],
+            ]), 200);
+        });
+
+        $response = $this->withoutMiddleware()->get(route('dashboard.financiera.flujo-cajero', [
+            'servicios' => ['Servicio Internacional'],
+            'meses' => [7, 8],
+            'anio' => 2026,
+        ]));
+
+        $response->assertOk()
+            ->assertSee('Flujo de cajero')
+            ->assertSee('Reporte ejecutivo resumido')
+            ->assertSee('Departamento con mayor ingreso')
+            ->assertSee('Cajero con mayor ingreso')
+            ->assertSee('Filtrando datos')
+            ->assertSee('Ventas registradas')
+            ->assertSee('Cantidad total de paquetería')
+            ->assertSee('Ingresos de ventanilla')
+            ->assertSee('Facturación por departamento')
+            ->assertSee('Facturación por cajero')
+            ->assertSee('CAJERO UNO')
+            ->assertViewHas('regionalRows', fn ($rows) => $rows->count() === 2
+                && $rows->firstWhere('regional', 'LA PAZ')['totalMonto'] === 225.0
+                && $rows->firstWhere('regional', 'LA PAZ')['codigosSucursal'] === ['0']
+            )
+            ->assertViewHas('cashierRows', fn ($rows) => $rows->count() === 2
+                && $rows->firstWhere('usuarioId', '10')['cantidadVentas'] === 4.0
+                && $rows->firstWhere('usuarioId', '10')['totalMonto'] === 225.0
+            )
+            ->assertViewHas('summary', fn ($summary) => $summary['cantidadVentas'] === 6.0
+                && $summary['totalMonto'] === 300.0
+            );
+
+        Http::assertSentCount(2);
     }
 }

@@ -234,6 +234,7 @@ return [
         'feature.conciliacion.conciliaciones.conciliado',
         'dashboard.dir-financiera',
         'dashboard.financiera.ventas-servicios',
+        'dashboard.financiera.flujo-cajero',
         'dashboard.financiera.ventas-servicios.detalle',
         'dashboard.financiera.panel',
         'dashboard.financiera.presupuesto',

@@ -98,6 +98,20 @@
 </div>
 
 @once
+    <div class="report-loading-modal" data-report-loading-modal role="status" aria-live="assertive" aria-hidden="true">
+        <div class="report-loading-backdrop"></div>
+        <div class="report-loading-panel">
+            <div class="report-loading-animation" aria-hidden="true">
+                <span class="report-loading-ring report-loading-ring-one"></span>
+                <span class="report-loading-ring report-loading-ring-two"></span>
+                <span class="report-loading-icon"><i class="fas fa-chart-line"></i></span>
+            </div>
+            <h2>Filtrando datos</h2>
+            <p>Espere por favor, estamos preparando su reporte.</p>
+            <div class="report-loading-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+        </div>
+    </div>
+
     @push('css')
         <style>
             .report-filter-card { border: 0; border-radius: 12px; overflow: hidden; }
@@ -132,6 +146,30 @@
             .period-actions { padding: 16px; border-radius: 10px; background: #f8fafc; border: 1px solid #e7edf3; }
             .period-actions label { font-size: .82rem; color: #4a5568; }
             .report-submit { border-radius: 8px; font-weight: 600; }
+            .report-loading-modal { position: fixed; inset: 0; z-index: 2100; display: flex; align-items: center; justify-content: center; padding: 20px; visibility: hidden; opacity: 0; transition: opacity .2s ease, visibility .2s ease; }
+            .report-loading-modal.is-visible { visibility: visible; opacity: 1; }
+            .report-loading-backdrop { position: absolute; inset: 0; background: rgba(8, 29, 54, .72); backdrop-filter: blur(3px); }
+            .report-loading-panel { position: relative; width: min(92vw, 390px); padding: 34px 30px 30px; border-radius: 18px; background: #fff; box-shadow: 0 24px 70px rgba(0, 0, 0, .28); text-align: center; transform: translateY(14px) scale(.97); transition: transform .25s ease; }
+            .report-loading-modal.is-visible .report-loading-panel { transform: translateY(0) scale(1); }
+            .report-loading-panel h2 { margin: 20px 0 7px; color: #123f73; font-size: 1.45rem; font-weight: 700; }
+            .report-loading-panel p { margin: 0; color: #64748b; }
+            .report-loading-animation { position: relative; width: 88px; height: 88px; margin: 0 auto; }
+            .report-loading-ring { position: absolute; border: 3px solid transparent; border-radius: 50%; }
+            .report-loading-ring-one { inset: 0; border-top-color: #13539b; border-right-color: #13539b; animation: report-spin 1.15s linear infinite; }
+            .report-loading-ring-two { inset: 10px; border-bottom-color: #f5b800; border-left-color: #f5b800; animation: report-spin-reverse .85s linear infinite; }
+            .report-loading-icon { position: absolute; inset: 22px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: #e8f1fc; color: #13539b; font-size: 1.2rem; animation: report-pulse 1.3s ease-in-out infinite; }
+            .report-loading-dots { display: flex; justify-content: center; gap: 7px; margin-top: 18px; }
+            .report-loading-dots span { width: 8px; height: 8px; border-radius: 50%; background: #13539b; animation: report-dot 1.1s ease-in-out infinite; }
+            .report-loading-dots span:nth-child(2) { animation-delay: .16s; }
+            .report-loading-dots span:nth-child(3) { animation-delay: .32s; }
+            body.report-is-loading { overflow: hidden; }
+            @keyframes report-spin { to { transform: rotate(360deg); } }
+            @keyframes report-spin-reverse { to { transform: rotate(-360deg); } }
+            @keyframes report-pulse { 0%, 100% { transform: scale(.92); } 50% { transform: scale(1.05); } }
+            @keyframes report-dot { 0%, 60%, 100% { opacity: .25; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-5px); } }
+            @media (prefers-reduced-motion: reduce) {
+                .report-loading-ring, .report-loading-icon, .report-loading-dots span { animation-duration: 2.5s; }
+            }
             .financial-table td, .financial-table th { vertical-align: middle; }
             .financial-table .service-cell { min-width: 230px; max-width: 360px; white-space: normal; overflow-wrap: anywhere; }
             .financial-table .description-cell { min-width: 220px; max-width: 340px; white-space: normal; }
@@ -151,6 +189,8 @@
                     var monthInputs = Array.from(form.querySelectorAll('input[name="meses[]"]'));
                     var search = form.querySelector('.service-search');
                     var noResults = form.querySelector('.service-no-results');
+                    var loadingModal = document.querySelector('[data-report-loading-modal]');
+                    var submitButton = form.querySelector('.report-submit');
 
                     function refresh() {
                         serviceInputs.forEach(function (input) {
@@ -193,9 +233,35 @@
                     form.addEventListener('submit', function (event) {
                         var valid = serviceInputs.some(function (input) { return input.checked; }) && monthInputs.some(function (input) { return input.checked; });
                         form.querySelector('[data-selection-warning]').classList.toggle('d-none', valid);
-                        if (!valid) event.preventDefault();
+                        if (!valid) {
+                            event.preventDefault();
+                            return;
+                        }
+
+                        if (loadingModal) {
+                            loadingModal.classList.add('is-visible');
+                            loadingModal.setAttribute('aria-hidden', 'false');
+                            document.body.classList.add('report-is-loading');
+                        }
+                        if (submitButton) {
+                            submitButton.disabled = true;
+                            submitButton.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Filtrando...';
+                        }
                     });
                     refresh();
+                });
+
+                window.addEventListener('pageshow', function () {
+                    var loadingModal = document.querySelector('[data-report-loading-modal]');
+                    if (loadingModal) {
+                        loadingModal.classList.remove('is-visible');
+                        loadingModal.setAttribute('aria-hidden', 'true');
+                    }
+                    document.body.classList.remove('report-is-loading');
+                    document.querySelectorAll('.report-submit').forEach(function (button) {
+                        button.disabled = false;
+                        button.innerHTML = '<i class="fas fa-filter mr-2"></i> Filtrar';
+                    });
                 });
             });
         </script>

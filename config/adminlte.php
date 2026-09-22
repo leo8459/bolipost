@@ -493,6 +493,12 @@ return [
                     'icon' => 'fas fa-file-invoice-dollar',
                 ],
                 [
+                    'text' => 'Flujo de cajero',
+                    'can' => 'dashboard.financiera.flujo-cajero',
+                    'url' => '/dir-financiera/flujo-cajero',
+                    'icon' => 'fas fa-cash-register',
+                ],
+                [
                     'text' => 'Detalle por Servicio',
                     'can' => 'dashboard.financiera.ventas-servicios.detalle',
                     'url' => '/dir-financiera/ventas-servicios/detalle',

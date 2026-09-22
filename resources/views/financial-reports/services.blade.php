@@ -117,14 +117,56 @@
         </div>
     @endif
 
+    @php
+        $executiveTopService = $serviceGroups->first();
+        $executiveTotalIncome = (float) ($summary['totalMonto'] ?? 0);
+        $executiveTopIncome = (float) ($executiveTopService['totalMonto'] ?? 0);
+        $executiveTopShare = $executiveTotalIncome > 0 ? ($executiveTopIncome / $executiveTotalIncome) * 100 : 0;
+        $executiveLead = 'En el periodo seleccionado se registraron '
+            . \App\Support\BolivianNumber::format((float) ($summary['cantidadVentas'] ?? 0))
+            . ' ventas y una cantidad total de paquetería de '
+            . \App\Support\BolivianNumber::format((float) ($summary['totalCantidad'] ?? 0), 2)
+            . ', generando ingresos de ventanilla por Bs '
+            . \App\Support\BolivianNumber::format($executiveTotalIncome, 2) . '.';
+        $executiveItems = [
+            [
+                'label' => 'Ventas registradas',
+                'value' => \App\Support\BolivianNumber::format((float) ($summary['cantidadVentas'] ?? 0)),
+                'detail' => \App\Support\BolivianNumber::format((float) ($summary['cantidadServicios'] ?? 0)) . ' servicios agrupados analizados.',
+                'icon' => 'fa-file-invoice',
+                'color' => 'info',
+            ],
+            [
+                'label' => 'Ingresos de ventanilla',
+                'value' => 'Bs ' . \App\Support\BolivianNumber::format($executiveTotalIncome, 2),
+                'detail' => 'Ingreso total del periodo y servicios seleccionados.',
+                'icon' => 'fa-money-bill-wave',
+                'color' => 'success',
+            ],
+            [
+                'label' => 'Servicio con mayor ingreso',
+                'value' => $executiveTopService['servicio'] ?? 'Sin datos',
+                'detail' => $executiveTopService
+                    ? 'Bs ' . \App\Support\BolivianNumber::format($executiveTopIncome, 2) . ' (' . \App\Support\BolivianNumber::format($executiveTopShare, 1) . '% del ingreso).'
+                    : 'No existen ventas para la selección realizada.',
+                'icon' => 'fa-trophy',
+                'color' => 'warning',
+            ],
+        ];
+        $executiveNote = (float) ($summary['contratosPorCobrarMonto'] ?? 0) > 0
+            ? 'Existen Bs ' . \App\Support\BolivianNumber::format((float) $summary['contratosPorCobrarMonto'], 2) . ' en cuentas por cobrar correspondientes a contratos pendientes de validación.'
+            : 'No se registran cuentas por cobrar de contratos dentro de la selección actual.';
+    @endphp
+    @include('financial-reports.partials.executive-summary')
+
     @unless($soloContratos)
     <div class="row">
         @foreach([
             ['Servicios', $summary['cantidadServicios'] ?? 0, 'fa-layer-group', 'primary'],
-            ['Ventas contabilizadas', $summary['cantidadVentas'] ?? 0, 'fa-file-invoice', 'info'],
-            ['Cantidad total', $summary['totalCantidad'] ?? 0, 'fa-boxes', 'warning'],
-            ['Monto contabilizado', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['totalMonto'] ?? 0), 2), 'fa-money-bill-wave', 'success'],
-            ['Contratos por cobrar', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['contratosPorCobrarMonto'] ?? 0), 2), 'fa-hand-holding-usd', 'warning', \App\Support\BolivianNumber::format((float) ($summary['contratosPorCobrarVentas'] ?? 0)) . ' factura(s) pendiente(s)'],
+            ['Ventas registradas', $summary['cantidadVentas'] ?? 0, 'fa-file-invoice', 'info'],
+            ['Cantidad total de paquetería', $summary['totalCantidad'] ?? 0, 'fa-boxes', 'warning'],
+            ['Ingresos de ventanilla', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['totalMonto'] ?? 0), 2), 'fa-money-bill-wave', 'success'],
+            ['Cuentas por cobrar', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['contratosPorCobrarMonto'] ?? 0), 2), 'fa-hand-holding-usd', 'warning', \App\Support\BolivianNumber::format((float) ($summary['contratosPorCobrarVentas'] ?? 0)) . ' factura(s) pendiente(s)'],
             ['Contratos validados', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['contratosValidadosMonto'] ?? 0), 2), 'fa-clipboard-check', 'success', \App\Support\BolivianNumber::format((float) ($summary['contratosValidadosVentas'] ?? 0)) . ' factura(s) asociada(s)'],
         ] as $metric)
             @php([$label, $value, $icon, $color, $help] = array_pad($metric, 5, null))
