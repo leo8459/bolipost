@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\MobileUtilityController;
 use App\Http\Controllers\Api\PaqueteContactoApiController;
 use App\Http\Controllers\Api\QrDecoderApiController;
 use App\Http\Controllers\Api\SiopAuthApiController;
+use App\Http\Controllers\Api\TarifarioApiController;
 use App\Http\Controllers\Api\VehicleLogApiController;
 use App\Http\Controllers\AppConfigController;
 use App\Http\Controllers\BusquedaController;
@@ -197,6 +198,14 @@ Route::middleware(['force.json', 'external.api.jwt', 'throttle:120,1'])->group(f
     Route::get('/direcciones-destino/cantidad', [DireccionDestinoApiController::class, 'cantidad'])
         ->middleware('external.api.ability:direcciones-destino:read')
         ->name('api.direcciones-destino.cantidad');
+
+    Route::get('/tarifarios/ems-nacional', [TarifarioApiController::class, 'emsNacional'])
+        ->middleware('external.api.ability:tarifario:ems-nacional:read')
+        ->name('api.tarifarios.ems-nacional');
+    Route::get('/tarifarios/delivery-express', [TarifarioApiController::class, 'deliveryExpress'])
+        ->middleware('external.api.ability:tarifario:delivery-express:read')
+        ->name('api.tarifarios.delivery-express');
+
     Route::get('/direcciones-destino/{tipo}/{id}', [DireccionDestinoApiController::class, 'show'])
         ->middleware('external.api.ability:direcciones-destino:read')
         ->whereNumber('id')

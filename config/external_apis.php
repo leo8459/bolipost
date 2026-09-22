@@ -2,6 +2,50 @@
 
 return [
     'catalog' => [
+        'tarifario:ems-nacional:read' => [
+            'name' => 'TARIFARIO EMS NACIONAL',
+            'description' => 'Consulta todo el tarifario EMS Nacional con los datos completos de la tabla y sus relaciones de servicio, peso, destino y origen.',
+            'access' => 'Solo lectura',
+            'icon' => 'fas fa-table',
+            'color' => 'info',
+            'created_at' => '2026-09-10 10:00:00',
+            'endpoints' => [
+                [
+                    'method' => 'GET',
+                    'path' => '/api/tarifarios/ems-nacional',
+                    'example' => '',
+                    'response' => [
+                        'nombre_api' => 'TARIFARIO EMS NACIONAL',
+                        'tabla' => 'tarifario',
+                        'total_registros' => 25,
+                        'relaciones_incluidas' => ['servicio', 'peso', 'destino', 'origen'],
+                        'data' => [],
+                    ],
+                ],
+            ],
+        ],
+        'tarifario:delivery-express:read' => [
+            'name' => 'TARIFARIO DELIVERY EXPRESS',
+            'description' => 'Consulta todo el tarifario Delivery Express con los datos completos de la tabla y sus relaciones de origen, destino y servicio extra.',
+            'access' => 'Solo lectura',
+            'icon' => 'fas fa-shipping-fast',
+            'color' => 'success',
+            'created_at' => '2026-09-10 10:00:00',
+            'endpoints' => [
+                [
+                    'method' => 'GET',
+                    'path' => '/api/tarifarios/delivery-express',
+                    'example' => '',
+                    'response' => [
+                        'nombre_api' => 'TARIFARIO DELIVERY EXPRESS',
+                        'tabla' => 'tarifario_tiktoker',
+                        'total_registros' => 243,
+                        'relaciones_incluidas' => ['origen', 'destino', 'servicio_extra'],
+                        'data' => [],
+                    ],
+                ],
+            ],
+        ],
         'packgo:mobile-auth' => [
             'name' => 'PACKGO - Autenticacion movil',
             'description' => 'Permite iniciar, validar y cerrar sesion desde PackGo. Todas las solicitudes deben enviar X-API-Token con la credencial de integracion.',
