@@ -8,6 +8,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
+use Smalot\PdfParser\Parser;
 use Tests\TestCase;
 
 class FinancialReportTest extends TestCase
@@ -441,7 +442,7 @@ class FinancialReportTest extends TestCase
         Http::assertSentCount(6);
     }
 
-    public function test_cashier_flow_consolidates_regional_and_cashier_totals(): void
+    public function test_cashier_flow_consolidates_totals_and_excludes_contracts(): void
     {
         Http::fake(function (Request $request) {
             $isJuly = (int) $request['mes'] === 7;
@@ -449,10 +450,10 @@ class FinancialReportTest extends TestCase
             return Http::response(json_encode([
                 'servicios' => [[
                     'servicio' => 'Servicio Internacional',
-                    'cantidadVentas' => 3,
-                    'cantidadDetalles' => 3,
-                    'totalCantidad' => 3,
-                    'totalMonto' => 150,
+                    'cantidadVentas' => 4,
+                    'cantidadDetalles' => 4,
+                    'totalCantidad' => 4,
+                    'totalMonto' => 200,
                     'ultimaFecha' => $isJuly ? '2026-07-20' : '2026-08-20',
                     'porRegionales' => [
                         [
@@ -495,13 +496,46 @@ class FinancialReportTest extends TestCase
                             'totalCantidad' => 1,
                             'totalMonto' => $isJuly ? 50 : 25,
                         ],
+                        [
+                            'usuarioId' => '99',
+                            'usuarioNombre' => 'EDGAR JAVIER GIRONDA CHIRI',
+                            'usuarioEmail' => 'edgar.girona@correos.gob.bo',
+                            'usuarioAlias' => 'edgargironda',
+                            'usuarioCarnet' => '4850032',
+                            'cantidadVentas' => 1,
+                            'cantidadDetalles' => 1,
+                            'totalCantidad' => 1,
+                            'totalMonto' => 50,
+                        ],
                     ],
+                ], [
+                    'servicio' => 'Servicio Contratos por concepto de pago de servicios de courier correspondiente',
+                    'cantidadVentas' => 10,
+                    'cantidadDetalles' => 10,
+                    'totalCantidad' => 10,
+                    'totalMonto' => 1000,
+                    'porRegionales' => [[
+                        'regional' => 'LA PAZ',
+                        'codigosSucursal' => ['0'],
+                        'cantidadVentas' => 10,
+                        'cantidadDetalles' => 10,
+                        'totalCantidad' => 10,
+                        'totalMonto' => 1000,
+                    ]],
+                    'porPersonas' => [[
+                        'usuarioId' => '30',
+                        'usuarioNombre' => 'CAJERO CONTRATOS',
+                        'usuarioAlias' => 'contratos',
+                        'cantidadVentas' => 10,
+                        'cantidadDetalles' => 10,
+                        'totalCantidad' => 10,
+                        'totalMonto' => 1000,
+                    ]],
                 ]],
             ]), 200);
         });
 
         $response = $this->withoutMiddleware()->get(route('dashboard.financiera.flujo-cajero', [
-            'servicios' => ['Servicio Internacional'],
             'meses' => [7, 8],
             'anio' => 2026,
         ]));
@@ -509,19 +543,26 @@ class FinancialReportTest extends TestCase
         $response->assertOk()
             ->assertSee('Flujo de cajero')
             ->assertSee('Reporte ejecutivo resumido')
-            ->assertSee('Departamento con mayor ingreso')
             ->assertSee('Cajero con mayor ingreso')
             ->assertSee('Filtrando datos')
-            ->assertSee('Ventas registradas')
-            ->assertSee('Cantidad total de paquetería')
+            ->assertSee('Ventas realizadas')
+            ->assertSee('Cantidad de paquetes')
             ->assertSee('Ingresos de ventanilla')
-            ->assertSee('Facturación por departamento')
             ->assertSee('Facturación por cajero')
+            ->assertSee('Regional / departamento')
+            ->assertSee('Generando reporte')
+            ->assertSee('data-report-download', false)
             ->assertSee('CAJERO UNO')
-            ->assertViewHas('regionalRows', fn ($rows) => $rows->count() === 2
-                && $rows->firstWhere('regional', 'LA PAZ')['totalMonto'] === 225.0
-                && $rows->firstWhere('regional', 'LA PAZ')['codigosSucursal'] === ['0']
-            )
+            ->assertSee('Descargar reporte ejecutivo')
+            ->assertSee('Los contratos se excluyen')
+            ->assertDontSee('CAJERO CONTRATOS')
+            ->assertDontSee('EDGAR JAVIER GIRONDA CHIRI')
+            ->assertDontSee('edgargironda')
+            ->assertDontSee('4850032')
+            ->assertDontSee('Servicio Contratos por concepto')
+            ->assertDontSee('Facturación por departamento')
+            ->assertViewHas('selectedServices', ['Servicio Internacional'])
+            ->assertViewHas('serviceOptions', fn ($options) => $options->all() === ['Servicio Internacional'])
             ->assertViewHas('cashierRows', fn ($rows) => $rows->count() === 2
                 && $rows->firstWhere('usuarioId', '10')['cantidadVentas'] === 4.0
                 && $rows->firstWhere('usuarioId', '10')['totalMonto'] === 225.0
@@ -531,5 +572,156 @@ class FinancialReportTest extends TestCase
             );
 
         Http::assertSentCount(2);
+    }
+
+    public function test_cashier_flow_filters_totals_and_cashiers_by_department(): void
+    {
+        Schema::create('users', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
+            $table->string('alias')->nullable();
+            $table->string('email')->unique();
+            $table->string('password');
+            $table->string('ciudad')->nullable();
+            $table->json('regionales')->nullable();
+            $table->softDeletes();
+            $table->timestamps();
+        });
+        DB::table('users')->insert([
+            ['id' => 10, 'name' => 'CAJERO LA PAZ', 'alias' => 'cajerolp', 'email' => 'lapaz@example.test', 'password' => 'secret', 'ciudad' => 'LA PAZ', 'regionales' => json_encode(['LA PAZ'])],
+            ['id' => 20, 'name' => 'CAJERO SANTA CRUZ', 'alias' => 'cajeroscz', 'email' => 'santacruz@example.test', 'password' => 'secret', 'ciudad' => 'SANTA CRUZ', 'regionales' => json_encode(['SANTA CRUZ'])],
+            ['id' => 99, 'name' => 'EDGAR JAVIER GIRONDA CHIRI', 'alias' => 'edgargironda', 'email' => 'edgar.girona@correos.gob.bo', 'password' => 'secret', 'ciudad' => 'LA PAZ', 'regionales' => json_encode(['LA PAZ'])],
+        ]);
+
+        Http::fake([
+            'safe.example.test/*' => Http::response(json_encode([
+                'servicios' => [[
+                    'servicio' => 'Servicio Internacional',
+                    'cantidadVentas' => 7,
+                    'cantidadDetalles' => 7,
+                    'totalCantidad' => 7,
+                    'totalMonto' => 700,
+                    'porRegionales' => [
+                        ['regional' => 'LA PAZ', 'codigosSucursal' => ['0'], 'cantidadVentas' => 4, 'cantidadDetalles' => 4, 'totalCantidad' => 4, 'totalMonto' => 400],
+                        ['regional' => 'SANTA CRUZ DE LA SIERRA', 'codigosSucursal' => ['1'], 'cantidadVentas' => 3, 'cantidadDetalles' => 3, 'totalCantidad' => 3, 'totalMonto' => 300],
+                        ['regional' => 'COCHABAMBA', 'codigosSucursal' => ['2'], 'cantidadVentas' => 0, 'cantidadDetalles' => 0, 'totalCantidad' => 0, 'totalMonto' => 0],
+                        ['regional' => 'ORURO', 'codigosSucursal' => ['3'], 'cantidadVentas' => 0, 'cantidadDetalles' => 0, 'totalCantidad' => 0, 'totalMonto' => 0],
+                        ['regional' => 'POTOSI', 'codigosSucursal' => ['4'], 'cantidadVentas' => 0, 'cantidadDetalles' => 0, 'totalCantidad' => 0, 'totalMonto' => 0],
+                        ['regional' => 'CHUQUISACA', 'codigosSucursal' => ['5'], 'cantidadVentas' => 0, 'cantidadDetalles' => 0, 'totalCantidad' => 0, 'totalMonto' => 0],
+                        ['regional' => 'TARIJA', 'codigosSucursal' => ['6'], 'cantidadVentas' => 0, 'cantidadDetalles' => 0, 'totalCantidad' => 0, 'totalMonto' => 0],
+                        ['regional' => 'PANDO', 'codigosSucursal' => ['7'], 'cantidadVentas' => 0, 'cantidadDetalles' => 0, 'totalCantidad' => 0, 'totalMonto' => 0],
+                        ['regional' => 'BENI', 'codigosSucursal' => ['8'], 'cantidadVentas' => 0, 'cantidadDetalles' => 0, 'totalCantidad' => 0, 'totalMonto' => 0],
+                    ],
+                    'porPersonas' => [
+                        ['usuarioId' => '10', 'usuarioNombre' => 'CAJERO LA PAZ', 'usuarioEmail' => 'lapaz@example.test', 'usuarioAlias' => 'cajerolp', 'cantidadVentas' => 3, 'cantidadDetalles' => 3, 'totalCantidad' => 3, 'totalMonto' => 300],
+                        ['usuarioId' => '20', 'usuarioNombre' => 'CAJERO SANTA CRUZ', 'usuarioEmail' => 'santacruz@example.test', 'usuarioAlias' => 'cajeroscz', 'cantidadVentas' => 3, 'cantidadDetalles' => 3, 'totalCantidad' => 3, 'totalMonto' => 300],
+                        ['usuarioId' => '99', 'usuarioNombre' => 'EDGAR JAVIER GIRONDA CHIRI', 'usuarioEmail' => 'edgar.girona@correos.gob.bo', 'usuarioAlias' => 'edgargironda', 'cantidadVentas' => 1, 'cantidadDetalles' => 1, 'totalCantidad' => 1, 'totalMonto' => 100],
+                    ],
+                ]],
+            ]), 200),
+        ]);
+
+        $response = $this->withoutMiddleware()->get(route('dashboard.financiera.flujo-cajero', [
+            'meses' => [8],
+            'anio' => 2026,
+            'departamento' => 'SANTA CRUZ',
+        ]));
+
+        $response->assertOk()
+            ->assertSee('Seleccione el departamento')
+            ->assertSee('Todos los departamentos')
+            ->assertSee('Reporte filtrado exclusivamente para')
+            ->assertSee('CAJERO SANTA CRUZ')
+            ->assertDontSee('CAJERO LA PAZ')
+            ->assertDontSee('EDGAR JAVIER GIRONDA CHIRI')
+            ->assertViewHas('selectedDepartment', 'SANTA CRUZ')
+            ->assertViewHas('departmentOptions', fn ($options) => $options->all() === [
+                'COBIJA',
+                'COCHABAMBA',
+                'LA PAZ',
+                'ORURO',
+                'POTOSI',
+                'SANTA CRUZ',
+                'SUCRE',
+                'TARIJA',
+                'TRINIDAD',
+            ])
+            ->assertViewHas('cashierRows', fn ($rows) => $rows->count() === 1
+                && $rows->first()['usuarioNombre'] === 'CAJERO SANTA CRUZ'
+                && $rows->first()['departamento'] === 'SANTA CRUZ'
+                && $rows->first()['totalMonto'] === 300.0
+            )
+            ->assertViewHas('summary', fn ($summary) => $summary['cantidadVentas'] === 3.0
+                && $summary['totalCantidad'] === 3.0
+                && $summary['totalMonto'] === 300.0
+            );
+    }
+
+    public function test_cashier_flow_executive_report_downloads_pdf_without_contracts(): void
+    {
+        Http::fake(function (Request $request) {
+            if (str_contains($request->url(), '/ventas/reportes/servicios/detalle')) {
+                return Http::response(json_encode([
+                    'servicio' => [
+                        'rows' => [
+                            [
+                                'fecha' => '2026-08-03 09:15:00',
+                                'usuario' => ['id' => '10', 'nombre' => 'CAJERO UNO'],
+                                'regional' => ['nombre' => 'LA PAZ'],
+                            ],
+                            [
+                                'fecha' => '2026-08-04 14:20:00',
+                                'usuario' => ['id' => '10', 'nombre' => 'CAJERO UNO'],
+                                'regional' => ['nombre' => 'LA PAZ'],
+                            ],
+                        ],
+                    ],
+                ], JSON_UNESCAPED_UNICODE), 200);
+            }
+
+            return Http::response(json_encode([
+                'servicios' => [
+                    [
+                        'servicio' => 'Servicio Internacional',
+                        'cantidadVentas' => 3,
+                        'cantidadDetalles' => 3,
+                        'totalCantidad' => 3,
+                        'totalMonto' => 300,
+                        'porRegionales' => [['regional' => 'LA PAZ', 'cantidadVentas' => 3, 'cantidadDetalles' => 3, 'totalCantidad' => 3, 'totalMonto' => 300]],
+                        'porPersonas' => [
+                            ['usuarioId' => '10', 'usuarioNombre' => 'CAJERO UNO', 'regional' => 'LA PAZ', 'cantidadVentas' => 2, 'cantidadDetalles' => 2, 'totalCantidad' => 2, 'totalMonto' => 200],
+                            ['usuarioId' => '99', 'usuarioNombre' => 'EDGAR JAVIER GIRONDA CHIRI', 'regional' => 'LA PAZ', 'cantidadVentas' => 1, 'cantidadDetalles' => 1, 'totalCantidad' => 1, 'totalMonto' => 100],
+                        ],
+                    ],
+                    [
+                        'servicio' => 'Servicio Contratos por concepto de pago de servicios de courier correspondiente',
+                        'cantidadVentas' => 5,
+                        'cantidadDetalles' => 5,
+                        'totalCantidad' => 5,
+                        'totalMonto' => 500,
+                        'porRegionales' => [['regional' => 'COCHABAMBA', 'totalMonto' => 500]],
+                        'porPersonas' => [['usuarioId' => '20', 'usuarioNombre' => 'CAJERO CONTRATOS', 'totalMonto' => 500]],
+                    ],
+                ],
+            ], JSON_UNESCAPED_UNICODE), 200);
+        });
+
+        $response = $this->withoutMiddleware()->get(route('dashboard.financiera.flujo-cajero.pdf', [
+            'meses' => [8],
+            'anio' => 2026,
+            'departamento' => 'LA PAZ',
+        ]));
+
+        $response->assertOk()
+            ->assertHeader('content-type', 'application/pdf')
+            ->assertDownload();
+
+        $this->assertStringStartsWith('%PDF-', $response->getContent());
+        $text = (new Parser)->parseContent($response->getContent())->getText();
+        $this->assertStringContainsString('INGRESOS DE VENTANILLA NACIONAL', $text);
+        $this->assertStringContainsString('DÍAS', $text);
+        $this->assertStringContainsString('TRABAJADOS', $text);
+        $this->assertStringContainsString('PROMEDIO POR DÍA', $text);
+        $this->assertStringContainsString('Bs 100,00', $text);
     }
 }

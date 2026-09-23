@@ -71,6 +71,24 @@
                         <button type="button" class="picker-action" data-clear-all="months">Limpiar</button>
                     </div>
 
+                    @if($showDepartmentFilter ?? false)
+                        <div class="mt-4">
+                            <div class="picker-heading mb-2">
+                                <div>
+                                    <span class="picker-step">3</span>
+                                    <strong>Seleccione el departamento</strong>
+                                </div>
+                            </div>
+                            <select name="departamento" class="form-control">
+                                <option value="">Todos los departamentos</option>
+                                @foreach($departmentOptions ?? [] as $department)
+                                    <option value="{{ $department }}" @selected(($selectedDepartment ?? '') === $department)>{{ $department }}</option>
+                                @endforeach
+                            </select>
+                            <small class="text-muted d-block mt-2">La vista y el PDF mostrarán únicamente la información del lugar seleccionado.</small>
+                        </div>
+                    @endif
+
                     <div class="period-actions mt-4">
                         <div class="row">
                             <div class="{{ ($showLimit ?? false) ? 'col-6' : 'col-12' }} mb-3">
@@ -239,6 +257,10 @@
                         }
 
                         if (loadingModal) {
+                            var loadingTitle = loadingModal.querySelector('h2');
+                            var loadingMessage = loadingModal.querySelector('p');
+                            if (loadingTitle) loadingTitle.textContent = 'Filtrando datos';
+                            if (loadingMessage) loadingMessage.textContent = 'Espere por favor, estamos preparando su reporte.';
                             loadingModal.classList.add('is-visible');
                             loadingModal.setAttribute('aria-hidden', 'false');
                             document.body.classList.add('report-is-loading');
@@ -249,6 +271,35 @@
                         }
                     });
                     refresh();
+                });
+
+                document.querySelectorAll('[data-report-download]').forEach(function (link) {
+                    link.addEventListener('click', function (event) {
+                        event.preventDefault();
+
+                        var loadingModal = document.querySelector('[data-report-loading-modal]');
+                        if (loadingModal) {
+                            var loadingTitle = loadingModal.querySelector('h2');
+                            var loadingMessage = loadingModal.querySelector('p');
+                            if (loadingTitle) loadingTitle.textContent = link.dataset.loadingTitle || 'Generando reporte';
+                            if (loadingMessage) loadingMessage.textContent = link.dataset.loadingMessage || 'Espere por favor, estamos preparando el PDF.';
+                            loadingModal.classList.add('is-visible');
+                            loadingModal.setAttribute('aria-hidden', 'false');
+                            document.body.classList.add('report-is-loading');
+                        }
+
+                        window.setTimeout(function () {
+                            window.location.assign(link.href);
+                        }, 180);
+
+                        window.setTimeout(function () {
+                            if (loadingModal) {
+                                loadingModal.classList.remove('is-visible');
+                                loadingModal.setAttribute('aria-hidden', 'true');
+                            }
+                            document.body.classList.remove('report-is-loading');
+                        }, 4500);
+                    });
                 });
 
                 window.addEventListener('pageshow', function () {

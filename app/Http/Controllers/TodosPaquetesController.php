@@ -3,28 +3,42 @@
 namespace App\Http\Controllers;
 
 use App\Exports\TodosPaquetesExport;
-use App\Models\Estado;
 use App\Models\Cartero;
 use App\Models\CarteroAssignmentReport;
 use App\Models\CarteroAssignmentReportItem;
+use App\Models\Estado;
 use App\Models\PaqueteCerti;
 use App\Models\PaqueteEms;
 use App\Models\PaqueteOrdi;
 use App\Models\Recojo;
 use App\Models\SolicitudCliente;
 use App\Models\User;
+use App\Support\CarteroEvent;
+use App\Support\CodigoContinuacionEvent;
+use App\Support\EncargadoEvent;
 use App\Support\PackageWeightFilter;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Facades\Excel;
 
 class TodosPaquetesController extends Controller
 {
+    private const EVENT_TABLES = [
+        'ems' => 'eventos_ems',
+        'contrato' => 'eventos_contrato',
+        'certi' => 'eventos_certi',
+        'ordi' => 'eventos_ordi',
+        'solicitud' => 'eventos_tiktoker',
+    ];
+
     private const DEPARTAMENTOS = [
         'TRINIDAD',
         'SUCRE',
@@ -208,7 +222,7 @@ class TodosPaquetesController extends Controller
         $filters['type_label'] = array_key_exists($filters['type'], self::TYPES)
             ? self::TYPES[$filters['type']]['label']
             : 'TODOS';
-        $filters['estado_label'] = !empty($filters['estado_id'])
+        $filters['estado_label'] = ! empty($filters['estado_id'])
             ? Estado::query()->whereIn('id', $filters['estado_id'])->orderBy('nombre_estado')->pluck('nombre_estado')->implode(', ')
             : 'TODOS';
         $filters['generated_at'] = now();
@@ -217,6 +231,72 @@ class TodosPaquetesController extends Controller
             new TodosPaquetesExport($rows, $filters),
             'reporte-paquetes-filtrados-'.now()->format('Ymd-His').'.xlsx',
         );
+    }
+
+    public function reporteHistorial(Request $request)
+    {
+        $data = $request->validate([
+            'codigos' => ['required', 'string', 'max:12000'],
+        ], [], [
+            'codigos' => 'guías',
+        ]);
+
+        $requestedCodes = $this->parseHistoryReportCodes((string) $data['codigos']);
+
+        if ($requestedCodes->isEmpty()) {
+            throw ValidationException::withMessages([
+                'codigos' => 'Ingresa al menos un código de guía.',
+            ]);
+        }
+
+        if ($requestedCodes->count() > 200) {
+            throw ValidationException::withMessages([
+                'codigos' => 'El reporte admite un máximo de 200 guías por vez.',
+            ]);
+        }
+
+        $rows = DB::query()
+            ->fromSub($this->buildUnionQuery(), 'p')
+            ->whereIn(DB::raw('UPPER(TRIM(codigo))'), $requestedCodes->all())
+            ->get();
+
+        $requestedOrder = $requestedCodes->flip();
+        $rows = $rows
+            ->sortBy(fn (object $row): int => (int) ($requestedOrder[$this->normalizedCode($row->codigo)] ?? PHP_INT_MAX))
+            ->values()
+            ->map(function (object $row): object {
+                $row->origen = $this->canonicalLocationName((string) $row->origen);
+                $row->destino = $this->canonicalLocationName((string) $row->destino);
+
+                return $row;
+            });
+
+        $eventsByPackage = $this->historyEventsForPackages($rows);
+        $rows->each(function (object $row) use ($eventsByPackage): void {
+            $row->eventos = $eventsByPackage->get(
+                $this->historyPackageKey((string) $row->type_key, $row->codigo),
+                collect()
+            );
+            $row->duracion_historial = $this->historyTotalDuration($row->eventos);
+        });
+
+        $foundCodes = $rows
+            ->pluck('codigo')
+            ->map(fn ($code): string => $this->normalizedCode($code))
+            ->unique();
+        $notFoundCodes = $requestedCodes->diff($foundCodes)->values();
+        $generatedAt = now();
+
+        $pdf = Pdf::loadView('todos_paquetes.historial-pdf', [
+            'packages' => $rows,
+            'requestedCodes' => $requestedCodes,
+            'notFoundCodes' => $notFoundCodes,
+            'generatedAt' => $generatedAt,
+            'generatedBy' => $request->user(),
+            'totalEvents' => $rows->sum(fn (object $row): int => $row->eventos->count()),
+        ])->setPaper('A4', 'portrait');
+
+        return $pdf->stream('historial-paquetes-'.$generatedAt->format('Ymd-His').'.pdf');
     }
 
     public function store(Request $request)
@@ -298,6 +378,7 @@ class TodosPaquetesController extends Controller
         foreach ($config['editable'] as $field => $label) {
             if ($field === 'fecha_recojo') {
                 $rules[$field] = ['nullable', 'date'];
+
                 continue;
             }
             $rules[$field] = in_array($field, $config['numeric'] ?? [], true)
@@ -343,7 +424,7 @@ class TodosPaquetesController extends Controller
 
             return response()->streamDownload(function () use ($pdf) {
                 echo $pdf->output();
-            }, 'boleta-ems-' . $model->codigo . '-' . $generatedAt->format('Ymd-His') . '.pdf');
+            }, 'boleta-ems-'.$model->codigo.'-'.$generatedAt->format('Ymd-His').'.pdf');
         }
 
         if ($type === 'solicitud') {
@@ -365,7 +446,7 @@ class TodosPaquetesController extends Controller
 
             return response()->streamDownload(function () use ($pdf) {
                 echo $pdf->output();
-            }, 'formulario-entrega-' . $model->codigo . '-' . $generatedAt->format('Ymd-His') . '.pdf');
+            }, 'formulario-entrega-'.$model->codigo.'-'.$generatedAt->format('Ymd-His').'.pdf');
         }
 
         if ($type === 'ordi') {
@@ -377,7 +458,7 @@ class TodosPaquetesController extends Controller
 
             return response()->streamDownload(function () use ($pdf) {
                 echo $pdf->output();
-            }, 'formulario-entrega-' . $model->codigo . '-' . $generatedAt->format('Ymd-His') . '.pdf');
+            }, 'formulario-entrega-'.$model->codigo.'-'.$generatedAt->format('Ymd-His').'.pdf');
         }
 
         abort_unless($type === 'contrato', 404);
@@ -396,7 +477,7 @@ class TodosPaquetesController extends Controller
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
-        }, 'contrato-' . $contrato->codigo . '-' . $generatedAt->format('Ymd-His') . '.pdf', [
+        }, 'contrato-'.$contrato->codigo.'-'.$generatedAt->format('Ymd-His').'.pdf', [
             'Content-Type' => 'application/pdf',
         ]);
     }
@@ -419,7 +500,7 @@ class TodosPaquetesController extends Controller
             'codigo_reporte' => $report->codigo,
         ])->setPaper('A4', 'portrait');
 
-        return $pdf->stream('reporte-salida-' . $report->codigo . '.pdf');
+        return $pdf->stream('reporte-salida-'.$report->codigo.'.pdf');
     }
 
     public function cambiarCarteroReporte(Request $request, string $codigo)
@@ -437,11 +518,11 @@ class TodosPaquetesController extends Controller
 
         $newUser = User::query()->findOrFail((int) $data['user_id'], ['id', 'name', 'ciudad']);
 
-        if (!$this->isAllowedCartero($newUser)) {
+        if (! $this->isAllowedCartero($newUser)) {
             return back()->with('error', 'El usuario seleccionado no tiene rol de cartero.');
         }
 
-        if (!$this->isSameCity($request->user(), $newUser)) {
+        if (! $this->isSameCity($request->user(), $newUser)) {
             return back()->with('error', 'Solo puedes cambiar a un cartero de tu mismo departamento.');
         }
 
@@ -451,11 +532,11 @@ class TodosPaquetesController extends Controller
                 'id' => (int) $item->paquete_id,
             ])
             ->filter(fn ($item) => $item['id'] > 0 && $this->carteroColumnForType($item['tipo']) !== null)
-            ->unique(fn ($item) => $item['tipo'] . ':' . $item['id'])
+            ->unique(fn ($item) => $item['tipo'].':'.$item['id'])
             ->values();
 
         if ($items->isEmpty()) {
-            return back()->with('error', 'El reporte ' . $report->codigo . ' no tiene paquetes validos para cambiar de cartero.');
+            return back()->with('error', 'El reporte '.$report->codigo.' no tiene paquetes validos para cambiar de cartero.');
         }
 
         $updated = 0;
@@ -492,8 +573,8 @@ class TodosPaquetesController extends Controller
         return back()->with(
             $updated > 0 ? 'success' : 'error',
             $updated > 0
-                ? 'Reporte ' . $report->codigo . ': ' . $updated . ' paquete(s) cambiados al cartero ' . $newUser->name . '.'
-                : 'No se encontro ninguna asignacion activa de cartero para el reporte ' . $report->codigo . '.'
+                ? 'Reporte '.$report->codigo.': '.$updated.' paquete(s) cambiados al cartero '.$newUser->name.'.'
+                : 'No se encontro ninguna asignacion activa de cartero para el reporte '.$report->codigo.'.'
         );
     }
 
@@ -513,7 +594,7 @@ class TodosPaquetesController extends Controller
                 'id' => (int) $paquete->record_id,
             ])
             ->filter(fn ($pair) => $pair['tipo'] !== '' && $pair['id'] > 0)
-            ->unique(fn ($pair) => $pair['tipo'] . ':' . $pair['id'])
+            ->unique(fn ($pair) => $pair['tipo'].':'.$pair['id'])
             ->values();
 
         if ($pairs->isEmpty()) {
@@ -538,11 +619,11 @@ class TodosPaquetesController extends Controller
             })
             ->orderByDesc('cartero_assignment_reports.assigned_at')
             ->get()
-            ->unique(fn ($item) => $item->tipo_paquete . ':' . $item->paquete_id)
-            ->keyBy(fn ($item) => $item->tipo_paquete . ':' . $item->paquete_id);
+            ->unique(fn ($item) => $item->tipo_paquete.':'.$item->paquete_id)
+            ->keyBy(fn ($item) => $item->tipo_paquete.':'.$item->paquete_id);
 
         $paquetes->transform(function ($paquete) use ($typeMap, $items) {
-            $key = ($typeMap[$paquete->type_key] ?? '') . ':' . (int) $paquete->record_id;
+            $key = ($typeMap[$paquete->type_key] ?? '').':'.(int) $paquete->record_id;
             $report = $items->get($key);
             $paquete->salida_report_codigo = $report?->codigo;
             $paquete->salida_report_assigned_at = $report?->assigned_at;
@@ -556,7 +637,7 @@ class TodosPaquetesController extends Controller
         $hasGlobalDepartmentAccess = (bool) optional($request->user())->hasGlobalDepartmentAccess();
         $userCity = $this->normalizeCity((string) optional($request->user())->ciudad);
 
-        if (!$hasGlobalDepartmentAccess && $userCity === '') {
+        if (! $hasGlobalDepartmentAccess && $userCity === '') {
             return collect();
         }
 
@@ -564,7 +645,7 @@ class TodosPaquetesController extends Controller
             ->whereHas('roles', function ($query) {
                 $query->whereIn(DB::raw('LOWER(name)'), self::DISTRIBUTION_ASSIGNEE_ROLES);
             })
-            ->when(!$hasGlobalDepartmentAccess, function ($query) use ($userCity) {
+            ->when(! $hasGlobalDepartmentAccess, function ($query) use ($userCity) {
                 $query->whereRaw('TRIM(UPPER(ciudad)) = ?', [$userCity]);
             })
             ->orderBy('name')
@@ -652,11 +733,199 @@ class TodosPaquetesController extends Controller
         ];
     }
 
+    /**
+     * @return Collection<int, string>
+     */
+    private function parseHistoryReportCodes(string $rawCodes): Collection
+    {
+        return collect(preg_split('/[\s,;]+/u', $rawCodes) ?: [])
+            ->map(fn ($code): string => $this->normalizedCode($code))
+            ->filter(fn (string $code): bool => $code !== '' && $code !== 'SIN CODIGO')
+            ->unique()
+            ->values();
+    }
+
+    /**
+     * @param  Collection<int, object>  $packages
+     * @return Collection<string, Collection<int, object>>
+     */
+    private function historyEventsForPackages(Collection $packages): Collection
+    {
+        if ($packages->isEmpty() || ! Schema::hasTable('eventos')) {
+            return collect();
+        }
+
+        return $packages
+            ->groupBy('type_key')
+            ->flatMap(function (Collection $typePackages, string $type): Collection {
+                $eventTable = self::EVENT_TABLES[$type] ?? null;
+
+                if ($eventTable === null || ! Schema::hasTable($eventTable)) {
+                    return collect();
+                }
+
+                $codes = $typePackages
+                    ->pluck('codigo')
+                    ->map(fn ($code): string => $this->normalizedCode($code))
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                if ($codes === []) {
+                    return collect();
+                }
+
+                $hasUserId = Schema::hasColumn($eventTable, 'user_id');
+                $hasUsers = $hasUserId && Schema::hasTable('users');
+                $hasClients = $type === 'solicitud'
+                    && Schema::hasColumn($eventTable, 'cliente_id')
+                    && Schema::hasTable('clientes');
+
+                $query = DB::table($eventTable.' as tracking')
+                    ->leftJoin('eventos as evento', 'evento.id', '=', 'tracking.evento_id')
+                    ->whereIn(DB::raw('UPPER(TRIM(tracking.codigo))'), $codes)
+                    ->select([
+                        'tracking.id',
+                        'tracking.codigo',
+                        'tracking.evento_id',
+                        'evento.nombre_evento',
+                        'tracking.created_at',
+                        Schema::hasColumn($eventTable, 'codigo_relacionado')
+                            ? 'tracking.codigo_relacionado'
+                            : DB::raw('NULL as codigo_relacionado'),
+                        Schema::hasColumn($eventTable, 'detalle_evento')
+                            ? 'tracking.detalle_evento'
+                            : DB::raw('NULL as detalle_evento'),
+                    ]);
+
+                if ($hasUsers) {
+                    $query->leftJoin('users as usuario', 'usuario.id', '=', 'tracking.user_id')
+                        ->addSelect([
+                            'tracking.user_id',
+                            'usuario.name as usuario_nombre',
+                            'usuario.email as usuario_email',
+                            'usuario.ciudad as usuario_regional',
+                            Schema::hasColumn('users', 'alias')
+                                ? 'usuario.alias as usuario_alias'
+                                : DB::raw('NULL as usuario_alias'),
+                        ]);
+                } else {
+                    $query->addSelect([
+                        DB::raw('NULL as user_id'),
+                        DB::raw('NULL as usuario_nombre'),
+                        DB::raw('NULL as usuario_email'),
+                        DB::raw('NULL as usuario_regional'),
+                        DB::raw('NULL as usuario_alias'),
+                    ]);
+                }
+
+                if ($hasClients) {
+                    $query->leftJoin('clientes as cliente', 'cliente.id', '=', 'tracking.cliente_id')
+                        ->addSelect('cliente.name as cliente_nombre');
+                } else {
+                    $query->addSelect(DB::raw('NULL as cliente_nombre'));
+                }
+
+                return $query
+                    ->orderBy('tracking.created_at')
+                    ->orderBy('tracking.id')
+                    ->get()
+                    ->map(function (object $event) use ($type): object {
+                        $eventName = CodigoContinuacionEvent::nombreMostrado(
+                            trim((string) ($event->nombre_evento ?? '')),
+                            $event->codigo_relacionado ?? null
+                        );
+                        $eventName = EncargadoEvent::nombreMostrado($eventName, $event->detalle_evento ?? null);
+                        $eventName = CarteroEvent::nombreMostrado($eventName, $event->detalle_evento ?? null);
+
+                        $event->nombre_evento = $eventName !== '' ? $eventName : 'Movimiento sin descripción';
+                        $event->_package_key = $this->historyPackageKey($type, $event->codigo);
+
+                        return $event;
+                    });
+            })
+            ->groupBy('_package_key')
+            ->map(function (Collection $events): Collection {
+                $orderedEvents = $events->values();
+
+                return $orderedEvents->map(function (object $event, int $index) use ($orderedEvents): object {
+                    $currentDate = $event->created_at ? Carbon::parse($event->created_at) : null;
+                    $previousEvent = $index > 0 ? $orderedEvents->get($index - 1) : null;
+                    $previousDate = $previousEvent?->created_at ? Carbon::parse($previousEvent->created_at) : null;
+                    $nextEvent = $orderedEvents->get($index + 1);
+                    $nextDate = $nextEvent?->created_at ? Carbon::parse($nextEvent->created_at) : null;
+
+                    $event->tiempo_desde_anterior = $previousDate !== null && $currentDate !== null
+                        ? $this->formatHistoryDuration((int) $previousDate->diffInSeconds($currentDate))
+                        : 'Evento inicial';
+                    $event->tiempo_hasta_siguiente = $currentDate !== null && $nextDate !== null
+                        ? $this->formatHistoryDuration((int) $currentDate->diffInSeconds($nextDate))
+                        : 'Último evento registrado';
+
+                    return $event;
+                });
+            });
+    }
+
+    private function historyTotalDuration(Collection $events): string
+    {
+        $datedEvents = $events->filter(fn (object $event): bool => ! empty($event->created_at))->values();
+
+        if ($datedEvents->isEmpty()) {
+            return 'Sin historial';
+        }
+
+        if ($datedEvents->count() === 1) {
+            return 'Un solo evento';
+        }
+
+        $firstDate = Carbon::parse($datedEvents->first()->created_at);
+        $lastDate = Carbon::parse($datedEvents->last()->created_at);
+
+        return $this->formatHistoryDuration((int) $firstDate->diffInSeconds($lastDate));
+    }
+
+    private function formatHistoryDuration(int $totalSeconds): string
+    {
+        $totalSeconds = max(0, $totalSeconds);
+        $days = intdiv($totalSeconds, 86400);
+        $hours = intdiv($totalSeconds % 86400, 3600);
+        $minutes = intdiv($totalSeconds % 3600, 60);
+        $seconds = $totalSeconds % 60;
+        $parts = [];
+
+        if ($days > 0) {
+            $parts[] = $days.' d';
+        }
+        if ($hours > 0 || $days > 0) {
+            $parts[] = $hours.' h';
+        }
+        if ($minutes > 0 || $hours > 0 || $days > 0) {
+            $parts[] = $minutes.' min';
+        }
+        if ($seconds > 0 || $parts === []) {
+            $parts[] = $seconds.' s';
+        }
+
+        return implode(' ', $parts);
+    }
+
+    private function historyPackageKey(string $type, mixed $code): string
+    {
+        return $type.'|'.$this->normalizedCode($code);
+    }
+
+    private function normalizedCode(mixed $code): string
+    {
+        return mb_strtoupper(trim((string) $code), 'UTF-8');
+    }
+
     private function filteredPackagesQuery(array $filters)
     {
         $query = DB::query()->fromSub($this->buildUnionQuery(), 'p')
             ->when(array_key_exists($filters['type'], self::TYPES), fn ($query) => $query->where('type_key', $filters['type']))
-            ->when(!empty($filters['estado_id']), fn ($query) => $query->whereIn('estado_id', $filters['estado_id']))
+            ->when(! empty($filters['estado_id']), fn ($query) => $query->whereIn('estado_id', $filters['estado_id']))
             ->when($filters['search'] !== '', function ($query) use ($filters) {
                 $query->whereRaw('LOWER(search_blob) LIKE ?', ['%'.mb_strtolower($filters['search']).'%']);
             })
@@ -736,51 +1005,52 @@ class TodosPaquetesController extends Controller
     {
         $label = self::TYPES[$type]['label'];
         $selects = [
-            DB::raw("'" . $type . "' as type_key"),
-            DB::raw("'" . str_replace("'", "''", $label) . "' as tipo"),
-            DB::raw($table . '.id as record_id'),
+            DB::raw("'".$type."' as type_key"),
+            DB::raw("'".str_replace("'", "''", $label)."' as tipo"),
+            DB::raw($table.'.id as record_id'),
         ];
 
         foreach (['codigo', 'cod_especial', 'origen', 'destino'] as $alias) {
             $column = $columns[$alias] ?? null;
             if ($alias === 'codigo' && $rawCodigo) {
-                $selects[] = DB::raw($column . ' as codigo');
+                $selects[] = DB::raw($column.' as codigo');
+
                 continue;
             }
 
             $selects[] = $column
-                ? DB::raw('COALESCE(' . $table . '.' . $column . "::text, '') as " . $alias)
-                : DB::raw("'' as " . $alias);
+                ? DB::raw('COALESCE('.$table.'.'.$column."::text, '') as ".$alias)
+                : DB::raw("'' as ".$alias);
         }
 
         $empresaColumn = $columns['empresa'] ?? null;
         $selects[] = $empresaColumn
-            ? DB::raw('COALESCE(' . $table . '.' . $empresaColumn . "::text, '') as empresa")
+            ? DB::raw('COALESCE('.$table.'.'.$empresaColumn."::text, '') as empresa")
             : DB::raw("'' as empresa");
 
         foreach (['destinatario', 'remitente', 'telefono'] as $alias) {
             $column = $columns[$alias] ?? null;
             $selects[] = $column
-                ? DB::raw('COALESCE(' . $table . '.' . $column . "::text, '') as " . $alias)
-                : DB::raw("'' as " . $alias);
+                ? DB::raw('COALESCE('.$table.'.'.$column."::text, '') as ".$alias)
+                : DB::raw("'' as ".$alias);
         }
 
         $selects[] = DB::raw("'' as codigo_madre");
 
-        $selects[] = DB::raw('COALESCE(' . $table . '.' . ($columns['peso'] ?? 'id') . "::text, '') as peso");
-        $selects[] = DB::raw('COALESCE(' . $table . '.' . ($columns['precio'] ?? 'id') . "::text, '') as precio");
+        $selects[] = DB::raw('COALESCE('.$table.'.'.($columns['peso'] ?? 'id')."::text, '') as peso");
+        $selects[] = DB::raw('COALESCE('.$table.'.'.($columns['precio'] ?? 'id')."::text, '') as precio");
         $selects[] = ($columns['justificacion'] ?? null)
-            ? DB::raw('COALESCE(' . $table . '.' . $columns['justificacion'] . "::text, '') as justificacion")
+            ? DB::raw('COALESCE('.$table.'.'.$columns['justificacion']."::text, '') as justificacion")
             : DB::raw("'' as justificacion");
-        $selects[] = DB::raw($table . '.' . $stateColumn . ' as estado_id');
+        $selects[] = DB::raw($table.'.'.$stateColumn.' as estado_id');
         $selects[] = DB::raw("COALESCE(estados.nombre_estado, 'SIN ESTADO') as estado_nombre");
-        $selects[] = DB::raw($table . '.created_at as created_at');
-        $selects[] = DB::raw($table . '.updated_at as updated_at');
+        $selects[] = DB::raw($table.'.created_at as created_at');
+        $selects[] = DB::raw($table.'.updated_at as updated_at');
         $selects[] = DB::raw('NULL as fecha_recojo');
-        $selects[] = DB::raw($this->searchExpression($table, $columns, $rawCodigo) . ' as search_blob');
+        $selects[] = DB::raw($this->searchExpression($table, $columns, $rawCodigo).' as search_blob');
 
         return DB::table($table)
-            ->leftJoin('estados', 'estados.id', '=', $table . '.' . $stateColumn)
+            ->leftJoin('estados', 'estados.id', '=', $table.'.'.$stateColumn)
             ->select($selects);
     }
 
@@ -791,45 +1061,45 @@ class TodosPaquetesController extends Controller
         $empresaExpr = "COALESCE(NULLIF(TRIM(emp.nombre), ''), NULLIF(TRIM(emp_user.nombre), ''), '')";
 
         return DB::table($table)
-            ->leftJoin('estados', 'estados.id', '=', $table . '.estados_id')
-            ->leftJoin('empresa as emp', 'emp.id', '=', $table . '.empresa_id')
-            ->leftJoin('users as u', 'u.id', '=', $table . '.user_id')
+            ->leftJoin('estados', 'estados.id', '=', $table.'.estados_id')
+            ->leftJoin('empresa as emp', 'emp.id', '=', $table.'.empresa_id')
+            ->leftJoin('users as u', 'u.id', '=', $table.'.user_id')
             ->leftJoin('empresa as emp_user', 'emp_user.id', '=', 'u.empresa_id')
             ->select([
                 DB::raw("'contrato' as type_key"),
-                DB::raw("'" . str_replace("'", "''", $label) . "' as tipo"),
-                DB::raw($table . '.id as record_id'),
-                DB::raw("COALESCE(" . $table . ".codigo::text, '') as codigo"),
-                DB::raw("COALESCE(" . $table . ".cod_especial::text, '') as cod_especial"),
-                DB::raw("COALESCE(" . $table . ".origen::text, '') as origen"),
-                DB::raw("COALESCE(" . $table . ".destino::text, '') as destino"),
-                DB::raw($empresaExpr . ' as empresa'),
-                DB::raw("COALESCE(" . $table . ".nombre_d::text, '') as destinatario"),
-                DB::raw("COALESCE(" . $table . ".nombre_r::text, '') as remitente"),
-                DB::raw("COALESCE(" . $table . ".telefono_d::text, '') as telefono"),
-                DB::raw("COALESCE(" . $table . ".codigo_madre::text, '') as codigo_madre"),
-                DB::raw("COALESCE(" . $table . ".peso::text, '') as peso"),
-                DB::raw("COALESCE(" . $table . ".precio::text, '') as precio"),
-                DB::raw("COALESCE(" . $table . ".justificacion::text, '') as justificacion"),
-                DB::raw($table . '.estados_id as estado_id'),
+                DB::raw("'".str_replace("'", "''", $label)."' as tipo"),
+                DB::raw($table.'.id as record_id'),
+                DB::raw('COALESCE('.$table.".codigo::text, '') as codigo"),
+                DB::raw('COALESCE('.$table.".cod_especial::text, '') as cod_especial"),
+                DB::raw('COALESCE('.$table.".origen::text, '') as origen"),
+                DB::raw('COALESCE('.$table.".destino::text, '') as destino"),
+                DB::raw($empresaExpr.' as empresa'),
+                DB::raw('COALESCE('.$table.".nombre_d::text, '') as destinatario"),
+                DB::raw('COALESCE('.$table.".nombre_r::text, '') as remitente"),
+                DB::raw('COALESCE('.$table.".telefono_d::text, '') as telefono"),
+                DB::raw('COALESCE('.$table.".codigo_madre::text, '') as codigo_madre"),
+                DB::raw('COALESCE('.$table.".peso::text, '') as peso"),
+                DB::raw('COALESCE('.$table.".precio::text, '') as precio"),
+                DB::raw('COALESCE('.$table.".justificacion::text, '') as justificacion"),
+                DB::raw($table.'.estados_id as estado_id'),
                 DB::raw("COALESCE(estados.nombre_estado, 'SIN ESTADO') as estado_nombre"),
-                DB::raw($table . '.created_at as created_at'),
-                DB::raw($table . '.updated_at as updated_at'),
-                DB::raw($table . '.fecha_recojo as fecha_recojo'),
+                DB::raw($table.'.created_at as created_at'),
+                DB::raw($table.'.updated_at as updated_at'),
+                DB::raw($table.'.fecha_recojo as fecha_recojo'),
                 DB::raw(
-                    "LOWER(CONCAT_WS(' ', " .
-                    "COALESCE(" . $table . ".codigo::text, ''), " .
-                    "COALESCE(" . $table . ".codigo_madre::text, ''), " .
-                    "COALESCE(" . $table . ".cod_especial::text, ''), " .
-                    "COALESCE(" . $table . ".origen::text, ''), " .
-                    "COALESCE(" . $table . ".destino::text, ''), " .
-                    $empresaExpr . ", " .
-                    "COALESCE(" . $table . ".nombre_d::text, ''), " .
-                    "COALESCE(" . $table . ".nombre_r::text, ''), " .
-                    "COALESCE(" . $table . ".telefono_d::text, ''), " .
-                    "COALESCE(" . $table . ".justificacion::text, ''), " .
-                    "COALESCE(estados.nombre_estado, '')" .
-                    ")) as search_blob"
+                    "LOWER(CONCAT_WS(' ', ".
+                    'COALESCE('.$table.".codigo::text, ''), ".
+                    'COALESCE('.$table.".codigo_madre::text, ''), ".
+                    'COALESCE('.$table.".cod_especial::text, ''), ".
+                    'COALESCE('.$table.".origen::text, ''), ".
+                    'COALESCE('.$table.".destino::text, ''), ".
+                    $empresaExpr.', '.
+                    'COALESCE('.$table.".nombre_d::text, ''), ".
+                    'COALESCE('.$table.".nombre_r::text, ''), ".
+                    'COALESCE('.$table.".telefono_d::text, ''), ".
+                    'COALESCE('.$table.".justificacion::text, ''), ".
+                    "COALESCE(estados.nombre_estado, '')".
+                    ')) as search_blob'
                 ),
             ]);
     }
@@ -843,13 +1113,13 @@ class TodosPaquetesController extends Controller
             }
 
             $parts[] = $rawCodigo && $alias === 'codigo'
-                ? 'COALESCE((' . $column . ")::text, '')"
-                : 'COALESCE(' . $table . '.' . $column . "::text, '')";
+                ? 'COALESCE(('.$column.")::text, '')"
+                : 'COALESCE('.$table.'.'.$column."::text, '')";
         }
 
         $parts[] = "COALESCE(estados.nombre_estado, '')";
 
-        return 'LOWER(CONCAT_WS(\' \', ' . implode(', ', $parts) . '))';
+        return 'LOWER(CONCAT_WS(\' \', '.implode(', ', $parts).'))';
     }
 
     private function resolveEditing(Request $request): ?array
@@ -857,7 +1127,7 @@ class TodosPaquetesController extends Controller
         $type = trim((string) $request->query('edit_type', ''));
         $id = (int) $request->query('edit_id', 0);
 
-        if (!array_key_exists($type, self::TYPES) || $id <= 0) {
+        if (! array_key_exists($type, self::TYPES) || $id <= 0) {
             return null;
         }
 
@@ -1088,5 +1358,4 @@ class TodosPaquetesController extends Controller
             'direccion_d' => 'direccion del destinatario',
         ];
     }
-
 }

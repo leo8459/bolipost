@@ -127,6 +127,16 @@
                 <div class="tp-results-tools">
                     <span class="tp-total-pill"><strong>{{ \App\Support\BolivianNumber::format($paquetes->total()) }}</strong> registros</span>
                     @aclcan('print', null, 'todos-paquetes.index')
+                        <button
+                            type="button"
+                            class="btn btn-outline-danger tp-create-btn"
+                            data-toggle="modal"
+                            data-target="#historyReportModal"
+                            @disabled($paquetes->isEmpty())
+                        >
+                            <i class="fas fa-file-pdf"></i>
+                            <span>Reporte de historial</span>
+                        </button>
                         <a
                             href="{{ route('todos-paquetes.export.excel', request()->except(['page', 'create', 'edit_type', 'edit_id'])) }}"
                             class="btn btn-outline-success tp-create-btn"
@@ -484,6 +494,50 @@
             </div>
         </div>
     </div>
+
+    @aclcan('print', null, 'todos-paquetes.index')
+        <div class="modal fade" id="historyReportModal" tabindex="-1" role="dialog" aria-labelledby="historyReportModalTitle" aria-hidden="true">
+            <div class="modal-dialog modal-lg" role="document">
+                <div class="modal-content tp-modal">
+                    <form method="GET" action="{{ route('todos-paquetes.reporte-historial') }}" target="_blank">
+                        <div class="modal-header">
+                            <div>
+                                <h5 class="modal-title" id="historyReportModalTitle">Reporte del historial de paquetes</h5>
+                                <div class="small text-white-50">Incluye todos los movimientos, responsables, regionales y fechas registradas.</div>
+                            </div>
+                            <button type="button" class="close text-white" data-dismiss="modal" aria-label="Cerrar">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-info small">
+                                Las guías visibles en esta página ya están cargadas. Puedes borrar, agregar o pegar otros códigos; usa uno por línea, coma o espacio.
+                            </div>
+                            <div class="form-group mb-0">
+                                <label for="historyReportCodes" class="small font-weight-bold">Guías que se incluirán en el reporte</label>
+                                <textarea
+                                    name="codigos"
+                                    id="historyReportCodes"
+                                    class="form-control tp-history-codes"
+                                    rows="10"
+                                    maxlength="12000"
+                                    required
+                                    spellcheck="false"
+                                >{{ $paquetes->pluck('codigo')->map(fn ($codigo) => trim((string) $codigo))->filter()->unique()->implode("\n") }}</textarea>
+                                <small class="form-text text-muted">Máximo 200 guías. Si alguna no existe, el PDF la mostrará en la sección “Guías no encontradas”.</small>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-danger">
+                                <i class="fas fa-file-pdf mr-1"></i> Generar reporte PDF
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endaclcan
 @endsection
 
 @section('css')

@@ -6,9 +6,16 @@
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center">
         <div>
             <h1 class="mb-0">Flujo de cajero</h1>
-            <small class="text-muted">Ventas facturadas consolidadas por servicio, departamento y cajero.</small>
+            <small class="text-muted">Ventas facturadas consolidadas por servicio y cajero.</small>
         </div>
         <div class="mt-2 mt-md-0">
+            <a href="{{ route('dashboard.financiera.flujo-cajero.pdf', ['servicios' => $selectedServices, 'meses' => $selectedMonths, 'anio' => $anio, 'limite' => $limite, 'departamento' => $selectedDepartment]) }}"
+               class="btn btn-danger btn-sm mr-1"
+               data-report-download
+               data-loading-title="Generando reporte"
+               data-loading-message="Espere por favor, estamos preparando el PDF ejecutivo.">
+                <i class="fas fa-file-pdf mr-1"></i> Descargar reporte ejecutivo
+            </a>
             <a href="{{ route('dashboard.financiera.ventas-servicios', ['servicios' => $selectedServices, 'meses' => $selectedMonths, 'anio' => $anio, 'limite' => $limite]) }}" class="btn btn-outline-primary btn-sm mr-1">
                 <i class="fas fa-layer-group mr-1"></i> Ventas por servicio
             </a>
@@ -74,9 +81,24 @@
     @include('financial-reports.partials.multi-filters', [
         'action' => route('dashboard.financiera.flujo-cajero'),
         'showLimit' => true,
+        'showDepartmentFilter' => true,
+        'departmentOptions' => $departmentOptions,
+        'selectedDepartment' => $selectedDepartment,
         'filterTitle' => 'Prepare el flujo de cajero',
-        'filterHelp' => 'Seleccione los servicios y meses que desea consolidar por departamento y cajero.',
+        'filterHelp' => 'Seleccione los servicios y meses que desea consolidar. Los contratos se excluyen porque corresponden a cuentas por cobrar.',
     ])
+
+    <div class="alert alert-info border-0 shadow-sm">
+        <i class="fas fa-info-circle mr-1"></i>
+        <strong>Criterio del reporte:</strong> los servicios de contratos no se muestran ni se suman en esta vista, porque se controlan como cuentas por cobrar.
+    </div>
+
+    @if($selectedDepartment !== '')
+        <div class="alert alert-success border-0 shadow-sm">
+            <i class="fas fa-map-marker-alt mr-1"></i>
+            Reporte filtrado exclusivamente para <strong>{{ $selectedDepartment }}</strong>.
+        </div>
+    @endif
 
     @if($errors->isNotEmpty())
         <div class="alert alert-warning">
@@ -90,26 +112,17 @@
     @endif
 
     @php
-        $executiveTopRegional = $regionalRows->first();
         $executiveTopCashier = $cashierRows->first();
         $executiveTopService = $serviceGroups->first();
         $executiveFlowIncome = (float) ($summary['totalMonto'] ?? 0);
+        $executiveDepartmentScope = $selectedDepartment !== '' ? ' en ' . $selectedDepartment : '';
         $executiveLead = 'Durante el periodo seleccionado, '
             . \App\Support\BolivianNumber::format($cashierRows->count())
             . ' cajeros registraron '
             . \App\Support\BolivianNumber::format((float) ($summary['cantidadVentas'] ?? 0))
-            . ' ventas en '
-            . \App\Support\BolivianNumber::format($regionalRows->count())
-            . ' departamentos, generando Bs '
+            . ' ventas realizadas' . $executiveDepartmentScope . ', generando Bs '
             . \App\Support\BolivianNumber::format($executiveFlowIncome, 2) . '.';
         $executiveItems = [
-            [
-                'label' => 'Departamento con mayor ingreso',
-                'value' => $executiveTopRegional['regional'] ?? 'Sin datos',
-                'detail' => $executiveTopRegional ? 'Bs ' . \App\Support\BolivianNumber::format((float) $executiveTopRegional['totalMonto'], 2) . ' registrados.' : 'No existe información regional.',
-                'icon' => 'fa-map-marker-alt',
-                'color' => 'warning',
-            ],
             [
                 'label' => 'Cajero con mayor ingreso',
                 'value' => $executiveTopCashier['usuarioNombre'] ?? 'Sin datos',
@@ -120,7 +133,7 @@
             [
                 'label' => 'Ingresos de ventanilla',
                 'value' => 'Bs ' . \App\Support\BolivianNumber::format($executiveFlowIncome, 2),
-                'detail' => \App\Support\BolivianNumber::format((float) ($summary['totalCantidad'] ?? 0), 2) . ' de cantidad total de paquetería.',
+                'detail' => \App\Support\BolivianNumber::format((float) ($summary['totalCantidad'] ?? 0), 2) . ' paquetes.',
                 'icon' => 'fa-money-bill-wave',
                 'color' => 'success',
             ],
@@ -134,10 +147,9 @@
     <div class="row">
         @foreach([
             ['Servicios', $summary['cantidadServicios'] ?? 0, 'fa-layer-group', 'primary'],
-            ['Ventas registradas', $summary['cantidadVentas'] ?? 0, 'fa-file-invoice', 'info'],
-            ['Departamentos', $regionalRows->count(), 'fa-map-marker-alt', 'warning'],
+            ['Ventas realizadas', $summary['cantidadVentas'] ?? 0, 'fa-file-invoice', 'info'],
             ['Cajeros', $cashierRows->count(), 'fa-users', 'secondary'],
-            ['Cantidad total de paquetería', $summary['totalCantidad'] ?? 0, 'fa-boxes', 'warning'],
+            ['Cantidad de paquetes', $summary['totalCantidad'] ?? 0, 'fa-boxes', 'warning'],
             ['Ingresos de ventanilla', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['totalMonto'] ?? 0), 2), 'fa-money-bill-wave', 'success'],
         ] as $metric)
             @php([$label, $value, $icon, $color] = $metric)
@@ -153,79 +165,12 @@
         @endforeach
     </div>
 
-    <div class="card card-outline card-primary flow-section-card">
-        <div class="card-header d-flex align-items-center">
-            <span class="flow-icon"><i class="fas fa-map-marked-alt"></i></span>
-            <div>
-                <strong>Facturación por departamento</strong>
-                <div class="text-muted small">Consolidado de las regionales y sucursales reportadas por el sistema de facturación.</div>
-            </div>
-        </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                @php($regionalTotal = (float) $regionalRows->sum('totalMonto'))
-                <table class="table table-sm table-striped table-hover mb-0 financial-table">
-                    <thead class="thead-light">
-                        <tr>
-                            <th class="text-center">#</th>
-                            <th>Departamento / regional</th>
-                            <th>Sucursales</th>
-                            <th class="text-right">Ventas registradas</th>
-                            <th class="text-right">Detalles</th>
-                            <th class="text-right">Cantidad de paquetería</th>
-                            <th class="text-right">Ingresos de ventanilla</th>
-                            <th>Participación</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($regionalRows as $regional)
-                            @php($share = $regionalTotal > 0 ? ((float) $regional['totalMonto'] / $regionalTotal) * 100 : 0)
-                            <tr>
-                                <td class="text-center"><span class="flow-rank">{{ $loop->iteration }}</span></td>
-                                <td class="font-weight-bold">{{ $regional['regional'] }}</td>
-                                <td>
-                                    @forelse($regional['codigosSucursal'] as $branchCode)
-                                        <span class="badge badge-light border">{{ $branchCode }}</span>
-                                    @empty
-                                        <span class="text-muted">-</span>
-                                    @endforelse
-                                </td>
-                                <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $regional['cantidadVentas']) }}</td>
-                                <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $regional['cantidadDetalles']) }}</td>
-                                <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $regional['totalCantidad'], 2) }}</td>
-                                <td class="text-right font-weight-bold text-success">Bs {{ \App\Support\BolivianNumber::format((float) $regional['totalMonto'], 2) }}</td>
-                                <td class="flow-progress">
-                                    <span class="small font-weight-bold">{{ \App\Support\BolivianNumber::format($share, 1) }}%</span>
-                                    <div class="progress"><div class="progress-bar" style="width: {{ min(100, $share) }}%"></div></div>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr><td colspan="8" class="text-center text-muted py-4">La API no devolvió información por departamento.</td></tr>
-                        @endforelse
-                    </tbody>
-                    @if($regionalRows->isNotEmpty())
-                        <tfoot class="font-weight-bold">
-                            <tr>
-                                <td colspan="3">Totales</td>
-                                <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $regionalRows->sum('cantidadVentas')) }}</td>
-                                <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $regionalRows->sum('cantidadDetalles')) }}</td>
-                                <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $regionalRows->sum('totalCantidad'), 2) }}</td>
-                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format($regionalTotal, 2) }}</td>
-                                <td></td>
-                            </tr>
-                        </tfoot>
-                    @endif
-                </table>
-            </div>
-        </div>
-    </div>
-
     <div class="card card-outline card-success flow-section-card">
         <div class="card-header d-flex align-items-center">
             <span class="flow-icon"><i class="fas fa-cash-register"></i></span>
             <div>
                 <strong>Facturación por cajero</strong>
-                <div class="text-muted small">Usuarios que registraron facturas durante el periodo seleccionado.</div>
+                <div class="text-muted small">Cajeros que registraron facturas durante el periodo seleccionado.</div>
             </div>
         </div>
         <div class="card-body p-0">
@@ -236,10 +181,10 @@
                         <tr>
                             <th class="text-center">#</th>
                             <th>Cajero</th>
-                            <th>Usuario</th>
-                            <th class="text-right">Ventas registradas</th>
+                            <th>Regional / departamento</th>
+                            <th class="text-right">Ventas realizadas</th>
                             <th class="text-right">Detalles</th>
-                            <th class="text-right">Cantidad de paquetería</th>
+                            <th class="text-right">Cantidad de paquetes</th>
                             <th class="text-right">Ingresos de ventanilla</th>
                             <th>Participación</th>
                         </tr>
@@ -256,12 +201,7 @@
                                     @endif
                                 </td>
                                 <td class="cashier-meta">
-                                    @if($cashier['usuarioAlias'] !== '')
-                                        <span class="badge badge-primary">{{ $cashier['usuarioAlias'] }}</span>
-                                    @endif
-                                    @if($cashier['usuarioEmail'] !== '')
-                                        <div class="small text-muted mt-1">{{ $cashier['usuarioEmail'] }}</div>
-                                    @endif
+                                    <span class="badge badge-primary">{{ $cashier['departamento'] }}</span>
                                 </td>
                                 <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $cashier['cantidadVentas']) }}</td>
                                 <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $cashier['cantidadDetalles']) }}</td>
@@ -309,9 +249,9 @@
                             <th>#</th>
                             <th>Servicio agrupado</th>
                             <th>Meses</th>
-                            <th class="text-right">Ventas registradas</th>
+                            <th class="text-right">Ventas realizadas</th>
                             <th class="text-right">Detalles</th>
-                            <th class="text-right">Cantidad de paquetería</th>
+                            <th class="text-right">Cantidad de paquetes</th>
                             <th class="text-right">Ingresos de ventanilla</th>
                             <th>Última fecha</th>
                         </tr>

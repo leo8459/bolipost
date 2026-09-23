@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Pool;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
@@ -25,6 +26,88 @@ class FacturacionReportService
             'mes' => $month,
             'anio' => $year,
         ]);
+    }
+
+    /**
+     * Consulta varios detalles de servicio en paralelo para evitar que los
+     * reportes consolidados realicen una petición remota detrás de otra.
+     *
+     * @param  array<int, array{servicio: string, mes: int, anio: int}>  $filters
+     * @return array<int, array{filter: array, report: ?array, error: ?string}>
+     */
+    public function serviceDetailsBatch(array $filters): array
+    {
+        $baseUrl = rtrim((string) config('services.facturacion_reports.base_url'), '/');
+        $token = trim((string) config('services.facturacion_reports.token'));
+
+        if ($baseUrl === '') {
+            throw new \RuntimeException('No se configuró FACTURACION_REPORTS_BASE_URL.');
+        }
+
+        if ($token === '') {
+            throw new \RuntimeException('No se configuró FACTURACION_BRIDGE_TOKEN.');
+        }
+
+        $results = [];
+        foreach (array_chunk(array_values($filters), 10, true) as $chunk) {
+            try {
+                $responses = Http::pool(function (Pool $pool) use ($chunk, $baseUrl, $token): array {
+                    $requests = [];
+                    foreach ($chunk as $index => $filter) {
+                        $requests[] = $pool->as((string) $index)
+                            ->withToken($token)
+                            ->acceptJson()
+                            ->timeout((int) config('services.facturacion_reports.timeout', 30))
+                            ->connectTimeout((int) config('services.facturacion_reports.connect_timeout', 5))
+                            ->withOptions(['verify' => (bool) config('services.facturacion_reports.ssl_verify', true)])
+                            ->get($baseUrl.'/ventas/reportes/servicios/detalle', [
+                                'servicio' => (string) ($filter['servicio'] ?? ''),
+                                'mes' => (int) ($filter['mes'] ?? 0),
+                                'anio' => (int) ($filter['anio'] ?? 0),
+                            ]);
+                    }
+
+                    return $requests;
+                });
+            } catch (\Throwable $exception) {
+                foreach ($chunk as $index => $filter) {
+                    $results[$index] = [
+                        'filter' => $filter,
+                        'report' => null,
+                        'error' => $exception->getMessage(),
+                    ];
+                }
+
+                continue;
+            }
+
+            foreach ($chunk as $index => $filter) {
+                $response = $responses[(string) $index] ?? null;
+                if (! $response instanceof Response || ! $response->successful()) {
+                    $results[$index] = [
+                        'filter' => $filter,
+                        'report' => null,
+                        'error' => $response instanceof Response
+                            ? "El servicio de reportes respondió con el código {$response->status()}."
+                            : 'No se pudo conectar con el servicio de reportes de facturación.',
+                    ];
+
+                    continue;
+                }
+
+                $body = preg_replace('/^\xEF\xBB\xBF/', '', $response->body()) ?? $response->body();
+                $decoded = json_decode($body, true);
+                $results[$index] = [
+                    'filter' => $filter,
+                    'report' => is_array($decoded) ? $decoded : null,
+                    'error' => is_array($decoded) ? null : 'El servicio de reportes devolvió una respuesta inválida.',
+                ];
+            }
+        }
+
+        ksort($results);
+
+        return array_values($results);
     }
 
     public function invoicePdf(string $trackingCode): array

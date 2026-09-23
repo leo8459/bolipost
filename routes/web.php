@@ -7,6 +7,7 @@ use App\Http\Controllers\AreaContratosController;
 use App\Http\Controllers\AuditoriaController;
 use App\Http\Controllers\BackupController;
 use App\Http\Controllers\BastionController;
+use App\Http\Controllers\BastionReportController;
 use App\Http\Controllers\BitacoraController;
 use App\Http\Controllers\BusquedaController;
 use App\Http\Controllers\CarterosController;
@@ -29,6 +30,7 @@ use App\Http\Controllers\EventosIpsController;
 use App\Http\Controllers\ExternalApiTokenController;
 use App\Http\Controllers\FacturacionCartController;
 use App\Http\Controllers\FacturacionQrMonitorController;
+use App\Http\Controllers\FacturaFirmaPdfController;
 use App\Http\Controllers\FinancialReportController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\IndicadorController;
@@ -164,7 +166,7 @@ Route::middleware(['auth', 'internal.only'])->group(function () {
     Route::post('/facturacion/cart/ver-qr', [FacturacionCartController::class, 'verQr'])->name('facturacion.cart.ver-qr');
     Route::post('/facturacion/cart/consultar', [FacturacionCartController::class, 'consultar'])->name('facturacion.cart.consultar');
     Route::post('/facturacion/cart/emitir', [FacturacionCartController::class, 'emitir'])->name('facturacion.cart.emitir');
-    Route::get('/facturacion/factura-con-firma', \App\Http\Controllers\FacturaFirmaPdfController::class)->middleware('signed')->name('facturacion.factura-con-firma');
+    Route::get('/facturacion/factura-con-firma', FacturaFirmaPdfController::class)->middleware('signed')->name('facturacion.factura-con-firma');
     Route::get('/facturacion/clientes-frecuentes/search', [FacturacionCartController::class, 'searchFrequentClients'])->name('facturacion.frequent-clients.search');
     Route::post('/facturacion/cart/scan-add', [FacturacionCartController::class, 'scanAdd'])->name('facturacion.cart.scan-add');
     Route::post('/facturacion/cart/conceptos', [FacturacionCartController::class, 'addConcepto'])->name('facturacion.cart.conceptos.store');
@@ -232,6 +234,9 @@ Route::get('/dir-financiera/ventas-servicios', [FinancialReportController::class
 Route::get('/dir-financiera/flujo-cajero', [FinancialReportController::class, 'cashierFlow'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.financiera.flujo-cajero');
+Route::get('/dir-financiera/flujo-cajero/reporte-ejecutivo.pdf', [FinancialReportController::class, 'cashierFlowReport'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.financiera.flujo-cajero.pdf');
 Route::get('/conciliacion/facturado', [FinancialReportController::class, 'invoicedContracts'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.conciliacion.facturado');
@@ -443,8 +448,8 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     // gets
     Route::get('/plantilla', [PlantillaController::class, 'getplantilla']);
     Route::get('/bastiones/paquetes', [BastionController::class, 'index'])->name('bastiones.index');
-    Route::get('/bastiones/reporte', [\App\Http\Controllers\BastionReportController::class, 'index'])->name('bastiones.reporte');
-    Route::get('/bastiones/reporte/excel', [\App\Http\Controllers\BastionReportController::class, 'excel'])->name('bastiones.reporte.excel');
+    Route::get('/bastiones/reporte', [BastionReportController::class, 'index'])->name('bastiones.reporte');
+    Route::get('/bastiones/reporte/excel', [BastionReportController::class, 'excel'])->name('bastiones.reporte.excel');
     Route::get('/bastiones/reporte/imagen/{codigo}', [DeliveryImageController::class, 'bastionReport'])->name('bastiones.reporte.imagen');
     Route::post('/bastiones/paquetes/{tipo}/{id}/recuperar', [BastionController::class, 'recuperar'])
         ->whereIn('tipo', ['ems', 'contratos', 'certificados', 'ordinarios'])
@@ -539,6 +544,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/paquetes-ips', [PaquetesIpsController::class, 'index'])->name('paquetes-ips.index');
     Route::get('/eventos-ips', [EventosIpsController::class, 'index'])->name('eventos-ips.index');
     Route::get('/todos-paquetes/export/excel', [TodosPaquetesController::class, 'exportExcel'])->name('todos-paquetes.export.excel');
+    Route::get('/todos-paquetes/reporte-historial', [TodosPaquetesController::class, 'reporteHistorial'])->name('todos-paquetes.reporte-historial');
     Route::post('/todos-paquetes', [TodosPaquetesController::class, 'store'])->name('todos-paquetes.store');
     Route::get('/todos-paquetes/{type}/{id}/guia', [TodosPaquetesController::class, 'reimprimirGuia'])->name('todos-paquetes.guia');
     Route::get('/todos-paquetes/reporte-salida/{codigo}', [TodosPaquetesController::class, 'reporteSalida'])->name('todos-paquetes.reporte-salida');
