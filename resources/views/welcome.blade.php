@@ -1201,7 +1201,8 @@
                     body: JSON.stringify({
                         codigo,
                         captcha_answer: captchaValue,
-                        captcha_challenge: captchaChallenge || ''
+                        captcha_challenge: captchaChallenge || '',
+                        source: 'bolipost_home'
                     })
                 });
                 const accessData = await accessResponse.json();

@@ -105,6 +105,14 @@ class BusquedaController extends Controller
     {
         abort_unless($request->hasValidSignature(), 403);
 
+        // A valid temporary link is issued only after the public captcha passes.
+        // Restore that verification in Bolipost's browser session so the
+        // "Volver a buscar" form can submit without prompting again.
+        $request->session()->put(
+            self::TRACKING_CAPTCHA_VERIFIED_UNTIL_SESSION_KEY,
+            now()->addMinutes(self::TRACKING_CAPTCHA_VERIFIED_MINUTES)->timestamp
+        );
+
         return $this->renderTrackingDetalle($request);
     }
 
@@ -150,7 +158,12 @@ class BusquedaController extends Controller
             'redirect_url' => URL::temporarySignedRoute(
                 'tracking.demo.signed',
                 now()->addMinutes(self::TRACKING_CAPTCHA_VERIFIED_MINUTES),
-                ['codigo' => $codigo]
+                [
+                    'codigo' => $codigo,
+                    'tracking_source' => in_array($request->input('source'), ['frontweb_home', 'bolipost_home'], true)
+                        ? $request->input('source')
+                        : 'bolipost_home',
+                ]
             ),
         ]);
     }
@@ -160,6 +173,7 @@ class BusquedaController extends Controller
         $codigo = $this->obtenerCodigoValidado($request);
         $resultado = $this->buscarEventosPorCodigo($codigo);
         $eventos = $resultado['eventos'];
+        $this->reportTrackingAnalytics($request, $codigo, $eventos, $resultado['fuente'], 'bolipost_home');
 
         if ($eventos->isEmpty()) {
             return response()->json([
@@ -188,6 +202,15 @@ class BusquedaController extends Controller
         $codigo = $this->obtenerCodigoValidado($request);
         $resultado = $this->buscarEventosPorCodigo($codigo);
         $eventos = $resultado['eventos'];
+
+        // The homepage AJAX query already recorded Bolipost's own searches.
+        // Frontweb and the result-page retry arrive directly here.
+        if ($request->query('tracking_source') !== 'bolipost_home') {
+            $source = $request->query('tracking_source') === 'frontweb_home'
+                ? 'frontweb_home'
+                : 'bolipost_retry';
+            $this->reportTrackingAnalytics($request, $codigo, $eventos, $resultado['fuente'], $source);
+        }
 
         if ($eventos->isEmpty()) {
             return redirect('/')
@@ -229,6 +252,50 @@ class BusquedaController extends Controller
         ]);
 
         return $this->normalizeTrackingCode((string) $validated['codigo']);
+    }
+
+    private function reportTrackingAnalytics(Request $request, string $codigo, Collection $eventos, string $fuente, string $source): void
+    {
+        $endpoint = trim((string) env('APIWEB_ANALYTICS_COLLECT_URL', ''));
+        if ($endpoint === '') {
+            $cmsEndpoint = rtrim((string) env('SITE_CMS_HOME_API_URL', 'http://localhost/apiweb/public/api/site/pages/home'), '/');
+            $endpoint = preg_replace('~/api/site/pages/home$~', '/api/analytics/collect', $cmsEndpoint) ?? '';
+        }
+        if ($endpoint === '') {
+            return;
+        }
+
+        $status = $eventos->isNotEmpty() ? 'found' : 'not_found';
+        $service = $eventos->first()?->servicio;
+        if (! $service) {
+            $service = $this->determinarServicio([], ['codigo' => $codigo], $codigo);
+        }
+        $visitor = hash('sha256', 'bolipost:' . (string) $request->ip() . ':' . (string) $request->userAgent());
+        $session = hash('sha256', 'bolipost:' . $request->session()->getId());
+        $common = [
+            'visitor_token' => $visitor,
+            'session_token' => $session,
+            'page_path' => '/trackingbo',
+            'page_name' => 'Seguimiento de paquetes',
+            'section_key' => 'tracking_form',
+            'searched_term' => strtoupper($codigo),
+        ];
+        $metadata = ['service' => (string) $service, 'source' => $source, 'tracking_status' => $status];
+
+        try {
+            Http::connectTimeout(1)->timeout(2)->acceptJson()->post($endpoint, $common + [
+                'event_name' => 'tracking_search',
+                'label' => 'consulta_tracking',
+                'metadata' => ['service' => (string) $service, 'source' => $source],
+            ]);
+            Http::connectTimeout(1)->timeout(2)->acceptJson()->post($endpoint, $common + [
+                'event_name' => 'tracking_result',
+                'label' => 'resultado_tracking',
+                'metadata' => $metadata,
+            ]);
+        } catch (\Throwable $exception) {
+            Log::notice('No se pudo enviar la analitica de tracking a APIWeb.', ['message' => $exception->getMessage()]);
+        }
     }
 
     private function landingAnnouncement(): array
@@ -590,6 +657,9 @@ class BusquedaController extends Controller
         $request = function (string $url, string $requestToken) use ($codigo) {
             return Http::connectTimeout(3)
                 ->timeout((int) config('services.tracking_sqlserver.timeout', 15))
+                ->withOptions([
+                    'verify' => (bool) config('services.tracking_sqlserver.ssl_verify', false),
+                ])
                 ->acceptJson()
                 ->withToken($requestToken)
                 ->get($url, ['codigo' => $codigo]);
@@ -836,6 +906,9 @@ class BusquedaController extends Controller
             'tabla_origen' => $evento['tabla_origen'] ?? $evento['origen_evento'] ?? 'api_sqlserver',
             'office' => $office,
             'next_office' => $nextOffice,
+            'next_office_code' => $evento['next_office_code'] ?? null,
+            'reason_code' => $evento['reason_code'] ?? null,
+            'attempted_delivery_location' => trim((string) ($evento['attempted_delivery_location'] ?? '')) ?: null,
             'descripcion' => $detail !== '' ? $detail : null,
             'ciudad_origen' => $ciudadOrigen !== '' ? $ciudadOrigen : null,
             'ciudad_destino' => $ciudadDestino !== '' ? $ciudadDestino : null,
@@ -1024,6 +1097,42 @@ class BusquedaController extends Controller
     {
         return $eventos
             ->values()
+            ->filter(function ($evento) use ($eventos) {
+                // Un registro interno de entrega puede quedar desfasado frente
+                // al evento oficial de IPS. Si existe una entrega oficial
+                // posterior, no mostramos el registro interno duplicado.
+                $nombre = mb_strtolower(trim((string) ($evento->nombre_evento ?? '')));
+                $esEntregaInterna = in_array((string) ($evento->tabla_origen ?? ''), array_column(self::FUENTES_LOCALES, 'tabla'), true)
+                    && str_contains($nombre, 'paquete entregado exitosamente');
+
+                if (! $esEntregaInterna) {
+                    $codigo = (int) ($evento->codigo_evento ?? 0);
+                    if ($codigo !== 1) {
+                        return true;
+                    }
+
+                    // La admisión genérica suele repetirse cuando IPS registra
+                    // inmediatamente la recepción en la oficina de origen.
+                    // Conservamos el evento posterior, que aporta la ubicación.
+                    $fecha = strtotime((string) ($evento->created_at ?? '')) ?: 0;
+                    $dia = substr((string) ($evento->created_at ?? ''), 0, 10);
+                    return ! $eventos->contains(function ($otro) use ($fecha, $dia) {
+                        $otroCodigo = (int) ($otro->codigo_evento ?? 0);
+                        $otraFechaTexto = (string) ($otro->created_at ?? '');
+                        $otraFecha = strtotime($otraFechaTexto) ?: 0;
+                        return $otroCodigo === 3
+                            && substr($otraFechaTexto, 0, 10) === $dia
+                            && $otraFecha > $fecha;
+                    });
+                }
+
+                $fechaInterna = strtotime((string) ($evento->created_at ?? '')) ?: 0;
+                return ! $eventos->contains(function ($otro) use ($fechaInterna) {
+                    $codigo = (int) ($otro->codigo_evento ?? 0);
+                    $fecha = strtotime((string) ($otro->created_at ?? '')) ?: 0;
+                    return in_array($codigo, [37, 1250], true) && $fecha > $fechaInterna;
+                });
+            })
             ->map(function ($evento, int $index) {
                 $item = (object) $evento;
                 $createdAt = (string) ($item->created_at ?? '');
@@ -1050,9 +1159,25 @@ class BusquedaController extends Controller
                 $item->_sort_ts = $timestamp !== false ? $timestamp : (PHP_INT_MAX - $index);
                 $item->_sort_priority = $this->calcularPrioridadEvento($nombreEventoBase);
                 $item->_sort_id = (int) ($item->id ?? 0);
-                $item->nombre_evento = $this->concatenarEventoConLugar($nombreEventoBase, $item);
+                // El lugar pertenece a este registro histórico y no forma
+                // parte del estado actual. Se muestra debajo como “Dónde
+                // está” para no dar a entender que el paquete sigue allí.
+                $item->nombre_evento = $nombreEventoBase;
 
                 return $item;
+            })
+            // SITRA puede entregar el mismo escaneo desde IPS5Db y EDI. Para
+            // el público es un solo evento cuando coinciden código, fecha,
+            // nombre y oficina, aunque tengan identificadores internos distintos.
+            ->unique(function (object $evento) {
+                return implode('|', [
+                    (string) ($evento->codigo_evento ?? ''),
+                    // La interfaz muestra precisión al minuto; agrupa también
+                    // capturas duplicadas con segundos distintos dentro del mismo minuto.
+                    substr((string) ($evento->created_at ?? ''), 0, 16),
+                    mb_strtolower(trim((string) ($evento->nombre_evento ?? ''))),
+                    mb_strtolower(trim((string) ($evento->office ?? ''))),
+                ]);
             })
             ->sort(function ($a, $b) {
                 $ts = ((int) ($b->_sort_ts ?? 0)) <=> ((int) ($a->_sort_ts ?? 0));
@@ -1099,7 +1224,14 @@ class BusquedaController extends Controller
             return $nombreEvento;
         }
 
-        return $nombreEvento.' - '.$lugar;
+        // Cuando el lugar es un país, una preposición hace que el mensaje
+        // resulte natural ("... en Estados Unidos"). Para oficinas
+        // conservamos el separador que permite identificar el código postal.
+        $lugarEsPais = preg_match('/^(?:Estados Unidos|Reino Unido|Bolivia|Brasil|Canad[aá]|Chile|Colombia|Ecuador|Espa[ñn]a|Francia|Alemania|Italia|Jap[oó]n|China|M[eé]xico|Per[uú]|Argentina|Paraguay|Uruguay|Venezuela|Suiza|B[eé]lgica)$/iu', $lugar) === 1;
+
+        return $lugarEsPais
+            ? $nombreEvento.' en '.$lugar
+            : $nombreEvento.' - '.$lugar;
     }
 
     private function resolverLugarEvento(object $evento): string

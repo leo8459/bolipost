@@ -17,6 +17,9 @@ class TrackingProgressService
         2 => self::STAGE_DISPATCH,
         3 => self::STAGE_DISPATCH,
         5 => self::STAGE_DISPATCH,
+        4 => self::STAGE_EXPEDITION,
+        6 => self::STAGE_EXPEDITION,
+        7 => self::STAGE_EXPEDITION,
         8 => self::STAGE_EXPEDITION,
         12 => self::STAGE_EXPEDITION,
         30 => self::STAGE_EXPEDITION,
@@ -29,6 +32,8 @@ class TrackingProgressService
         42 => self::STAGE_EXPEDITION,
         43 => self::STAGE_EXPEDITION,
         44 => self::STAGE_EXPEDITION,
+        45 => self::STAGE_ADMISSION,
+        68 => self::STAGE_ADMISSION,
         67 => self::STAGE_COURIER,
         71 => self::STAGE_EXPEDITION,
         72 => self::STAGE_EXPEDITION,
@@ -73,6 +78,10 @@ class TrackingProgressService
         $events = collect($events);
         $firstStep = in_array(strtoupper($service), ['ORDI', 'CERTI'], true) ? 'Clasificacion' : 'Admision';
         $isCancelled = $events->isNotEmpty() && $this->isCancelledText($this->eventText((object) $events->first()));
+        // El estado actual lo determina el evento más reciente. Un evento
+        // antiguo de devolución no debe ocultar una entrega posterior.
+        $latestEvent = $events->first();
+        $isReturning = $latestEvent !== null && $this->isReturnStatus((object) $latestEvent);
         $isInCustoms = $events->isNotEmpty() && $this->isCustomsEvent((object) $events->first());
         $hasCustomsStep = $events->contains(fn ($event) => $this->isCustomsEvent((object) $event));
         $highestStage = self::STAGE_ADMISSION;
@@ -98,6 +107,7 @@ class TrackingProgressService
                 'has_incident' => true,
                 'is_cancelled' => true,
                 'is_customs' => false,
+                'is_returning' => false,
                 'status' => 'Envio cancelado',
             ];
         }
@@ -106,8 +116,40 @@ class TrackingProgressService
         if ($hasCustomsStep) {
             $steps[] = 'Aduana';
         }
+
+        if ($isReturning) {
+            // Una devolución es un flujo terminal distinto al de entrega:
+            // conserva el intento de cartero si existe, pero no agrega
+            // ventanilla ni entrega como etapas pendientes.
+            if ($hasCourierEvent) {
+                $steps[] = 'Cartero';
+            }
+            $steps[] = 'Devolución';
+            $returnStatus = $this->returnStatusCode($events);
+            $isReturnCompleted = in_array($returnStatus, [22, 23], true);
+            // Las etapas futuras se muestran como pendientes para que el
+            // usuario entienda el flujo esperado; no representan eventos ya
+            // registrados en IPS.
+            $steps[] = 'Retorno recibido';
+            $steps[] = 'Devuelto al remitente';
+
+            return [
+                'steps' => $steps,
+                'current_index' => $isReturnCompleted
+                    ? count($steps) - 1
+                    : count($steps) - 3,
+                'has_incident' => true,
+                'is_cancelled' => false,
+                'is_customs' => $isInCustoms,
+                'is_returning' => true,
+                'return_status_cd' => $returnStatus,
+                'is_return_completed' => $isReturnCompleted,
+                'status' => $isReturnCompleted ? 'Devuelto al remitente' : 'Devolución en curso',
+            ];
+        }
+
         $steps[] = 'Ventanilla';
-        if ($hasCourierEvent || $highestStage >= self::STAGE_COURIER) {
+        if ($hasCourierEvent) {
             $steps[] = 'Cartero';
         }
         $steps[] = 'Entregado';
@@ -116,18 +158,22 @@ class TrackingProgressService
             ? 3
             : $this->stepIndex(
                 $highestStage,
-                $hasCourierEvent || $highestStage >= self::STAGE_COURIER,
+                $hasCourierEvent,
                 $hasCustomsStep
             );
+
         return [
             'steps' => $steps,
             'current_index' => $currentIndex,
             'has_incident' => $hasIncident,
             'is_cancelled' => false,
             'is_customs' => $isInCustoms,
-            'status' => $highestStage === self::STAGE_DELIVERED
+            'is_returning' => $isReturning,
+            'status' => $isReturning
+                ? 'Devolución en curso'
+                : ($highestStage === self::STAGE_DELIVERED
                 ? 'Entregado'
-                : ($hasIncident ? 'En transito con incidencia' : 'En transito'),
+                : ($hasIncident ? 'En transito con incidencia' : 'En transito')),
         ];
     }
 
@@ -194,7 +240,7 @@ class TrackingProgressService
     private function isIncident(mixed $event): bool
     {
         return $this->containsAny($this->eventText((object) $event), [
-            'fallido', 'incidencia', 'devuelto', 'devolucion', 'retorno', 'retenido', 'retener', 'detenida',
+            'fallido', 'incidencia', 'devuelto', 'devolver', 'devolucion', 'retorno', 'retenido', 'retener', 'detenida',
             'detenido', 'aduana', 'cancelado', 'cancelada', 'eliminado', 'eliminada',
         ]);
     }
@@ -204,10 +250,43 @@ class TrackingProgressService
         return $this->containsAny($text, ['envio cancelado', 'paquete cancelado']);
     }
 
+    private function isReturnStatus(object $event): bool
+    {
+        if (in_array($this->numericValue($event->codigo_evento ?? null), [7, 38], true)) {
+            return true;
+        }
+
+        $code = $this->numericValue(
+            $event->postal_status_cd ?? $event->codigo_estado_postal ?? null
+        );
+        if (in_array($code, [6, 7, 22, 23], true)) {
+            return true;
+        }
+
+        return $this->containsAny($this->normalize((string) (
+            $event->postal_status ?? $event->estado_postal ?? ''
+        )), [
+            'being returned', 'return in progress', 'devolucion en curso',
+            'devolucion', 'en devolucion', 'retorno al remitente',
+        ]);
+    }
+
+    private function returnStatusCode(iterable $events): ?int
+    {
+        foreach ($events as $event) {
+            $code = $this->numericValue(((object) $event)->postal_status_cd ?? null);
+            if (in_array($code, [6, 7, 22, 23], true)) {
+                return $code;
+            }
+        }
+
+        return null;
+    }
+
     private function isCustomsEvent(object $event): bool
     {
         // UPU inbound customs lifecycle: send to customs, record customs data, or stop import.
-        if (in_array($this->numericValue($event->codigo_evento ?? null), [31, 34, 76], true)) {
+        if (in_array($this->numericValue($event->codigo_evento ?? null), [4, 6, 31, 34, 38, 76], true)) {
             return true;
         }
 

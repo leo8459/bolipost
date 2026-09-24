@@ -526,18 +526,31 @@ class MisVentasController extends Controller
         abort_unless($venta, 404, 'No se encontro la venta solicitada.');
 
         $snapshot = $this->ticketSnapshot($venta, $ips);
+        abort_unless($this->ticketSnapshotHasEligiblePackage($snapshot), 409, 'El paquete todavía no está listo para entrega.');
         $ticket = $this->buildTicketData($venta, $user, $snapshot);
         $pdf = Pdf::loadView('facturacion.mis-ventas-ticket', ['cart' => $venta, 'ticket' => $ticket])->setPaper([0, 0, 226.77, 680], 'portrait');
 
         return response()->streamDownload(fn () => print($pdf->output()), 'ticket-' . ($venta->codigo_orden ?: ('venta-' . $venta->id)) . '.pdf');
     }
 
+    private function ticketSnapshotHasEligiblePackage(array $snapshot): bool
+    {
+        foreach ((array) data_get($snapshot, 'items', []) as $item) {
+            $text = mb_strtolower(trim((string) (($item['estado'] ?? '') . ' ' . ($item['evento'] ?? ''))));
+            if (str_contains($text, 'ventanilla')
+                || str_contains($text, 'reparto')
+                || str_contains($text, 'entregad')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function ticketSnapshot(object $venta, SitraIpsClient $ips): array
     {
         $cartId = (int) ($venta->id ?? 0);
         if ($cartId <= 0) return [];
-        $existing = FacturaTicketSnapshot::where('cart_id', $cartId)->first();
-        if ($existing) return (array) $existing->data;
         $items = [];
         foreach ($this->normalizeItems($venta->items ?? []) as $item) {
             $code = strtoupper(trim((string) data_get($item, 'resumen_origen.codigo_paquete', data_get($item, 'codigo_paquete', ''))));
@@ -550,7 +563,10 @@ class MisVentasController extends Controller
             }
         }
         $data = ['captured_at' => now()->toIso8601String(), 'items' => $items];
-        FacturaTicketSnapshot::create(['cart_id' => $cartId, 'data' => $data, 'captured_at' => now()]);
+        FacturaTicketSnapshot::updateOrCreate(
+            ['cart_id' => $cartId],
+            ['data' => $data, 'captured_at' => now()]
+        );
         return $data;
     }
 

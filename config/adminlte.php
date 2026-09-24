@@ -383,11 +383,16 @@ return [
             'icon' => 'fas fa-user-shield',
             'can' => 'admin-only-menu',
             'submenu' => [
-                 [
-                            'text' => 'Personal AGBC',
-                            'url' => 'users',
-                            'icon' => 'fas fa-user',
-                        ],
+                [
+                    'text' => 'Personal AGBC',
+                    'url' => 'users',
+                    'icon' => 'fas fa-user',
+                ],
+                [
+                    'text' => 'Vinculacion IPS',
+                    'url' => 'users/ips-links',
+                    'icon' => 'fas fa-link',
+                ],
                 [
                     'text' => 'Roles',
                     'url' => 'roles',
@@ -422,12 +427,12 @@ return [
                     'url' => 'todos-paquetes',
                     'icon' => 'fas fa-layer-group',
                 ],
-                [
-                    'text' => 'Paquetes IPS',
-                    'url' => 'paquetes-ips',
-                    'icon' => 'fas fa-globe-americas',
-                ],
             ],
+        ],
+        [
+            'text' => 'IPS',
+            'url' => 'ips',
+            'icon' => 'fas fa-globe-americas',
         ],
         [
             'text' => 'Dir. Operaciones',
@@ -1244,7 +1249,7 @@ return [
                     'icon' => 'fas fa-users',
                     // 'can'  => 'users.index',
                     'submenu' => [
-                       
+
                         [
                             'text' => 'Ingresos',
                             'url' => 'ingresos',
@@ -1315,7 +1320,7 @@ return [
 
                     'icon' => 'fas fa-chart-line',
                 ],
-                
+
                 [
                     'text' => 'Tracking Local',
                     'url' => '/tracking-local-event-rules',

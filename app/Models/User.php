@@ -215,4 +215,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(UserLoginLog::class);
     }
+
+    public function ipsLink(): HasOne
+    {
+        return $this->hasOne(UserIpsLink::class);
+    }
 }
