@@ -65,6 +65,7 @@ use App\Http\Controllers\TodosPaquetesController;
 use App\Http\Controllers\TrackingLocalEventRuleController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserImpersonationController;
+use App\Http\Controllers\UserIpsLinkController;
 use App\Http\Controllers\UserLoginLogController;
 use App\Http\Controllers\VentanillaController;
 use App\Http\Controllers\Web\DriverMemorandumController;
@@ -382,6 +383,11 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::put('/tracking-local-event-rules/{trackingLocalEventRule}', [TrackingLocalEventRuleController::class, 'update'])->name('tracking-local-event-rules.update');
     Route::delete('/tracking-local-event-rules/{trackingLocalEventRule}', [TrackingLocalEventRuleController::class, 'destroy'])->name('tracking-local-event-rules.destroy');
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
+    Route::get('/users/ips-links', [UserIpsLinkController::class, 'index'])->name('users.ips-links.index');
+    Route::post('/users/{user}/ips-link', [UserIpsLinkController::class, 'store'])->name('users.ips-links.store');
+    Route::post('/users/{user}/ips-user', [UserIpsLinkController::class, 'createIpsUser'])->name('users.ips-links.create-user');
+    Route::post('/users/{user}/ips-link/verify', [UserIpsLinkController::class, 'verify'])->name('users.ips-links.verify');
+    Route::delete('/users/{user}/ips-link', [UserIpsLinkController::class, 'destroy'])->name('users.ips-links.destroy');
     Route::get('/ingresos', [UserLoginLogController::class, 'index'])->name('ingresos.index');
     Route::get('/users/empresas', [UserController::class, 'empresas'])->name('users.empresas');
     Route::get('users/excel', [UserController::class, 'excel'])->name('users.excel');
@@ -541,7 +547,16 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::post('/importar/paquets', [ImportController::class, 'importPaquets'])->name('importar.paquets.store');
     Route::get('/importar/paquets/plantilla-excel', [ImportController::class, 'downloadPaquetsTemplateExcel'])->name('importar.paquets.template-excel');
     Route::get('/todos-paquetes', [TodosPaquetesController::class, 'index'])->name('todos-paquetes.index');
-    Route::get('/paquetes-ips', [PaquetesIpsController::class, 'index'])->name('paquetes-ips.index');
+    Route::redirect('/paquetes-ips', '/ips', 301)->name('paquetes-ips.index');
+    Route::get('/ips', [PaquetesIpsController::class, 'index'])->name('ips.index')->block(120, 10);
+    Route::post('/ips/seleccionados', [PaquetesIpsController::class, 'addSelection'])->name('ips.selection.add')->block(120, 10);
+    Route::post('/ips/operar', [PaquetesIpsController::class, 'operate'])->name('ips.operate')->block(120, 10);
+    Route::delete('/ips/seleccionados/{codigo}', [PaquetesIpsController::class, 'removeSelection'])->where('codigo', '[A-Za-z0-9-]{1,35}')->name('ips.selection.remove')->block(120, 10);
+    Route::redirect('/recepcion-ips', '/ips?stage=reception')->name('recepcion-ips.index');
+    Route::post('/recepcion-ips/{codigo}', [PaquetesIpsController::class, 'receive'])->where('codigo', '[A-Za-z0-9-]{1,35}')->name('recepcion-ips.receive');
+    Route::post('/paquetes-ips/{codigo}/entrega', [PaquetesIpsController::class, 'deliver'])
+        ->where('codigo', '[A-Za-z0-9-]{1,35}')
+        ->name('paquetes-ips.deliver');
     Route::get('/eventos-ips', [EventosIpsController::class, 'index'])->name('eventos-ips.index');
     Route::get('/todos-paquetes/export/excel', [TodosPaquetesController::class, 'exportExcel'])->name('todos-paquetes.export.excel');
     Route::get('/todos-paquetes/reporte-historial', [TodosPaquetesController::class, 'reporteHistorial'])->name('todos-paquetes.reporte-historial');

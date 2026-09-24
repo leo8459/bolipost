@@ -25,7 +25,6 @@
 </head>
 <body>
     @php
-        $ultimoNombre = $ultimoEvento->nombre_evento ?? ('Evento #' . ($ultimoEvento->evento_id ?? '-'));
         $fechaUltima = \Illuminate\Support\Carbon::parse($ultimoEvento->created_at);
         $servicioActual = strtoupper((string) ($ultimoEvento->servicio ?? 'EMS'));
         $origenLabel = 'Correos de Bolivia';
@@ -40,7 +39,13 @@
         $idxEntregado = count($pasos) - 1;
         $estadoGlobal = $trackingProgress['status'];
         $envioCancelado = $trackingProgress['is_cancelled'];
+        $envioEnDevolucion = $trackingProgress['is_returning'] ?? false;
+        $codigoEstadoDevolucion = $trackingProgress['return_status_cd'] ?? null;
+        $devolucionCompletada = $trackingProgress['is_return_completed'] ?? false;
         $envioEnAduana = $trackingProgress['is_customs'] ?? false;
+        $ultimoNombre = $envioEnDevolucion
+            ? 'El paquete está regresando al remitente.'
+            : ($ultimoEvento->nombre_evento ?? ('Evento #' . ($ultimoEvento->evento_id ?? '-')));
         $imagenesPasos = [
             'Admision' => 'admision',
             'Clasificacion' => 'admision',
@@ -50,6 +55,9 @@
             'Ventanilla' => 'ventanilla',
             'Cartero' => 'cartero',
             'Entregado' => 'entregado',
+            'Devolución' => 'expedision',
+            'Retorno recibido' => 'ventanilla',
+            'Devuelto al remitente' => 'entregado',
         ];
         $ayudasPasos = [
             'Admision' => 'Tu envio fue recibido y registrado.',
@@ -60,7 +68,13 @@
             'Ventanilla' => 'Esta disponible para su recojo en oficina.',
             'Cartero' => 'Esta con el cartero para su entrega.',
             'Entregado' => 'La entrega fue confirmada.',
+            'Devolución' => 'IPS marcó el envío para devolución al remitente.',
+            'Retorno recibido' => 'La oficina de origen recibió el retorno.',
+            'Devuelto al remitente' => 'La devolución al remitente fue completada.',
         ];
+        if ($envioEnDevolucion) {
+            $ayudasPasos['Expedicion'] = 'El envío fue marcado por IPS para devolución al remitente.';
+        }
         $entregaConfirmada = $estadoGlobal === 'Entregado';
 
         $normalizarIso2 = function (?string $valor): ?string {
@@ -564,6 +578,7 @@
                     ? ($destinoBanderaIso2 === 'BO' ? 'Bolivia' : 'Nacional')
                     : (($esIngresoInternacionalSinDestinoExplicito ? 'Bolivia' : $destinoIso2) ?? 'Internacional'));
         }
+
         $esEventoLocalBolivia = function ($evento) use ($detectarDepartamentoBolivia) {
             $office = trim((string) ($evento->office ?? ''));
             $nextOffice = trim((string) ($evento->next_office ?? ''));
@@ -650,7 +665,14 @@
         $mensajeAvisoRecojo = '';
         $detalleRegionalRecojo = null;
         $mapUrlRegionalRecojo = null;
-        if ($entregaConfirmada) {
+        if ($envioEnDevolucion) {
+            $mensajeAvisoRecojo = $devolucionCompletada
+                ? 'La devolución fue completada. El envío ya fue retornado al remitente.'
+                : ($codigoEstadoDevolucion === 6
+                ? 'Este envío está siendo redirigido en tránsito hacia su retorno.'
+                : 'Este envío está en devolución.');
+            $mostrarAvisoRecojo = true;
+        } elseif ($entregaConfirmada) {
             $mensajeAvisoRecojo = 'Tu paquete ya fue entregado. No tienes acciones pendientes en oficina.';
             $mostrarAvisoRecojo = true;
         } elseif ($eventoListoParaEntregar) {
@@ -715,7 +737,6 @@
                             <strong>{{ $fechaUltima->format('d/m/Y H:i') }}</strong>
                         </div>
                     </div>
-
                     <div class="tracking-search-panel">
                         <div class="tracking-search-copy">
                             <small>Nueva busqueda</small>
@@ -735,7 +756,7 @@
                                     autocapitalize="characters"
                                     spellcheck="false"
                                     maxlength="50"
-                                    pattern="[A-Za-z0-9]+"
+                                    pattern="[A-Za-z0-9\\/-]+"
                                     aria-label="Buscar otro codigo de seguimiento"
                                     required
                                 >
@@ -754,7 +775,7 @@
                         </div>
                         <div class="progress-status">
                             <small>{{ $entregaConfirmada ? count($pasos) : $pasoActual }} de {{ count($pasos) }} etapas completadas</small>
-                            <span class="{{ $entregaConfirmada ? 'is-delivered' : '' }}">
+                            <span class="{{ $entregaConfirmada ? 'is-delivered' : ($envioEnDevolucion ? 'is-returning' : '') }}">
                                 {{ $entregaConfirmada ? 'Envio:' : 'En curso:' }} <strong>{{ $entregaConfirmada ? 'Entregado' : $pasos[$pasoActual] }}</strong>
                             </span>
                         </div>
@@ -768,6 +789,7 @@
                                 $cancelledCurrent = $envioCancelado && $current;
                                 $customsCurrent = $envioEnAduana && $current;
                                 $deliveredCurrent = $entregaConfirmada && $current;
+                                $returningCurrent = $envioEnDevolucion && $current;
                                 $imagenPaso = $imagenesPasos[$paso] ?? null;
                                 $imagenPendiente = $imagenPaso && !$done && !$current
                                     ? $imagenPaso . '-blanco'
@@ -775,9 +797,10 @@
                                 $ayudaPaso = $ayudasPasos[$paso] ?? $paso;
                                 $estadoPaso = $cancelledCurrent
                                     ? 'Cancelado'
-                                    : ($deliveredCurrent ? 'Entregado' : ($done ? 'Listo' : ($current ? 'En curso' : 'Pendiente')));
+                                    : ($returningCurrent ? 'Devolución en curso'
+                                    : ($deliveredCurrent ? 'Entregado' : ($done ? 'Listo' : ($current ? 'En curso' : 'Pendiente'))));
                             @endphp
-                            <li class="{{ $done ? 'is-done' : '' }} {{ $current ? 'is-current' : '' }} {{ $cancelledCurrent ? 'is-cancelled' : '' }} {{ $customsCurrent ? 'is-customs' : '' }} {{ $deliveredCurrent ? 'is-delivered' : '' }}" style="--step-index: {{ $index }};">
+                            <li class="{{ $done ? 'is-done' : '' }} {{ $current ? 'is-current' : '' }} {{ $cancelledCurrent ? 'is-cancelled' : '' }} {{ $customsCurrent ? 'is-customs' : '' }} {{ $deliveredCurrent ? 'is-delivered' : '' }} {{ $returningCurrent ? 'is-returning' : '' }}" style="--step-index: {{ $index }};">
                                 <span class="step-tooltip" id="progreso-ayuda-{{ $index }}" role="tooltip">{{ $ayudaPaso }}</span>
                                 <button class="step-dot" type="button" aria-describedby="progreso-ayuda-{{ $index }}" aria-expanded="false" aria-label="{{ $paso }}. {{ $ayudaPaso }}">
                                     @if ($imagenPendiente)
@@ -795,7 +818,7 @@
                 </article>
 
                 @if ($mostrarAvisoRecojo)
-                    <article class="card pickup-notice reveal-block" style="--reveal-delay: 170ms;">
+                    <article class="card pickup-notice reveal-block {{ $envioEnDevolucion ? 'return-notice' : '' }}" style="--reveal-delay: 170ms;">
                         <p>{{ $mensajeAvisoRecojo }}</p>
                         @if ($detalleRegionalRecojo)
                             <div class="pickup-contact-grid">
@@ -860,13 +883,13 @@
                                                 @endphp
                                                 @if ($office !== '' && !$officeEsPaisOrigenGenerico)
                                                     <div class="history-meta-row">
-                                                        <span class="history-meta-label">Oficina</span>
+                                                        <span class="history-meta-label"><i class="fas fa-map-marker-alt" aria-hidden="true"></i> Lugar:</span>
                                                         <span class="history-meta-value">{{ $officeLabel }} @if($isoOffice)<img class="country-flag" src="https://flagcdn.com/16x12/{{ strtolower($isoOffice) }}.png" alt="Bandera oficina">@endif</span>
                                                     </div>
                                                 @endif
                                                 @if ($nextOffice !== '')
                                                     <div class="history-meta-row">
-                                                        <span class="history-meta-label">Siguiente Oficina</span>
+                                                        <span class="history-meta-label"><i class="fas fa-route" aria-hidden="true"></i> Siguiente:</span>
                                                         <span class="history-meta-value">{{ $nextOfficeLabel }} @if($isoNextOffice)<img class="country-flag" src="https://flagcdn.com/16x12/{{ strtolower($isoNextOffice) }}.png" alt="Bandera siguiente oficina">@endif</span>
                                                     </div>
                                                 @endif

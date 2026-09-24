@@ -389,6 +389,10 @@
                                 $facturaEstado = strtoupper((string) data_get($cart, 'estado_emision', ''));
                                 $estadoPago = strtolower(trim((string) data_get($cart, 'estado_pago', 'pendiente')));
                                 $mensajeEmision = trim((string) data_get($cart, 'mensaje_emision', ''));
+                                $mensajeEmisionMayusculas = strtoupper($mensajeEmision);
+                                $esOrdenProcesadaSinFactura = $numeroFactura === ''
+                                    && $facturaEstado !== 'FACTURADA'
+                                    && str_contains($mensajeEmisionMayusculas, 'PROCESADO');
                                 $cartId = (int) data_get($cart, 'id', 0);
                                 $codigoOrden = trim((string) data_get($cart, 'codigo_orden', ''));
                                 $numeroDocumento = trim((string) data_get($cart, 'numero_documento', ''));
@@ -485,8 +489,8 @@
                                         $actionRoute = route('facturacion.cart.consultar');
                                         $autoEmitInvoice = true;
                                     }
-                                } elseif ($facturaEstado === 'PENDIENTE') {
-                                    $consultActionLabel = 'Actualizar estado';
+                                } elseif ($facturaEstado === 'PENDIENTE' || $esOrdenProcesadaSinFactura) {
+                                    $consultActionLabel = $esOrdenProcesadaSinFactura ? 'Consultar estado' : 'Actualizar estado';
                                     $showStandardConsultAction = $showConsultAction;
                                 } elseif ($showConsultAction) {
                                     $showStandardConsultAction = true;
@@ -557,6 +561,8 @@
                                         <span class="ventas-status-chip ventas-status-chip--warning">QR PENDIENTE DE PAGO</span>
                                     @elseif($facturaEstado === 'FACTURADA')
                                         <span class="ventas-status-chip ventas-status-chip--success">FACTURADA</span>
+                                    @elseif($esOrdenProcesadaSinFactura)
+                                        <span class="ventas-status-chip ventas-status-chip--warning">PROCESADA - SIN FACTURA</span>
                                     @elseif($facturaEstado === 'PENDIENTE')
                                         <span class="ventas-status-chip ventas-status-chip--warning">PENDIENTE</span>
                                     @elseif($facturaEstado === 'RECHAZADA')
@@ -574,7 +580,11 @@
                                     @else
                                         <span class="ventas-status-chip ventas-status-chip--muted">{{ $facturaEstado !== '' ? $facturaEstado : 'SIN ESTADO' }}</span>
                                     @endif
-                                    @if($facturaEstado === 'PENDIENTE' && $canalEmision !== 'qr')
+                                    @if($esOrdenProcesadaSinFactura)
+                                        <div class="ventas-table__secondary ventas-table__secondary--hint">
+                                            La orden quedó procesada, pero no tiene número de factura. Consulta el estado antes de emitir nuevamente.
+                                        </div>
+                                    @elseif($facturaEstado === 'PENDIENTE' && $canalEmision !== 'qr')
                                         <div class="ventas-table__secondary ventas-table__secondary--hint">
                                             Si fue por contingencia, usa actualizar estado hasta que llegue la factura.
                                         </div>

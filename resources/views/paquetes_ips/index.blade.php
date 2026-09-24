@@ -1,317 +1,161 @@
 @extends('adminlte::page')
-
-@section('title', 'Paquetes IPS')
-
-@section('content_header')
-    <div class="ips-page-heading">
-        <div>
-            <h1 class="mb-1">Paquetes IPS</h1>
-            <p class="mb-0">Consulta los paquetes internacionales registrados en el sistema postal.</p>
-        </div>
-    </div>
-@endsection
-
+@section('title', 'IPS')
 @section('content')
-    <div class="ips-page">
-        @if($error)
-            <div class="alert alert-danger d-flex align-items-center mb-3" role="alert">
-                <i class="fas fa-exclamation-circle mr-2"></i>
-                <span>{{ $error }}</span>
-            </div>
-        @endif
-
-        <div class="card ips-card mb-3">
-            <div class="card-header ips-card-head">
-                <div class="ips-card-heading">
-                    <span class="ips-heading-icon"><i class="fas fa-search"></i></span>
-                    <div>
-                        <h3 class="card-title">Buscar paquetes</h3>
-                        <div class="ips-muted">Filtra por código, otro dato disponible en IPS o fecha de registro.</div>
-                    </div>
-                </div>
-            </div>
-            <div class="card-body">
-                <form method="GET" action="{{ route('paquetes-ips.index') }}" class="row align-items-end">
-                    <div class="col-lg-4 col-md-6 mb-3">
-                        <label for="ips-search" class="small font-weight-bold">Buscar</label>
-                        <input
-                            id="ips-search"
-                            type="search"
-                            name="q"
-                            value="{{ $search }}"
-                            class="form-control"
-                            maxlength="100"
-                            placeholder="Ej.: CP556326695CN"
-                        >
-                    </div>
-                    <div class="col-lg-2 col-md-3 mb-3">
-                        <label for="ips-fecha-desde" class="small font-weight-bold">Desde</label>
-                        <input
-                            id="ips-fecha-desde"
-                            type="date"
-                            name="fecha_desde"
-                            value="{{ $fechaDesde }}"
-                            class="form-control {{ session('errors')?->has('fecha_desde') ? 'is-invalid' : '' }}"
-                            max="{{ now()->toDateString() }}"
-                        >
-                        @if(session('errors')?->has('fecha_desde'))
-                            <div class="invalid-feedback">Selecciona ambas fechas del rango.</div>
-                        @endif
-                    </div>
-                    <div class="col-lg-2 col-md-3 mb-3">
-                        <label for="ips-fecha-hasta" class="small font-weight-bold">Hasta</label>
-                        <input
-                            id="ips-fecha-hasta"
-                            type="date"
-                            name="fecha_hasta"
-                            value="{{ $fechaHasta }}"
-                            class="form-control {{ session('errors')?->has('fecha_hasta') ? 'is-invalid' : '' }}"
-                            min="{{ $fechaDesde }}"
-                            max="{{ now()->toDateString() }}"
-                        >
-                        @if(session('errors')?->has('fecha_hasta'))
-                            <div class="invalid-feedback">La fecha final debe ser igual o posterior a la inicial.</div>
-                        @endif
-                    </div>
-                    <div class="col-lg-1 col-md-3 mb-3">
-                        <label for="ips-per-page" class="small font-weight-bold">Por página</label>
-                        <select id="ips-per-page" name="per_page" class="form-control">
-                            @foreach($perPageOptions as $option)
-                                <option value="{{ $option }}" @selected($perPage === $option)>{{ $option }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-lg-3 col-md-5 mb-3">
-                        <div class="ips-actions">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-search mr-1"></i> Buscar
-                            </button>
-                            <a href="{{ route('paquetes-ips.index') }}" class="btn btn-outline-secondary">Limpiar</a>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <div class="card ips-card">
-            <div class="card-header ips-card-head ips-results-head">
-                <div class="ips-card-heading">
-                    <span class="ips-heading-icon"><i class="fas fa-globe-americas"></i></span>
-                    <div>
-                        <h3 class="card-title">Listado de paquetes</h3>
-                        <div class="ips-muted">Información obtenida directamente desde IPS.</div>
-                    </div>
-                </div>
-                <div class="ips-results-tools">
-                    <span class="ips-total-pill">
-                        <strong>{{ \App\Support\BolivianNumber::format($packages->count()) }}</strong> en esta página
-                    </span>
-                    <a href="{{ request()->fullUrl() }}" class="btn btn-outline-light ips-refresh-btn" title="Actualizar listado">
-                        <i class="fas fa-sync-alt"></i>
-                        <span>Actualizar</span>
-                    </a>
-                    <span class="ips-total-pill ips-general-total">
-                        <i class="fas fa-boxes"></i>
-                        <span>Total filtrado:</span>
-                        @if($totalPackages !== null)
-                            <strong>{{ \App\Support\BolivianNumber::format($totalPackages) }}</strong>
-                        @else
-                            <strong title="La API de IPS no devolvió el total del resultado">No disponible</strong>
-                        @endif
-                    </span>
-                </div>
-            </div>
-
-            <div class="card-body p-0">
-                <div class="table-responsive ips-desktop-results">
-                    <table class="table table-hover table-striped mb-0 ips-table">
-                        <thead>
-                            <tr>
-                                <th>Identificador</th>
-                                <th>Fecha de registro</th>
-                                <th>Código</th>
-                                <th>Servicio</th>
-                                <th>Peso</th>
-                                <th>Clase de correo</th>
-                                <th>Contenido</th>
-                                <th>Estado postal</th>
-                                <th>Trayecto</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($packages as $package)
-                                @php
-                                    $originCode = data_get($package, 'origen.codigo');
-                                    $originName = data_get($package, 'origen.nombre');
-                                    $destinationCode = data_get($package, 'destino.codigo');
-                                    $destinationName = data_get($package, 'destino.nombre');
-                                @endphp
-                                <tr>
-                                    <td><span class="ips-id">#{{ data_get($package, 'mailitm_pid', '-') }}</span></td>
-                                    <td class="text-nowrap">
-                                        @if(data_get($package, 'fecha_registro'))
-                                            {{ \Illuminate\Support\Carbon::parse(data_get($package, 'fecha_registro'))->format('d/m/Y H:i') }}
-                                        @else
-                                            -
-                                        @endif
-                                    </td>
-                                    <td class="ips-code-cell">
-                                        <strong>{{ data_get($package, 'codigo', '-') ?: '-' }}</strong>
-                                        <small>S10: {{ data_get($package, 'codigo_s10', '-') ?: '-' }}</small>
-                                    </td>
-                                    <td><span class="ips-service-badge">{{ data_get($package, 'tipo_servicio', '-') ?: '-' }}</span></td>
-                                    <td class="text-nowrap">
-                                        @if(is_numeric(data_get($package, 'peso')))
-                                            <strong>{{ \App\Support\BolivianNumber::format((float) data_get($package, 'peso'), 3, ',', '.') }}</strong> kg
-                                        @else
-                                            -
-                                        @endif
-                                    </td>
-                                    <td>{{ data_get($package, 'clase_correo', '-') ?: '-' }}</td>
-                                    <td>{{ data_get($package, 'contenido', '-') ?: '-' }}</td>
-                                    <td><span class="ips-state-badge">{{ data_get($package, 'estado_postal', '-') ?: '-' }}</span></td>
-                                    <td>
-                                        <div class="ips-route">
-                                            <span title="{{ $originName ?: '-' }}">
-                                                <small>Origen</small>
-                                                <strong>{{ $originCode ?: '-' }}</strong>
-                                                <em>{{ $originName ?: '-' }}</em>
-                                            </span>
-                                            <i class="fas fa-long-arrow-alt-right"></i>
-                                            <span title="{{ $destinationName ?: '-' }}">
-                                                <small>Destino</small>
-                                                <strong>{{ $destinationCode ?: '-' }}</strong>
-                                                <em>{{ $destinationName ?: '-' }}</em>
-                                            </span>
-                                        </div>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="9" class="text-center text-muted py-5">
-                                        @if($error)
-                                            No se pudieron cargar los paquetes.
-                                        @elseif($search !== '')
-                                            No se encontraron paquetes para “{{ $search }}”.
-                                        @elseif($fechaDesde && $fechaHasta)
-                                            No se encontraron paquetes entre el {{ \Illuminate\Support\Carbon::parse($fechaDesde)->format('d/m/Y') }} y el {{ \Illuminate\Support\Carbon::parse($fechaHasta)->format('d/m/Y') }}.
-                                        @else
-                                            No hay paquetes para mostrar en esta página.
-                                        @endif
-                                    </td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="ips-mobile-results">
-                    @forelse($packages as $package)
-                        <article class="ips-package-card">
-                            <div class="ips-package-card-head">
-                                <div>
-                                    <span class="ips-service-badge">{{ data_get($package, 'tipo_servicio', '-') ?: '-' }}</span>
-                                    <h4>{{ data_get($package, 'codigo', '-') ?: '-' }}</h4>
-                                    <small>S10: {{ data_get($package, 'codigo_s10', '-') ?: '-' }}</small>
-                                </div>
-                                <span class="ips-id">#{{ data_get($package, 'mailitm_pid', '-') }}</span>
+<div class="ips-workspace">
+    @if(session('success'))<div class="alert alert-success" role="status">{{ session('success') }}</div>@endif
+    @if($errors->any())<div class="alert alert-danger" role="alert">{{ $errors->first() }}</div>@endif
+<p id="ips-listing-status" class="ips-help" role="status" aria-live="polite" hidden></p>
+    <div class="ips-layout">
+        <main class="ips-main" id="ips-listing">
+            @include('paquetes_ips.partials.listing')
+        </main>
+        <aside class="ips-panel ips-tray" aria-label="Bandeja de trabajo">
+            <div class="ips-panel-header"><h2><i class="fas fa-clipboard-list mr-2"></i>Tu bandeja</h2><span>{{ count($selection) }}/50</span></div>
+            <div class="ips-tray-body">
+                <p>Agrega los resultados que quieras trabajar. La lista se conserva mientras buscas otros paquetes.</p>
+                <label for="ips-action">Movimiento a registrar</label>
+                <select id="ips-action" class="form-control">@foreach($actions as $code=>$label)<option value="{{ $code }}">{{ $label }}</option>@endforeach</select>
+                <p id="ips-action-help" class="ips-help"></p>
+                <div class="ips-tray-items">
+                    @forelse($selection as $code=>$entry)
+                        <article class="ips-tray-item" data-code="{{ $code }}" data-actions="{{ implode(',', $entry['package']['allowed_actions'] ?? []) }}" data-status="{{ $entry['status'] }}" data-payload-action="{{ $entry['payload']['event'] ?? '' }}">
+                            <div class="d-flex align-items-center"><input class="ips-choice mr-2" type="checkbox" aria-label="Seleccionar {{ $code }}"><strong>{{ $code }}</strong>
+                                @unless(in_array($entry['status'],['processing','uncertain'],true))<form class="ml-auto ips-selection-remove" method="POST" action="{{ route('ips.selection.remove',$code) }}">@csrf @method('DELETE')<button type="submit" class="btn btn-sm text-muted" aria-label="Quitar {{ $code }}"><i class="fas fa-times"></i></button></form>@endunless
                             </div>
-                            <div class="ips-package-route">
-                                <span><small>Origen</small><strong>{{ data_get($package, 'origen.codigo', '-') ?: '-' }}</strong>{{ data_get($package, 'origen.nombre', '-') ?: '-' }}</span>
-                                <i class="fas fa-arrow-right"></i>
-                                <span><small>Destino</small><strong>{{ data_get($package, 'destino.codigo', '-') ?: '-' }}</strong>{{ data_get($package, 'destino.nombre', '-') ?: '-' }}</span>
-                            </div>
-                            <div class="ips-package-grid">
-                                <div><small>Fecha de registro</small><strong>{{ data_get($package, 'fecha_registro') ? \Illuminate\Support\Carbon::parse(data_get($package, 'fecha_registro'))->format('d/m/Y H:i') : '-' }}</strong></div>
-                                <div><small>Peso</small><strong>{{ is_numeric(data_get($package, 'peso')) ? \App\Support\BolivianNumber::format((float) data_get($package, 'peso'), 3, ',', '.').' kg' : '-' }}</strong></div>
-                                <div><small>Estado postal</small><strong>{{ data_get($package, 'estado_postal', '-') ?: '-' }}</strong></div>
-                                <div><small>Clase de correo</small><strong>{{ data_get($package, 'clase_correo', '-') ?: '-' }}</strong></div>
-                                <div><small>Contenido</small><strong>{{ data_get($package, 'contenido', '-') ?: '-' }}</strong></div>
-                            </div>
+                            <small>{{ $entry['package']['stage']['label'] }}</small>
+                            <small class="ips-item-message" role="status">{{ $entry['message'] ?: (empty($entry['package']['allowed_actions']) ? 'Sin acción habilitada para esta oficina.' : 'Elige un movimiento compatible.') }}</small>
+                            <input class="form-control form-control-sm ips-signatory mt-2" maxlength="64" placeholder="Persona que recibió (opcional)" aria-label="Receptor real de {{ $code }}" hidden>
                         </article>
-                    @empty
-                        <div class="text-center text-muted py-5">No hay paquetes para mostrar.</div>
-                    @endforelse
+                    @empty<div class="ips-empty"><i class="fas fa-inbox"></i><p>Tu bandeja está vacía.<br>Busca un paquete y pulsa Agregar.</p></div>@endforelse
                 </div>
+                <button id="ips-process" class="btn btn-primary btn-block mt-3" disabled>Revisar seleccionados</button>
+                <p id="ips-progress" role="status" aria-live="polite" class="ips-help"></p>
+                <button id="ips-refresh" class="btn btn-outline-primary btn-block" hidden onclick="location.reload()">Actualizar resultados</button>
             </div>
-
-            @if($packages->hasPages())
-                <div class="card-footer ips-pagination">
-                    <span>Página {{ $packages->currentPage() }}</span>
-                    {{ $packages->onEachSide(1)->links() }}
-                </div>
-            @endif
-        </div>
+        </aside>
     </div>
+</div>
+<dialog id="ips-confirm"><form method="dialog"><h3>Confirmar movimiento</h3><p id="ips-confirm-description"></p><p id="ips-confirm-codes"></p><p>Se validará cada paquete nuevamente. Cada movimiento tendrá su propio resultado.</p><div class="d-flex justify-content-end"><button value="cancel" class="btn btn-light mr-2">Volver</button><button value="confirm" class="btn btn-primary">Confirmar y registrar</button></div></form></dialog>
 @endsection
-
 @section('css')
-    <style>
-        .ips-page-heading h1 { color:#17233c; font-size:1.85rem; font-weight:800; letter-spacing:-.02em; }
-        .ips-page-heading p { color:#64748b; font-size:.93rem; }
-        .ips-page { background:#f1f5f9; border:1px solid #dfe7f1; border-radius:16px; padding:16px; }
-        .ips-card { border:0; border-radius:14px; box-shadow:0 10px 28px rgba(15,23,42,.08); overflow:hidden; }
-        .ips-card-head { min-height:72px; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px 20px; background:#20539A; color:#fff; border:0; }
-        .ips-card-heading { min-width:0; display:flex; align-items:center; gap:12px; }
-        .ips-heading-icon { width:40px; height:40px; flex:0 0 40px; display:inline-flex; align-items:center; justify-content:center; border-radius:11px; background:rgba(255,255,255,.14); }
-        .ips-card .card-title { float:none; margin:0 0 3px; font-size:1.05rem; line-height:1.2; font-weight:800; }
-        .ips-muted { color:rgba(255,255,255,.78); font-size:.85rem; }
-        .ips-actions { display:flex; gap:8px; }
-        .ips-actions .btn { flex:1 1 0; }
-        .ips-results-tools { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-        .ips-total-pill { display:inline-flex; align-items:baseline; gap:5px; padding:8px 12px; border:1px solid rgba(255,255,255,.22); border-radius:999px; color:#dbeafe; font-size:.78rem; white-space:nowrap; }
-        .ips-total-pill strong { color:#fff; font-size:.95rem; }
-        .ips-general-total { border-color:rgba(255,255,255,.38); background:rgba(15,37,75,.22); }
-        .ips-general-total > span { color:#fff; font-weight:700; }
-        .ips-refresh-btn { display:inline-flex; align-items:center; gap:7px; font-weight:700; }
-        .ips-table thead th { background:#eaf1fb; color:#1f3f78; border-top:0; border-bottom:1px solid #d8e2f0; font-size:.7rem; font-weight:800; letter-spacing:.045em; padding:13px 12px; text-transform:uppercase; white-space:nowrap; }
-        .ips-table td { border-color:#e7edf5; color:#26344d; vertical-align:middle; font-size:.82rem; padding:12px; }
-        .ips-table tbody tr:hover td { background:#f4f8ff; }
-        .ips-id { color:#52647e; font-weight:800; white-space:nowrap; }
-        .ips-code-cell { min-width:165px; }
-        .ips-code-cell strong, .ips-code-cell small { display:block; }
-        .ips-code-cell strong { color:#17233c; }
-        .ips-code-cell small { margin-top:4px; color:#7b879a; }
-        .ips-service-badge, .ips-state-badge { display:inline-flex; border-radius:999px; padding:5px 10px; font-size:.72rem; font-weight:800; white-space:nowrap; }
-        .ips-service-badge { background:#eef4ff; color:#20539A; text-transform:capitalize; }
-        .ips-state-badge { background:#ecfdf3; color:#18794e; }
-        .ips-route { min-width:300px; display:grid; grid-template-columns:minmax(110px,1fr) 20px minmax(110px,1fr); align-items:center; gap:8px; }
-        .ips-route > span { min-width:0; }
-        .ips-route small, .ips-route strong, .ips-route em { display:block; }
-        .ips-route small { color:#8290a5; font-size:.66rem; font-weight:800; text-transform:uppercase; }
-        .ips-route strong { color:#20539A; font-size:.8rem; }
-        .ips-route em { overflow:hidden; color:#4f5f76; font-size:.74rem; font-style:normal; text-overflow:ellipsis; white-space:nowrap; }
-        .ips-route i { color:#4f79b7; text-align:center; }
-        .ips-pagination { display:flex; align-items:center; justify-content:space-between; gap:12px; color:#64748b; }
-        .ips-pagination nav { margin-left:auto; }
-        .ips-pagination .pagination { margin-bottom:0; }
-        .ips-mobile-results { display:none; }
-        @media (max-width: 767.98px) {
-            .ips-page { margin:0 -7.5px; padding:10px; border-radius:12px; }
-            .ips-card-head, .ips-results-head { align-items:flex-start; flex-direction:column; }
-            .ips-results-tools { width:100%; justify-content:space-between; }
-            .ips-general-total { width:100%; justify-content:center; }
-            .ips-refresh-btn span { display:none; }
-            .ips-desktop-results { display:none; }
-            .ips-mobile-results { display:block; padding:12px; }
-            .ips-package-card { margin-bottom:12px; padding:14px; border:1px solid #dce5f1; border-radius:13px; background:#fff; box-shadow:0 5px 16px rgba(15,23,42,.06); }
-            .ips-package-card:last-child { margin-bottom:0; }
-            .ips-package-card-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
-            .ips-package-card-head h4 { margin:8px 0 2px; color:#17233c; font-size:1rem; font-weight:800; }
-            .ips-package-card-head small { color:#7b879a; }
-            .ips-package-route { display:grid; grid-template-columns:1fr 20px 1fr; align-items:center; gap:7px; margin:14px 0; padding:12px; border-radius:11px; background:#f5f8fc; }
-            .ips-package-route span { min-width:0; color:#52647e; font-size:.72rem; overflow-wrap:anywhere; }
-            .ips-package-route small, .ips-package-route strong { display:block; }
-            .ips-package-route small { color:#8290a5; font-size:.63rem; font-weight:800; text-transform:uppercase; }
-            .ips-package-route strong { margin:2px 0; color:#20539A; font-size:.85rem; }
-            .ips-package-route i { color:#4f79b7; text-align:center; }
-            .ips-package-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-            .ips-package-grid div { min-width:0; }
-            .ips-package-grid small, .ips-package-grid strong { display:block; }
-            .ips-package-grid small { color:#8290a5; font-size:.65rem; font-weight:800; text-transform:uppercase; }
-            .ips-package-grid strong { margin-top:3px; color:#26344d; font-size:.78rem; overflow-wrap:anywhere; }
-            .ips-pagination { align-items:stretch; flex-direction:column; }
-            .ips-pagination nav { margin-left:0; }
+<style>
+.ips-heading{display:flex;justify-content:space-between;gap:20px;padding:10px 5px 20px;align-items:center}.ips-heading h1{font-weight:800;color:#183352;margin:3px 0}.ips-heading p,.ips-footnote{color:#697b90;margin:0;font-size:.9rem}.ips-eyebrow{font-size:.68rem;color:#47698e;letter-spacing:.14em;font-weight:700}.ips-identity{display:flex;gap:12px;align-items:center;padding:12px 18px;background:white;border:1px solid #dce6f1;border-radius:12px;color:#254e80}.ips-identity small{display:block;color:#718096}
+.ips-workspace{padding:24px 5px 24px}
+.ips-layout{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:20px;align-items:start}.ips-main{min-width:0}.ips-panel{background:white;border:1px solid #e0e7ef;border-radius:14px;box-shadow:0 5px 20px #17314d08;overflow:hidden}.ips-panel-header{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;background:#234f8b;color:white;gap:12px}.ips-panel-header h2{font-size:1.05rem;font-weight:700;margin:0}.ips-panel-header>span{font-size:.78rem;white-space:nowrap}.ips-search{padding:20px;display:flex;gap:10px}.ips-search input{flex:1;min-width:100px}.ips-tabs{display:flex;gap:5px;padding:0 20px 15px;overflow:auto}.ips-tabs a{padding:8px 12px;border-radius:8px;color:#54687e;font-size:.8rem;white-space:nowrap}.ips-tabs a.is-active{background:#eaf1fc;color:#214c84;font-weight:700}.ips-table{margin:0}.ips-table th{background:#f0f4f9;font-size:.75rem;color:#315279;border-top:1px solid #e3eaf2;white-space:nowrap}.ips-table td{font-size:.8rem;padding:15px 12px;vertical-align:middle;border-color:#edf1f6}.ips-table small{display:block;color:#76869a;margin-top:5px;min-width:85px}.ips-code{color:#234f8b;white-space:nowrap}.ips-table .badge{white-space:normal;text-align:left;font-size:.74rem;line-height:1.5}.ips-pagination{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;gap:10px;flex-wrap:wrap;font-size:.8rem;color:#5b6d82}.ips-pagination .pagination{margin:0}.ips-footnote{padding:14px 2px;font-size:.78rem}
+.ips-tray{position:sticky;top:75px}.ips-tray-body{padding:18px}.ips-tray-body>p{font-size:.82rem;color:#697b90}.ips-tray-body label{font-size:.82rem;color:#324c69}.ips-tray-items{max-height:480px;overflow:auto}.ips-tray-item{padding:12px 0;border-bottom:1px solid #e8eef4;font-size:.8rem}.ips-tray-item small{display:block;color:#738297;margin:5px 0}.ips-tray-item.is-ineligible{opacity:.65}.ips-help{font-size:.77rem;color:#63778e;margin:10px 0}.ips-empty{text-align:center;padding:35px 20px!important;color:#7e8da0}.ips-empty>i{font-size:1.8rem;opacity:.5;margin-bottom:10px}.ips-empty p{margin:8px 0}.ips-tray-item[data-status=succeeded] .ips-item-message{color:#18794e}.ips-tray-item[data-status=rejected] .ips-item-message{color:#b33c38}
+#ips-confirm{border:0;border-radius:15px;max-width:520px;width:90%;padding:28px;color:#263e59;box-shadow:0 20px 70px #10233e55}#ips-confirm::backdrop{background:#10233e88}#ips-confirm h3{font-size:1.3rem;font-weight:700}#ips-confirm p{font-size:.9rem}#ips-confirm-codes{max-height:160px;overflow:auto;background:#f0f4f9;padding:10px;border-radius:8px}
+@media(max-width:1100px){.ips-layout{grid-template-columns:minmax(0,1fr)}.ips-tray{position:static}.ips-tray-items{max-height:300px}}@media(max-width:600px){.ips-heading{display:block}.ips-identity{margin-top:12px}.ips-search{flex-wrap:wrap}.ips-journey{gap:12px}}
+</style>
+@endsection
+@section('js')
+<script src="{{ asset('js/ips-listing.js') }}?v={{ filemtime(public_path('js/ips-listing.js')) }}" defer></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const action = document.getElementById('ips-action'), process = document.getElementById('ips-process'), dialog = document.getElementById('ips-confirm');
+    let rows = [...document.querySelectorAll('.ips-tray-item')], progress = document.getElementById('ips-progress');
+    const descriptions = {
+        EMG: 'Confirma solo paquetes que ya recibiste físicamente en tu oficina.',
+        EDH: 'Confirma que estos paquetes están disponibles para retiro en tu punto de atención.',
+        EDG: 'Confirma que estos paquetes están saliendo efectivamente a reparto.',
+        EMI: 'Confirma solo paquetes ya entregados a sus receptores. El receptor opcional es quien recibió, no el empleado.'
+    };
+    let running = false;
+    function update() {
+        const candidateRows = rows.filter(row => ['ready','processing','uncertain'].includes(row.dataset.status));
+        const candidateActions = [...new Set(candidateRows.flatMap(row => row.dataset.actions.split(',').filter(Boolean)))];
+        const automaticAction = candidateActions.length === 1 ? candidateActions[0] : null;
+        if (automaticAction && action.value !== automaticAction) action.value = automaticAction;
+        action.disabled = running || Boolean(automaticAction);
+        document.getElementById('ips-action-help').textContent = descriptions[action.value];
+        if (automaticAction) document.getElementById('ips-action-help').textContent += ' Movimiento propuesto automáticamente por la etapa IPS.';
+        rows.forEach(row => {
+            const allowed = row.dataset.actions.split(',').includes(action.value);
+            const retry = ['processing','uncertain'].includes(row.dataset.status) && row.dataset.payloadAction === action.value;
+            const enabled = retry || (row.dataset.status === 'ready' && allowed);
+            const check = row.querySelector('.ips-choice');
+            check.disabled = running || !enabled;
+            if (!enabled) check.checked = false;
+            // Cuando la bandeja contiene un solo paquete, la selección ya es
+            // inequívoca: queda marcada automáticamente para evitar un clic
+            // redundante. El operador todavía puede desmarcarla.
+            if (rows.length === 1 && enabled && !row.dataset.autoSelected && !running) {
+                check.checked = true;
+                row.dataset.autoSelected = '1';
+            }
+            row.classList.toggle('is-ineligible', !enabled);
+            row.querySelector('.ips-signatory').hidden = action.value !== 'EMI';
+        });
+        const count = rows.filter(row => row.querySelector('.ips-choice').checked).length;
+        process.disabled = running || count === 0;
+        process.textContent = count ? 'Revisar ' + count + ' seleccionados' : 'Selecciona paquetes compatibles';
+    }
+    action.addEventListener('change', update);
+    rows.forEach(row => row.querySelector('.ips-choice').addEventListener('change', update));
+    window.addEventListener('ips:selection-added', event => {
+        const data = event.detail || {}, packageData = data.package || {}, tray = document.querySelector('.ips-tray-items');
+        if (!tray || !data.code || rows.some(row => row.dataset.code === data.code)) return;
+        const article = document.createElement('article');
+        article.className = 'ips-tray-item'; article.dataset.code = data.code;
+        article.dataset.actions = (packageData.allowed_actions || []).join(','); article.dataset.status = 'ready'; article.dataset.payloadAction = '';
+        article.innerHTML = '<div class="d-flex align-items-center"><input class="ips-choice mr-2" type="checkbox" aria-label="Seleccionar '+data.code+'"><strong>'+data.code+'</strong><form class="ml-auto ips-selection-remove" method="POST" action="'+(data.remove_url || '')+'"><input type="hidden" name="_token" value="'+document.querySelector('meta[name="csrf-token"]')?.content+'"><input type="hidden" name="_method" value="DELETE"><button type="submit" class="btn btn-sm text-muted" aria-label="Quitar '+data.code+'"><i class="fas fa-times"></i></button></form></div>'
+            + '<small>'+((packageData.stage && packageData.stage.label) || 'Paquete IPS')+'</small><small class="ips-item-message" role="status">Elige un movimiento compatible.</small>'
+            + '<input class="form-control form-control-sm ips-signatory mt-2" maxlength="64" placeholder="Persona que recibió (opcional)" aria-label="Receptor real de '+data.code+'" hidden>';
+        tray.querySelector('.ips-empty')?.remove(); tray.appendChild(article); rows.push(article);
+        article.querySelector('.ips-choice').addEventListener('change', update); update();
+    });
+    document.addEventListener('submit', async event => {
+        const form = event.target.closest('.ips-selection-remove');
+        if (!form) return;
+        event.preventDefault();
+        const article = form.closest('.ips-tray-item'), button = form.querySelector('button');
+        button.disabled = true;
+        try {
+            const response = await fetch(form.action, {method:'DELETE', headers:{'Accept':'application/json','X-Requested-With':'XMLHttpRequest','X-CSRF-TOKEN':document.querySelector('meta[name="csrf-token"]')?.content || ''}, credentials:'same-origin'});
+            const result = await response.json();
+            if (!response.ok || !result.removed) throw new Error(result.message || 'No se pudo quitar el paquete.');
+            rows = rows.filter(row => row !== article); article.remove();
+            const trayCount = document.querySelector('.ips-tray .ips-panel-header > span');
+            if (trayCount) trayCount.textContent = result.count + '/50';
+            window.dispatchEvent(new CustomEvent('ips:selection-removed', {detail: result}));
+            update();
+        } catch (error) { button.disabled = false; progress.textContent = error.message; }
+    });
+    process.addEventListener('click', () => {
+        const selected = rows.filter(row => row.querySelector('.ips-choice').checked);
+        document.getElementById('ips-confirm-description').textContent = descriptions[action.value];
+        document.getElementById('ips-confirm-codes').textContent = selected.map(row=>row.dataset.code).join(', ');
+        dialog.returnValue = '';
+        dialog.showModal();
+    });
+    dialog.addEventListener('close', async () => {
+        if (dialog.returnValue !== 'confirm' || running) return;
+        const selected = rows.filter(row => row.querySelector('.ips-choice').checked), chosenAction = action.value;
+        running = true; action.disabled = true; update();
+        let successes = 0;
+        for (let i = 0; i < selected.length; i++) {
+            const row = selected[i];
+            progress.textContent = 'Procesando ' + (i+1) + ' de ' + selected.length + '…';
+            try {
+                const response = await fetch(@json(route('ips.operate')), {
+                    method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':@json(csrf_token())},
+                    body:JSON.stringify({codigo:row.dataset.code,action:chosenAction,confirmed:true,signatory:row.querySelector('.ips-signatory').value || null})
+                });
+                const result = await response.json();
+                row.dataset.status = result.status || 'rejected';
+                row.dataset.payloadAction = chosenAction;
+                row.querySelector('.ips-item-message').textContent = result.message || 'Revise la respuesta antes de continuar.';
+                if (result.status === 'succeeded') successes++;
+            } catch(e) {
+                row.dataset.status = 'uncertain'; row.dataset.payloadAction = chosenAction;
+                row.querySelector('.ips-item-message').textContent = 'Sin confirmación. Actualiza y reintenta la misma acción.';
+            }
+            row.querySelector('.ips-choice').checked = false;
         }
-    </style>
+        running = false; action.disabled = false; update();
+        progress.textContent = successes + ' confirmados de ' + selected.length + '. Revisa el resultado de cada paquete.';
+        document.getElementById('ips-refresh').hidden = false;
+    });
+    update();
+});
+</script>
 @endsection

@@ -47,6 +47,14 @@ return [
         'ssl_verify' => env('TRACKING_SQLSERVER_SSL_VERIFY', false),
     ],
 
+    'sitra_ips' => [
+        'base_url' => env('SITRA_IPS_BASE_URL', 'http://127.0.0.1:9000'),
+        'token' => env('SITRA_IPS_TOKEN', env('TRACKING_SQLSERVER_TOKEN', env('TRACKING_API_TOKEN'))),
+        'timeout' => (int) env('SITRA_IPS_TIMEOUT', env('TRACKING_SQLSERVER_TIMEOUT', 15)),
+        'read_timeout' => (int) env('SITRA_IPS_READ_TIMEOUT', 60),
+        'ssl_verify' => (bool) env('SITRA_IPS_SSL_VERIFY', false),
+    ],
+
     'solicitudes_sync' => [
         'base_url' => env('SOLICITUDES_SYNC_BASE_URL', 'https://gescon.correos.gob.bo:8459/'),
     ],
