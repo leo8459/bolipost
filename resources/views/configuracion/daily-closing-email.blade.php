@@ -64,14 +64,14 @@
             <div class="card card-primary card-outline">
                 <div class="card-header"><h3 class="card-title">Agregar destinatario</h3></div>
                 <div class="card-body">
-                    <form method="POST" action="{{ route('contract-expiration-email.recipients.store') }}">
+                    <form method="POST" action="{{ route('contract-expiration-email.daily-closing.recipients.store') }}">
                         @csrf
                         <label for="recipient">Correo electrónico</label>
                         <input type="email" id="recipient" name="recipient" value="{{ old('recipient') }}" class="form-control @error('recipient') is-invalid @enderror" maxlength="254" placeholder="nombre@correos.gob.bo" required>
                         @error('recipient')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         <button class="btn btn-primary btn-block mt-3"><i class="fas fa-plus mr-1"></i>Agregar</button>
                     </form>
-                    <small class="text-muted d-block mt-2">Hasta 50 correos. La lista se comparte con los avisos de Contratos.</small>
+                    <small class="text-muted d-block mt-2">Hasta 50 correos. Esta lista es exclusiva del Cierre diario.</small>
                 </div>
             </div>
 
@@ -81,7 +81,7 @@
                     @forelse ($recipients as $recipient)
                         <div class="d-flex align-items-center p-3 border-bottom">
                             <span class="text-break mr-2">{{ $recipient }}</span>
-                            <form method="POST" action="{{ route('contract-expiration-email.recipients.destroy') }}" class="ml-auto">
+                            <form method="POST" action="{{ route('contract-expiration-email.daily-closing.recipients.destroy') }}" class="ml-auto">
                                 @csrf
                                 @method('DELETE')
                                 <input type="hidden" name="recipient" value="{{ $recipient }}">
@@ -127,23 +127,21 @@
                         <h5>Detalle de movimientos</h5>
                         <div class="table-responsive" style="max-height:420px">
                             <table class="table table-sm table-hover">
-                                <thead><tr><th>Hora</th><th>Código</th><th>Evento</th><th>Destino</th><th>Usuario</th></tr></thead>
+                                <thead><tr><th>Código</th><th>Eventos del día (hora · evento · usuario)</th><th>Destino</th></tr></thead>
                                 <tbody>
-                                    @forelse ($module['movements']->take(200) as $movement)
+                                    @forelse ($module['daily_packages']->take(200) as $package)
                                         <tr>
-                                            <td>{{ $movement->event_date }}</td>
-                                            <td>{{ $movement->codigo }}</td>
-                                            <td>{{ $movement->nombre_evento ?? 'Evento '.$movement->evento_id }}</td>
-                                            <td>{{ $movement->destino ?: '—' }}</td>
-                                            <td>{{ $movement->user_name ?: 'Usuario no disponible' }}</td>
+                                            <td>{{ $package->codigo }}</td>
+                                            <td>{!! nl2br(e($package->timeline)) !!}</td>
+                                            <td>{{ $package->destino ?: '—' }}</td>
                                         </tr>
                                     @empty
-                                        <tr><td colspan="5" class="text-muted">No hay movimientos para este servicio.</td></tr>
+                                        <tr><td colspan="3" class="text-muted">No hay movimientos para este servicio.</td></tr>
                                     @endforelse
                                 </tbody>
                             </table>
                         </div>
-                        <small class="text-muted">Se muestran hasta 200 movimientos por servicio. El Excel enviado por correo incluye todos los de la fecha.</small>
+                        <small class="text-muted">Se muestran hasta 200 códigos por servicio, con todos sus eventos del día. El Excel enviado por correo incluye todos los de la fecha.</small>
                     </div>
                 </div>
             @endforeach

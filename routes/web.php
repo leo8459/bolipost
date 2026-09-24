@@ -358,6 +358,10 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
             ->name('contract-expiration-email.automatic-sending.update');
         Route::post('/administrador/correo-electronico/cierre-diario/enviar', [ContractExpirationEmailController::class, 'sendDailyClosing'])
             ->name('contract-expiration-email.daily-closing.send');
+        Route::post('/administrador/correo-electronico/cierre-diario/destinatarios', [ContractExpirationEmailController::class, 'addDailyClosingRecipient'])
+            ->name('contract-expiration-email.daily-closing.recipients.store');
+        Route::delete('/administrador/correo-electronico/cierre-diario/destinatarios', [ContractExpirationEmailController::class, 'removeDailyClosingRecipient'])
+            ->name('contract-expiration-email.daily-closing.recipients.destroy');
         Route::get('/administrador/correo-electronico/cierre-diario', [ContractExpirationEmailController::class, 'dailyClosing'])
             ->name('contract-expiration-email.daily-closing.index');
         Route::patch('/administrador/correo-electronico/cierre-diario', [ContractExpirationEmailController::class, 'updateDailyClosing'])
