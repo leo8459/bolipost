@@ -22,7 +22,7 @@ class ContractExpirationEmailController extends Controller
         ]);
     }
 
-    public function dailyClosing(Request $request, ContractExpirationMailService $mailService, DailyClosingMailService $closingService)
+    public function dailyClosing(Request $request, DailyClosingMailService $closingService)
     {
         $data = $request->validate([
             'date' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
@@ -33,7 +33,7 @@ class ContractExpirationEmailController extends Controller
         $selectedDate = $data['date'] ?? now('America/La_Paz')->toDateString();
 
         return view('configuracion.daily-closing-email', [
-            'recipients' => $mailService->recipients(),
+            'recipients' => $closingService->recipients(),
             'dailyClosingEnabled' => $closingService->automaticSendingEnabled(),
             'selectedDate' => $selectedDate,
             'report' => $closingService->reportForDate($selectedDate),
@@ -48,7 +48,7 @@ class ContractExpirationEmailController extends Controller
         return back()->with('status', 'Configuración del cierre diario guardada correctamente.');
     }
 
-    public function sendDailyClosing(Request $request, ContractExpirationMailService $mailService, DailyClosingMailService $service)
+    public function sendDailyClosing(Request $request, DailyClosingMailService $service)
     {
         $data = $request->validate([
             'date' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
@@ -57,7 +57,7 @@ class ContractExpirationEmailController extends Controller
             'date.date_format' => 'Seleccione una fecha válida.',
             'date.before_or_equal' => 'No se puede enviar un cierre de una fecha futura.',
         ]);
-        $recipients = $mailService->recipients();
+        $recipients = $service->recipients();
         if ($recipients === []) {
             return back()->with('warning', 'Primero debe guardar al menos un correo electrónico.');
         }
@@ -102,6 +102,16 @@ class ContractExpirationEmailController extends Controller
 
     public function addRecipient(Request $request, ContractExpirationMailService $mailService)
     {
+        return $this->storeRecipient($request, $mailService->recipients(), $mailService->saveRecipients(...));
+    }
+
+    public function addDailyClosingRecipient(Request $request, DailyClosingMailService $service)
+    {
+        return $this->storeRecipient($request, $service->recipients(), $service->saveRecipients(...));
+    }
+
+    private function storeRecipient(Request $request, array $savedRecipients, callable $save)
+    {
         $data = $request->validate([
             'recipient' => ['required', 'email:rfc', 'max:254'],
         ], [
@@ -110,7 +120,7 @@ class ContractExpirationEmailController extends Controller
         ]);
 
         $recipient = mb_strtolower(trim($data['recipient']));
-        $recipients = collect($mailService->recipients());
+        $recipients = collect($savedRecipients);
 
         if ($recipients->contains($recipient)) {
             return back()->with('warning', 'Ese correo electronico ya se encuentra guardado.');
@@ -120,25 +130,35 @@ class ContractExpirationEmailController extends Controller
             return back()->with('warning', 'Solo se pueden guardar hasta 50 correos electronicos.');
         }
 
-        $mailService->saveRecipients($recipients->push($recipient)->values()->all());
+        $save($recipients->push($recipient)->values()->all());
 
         return back()->with('status', 'Correo electronico agregado correctamente.');
     }
 
     public function removeRecipient(Request $request, ContractExpirationMailService $mailService)
     {
+        return $this->destroyRecipient($request, $mailService->recipients(), $mailService->saveRecipients(...));
+    }
+
+    public function removeDailyClosingRecipient(Request $request, DailyClosingMailService $service)
+    {
+        return $this->destroyRecipient($request, $service->recipients(), $service->saveRecipients(...));
+    }
+
+    private function destroyRecipient(Request $request, array $savedRecipients, callable $save)
+    {
         $data = $request->validate([
             'recipient' => ['required', 'email:rfc', 'max:254'],
         ]);
 
         $recipient = mb_strtolower(trim($data['recipient']));
-        $recipients = collect($mailService->recipients());
+        $recipients = collect($savedRecipients);
 
         if (! $recipients->contains($recipient)) {
             return back()->with('warning', 'El correo electronico ya no se encuentra en la lista.');
         }
 
-        $mailService->saveRecipients(
+        $save(
             $recipients->reject(fn (string $email) => $email === $recipient)->values()->all()
         );
 

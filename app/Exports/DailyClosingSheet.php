@@ -10,6 +10,7 @@ use Maatwebsite\Excel\Concerns\WithTitle;
 use PhpOffice\PhpSpreadsheet\Cell\Cell;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Cell\DefaultValueBinder;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class DailyClosingSheet extends DefaultValueBinder implements FromArray, ShouldAutoSize, WithCustomValueBinder, WithStyles, WithTitle
@@ -41,9 +42,14 @@ class DailyClosingSheet extends DefaultValueBinder implements FromArray, ShouldA
         $sheet->freezePane('A'.($this->headerRow + 1));
         if ($this->headerRow === 1) {
             $sheet->setAutoFilter($sheet->calculateWorksheetDimension());
-            if ($sheet->getHighestColumn() === 'J') {
-                $sheet->getColumnDimension('J')->setAutoSize(false)->setWidth(75);
-                $sheet->getStyle('J')->getAlignment()->setWrapText(true);
+            if ($sheet->getHighestColumn() === 'I') {
+                $sheet->getColumnDimension('G')->setAutoSize(false)->setWidth(75);
+                $sheet->getStyle('G')->getAlignment()
+                    ->setWrapText(true)
+                    ->setVertical(Alignment::VERTICAL_TOP);
+                for ($row = 2; $row <= $sheet->getHighestDataRow(); $row++) {
+                    $sheet->getRowDimension($row)->setRowHeight(-1);
+                }
             }
         }
 

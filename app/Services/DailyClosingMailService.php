@@ -10,9 +10,32 @@ use Illuminate\Support\Facades\Mail;
 
 class DailyClosingMailService
 {
+    public const RECIPIENTS_SETTING = 'operations.daily_closing_email_recipients';
+
     public const ENABLED_SETTING = 'operations.daily_closing_enabled';
 
     public const LAST_SENT_SETTING = 'operations.daily_closing_last_sent';
+
+    public function recipients(): array
+    {
+        $decoded = json_decode((string) AppSetting::getValue(self::RECIPIENTS_SETTING, '[]'), true);
+
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        return collect($decoded)
+            ->filter(fn ($email) => is_string($email) && filter_var($email, FILTER_VALIDATE_EMAIL))
+            ->map(fn (string $email) => mb_strtolower(trim($email)))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    public function saveRecipients(array $recipients): void
+    {
+        AppSetting::setValue(self::RECIPIENTS_SETTING, json_encode(array_values($recipients)));
+    }
 
     public function automaticSendingEnabled(): bool
     {
@@ -76,12 +99,31 @@ class DailyClosingMailService
                 $movement->event_date = CarbonImmutable::parse($movement->created_at, config('app.timezone'))
                     ->setTimezone('America/La_Paz')->format('d/m/Y H:i:s');
             }
+            $dailyPackages = $movements->groupBy('codigo')->map(function ($packageMovements) {
+                $package = $packageMovements->first();
+
+                return (object) [
+                    'codigo' => $package->codigo,
+                    'origen' => $package->origen,
+                    'provincia_origen' => $package->provincia_origen,
+                    'destino' => $package->destino,
+                    'provincia_destino' => $package->provincia_destino,
+                    'estado' => $package->estado,
+                    'cartero' => $package->cartero,
+                    'timeline' => $packageMovements->values()->map(fn ($movement, $index) => ($index + 1).') '.implode(' · ', [
+                        $movement->event_date,
+                        $movement->nombre_evento ?? 'Evento '.$movement->evento_id,
+                        $movement->user_name ?: 'Usuario no disponible',
+                    ]))->implode("\n"),
+                ];
+            })->values();
             $modules[] = [
                 'name' => $label,
                 'registered' => DB::table($table)->whereBetween('created_at', [$start, $end])->count(),
                 'delivered' => DB::table($events)->where('evento_id', 316)->whereBetween('created_at', [$start, $end])->distinct()->count('codigo'),
                 'activity' => $activity,
                 'movements' => $movements,
+                'daily_packages' => $dailyPackages,
                 'moved_packages' => $movements->pluck('codigo')->unique()->count(),
             ];
         }

@@ -36,7 +36,7 @@
                 </div>
                 <div class="card-body">
                     <p>Todos los días a las <strong>20:00, hora de Bolivia</strong>, se enviará a los correos guardados el resumen de registros, entregas y movimientos realizados durante ese día.</p>
-                    <p class="text-muted">El Excel incluye únicamente los movimientos de la fecha del cierre, dividido por departamento de destino. Desde Cierre diario también puede elegir manualmente otra fecha para revisar y enviar.</p>
+                    <p class="text-muted">El Excel incluye únicamente los movimientos de la fecha del cierre, dividido por departamento de origen. Desde Cierre diario también puede elegir manualmente otra fecha para revisar y enviar.</p>
                     <div class="d-flex flex-wrap">
                         <form method="POST" action="{{ route('contract-expiration-email.daily-closing.send') }}" class="mr-2 mb-2">
                             @csrf
@@ -84,7 +84,7 @@
                         @error('recipient')
                             <div class="invalid-feedback d-block">{{ $message }}</div>
                         @enderror
-                        <small class="form-text text-muted">Puede guardar hasta 50 destinatarios. La lista se comparte entre Contratos y Cierre diario.</small>
+                        <small class="form-text text-muted">Puede guardar hasta 50 destinatarios. Esta lista es exclusiva de los avisos de Contratos.</small>
                     </div>
                 </form>
             </div>

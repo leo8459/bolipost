@@ -29,26 +29,24 @@ class DailyClosingExport implements WithMultipleSheets
                 $module['moved_packages'],
             ];
 
-            foreach ($module['movements'] as $movement) {
-                $department = $this->departmentFor($movement->destino);
+            foreach ($module['daily_packages'] as $package) {
+                $department = $this->departmentFor($package->origen);
                 $groups[$department][] = [
                     $module['name'],
-                    $movement->codigo,
-                    $movement->origen ?: 'Sin origen',
-                    trim((string) ($movement->provincia_origen ?? '')) ?: 'Sin provincia registrada',
-                    $movement->destino ?: 'Sin destino',
-                    trim((string) ($movement->provincia_destino ?? '')) ?: 'Sin provincia registrada',
-                    $movement->nombre_evento ?? 'Evento '.$movement->evento_id,
-                    $movement->estado ?: 'Sin estado',
-                    $movement->user_name ?: 'Usuario no disponible',
-                    $movement->cartero ?: 'Sin cartero',
-                    $movement->event_date,
+                    $package->codigo,
+                    $package->origen ?: 'Sin origen',
+                    trim((string) ($package->provincia_origen ?? '')) ?: 'Sin provincia registrada',
+                    $package->destino ?: 'Sin destino',
+                    trim((string) ($package->provincia_destino ?? '')) ?: 'Sin provincia registrada',
+                    $package->timeline,
+                    $package->estado ?: 'Sin estado',
+                    $package->cartero ?: 'Sin cartero',
                 ];
             }
         }
 
         $summary[] = [];
-        $summary[] = ['Departamento de destino', 'Movimientos contratos', 'Movimientos EMS', 'Total'];
+        $summary[] = ['Departamento de origen', 'Códigos contratos', 'Códigos EMS', 'Total códigos'];
         foreach ($groups as $department => $rows) {
             $contracts = count(array_filter($rows, fn (array $row) => $row[0] === 'Contratos'));
             $ems = count(array_filter($rows, fn (array $row) => $row[0] === 'EMS'));
@@ -61,7 +59,7 @@ class DailyClosingExport implements WithMultipleSheets
                 continue;
             }
             $sheets[] = new DailyClosingSheet($department, [
-                ['Servicio', 'Código', 'Origen', 'Provincia de origen', 'Destino', 'Provincia de destino', 'Evento', 'Estado actual', 'Usuario', 'Cartero actual', 'Fecha y hora (Bolivia)'],
+                ['Servicio', 'Código', 'Origen', 'Provincia de origen', 'Destino', 'Provincia de destino', 'Eventos del día (hora · evento · usuario)', 'Estado actual', 'Cartero actual'],
                 ...$rows,
             ]);
         }
@@ -69,9 +67,9 @@ class DailyClosingExport implements WithMultipleSheets
         return $sheets;
     }
 
-    private function departmentFor(?string $destination): string
+    private function departmentFor(?string $origin): string
     {
-        $normalized = strtoupper(trim(Str::ascii((string) $destination)));
+        $normalized = strtoupper(trim(Str::ascii((string) $origin)));
         $normalized = preg_replace('/\s+/', ' ', $normalized);
 
         return match ($normalized) {

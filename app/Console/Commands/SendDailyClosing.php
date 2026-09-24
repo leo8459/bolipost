@@ -3,7 +3,6 @@
 namespace App\Console\Commands;
 
 use App\Models\AppSetting;
-use App\Services\ContractExpirationMailService;
 use App\Services\DailyClosingMailService;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
@@ -14,7 +13,7 @@ class SendDailyClosing extends Command
 
     protected $description = 'Envia los movimientos diarios de contratos y EMS';
 
-    public function handle(DailyClosingMailService $service, ContractExpirationMailService $recipientsService): int
+    public function handle(DailyClosingMailService $service): int
     {
         if (! $service->automaticSendingEnabled()) {
             $this->info('El cierre diario automatico esta desactivado.');
@@ -26,9 +25,9 @@ class SendDailyClosing extends Command
 
             return self::SUCCESS;
         }
-        $recipients = $recipientsService->recipients();
+        $recipients = $service->recipients();
         if ($recipients === []) {
-            $this->warn('No hay destinatarios configurados en Correo electronico.');
+            $this->warn('No hay destinatarios configurados para el cierre diario.');
 
             return self::SUCCESS;
         }
