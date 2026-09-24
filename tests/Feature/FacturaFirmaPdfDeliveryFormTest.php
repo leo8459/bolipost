@@ -3,11 +3,15 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\FacturaFirmaPdfController;
+use App\Models\User;
 use App\Services\FacturaFirmaPdfService;
+use App\Services\FacturacionCartService;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Testing\TestResponse;
 use ReflectionMethod;
 use setasign\Fpdi\Fpdi;
 use Smalot\PdfParser\Parser;
@@ -297,6 +301,98 @@ class FacturaFirmaPdfDeliveryFormTest extends TestCase
         $pages = (new Parser())->parseContent($output)->getPages();
 
         $this->assertCount(1, $pages);
+    }
+
+    public function test_invoice_download_uses_sale_detail_and_local_tracking_for_delivery_form(): void
+    {
+        $eventId = DB::table('eventos')->insertGetId([
+            'nombre_evento' => 'Paquete enviado a aduana.',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('eventos_certi')->insert([
+            'codigo' => 'RR-DETALLE',
+            'evento_id' => $eventId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $cartService = $this->mock(FacturacionCartService::class);
+        $cartService->shouldReceive('fetchVentaById')->once()->andReturn((object) [
+            'id' => 8606, 'venta_id' => 123, 'items' => [],
+        ]);
+        $cartService->shouldReceive('fetchVentaDetalleByVentaId')->once()
+            ->withArgs(fn (User $user, int $id) => $user->id === 1 && $id === 123)
+            ->andReturn((object) ['detalle' => [
+                ['codigo_paquete' => 'RR-DETALLE', 'tipo' => 'Certificado Internacional'],
+            ]]);
+
+        $response = $this->downloadInvoice();
+        $response->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        $pages = (new Parser())->parseContent($response->getContent())->getPages();
+        $this->assertCount(3, $pages);
+        $this->assertStringContainsString('RR-DETALLE', $pages[1]->getText());
+    }
+
+    public function test_invoice_download_succeeds_without_delivery_form_when_tracking_is_unavailable(): void
+    {
+        config()->set('services.tracking_sqlserver.base_url', 'https://tracking.test/api/tracking/eventos');
+        config()->set('services.tracking_sqlserver.eventos_batch_url', '');
+        config()->set('services.tracking_sqlserver.fallback_base_url', '');
+        $this->mock(FacturacionCartService::class)
+            ->shouldReceive('fetchVentaById')->once()->andReturn((object) [
+                'id' => 8606,
+                'items' => [['codigo_paquete' => 'RR-SIN-TRACKING', 'tipo' => 'Certificado Internacional']],
+            ]);
+
+        $response = $this->downloadInvoice();
+        $response->assertOk();
+        $this->assertCount(1, (new Parser())->parseContent($response->getContent())->getPages());
+    }
+
+    public function test_invoice_download_succeeds_for_services_without_package_codes(): void
+    {
+        $this->mock(FacturacionCartService::class)
+            ->shouldReceive('fetchVentaById')->once()->andReturn((object) [
+                'id' => 8606,
+                'items' => [['codigo' => 'SERV-123', 'titulo' => 'Servicio']],
+            ]);
+
+        $response = $this->downloadInvoice();
+        $response->assertOk();
+        $this->assertCount(1, (new Parser())->parseContent($response->getContent())->getPages());
+    }
+
+    public function test_invoice_download_succeeds_for_links_without_cart_id(): void
+    {
+        $this->mock(FacturacionCartService::class)->shouldNotReceive('fetchVentaById');
+
+        $response = $this->downloadInvoice(['cart_id' => null]);
+        $response->assertOk();
+        $this->assertCount(1, (new Parser())->parseContent($response->getContent())->getPages());
+    }
+
+    private function downloadInvoice(array $parameters = []): TestResponse
+    {
+        config()->set('services.facturacion_bridge.sefe_public_base_url', 'https://sefe.test');
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://sefe.test/public/facturas_pdf/test.pdf' => Http::response($this->simpleInvoicePdf(), 200),
+            '*' => Http::response([], 503),
+        ]);
+        $user = new User(['name' => 'Cajero']);
+        $user->id = 1;
+        $user->setRelation('sucursal', null);
+        $request = Request::create('/facturacion/factura-con-firma', 'GET', array_merge([
+            'url' => 'https://sefe.test/public/facturas_pdf/test.pdf',
+            'cart_id' => 8606,
+            'source_user_id' => 1,
+        ], $parameters));
+        $request->setUserResolver(fn () => $user);
+
+        return TestResponse::fromBaseResponse(app()->call(
+            [new FacturaFirmaPdfController(), '__invoke'], ['request' => $request]
+        ));
     }
 
     private function deliveryPackagesFromItems(\Illuminate\Support\Collection $items): array

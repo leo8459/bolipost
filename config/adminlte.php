@@ -433,6 +433,7 @@ return [
             'text' => 'IPS',
             'url' => 'ips',
             'icon' => 'fas fa-globe-americas',
+            'can' => 'ips.index',
         ],
         [
             'text' => 'Dir. Operaciones',

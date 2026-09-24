@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Services\FacturaFirmaPdfService;
 use App\Services\FacturacionCartService;
-use App\Services\SitraIpsClient;
 use App\Services\TrackingProgressService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +23,7 @@ class FacturaFirmaPdfController extends Controller
 
     private array $unavailableTrackingApiUrls = [];
 
-    public function __invoke(Request $request, FacturaFirmaPdfService $pdfService, FacturacionCartService $cartService, SitraIpsClient $ips)
+    public function __invoke(Request $request, FacturaFirmaPdfService $pdfService, FacturacionCartService $cartService)
     {
         $data = $request->validate([
             'url' => ['required', 'url', 'max:2048'],
@@ -35,10 +34,6 @@ class FacturaFirmaPdfController extends Controller
         $base = rtrim((string) config('services.facturacion_bridge.sefe_public_base_url'), '/');
         abort_unless(str_starts_with($url, $base . '/public/facturas_pdf/'), 403);
 
-        // El formulario de entrega solo corresponde a paquetes listos para
-        // entregar. La consulta a SITRA es obligatoria antes de generar el PDF.
-        $this->ensureTicketEligible($request, $cartService, $ips);
-
         try {
             $response = Http::connectTimeout(10)->timeout(45)
                 ->withoutRedirecting()->accept('application/pdf')->get($url);
@@ -46,6 +41,8 @@ class FacturaFirmaPdfController extends Controller
                 throw new \RuntimeException('No se recibio el PDF de la factura.');
             }
 
+            // El seguimiento determina si se adjunta el formulario de entrega;
+            // no debe impedir descargar una factura ya emitida.
             $content = $pdfService->appendSignatureFields(
                 $response->body(),
                 $this->buildDeliveryData($request, $cartService)
@@ -62,47 +59,6 @@ class FacturaFirmaPdfController extends Controller
             'Content-Disposition' => 'attachment; filename="' . preg_replace('/[^A-Za-z0-9._-]/', '', $filename) . '"',
             'Cache-Control' => 'private, no-store',
         ]);
-    }
-
-    private function ensureTicketEligible(Request $request, FacturacionCartService $cartService, SitraIpsClient $ips): void
-    {
-        $cartId = $request->integer('cart_id');
-        $viewer = $request->user();
-        if ($cartId <= 0 || !$viewer) {
-            abort(422, 'No se pudo identificar la venta para validar el paquete.');
-        }
-
-        $sourceUser = $this->resolveSourceUser($request, $viewer);
-        $cart = $sourceUser ? $cartService->fetchVentaById($sourceUser, $cartId) : null;
-        $items = $cart ? $this->normalizeItems(data_get($cart, 'items', [])) : collect();
-        if ($items->isEmpty()) {
-            abort(409, 'La venta no contiene paquetes para validar.');
-        }
-
-        $codes = $items->map(fn ($item) => $this->resolveTrackingCode($item))->filter()->unique()->values();
-        if ($codes->isEmpty()) {
-            abort(409, 'La venta no contiene un código de paquete válido.');
-        }
-
-        $ready = false;
-        foreach ($codes as $code) {
-            try {
-                $package = $ips->package($code)['package'] ?? [];
-                $stage = mb_strtolower(trim((string) data_get($package, 'stage.label', '')));
-                $event = mb_strtolower(trim((string) ($package['event_name'] ?? '')));
-                $text = $stage . ' ' . $event;
-                if (str_contains($text, 'ventanilla')
-                    || str_contains($text, 'reparto')
-                    || str_contains($text, 'entregad')) {
-                    $ready = true;
-                    break;
-                }
-            } catch (\Throwable $exception) {
-                report($exception);
-            }
-        }
-
-        abort_unless($ready, 409, 'El paquete todavía no está listo para entrega.');
     }
 
     private function buildDeliveryData(Request $request, FacturacionCartService $cartService): array
