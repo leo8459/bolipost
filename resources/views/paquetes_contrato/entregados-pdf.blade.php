@@ -58,8 +58,8 @@
     </div>
 
     <div class="chips">
-        <span class="chip">Desde: {{ $fechaDesde ? \Illuminate\Support\Carbon::parse($fechaDesde)->format('d/m/Y') : 'Inicio' }}</span>
-        <span class="chip">Hasta: {{ $fechaHasta ? \Illuminate\Support\Carbon::parse($fechaHasta)->format('d/m/Y') : 'Hoy' }}</span>
+        <span class="chip">Recojo desde: {{ $fechaDesde ? \Illuminate\Support\Carbon::parse($fechaDesde)->format('d/m/Y') : 'Inicio' }}</span>
+        <span class="chip">Recojo hasta: {{ $fechaHasta ? \Illuminate\Support\Carbon::parse($fechaHasta)->format('d/m/Y') : 'Hoy' }}</span>
         <span class="chip">Registros: {{ \App\Support\BolivianNumber::format($stats['total'] ?? 0) }}</span>
     </div>
 
@@ -67,12 +67,12 @@
         <tr>
             <td><div class="k">Total entregados</div><div class="v">{{ \App\Support\BolivianNumber::format($stats['total'] ?? 0) }}</div></td>
             <td><div class="k">Peso total</div><div class="v">{{ \App\Support\BolivianNumber::format((float) ($stats['peso_total'] ?? 0), 3) }} kg</div></td>
-            <td><div class="k">Dias con entregas</div><div class="v">{{ \App\Support\BolivianNumber::format($stats['dias_cubiertos'] ?? 0) }}</div></td>
+            <td><div class="k">Dias de recojo</div><div class="v">{{ \App\Support\BolivianNumber::format($stats['dias_cubiertos'] ?? 0) }}</div></td>
             <td><div class="k">Promedio diario</div><div class="v">{{ \App\Support\BolivianNumber::format((float) ($stats['promedio_diario'] ?? 0), 2) }}</div></td>
         </tr>
     </table>
 
-    <div class="section-title">Resumen por dia</div>
+    <div class="section-title">Resumen por fecha de recojo</div>
     <table class="report">
         <thead>
             <tr>
@@ -88,7 +88,7 @@
                     <td>{{ $row['label'] }}</td>
                     <td class="num">{{ \App\Support\BolivianNumber::format((int) $row['total']) }}</td>
                     <td class="num">{{ \App\Support\BolivianNumber::format((float) $row['peso'], 3) }}</td>
-                    <td class="muted">Distribucion diaria de contratos entregados.</td>
+                    <td class="muted">Distribucion diaria por fecha de recojo.</td>
                 </tr>
             @empty
                 <tr><td colspan="4" class="muted">Sin resumen diario para mostrar.</td></tr>
@@ -101,7 +101,7 @@
         <thead>
             <tr>
                 <th style="width: 12%;">Codigo</th>
-                <th style="width: 10%;">Fecha de entrega</th>
+                <th style="width: 10%;">Fecha de recojo</th>
                 <th style="width: 8%;">Origen</th>
                 <th style="width: 8%;">Destino</th>
                 <th style="width: 16%;">Remitente</th>
@@ -116,7 +116,7 @@
             @forelse($contratos as $contrato)
                 <tr>
                     <td>{{ $contrato->codigo }}</td>
-                    <td>{{ optional($contrato->created_at)->format('d/m/Y H:i') ?: '-' }}</td>
+                    <td>{{ optional($contrato->fecha_recojo)->format('d/m/Y H:i') ?: '-' }}</td>
                     <td>{{ $contrato->origen ?: '-' }}</td>
                     <td>{{ $contrato->destino ?: '-' }}</td>
                     <td>{{ $contrato->nombre_r ?: '-' }}</td>

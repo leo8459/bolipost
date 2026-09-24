@@ -523,7 +523,7 @@ class RecojoController extends Controller
         [$fechaDesde, $fechaHasta] = $this->resolveEntregadosDateRange($request);
 
         $contratos = $this->entregadosQueryForUser($user, $fechaDesde, $fechaHasta)
-            ->orderByDesc('created_at')
+            ->orderByDesc('fecha_recojo')
             ->orderByDesc('id')
             ->paginate(15)
             ->withQueryString();
@@ -590,7 +590,7 @@ class RecojoController extends Controller
         [$fechaDesde, $fechaHasta] = $this->resolveEntregadosDateRange($request);
 
         $contratos = $this->entregadosQueryForUser($user, $fechaDesde, $fechaHasta)
-            ->orderBy('created_at')
+            ->orderBy('fecha_recojo')
             ->orderBy('id')
             ->get();
 
@@ -1398,8 +1398,9 @@ class RecojoController extends Controller
         return $query
             ->where('empresa_id', $empresaId)
             ->where('estados_id', $estadoEntregadoId)
-            ->when($fechaDesde, fn ($sub) => $sub->whereDate('created_at', '>=', $fechaDesde))
-            ->when($fechaHasta, fn ($sub) => $sub->whereDate('created_at', '<=', $fechaHasta));
+            ->whereNotNull('fecha_recojo')
+            ->when($fechaDesde, fn ($sub) => $sub->whereDate('fecha_recojo', '>=', $fechaDesde))
+            ->when($fechaHasta, fn ($sub) => $sub->whereDate('fecha_recojo', '<=', $fechaHasta));
     }
 
     private function resolveEntregadosDateRange(Request $request): array
@@ -1432,7 +1433,7 @@ class RecojoController extends Controller
         $rows = $rows ?? $this->entregadosQueryForUser($user, $fechaDesde, $fechaHasta)->get();
 
         $porDia = $rows
-            ->groupBy(fn (Recojo $contrato) => optional($contrato->created_at)->format('Y-m-d') ?: 'sin-fecha')
+            ->groupBy(fn (Recojo $contrato) => optional($contrato->fecha_recojo)->format('Y-m-d') ?: 'sin-fecha')
             ->map(fn ($items, $fecha) => [
                 'fecha' => $fecha,
                 'label' => $fecha !== 'sin-fecha'
