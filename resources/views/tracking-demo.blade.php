@@ -43,6 +43,11 @@
         $codigoEstadoDevolucion = $trackingProgress['return_status_cd'] ?? null;
         $devolucionCompletada = $trackingProgress['is_return_completed'] ?? false;
         $envioEnAduana = $trackingProgress['is_customs'] ?? false;
+        $tramoAduanaVentanilla = $trackingProgress['has_customs_counter_flow'] ?? false;
+        $gestionAduanaRequerida = $trackingProgress['customs_action_required'] ?? false;
+        $respaldoCompraRequerido = $trackingProgress['customs_purchase_proof_required'] ?? false;
+        $disponibleParaRecojo = $trackingProgress['is_pickup_available'] ?? false;
+        $aduanaDevueltaAlFlujoPostal = $trackingProgress['customs_returned_to_postal_flow'] ?? false;
         $ultimoNombre = $envioEnDevolucion
             ? 'El paquete está regresando al remitente.'
             : ($ultimoEvento->nombre_evento ?? ('Evento #' . ($ultimoEvento->evento_id ?? '-')));
@@ -52,6 +57,7 @@
             'Despacho' => 'despacho',
             'Expedicion' => 'expedision',
             'Aduana' => 'aduana',
+            'Ventanilla = Aduana' => 'aduana',
             'Ventanilla' => 'ventanilla',
             'Cartero' => 'cartero',
             'Entregado' => 'entregado',
@@ -65,6 +71,7 @@
             'Despacho' => 'Fue preparado para su traslado.',
             'Expedicion' => 'Esta en movimiento dentro de la red postal.',
             'Aduana' => 'Esta en control aduanero.',
+            'Ventanilla = Aduana' => 'Una sola etapa que combina la gestión de Aduana y el retiro en Ventanilla.',
             'Ventanilla' => 'Esta disponible para su recojo en oficina.',
             'Cartero' => 'Esta con el cartero para su entrega.',
             'Entregado' => 'La entrega fue confirmada.',
@@ -74,6 +81,17 @@
         ];
         if ($envioEnDevolucion) {
             $ayudasPasos['Expedicion'] = 'El envío fue marcado por IPS para devolución al remitente.';
+        }
+        if ($tramoAduanaVentanilla) {
+            $ayudasPasos['Ventanilla = Aduana'] = $disponibleParaRecojo
+                ? 'El envío está disponible para recoger en Ventanilla.'
+                : ($aduanaDevueltaAlFlujoPostal
+                    ? 'Aduana devolvió el envío al flujo postal. Continúa su traslado a Ventanilla.'
+                : ($respaldoCompraRequerido
+                    ? 'Aduana espera el respaldo de compra o valor del envío. Después de completar la gestión, continúa a Ventanilla.'
+                    : ($gestionAduanaRequerida
+                        ? 'El envío requiere gestión aduanera. Luego continúa a Ventanilla.'
+                        : 'El envío fue enviado a Aduana. Después de completar ese trámite continuará a Ventanilla.')));
         }
         $entregaConfirmada = $estadoGlobal === 'Entregado';
 
@@ -655,11 +673,26 @@
             ],
         ];
 
-        $eventoListoParaEntregar = $eventos->first(function ($item) {
-            $texto = mb_strtolower((string) ($item->nombre_evento ?? ''));
-            return str_contains($texto, 'listo para entregar')
-                || str_contains($texto, 'oficina de entrega');
-        });
+        $ultimoEventoTracking = $eventos->first();
+        $textoUltimoEventoTracking = mb_strtolower((string) ($ultimoEventoTracking->nombre_evento ?? ''));
+        $codigoUltimoEventoTracking = (int) ($ultimoEventoTracking->codigo_evento ?? $ultimoEventoTracking->event_code ?? 0);
+        // En este flujo, llegar a Ventanilla (32) o al punto de recogida (75)
+        // activa el aviso de retiro para el destinatario.
+        $eventoListoParaEntregar = $ultimoEventoTracking && (
+            in_array($codigoUltimoEventoTracking, [32, 75], true)
+            || $disponibleParaRecojo
+            || str_contains($textoUltimoEventoTracking, 'listo para entregar')
+            || str_contains($textoUltimoEventoTracking, 'listo para recoger')
+            || str_contains($textoUltimoEventoTracking, 'oficina de entrega')
+            || str_contains($textoUltimoEventoTracking, 'ventanilla')
+            || str_contains($textoUltimoEventoTracking, 'punto de recogida')
+            || str_contains($textoUltimoEventoTracking, 'available for collection')
+            || str_contains($textoUltimoEventoTracking, 'item available for collection')
+            || str_contains($textoUltimoEventoTracking, 'received at collection point')
+            || str_contains($textoUltimoEventoTracking, 'receive item at collection point')
+            || str_contains($textoUltimoEventoTracking, 'collection point for pick-up')
+            || str_contains($textoUltimoEventoTracking, 'collection point for pickup')
+        ) ? $ultimoEventoTracking : null;
 
         $mostrarAvisoRecojo = false;
         $mensajeAvisoRecojo = '';
@@ -675,20 +708,47 @@
         } elseif ($entregaConfirmada) {
             $mensajeAvisoRecojo = 'Tu paquete ya fue entregado. No tienes acciones pendientes en oficina.';
             $mostrarAvisoRecojo = true;
+        } elseif ($tramoAduanaVentanilla && $aduanaDevueltaAlFlujoPostal) {
+            $mensajeAvisoRecojo = 'Aduana devolvió tu envío al flujo postal. Continúa su traslado hacia la oficina de destino; espera una nueva actualización antes de ir a recogerlo.';
+            $mostrarAvisoRecojo = true;
+        } elseif ($tramoAduanaVentanilla && $envioEnAduana && !$disponibleParaRecojo) {
+            $oficinaAviso = trim((string) ($ultimoEventoTracking->office ?? $ultimoEventoTracking->nextOffice ?? ''));
+            $departamento = $detectarDepartamentoBolivia($oficinaAviso);
+
+            if ($respaldoCompraRequerido) {
+                $mensajeAvisoRecojo = 'Aduana solicita el respaldo de compra o valor del envío. Revisa las indicaciones para completar la gestión.';
+            } elseif ($gestionAduanaRequerida) {
+                $mensajeAvisoRecojo = 'Aduana requiere una gestión para tu envío. Revisa las indicaciones antes de acudir a una oficina.';
+            } else {
+                $mensajeAvisoRecojo = $departamento
+                    ? 'Tu envío está en gestión aduanera en ' . $departamento . '. Aún no figura como listo para recoger; espera una nueva actualización.'
+                    : 'Tu envío está en gestión aduanera. Aún no figura como listo para recoger; espera una nueva actualización.';
+            }
+
+            if ($gestionAduanaRequerida && $departamento && isset($contactosRegional[$departamento])) {
+                $detalleRegionalRecojo = $contactosRegional[$departamento];
+            }
+
+            if ($detalleRegionalRecojo) {
+                $mapQuery = trim((string) ($detalleRegionalRecojo['coords'] ?? ''));
+                if ($mapQuery === '') {
+                    $mapQuery = trim($detalleRegionalRecojo['direccion'] . ' ' . $detalleRegionalRecojo['regional'] . ' Bolivia');
+                }
+                $mapUrlRegionalRecojo = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($mapQuery);
+            }
+            $mostrarAvisoRecojo = true;
         } elseif ($eventoListoParaEntregar) {
-            $oficinaAviso = trim((string) ($eventoListoParaEntregar->office ?? ''));
+            $oficinaAviso = trim((string) ($eventoListoParaEntregar->office ?? $eventoListoParaEntregar->nextOffice ?? ''));
             $isoOficinaAviso = $iso2DesdeOficina($oficinaAviso);
-            $esBolivia = ($isoOficinaAviso === 'BO');
+            $departamento = $detectarDepartamentoBolivia($oficinaAviso);
+            $esBolivia = $isoOficinaAviso === 'BO' || $departamento !== null || $esDestinoNacional;
 
             if ($esBolivia) {
-                $departamento = $detectarDepartamentoBolivia($oficinaAviso);
                 $mensajeAvisoRecojo = $departamento
                     ? 'Tu paquete esta listo para entregar. Debes pasar a recoger en el departamento de ' . $departamento . '.'
                     : 'Tu paquete esta listo para entregar. Debes pasar a recoger en tu oficina de destino en Bolivia.';
                 if ($departamento && isset($contactosRegional[$departamento])) {
                     $detalleRegionalRecojo = $contactosRegional[$departamento];
-                } else {
-                    $detalleRegionalRecojo = $contactosRegional['La Paz'];
                 }
                 if ($detalleRegionalRecojo) {
                     $mapQuery = trim((string) ($detalleRegionalRecojo['coords'] ?? ''));
@@ -697,8 +757,10 @@
                     }
                     $mapUrlRegionalRecojo = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($mapQuery);
                 }
-                $mostrarAvisoRecojo = true;
+            } else {
+                $mensajeAvisoRecojo = 'Tu paquete está listo para entregar. Puedes pasar a recogerlo en el punto de Ventanilla indicado en el seguimiento.';
             }
+            $mostrarAvisoRecojo = true;
         }
     @endphp
 
@@ -790,6 +852,8 @@
                                 $customsCurrent = $envioEnAduana && $current;
                                 $deliveredCurrent = $entregaConfirmada && $current;
                                 $returningCurrent = $envioEnDevolucion && $current;
+                                $combinedCustomsStep = $paso === 'Ventanilla = Aduana';
+                                $combinedStageLabelState = $done ? 'is-done' : ($current ? 'is-active' : '');
                                 $imagenPaso = $imagenesPasos[$paso] ?? null;
                                 $imagenPendiente = $imagenPaso && !$done && !$current
                                     ? $imagenPaso . '-blanco'
@@ -798,19 +862,37 @@
                                 $estadoPaso = $cancelledCurrent
                                     ? 'Cancelado'
                                     : ($returningCurrent ? 'Devolución en curso'
-                                    : ($deliveredCurrent ? 'Entregado' : ($done ? 'Listo' : ($current ? 'En curso' : 'Pendiente'))));
+                                    : ($deliveredCurrent ? 'Entregado' : ($done ? 'Listo' : ($current && $combinedCustomsStep
+                                        ? ($disponibleParaRecojo ? 'Puede pasar a recoger' : ($gestionAduanaRequerida ? 'Requiere gestión' : ($envioEnAduana ? 'En Aduana' : 'En curso')))
+                                        : ($current ? 'En curso' : 'Pendiente')))));
                             @endphp
                             <li class="{{ $done ? 'is-done' : '' }} {{ $current ? 'is-current' : '' }} {{ $cancelledCurrent ? 'is-cancelled' : '' }} {{ $customsCurrent ? 'is-customs' : '' }} {{ $deliveredCurrent ? 'is-delivered' : '' }} {{ $returningCurrent ? 'is-returning' : '' }}" style="--step-index: {{ $index }};">
                                 <span class="step-tooltip" id="progreso-ayuda-{{ $index }}" role="tooltip">{{ $ayudaPaso }}</span>
-                                <button class="step-dot" type="button" aria-describedby="progreso-ayuda-{{ $index }}" aria-expanded="false" aria-label="{{ $paso }}. {{ $ayudaPaso }}">
-                                    @if ($imagenPendiente)
+                                <button class="step-dot" type="button" aria-describedby="progreso-ayuda-{{ $index }}" aria-expanded="false" aria-label="{{ $paso }}. {{ $ayudaPaso }}. Estado: {{ $estadoPaso }}">
+                                    @if ($combinedCustomsStep)
+                                        <span class="split-step-art" aria-hidden="true">
+                                            <span class="split-step-art-half split-step-art-left"><img src="{{ asset('images/eventos/ventanilla.png') }}" alt=""></span>
+                                            <span class="split-step-art-half split-step-art-right"><img src="{{ asset('images/eventos/aduana.png') }}" alt=""></span>
+                                            <span class="split-step-art-divider"></span>
+                                        </span>
+                                    @elseif ($imagenPendiente)
                                         <img src="{{ asset('images/eventos/' . $imagenPendiente . '.png') }}" alt="" aria-hidden="true">
                                     @else
                                         {!! $cancelledCurrent ? '!' : '&#9675;' !!}
                                     @endif
                                 </button>
-                                <span class="step-name">{{ $paso }}</span>
-                                <span class="step-state">{{ $estadoPaso }}</span>
+                                @if ($combinedCustomsStep)
+                                    <span class="step-name combined-stage-name" aria-label="Ventanilla igual a Aduana, una sola etapa">
+                                        <span class="combined-stage-label {{ $combinedStageLabelState }}">Ventanilla</span>
+                                        <span class="combined-stage-equals" aria-hidden="true">=</span>
+                                        <span class="combined-stage-label {{ $combinedStageLabelState }}">Aduana</span>
+                                    </span>
+                                @else
+                                    <span class="step-name">{{ $paso }}</span>
+                                @endif
+                                @unless ($combinedCustomsStep)
+                                    <span class="step-state">{{ $estadoPaso }}</span>
+                                @endunless
                             </li>
                         @endforeach
                     </ol>

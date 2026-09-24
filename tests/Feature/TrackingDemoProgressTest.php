@@ -103,6 +103,181 @@ class TrackingDemoProgressTest extends TestCase
         $response->assertDontSee('Paso actual: <strong>Ventanilla</strong>', false);
     }
 
+    public function test_customs_route_shows_both_substeps_and_guidance_while_event_31_is_current(): void
+    {
+        config()->set('services.tracking_sqlserver.base_url', 'https://tracking.test/api/public/tracking/eventos');
+        config()->set('services.tracking_sqlserver.token', 'test-token');
+
+        Http::fake([
+            'https://tracking.test/*' => Http::response([
+                'codigo' => 'LP666440208MY',
+                'servicio' => 'ORDINARIAS',
+                'origen' => 'Malaysia',
+                'destino' => 'Bolivia',
+                'eventos_locales' => [],
+                'eventos_externos' => [
+                    [
+                        'codigo_evento' => 31,
+                        'created_at' => '2026-09-14 21:06:00',
+                        'nombre_evento' => 'Send item to customs (Inb)',
+                        'office' => 'SANTA CRUZ DE LA SIERRA LC/AO-AVION',
+                    ],
+                    [
+                        'codigo_evento' => 32,
+                        'created_at' => '2026-09-14 17:40:00',
+                        'nombre_evento' => 'Receive item at delivery office (Inb)',
+                        'office' => 'SANTA CRUZ DE LA SIERRA LC/AO-AVION',
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $response = $this
+            ->withSession([
+                'tracking_captcha_verified_until' => now()->addMinutes(5)->timestamp,
+            ])
+            ->get('/trackingbo?codigo=LP666440208MY');
+
+        $response->assertOk();
+        $response->assertSee('no figura como listo para recoger');
+        $response->assertSee('<h1>En Aduana</h1>', false);
+        $response->assertDontSee('pago indicados por Aduana', false);
+        $response->assertSee('Ventanilla igual a Aduana, una sola etapa', false);
+        $response->assertSee('split-step-art', false);
+        $response->assertDontSee('class="step-state">En Aduana</span>', false);
+        $response->assertDontSee('Tu paquete esta listo para entregar. Debes pasar a recoger', false);
+    }
+
+    public function test_counter_stage_restores_the_pickup_message_for_a_customs_package(): void
+    {
+        config()->set('services.tracking_sqlserver.base_url', 'https://tracking.test/api/public/tracking/eventos');
+        config()->set('services.tracking_sqlserver.token', 'test-token');
+
+        Http::fake([
+            'https://tracking.test/*' => Http::response([
+                'codigo' => 'LP666440208MY',
+                'servicio' => 'ORDINARIAS',
+                'origen' => 'Malaysia',
+                'destino' => 'Bolivia',
+                'eventos_locales' => [],
+                'eventos_externos' => [
+                    [
+                        'codigo_evento' => 32,
+                        'created_at' => '2026-09-15 09:10:00',
+                        'nombre_evento' => 'Receive item at delivery office (Inb)',
+                    ],
+                    [
+                        'codigo_evento' => 31,
+                        'created_at' => '2026-09-14 21:06:00',
+                        'nombre_evento' => 'Send item to customs (Inb)',
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $response = $this
+            ->withSession([
+                'tracking_captcha_verified_until' => now()->addMinutes(5)->timestamp,
+            ])
+            ->get('/trackingbo?codigo=LP666440208MY');
+
+        $response->assertOk();
+        $response->assertSee('Tu paquete está listo para entregar. Puedes pasar a recogerlo en el punto de Ventanilla indicado en el seguimiento.');
+        $response->assertDontSee('class="step-state">Puede pasar a recoger</span>', false);
+        $response->assertSee('Ventanilla igual a Aduana, una sola etapa', false);
+    }
+
+    public function test_customs_information_at_destination_marks_combined_step_ready_for_pickup(): void
+    {
+        config()->set('services.tracking_sqlserver.base_url', 'https://tracking.test/api/public/tracking/eventos');
+        config()->set('services.tracking_sqlserver.token', 'test-token');
+
+        Http::fake([
+            'https://tracking.test/*' => Http::response([
+                'codigo' => 'LX093096600NL',
+                'servicio' => 'ORDINARIAS',
+                'origen' => 'Netherlands',
+                'destino' => 'Bolivia',
+                'eventos_locales' => [],
+                'eventos_externos' => [
+                    [
+                        'codigo_evento' => 34,
+                        'created_at' => '2026-09-18 18:00:42',
+                        'nombre_evento' => 'Registrar información de aduanas sobre el envío (entrada)',
+                        'office' => 'BOORUB - ORURO',
+                        'ciudad_destino' => 'Oruro',
+                    ],
+                    [
+                        'codigo_evento' => 31,
+                        'created_at' => '2026-09-14 20:28:28',
+                        'nombre_evento' => 'Send item to customs (Inb)',
+                        'office' => 'BOSRZA - SANTA CRUZ DE LA SIERRA LC/AO-AVION',
+                    ],
+                    [
+                        'codigo_evento' => 30,
+                        'created_at' => '2026-09-11 15:14:32',
+                        'nombre_evento' => 'Recibir envío en oficina de cambio (entrada)',
+                        'office' => 'BOSRZA - SANTA CRUZ DE LA SIERRA LC/AO-AVION',
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $response = $this
+            ->withSession([
+                'tracking_captcha_verified_until' => now()->addMinutes(5)->timestamp,
+            ])
+            ->get('/trackingbo?codigo=LX093096600NL');
+
+        $response->assertOk();
+        $response->assertSee('<h1>Listo para recoger</h1>', false);
+        $response->assertDontSee('pago indicados por Aduana', false);
+        $response->assertSee('Calle Presidente Montes Esquina Junin', false);
+        $response->assertSee('Ventanilla igual a Aduana, una sola etapa', false);
+    }
+
+    public function test_customs_event_in_santa_cruz_is_not_pickup_ready_for_la_paz_destination(): void
+    {
+        config()->set('services.tracking_sqlserver.base_url', 'https://tracking.test/api/public/tracking/eventos');
+        config()->set('services.tracking_sqlserver.token', 'test-token');
+
+        Http::fake([
+            'https://tracking.test/*' => Http::response([
+                'codigo' => 'EC256579158BE',
+                'servicio' => 'CERTIFICADAS',
+                'origen' => 'Belgium',
+                'destino' => 'Bolivia',
+                'eventos_locales' => [],
+                'eventos_externos' => [
+                    [
+                        'codigo_evento' => 31,
+                        'created_at' => '2026-09-01 20:44:57',
+                        'nombre_evento' => 'Send item to customs (Inb)',
+                        'office' => 'BOSRZA - SANTA CRUZ DE LA SIERRA LC/AO-AVION',
+                        'ciudad_destino' => 'La Paz',
+                    ],
+                    [
+                        'codigo_evento' => 30,
+                        'created_at' => '2026-08-28 18:22:53',
+                        'nombre_evento' => 'Receive item at inward office of exchange',
+                        'office' => 'BOSRZA - SANTA CRUZ DE LA SIERRA LC/AO-AVION',
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $response = $this
+            ->withSession([
+                'tracking_captcha_verified_until' => now()->addMinutes(5)->timestamp,
+            ])
+            ->get('/trackingbo?codigo=EC256579158BE');
+
+        $response->assertOk();
+        $response->assertSee('<h1>En Aduana</h1>', false);
+        $response->assertDontSee('Tu paquete esta listo para entregar', false);
+        $response->assertDontSee('Avenida Mariscal Santa Cruz', false);
+    }
+
     public function test_mixed_international_tracking_keeps_external_origin_country_in_header(): void
     {
         config()->set('services.tracking_sqlserver.base_url', 'https://tracking.test/api/public/tracking/eventos');

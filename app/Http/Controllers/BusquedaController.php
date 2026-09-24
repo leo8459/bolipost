@@ -173,6 +173,17 @@ class BusquedaController extends Controller
         $codigo = $this->obtenerCodigoValidado($request);
         $resultado = $this->buscarEventosPorCodigo($codigo);
         $eventos = $resultado['eventos'];
+
+        // The external IPS payload often says only "Bolivia" as destination.
+        // Prefer the city registered with the local package so the progress
+        // state can distinguish a destination customs office from a transit
+        // office (for example Oruro versus Santa Cruz on the way to La Paz).
+        $ciudadDestinoLocal = $this->buscarCiudadDestinoPaquete($codigo);
+        if ($ciudadDestinoLocal !== null) {
+            $eventos->each(function ($evento) use ($ciudadDestinoLocal): void {
+                $evento->ciudad_destino = $ciudadDestinoLocal;
+            });
+        }
         $this->reportTrackingAnalytics($request, $codigo, $eventos, $resultado['fuente'], 'bolipost_home');
 
         if ($eventos->isEmpty()) {
@@ -645,6 +656,36 @@ class BusquedaController extends Controller
         ];
     }
 
+    private function buscarCiudadDestinoPaquete(string $codigo): ?string
+    {
+        $opciones = [
+            ['paquetes_ordi', 'ciudad'],
+            ['paquetes_certi', 'cuidad'],
+            ['paquetes_ems', 'ciudad'],
+            ['paquetes_contrato', 'destino'],
+            ['recojos', 'destino'],
+            ['solicitud_clientes', 'ciudad'],
+        ];
+
+        foreach ($opciones as [$tabla, $columna]) {
+            if (!Schema::hasTable($tabla)
+                || !Schema::hasColumn($tabla, 'codigo')
+                || !Schema::hasColumn($tabla, $columna)) {
+                continue;
+            }
+
+            $ciudad = trim((string) DB::table($tabla)
+                ->whereRaw('UPPER(TRIM(codigo)) = ?', [strtoupper(trim($codigo))])
+                ->value($columna));
+
+            if ($ciudad !== '') {
+                return $ciudad;
+            }
+        }
+
+        return null;
+    }
+
     private function consultarEventosDesdeApi(string $codigo): Collection
     {
         $codigo = $this->normalizeTrackingCode($codigo);
@@ -897,6 +938,9 @@ class BusquedaController extends Controller
             'codigo_evento' => $evento['codigo_evento']
                 ?? $evento['eventCode']
                 ?? $evento['event_type_cd']
+                ?? $evento['event_code']
+                ?? $evento['event_tag']
+                ?? $evento['eventTag']
                 ?? null,
             'user_id' => $evento['user_id'] ?? null,
             'created_at' => $createdAt,
