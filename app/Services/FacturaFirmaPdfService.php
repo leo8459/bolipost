@@ -230,7 +230,7 @@ class FacturaFirmaPdfService
             return 0;
         }
 
-        return 8 + (count($packages) * 14) + 3;
+        return 8 + (count($packages) * 18) + 3;
     }
 
     private function deliveryPackages(array $delivery): array
@@ -264,9 +264,9 @@ class FacturaFirmaPdfService
         $code = $this->pdfText((string) ($package['codigo'] ?? ''));
         $weight = $this->pdfText((string) ($package['peso'] ?? ''));
         $amount = $this->pdfText((string) ($package['monto'] ?? ''));
-        $rowHeight = 13.5;
-        $barcodeWidth = min(50, $right - $left - 4);
-        $barcodeHeight = 8.5;
+        $rowHeight = 18;
+        $barcodeWidth = min(65, $right - $left - 4);
+        $barcodeHeight = 12.5;
         $barcodeX = $left + (($right - $left - $barcodeWidth) / 2);
         $barcodeY = $y + 0.8;
 
@@ -285,7 +285,7 @@ class FacturaFirmaPdfService
             . ($weight !== '' ? '     ' . $weight : '')
             . ($amount !== '' ? '     ' . $amount : ''));
         $textX = $left + ((($right - $left) - $pdf->GetStringWidth($packageText)) / 2);
-        $pdf->Text(max($left, $textX), $barcodeY + $barcodeHeight + 3.2, $packageText);
+        $pdf->Text(max($left, $textX), $barcodeY + $barcodeHeight + 2.2, $packageText);
 
         return $y + $rowHeight;
     }
