@@ -20,11 +20,11 @@
                     <div class="header-actions">
                         <form method="GET" action="{{ route('paquetes-contrato.entregados') }}" class="filters-form">
                             <div class="filter-field">
-                                <label>Desde</label>
+                                <label>Recojo desde</label>
                                 <input type="date" name="fecha_desde" value="{{ $fechaDesde }}" class="form-control">
                             </div>
                             <div class="filter-field">
-                                <label>Hasta</label>
+                                <label>Recojo hasta</label>
                                 <input type="date" name="fecha_hasta" value="{{ $fechaHasta }}" class="form-control">
                             </div>
                             <button class="btn btn-outline-light2" type="submit">Filtrar</button>
@@ -57,7 +57,7 @@
                         <div class="summary-value">{{ \App\Support\BolivianNumber::format((float) ($stats['peso_total'] ?? 0), 3) }} kg</div>
                     </div>
                     <div class="summary-card">
-                        <div class="summary-label">Dias cubiertos</div>
+                        <div class="summary-label">Dias de recojo</div>
                         <div class="summary-value">{{ \App\Support\BolivianNumber::format($stats['dias_cubiertos'] ?? 0) }}</div>
                     </div>
                     <div class="summary-card">
@@ -76,7 +76,7 @@
                                 <th>Cantidad</th>
                                 <th>Remitente</th>
                                 <th>Destinatario</th>
-                                <th>Fecha de entrega</th>
+                                <th>Fecha de recojo</th>
                                 <th>Peso</th>
                                 <th>Imagen</th>
                                 <th class="action-col">Acciones</th>
@@ -91,7 +91,7 @@
                                     <td>{{ $c->cantidad ?: '-' }}</td>
                                     <td>{{ $c->nombre_r }}</td>
                                     <td>{{ $c->nombre_d }}</td>
-                                    <td>{{ optional($c->created_at)->format('d/m/Y H:i') ?: '-' }}</td>
+                                    <td>{{ optional($c->fecha_recojo)->format('d/m/Y H:i') ?: '-' }}</td>
                                     <td>{{ \App\Support\BolivianNumber::format((float) ($c->peso ?? 0), 3) }}</td>
                                     <td>
                                         @php
