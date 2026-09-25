@@ -427,6 +427,12 @@ return [
                     'url' => 'todos-paquetes',
                     'icon' => 'fas fa-layer-group',
                 ],
+                [
+                    'text' => 'Eventos Administrador',
+                    'url' => 'administrador/eventos',
+                    'icon' => 'fas fa-history',
+                    'can' => 'admin-only-menu',
+                ],
             ],
         ],
         [

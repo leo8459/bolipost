@@ -17,6 +17,7 @@ use App\Http\Middleware\EnsureSiopApiToken;
 use App\Http\Middleware\ForceJsonResponse;
 use App\Http\Middleware\RedirectIfClienteAuthenticated;
 use App\Http\Middleware\RegistrarAuditoria;
+use App\Http\Middleware\SetSystemAuditContext;
 use App\Http\Middleware\UseClienteGuard;
 use App\Services\ContratoCodigoService;
 use Illuminate\Console\Scheduling\Schedule;
@@ -63,9 +64,14 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->web(append: [
             ApplySecurityHeaders::class,
+            SetSystemAuditContext::class,
             EnsureAclPermissionsSynced::class,
             EnsureEmpresaContractUsersActive::class,
             RegistrarAuditoria::class,
+        ]);
+
+        $middleware->api(append: [
+            SetSystemAuditContext::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

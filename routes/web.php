@@ -26,6 +26,7 @@ use App\Http\Controllers\EmpresaController;
 use App\Http\Controllers\EstadoController;
 use App\Http\Controllers\EventoController;
 use App\Http\Controllers\EventosAuditoriaController;
+use App\Http\Controllers\EventosAdministradorController;
 use App\Http\Controllers\EventosIpsController;
 use App\Http\Controllers\ExternalApiTokenController;
 use App\Http\Controllers\FacturacionCartController;
@@ -344,6 +345,8 @@ Route::middleware(['auth', 'internal.only', 'verified'])->group(function () {
 
 Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function () {
     Route::middleware('can:admin-only-menu')->group(function () {
+        Route::get('/administrador/eventos', [EventosAdministradorController::class, 'index'])
+            ->name('eventos-administrador.index');
         Route::get('/administrador/correo-electronico', [ContractExpirationEmailController::class, 'index'])
             ->name('contract-expiration-email.index');
         Route::put('/administrador/correo-electronico', [ContractExpirationEmailController::class, 'update'])
