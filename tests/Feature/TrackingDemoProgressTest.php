@@ -56,6 +56,20 @@ class TrackingDemoProgressTest extends TestCase
             });
         }
 
+        if (!Schema::hasTable('tracking_local_event_rules')) {
+            Schema::create('tracking_local_event_rules', function (Blueprint $table) {
+                $table->id();
+                $table->string('source_table', 80)->default('*');
+                $table->unsignedBigInteger('event_id')->nullable();
+                $table->string('raw_name', 255)->default('');
+                $table->string('display_name', 255)->nullable();
+                $table->boolean('is_visible')->default(true);
+                $table->unsignedInteger('sort_order')->default(0);
+                $table->text('notes')->nullable();
+                $table->timestamps();
+            });
+        }
+
         if (!Schema::hasTable('paquetes_certi')) {
             Schema::create('paquetes_certi', function (Blueprint $table) {
                 $table->id();
@@ -98,7 +112,7 @@ class TrackingDemoProgressTest extends TestCase
             ->get('/trackingbo?codigo=LH266067312US');
 
         $response->assertOk();
-        $response->assertSee('Paso actual: <strong>Expedicion</strong>', false);
+        $response->assertSee('En curso: <strong>Expedicion</strong>', false);
         $response->assertDontSee('Paso actual: <strong>Admision</strong>', false);
         $response->assertDontSee('Paso actual: <strong>Ventanilla</strong>', false);
     }
@@ -144,6 +158,8 @@ class TrackingDemoProgressTest extends TestCase
         $response->assertDontSee('pago indicados por Aduana', false);
         $response->assertSee('Ventanilla igual a Aduana, una sola etapa', false);
         $response->assertSee('split-step-art', false);
+        $response->assertSee('split-step-art-left is-muted', false);
+        $response->assertSee('combined-stage-label is-active">Aduana', false);
         $response->assertDontSee('class="step-state">En Aduana</span>', false);
         $response->assertDontSee('Tu paquete esta listo para entregar. Debes pasar a recoger', false);
     }
@@ -187,7 +203,7 @@ class TrackingDemoProgressTest extends TestCase
         $response->assertSee('Ventanilla igual a Aduana, una sola etapa', false);
     }
 
-    public function test_customs_information_at_destination_marks_combined_step_ready_for_pickup(): void
+    public function test_customs_information_at_destination_stays_in_customs_until_release_event(): void
     {
         config()->set('services.tracking_sqlserver.base_url', 'https://tracking.test/api/public/tracking/eventos');
         config()->set('services.tracking_sqlserver.token', 'test-token');
@@ -230,9 +246,11 @@ class TrackingDemoProgressTest extends TestCase
             ->get('/trackingbo?codigo=LX093096600NL');
 
         $response->assertOk();
-        $response->assertSee('<h1>Listo para recoger</h1>', false);
-        $response->assertDontSee('pago indicados por Aduana', false);
-        $response->assertSee('Calle Presidente Montes Esquina Junin', false);
+        $response->assertSee('<h1>En Aduana</h1>', false);
+        $response->assertSee('Aún no figura como listo para recoger', false);
+        $response->assertDontSee('Calle Presidente Montes Esquina Junin', false);
+        $response->assertSee('split-step-art-left is-muted', false);
+        $response->assertSee('combined-stage-label is-active">Aduana', false);
         $response->assertSee('Ventanilla igual a Aduana, una sola etapa', false);
     }
 
@@ -276,6 +294,218 @@ class TrackingDemoProgressTest extends TestCase
         $response->assertSee('<h1>En Aduana</h1>', false);
         $response->assertDontSee('Tu paquete esta listo para entregar', false);
         $response->assertDontSee('Avenida Mariscal Santa Cruz', false);
+    }
+
+    public function test_customs_release_at_local_destination_office_is_ready_for_pickup(): void
+    {
+        config()->set('services.tracking_sqlserver.base_url', 'https://tracking.test/api/public/tracking/eventos');
+        config()->set('services.tracking_sqlserver.token', 'test-token');
+
+        Http::fake([
+            'https://tracking.test/*' => Http::response([
+                'codigo' => 'EC257727105BE',
+                'servicio' => 'EMS',
+                'destino' => 'Bolivia',
+                'meta' => [
+                    'destination_country_code' => 'BO',
+                    'destination_country_name' => 'Bolivia',
+                    'destination_city' => 'Cochabamba',
+                    'destination_city_source' => 'ips_local_id',
+                ],
+                'eventos_locales' => [],
+                'eventos_externos' => [
+                    [
+                        'codigo_evento' => 38,
+                        'created_at' => '2026-09-22 13:48:08',
+                        'nombre_evento' => 'Return item from customs (Inb)',
+                        'office' => 'COCHABAMBA',
+                    ],
+                    [
+                        'codigo_evento' => 31,
+                        'created_at' => '2026-09-09 18:56:57',
+                        'nombre_evento' => 'Send item to customs (Inb)',
+                        'office' => 'SANTA CRUZ DE LA SIERRA LC/AO-AVION',
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $response = $this->withSession([
+            'tracking_captcha_verified_until' => now()->addMinutes(5)->timestamp,
+        ])->get('/trackingbo?codigo=EC257727105BE');
+
+        $response->assertOk();
+        $response->assertSee('<h1>Listo para recoger</h1>', false);
+        $response->assertSee('Aduana liberó tu paquete en Cochabamba. Ya puedes recogerlo en Ventanilla.');
+        $response->assertSee('Cochabamba');
+        $response->assertSee('split-step-art-right is-muted', false);
+        $response->assertSee('combined-stage-label is-active">Ventanilla', false);
+    }
+
+    public function test_live_sitra_package_local_id_resolves_destination_when_tracking_api_omits_it(): void
+    {
+        config()->set('services.tracking_sqlserver.base_url', 'https://tracking.test/api/public/tracking/eventos');
+        config()->set('services.tracking_sqlserver.token', 'test-token');
+        config()->set('services.sitra_ips.base_url', 'https://sitra.test');
+        config()->set('services.sitra_ips.token', 'test-token');
+
+        Http::fake([
+            'https://tracking.test/*' => Http::response([
+                'codigo' => 'EC257727105BE',
+                'servicio' => 'EMS',
+                'destino' => 'Bolivia',
+                'meta' => [
+                    'destination_country_code' => 'BO',
+                    'destination_country_name' => 'Bolivia',
+                    'destination_city' => null,
+                ],
+                'eventos_locales' => [],
+                'eventos_externos' => [
+                    [
+                        'codigo_evento' => 38,
+                        'created_at' => '2026-09-22 13:48:08',
+                        'nombre_evento' => 'Return item from customs (Inb)',
+                        'office' => 'BOCBBA - COCHABAMBA',
+                    ],
+                ],
+            ], 200),
+            'https://sitra.test/api/v1/ips/paquetes/EC257727105BE*' => Http::response([
+                'data' => [
+                    'package' => [
+                        'local_id' => 'CBBA',
+                    ],
+                    'events' => [],
+                ],
+            ], 200),
+        ]);
+
+        $response = $this->withSession([
+            'tracking_captcha_verified_until' => now()->addMinutes(5)->timestamp,
+        ])->get('/trackingbo?codigo=EC257727105BE');
+
+        $response->assertOk();
+        $response->assertSee('<h1>Listo para recoger</h1>', false);
+        $response->assertSee('Aduana liberó tu paquete en Cochabamba. Ya puedes recogerlo en Ventanilla.');
+        $response->assertSee('href="https://www.google.com/maps/search/?api=1&amp;query=', false);
+    }
+
+    public function test_customs_release_in_transit_office_does_not_say_ready_for_destination_pickup(): void
+    {
+        config()->set('services.tracking_sqlserver.base_url', 'https://tracking.test/api/public/tracking/eventos');
+        config()->set('services.tracking_sqlserver.token', 'test-token');
+
+        Http::fake([
+            'https://tracking.test/*' => Http::response([
+                'codigo' => 'EC257727106BE',
+                'servicio' => 'EMS',
+                'destino' => 'Bolivia',
+                'meta' => [
+                    'destination_country_code' => 'BO',
+                    'destination_country_name' => 'Bolivia',
+                    'destination_city' => 'La Paz',
+                    'destination_city_source' => 'ips_local_id',
+                ],
+                'eventos_locales' => [],
+                'eventos_externos' => [
+                    [
+                        'codigo_evento' => 38,
+                        'created_at' => '2026-09-22 13:48:08',
+                        'nombre_evento' => 'Return item from customs (Inb)',
+                        'office' => 'SANTA CRUZ DE LA SIERRA LC/AO-AVION',
+                    ],
+                    [
+                        'codigo_evento' => 31,
+                        'created_at' => '2026-09-09 18:56:57',
+                        'nombre_evento' => 'Send item to customs (Inb)',
+                        'office' => 'SANTA CRUZ DE LA SIERRA LC/AO-AVION',
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $response = $this->withSession([
+            'tracking_captcha_verified_until' => now()->addMinutes(5)->timestamp,
+        ])->get('/trackingbo?codigo=EC257727106BE');
+
+        $response->assertOk();
+        $response->assertSee('Aduana liberó tu paquete en Santa Cruz. Aún no aparece en Ventanilla de La Paz.');
+        $response->assertDontSee('<h1>Listo para recoger</h1>', false);
+    }
+
+    public function test_delivery_office_scan_in_transit_city_is_not_shown_as_ready_for_pickup(): void
+    {
+        config()->set('services.tracking_sqlserver.base_url', 'https://tracking.test/api/public/tracking/eventos');
+        config()->set('services.tracking_sqlserver.token', 'test-token');
+
+        Http::fake([
+            'https://tracking.test/*' => Http::response([
+                'codigo' => 'EC257727107BE',
+                'servicio' => 'EMS',
+                'destino' => 'Bolivia',
+                'meta' => [
+                    'destination_country_code' => 'BO',
+                    'destination_country_name' => 'Bolivia',
+                    'destination_city' => 'La Paz',
+                ],
+                'eventos_locales' => [],
+                'eventos_externos' => [
+                    [
+                        'codigo_evento' => 32,
+                        'created_at' => '2026-09-22 13:48:08',
+                        'nombre_evento' => 'Receive item at delivery office (Inb)',
+                        'office' => 'BOSRZA - SANTA CRUZ DE LA SIERRA',
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $response = $this->withSession([
+            'tracking_captcha_verified_until' => now()->addMinutes(5)->timestamp,
+        ])->get('/trackingbo?codigo=EC257727107BE');
+
+        $response->assertOk();
+        $response->assertSee('El paquete figura en Ventanilla de Santa Cruz, pero su destino es La Paz.', false);
+        $response->assertDontSee('<h1>Listo para recoger</h1>', false);
+        $response->assertDontSee('Tu paquete esta listo para entregar', false);
+    }
+
+    public function test_ips_destination_id_prevents_a_transit_counter_scan_from_marking_pickup_ready(): void
+    {
+        config()->set('services.tracking_sqlserver.base_url', 'https://tracking.test/api/public/tracking/eventos');
+        config()->set('services.tracking_sqlserver.token', 'test-token');
+        config()->set('services.sitra_ips.base_url', 'https://sitra.test');
+        config()->set('services.sitra_ips.token', 'test-token');
+
+        Http::fake([
+            'https://tracking.test/*' => Http::response([
+                'codigo' => 'EC257727108BE',
+                'servicio' => 'EMS',
+                'destino' => 'Bolivia',
+                'meta' => [
+                    'destination_country_code' => 'BO',
+                    'destination_country_name' => 'Bolivia',
+                    'destination_city' => null,
+                ],
+                'eventos_locales' => [],
+                'eventos_externos' => [[
+                    'codigo_evento' => 32,
+                    'created_at' => '2026-09-22 13:48:08',
+                    'nombre_evento' => 'Receive item at delivery office (Inb)',
+                    'office' => 'BOSRZA - SANTA CRUZ DE LA SIERRA',
+                ]],
+            ], 200),
+            'https://sitra.test/api/v1/ips/paquetes/EC257727108BE*' => Http::response([
+                'data' => ['package' => ['local_id' => 'LPB'], 'events' => []],
+            ], 200),
+        ]);
+
+        $response = $this->withSession([
+            'tracking_captcha_verified_until' => now()->addMinutes(5)->timestamp,
+        ])->get('/trackingbo?codigo=EC257727108BE');
+
+        $response->assertOk();
+        $response->assertSee('El paquete figura en Ventanilla de Santa Cruz, pero su destino es La Paz.', false);
+        $response->assertDontSee('<h1>Listo para recoger</h1>', false);
     }
 
     public function test_mixed_international_tracking_keeps_external_origin_country_in_header(): void

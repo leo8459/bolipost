@@ -685,6 +685,11 @@ body {
   object-fit: cover;
 }
 
+.split-step-art-half.is-muted img {
+  opacity: 0.38;
+  filter: grayscale(0.9);
+}
+
 .split-step-art-left img {
   left: 0;
 }

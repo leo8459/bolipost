@@ -10,9 +10,9 @@ class TrackingProgressServiceTest extends TestCase
     public function test_upu_events_advance_to_the_highest_postal_stage(): void
     {
         $progress = app(TrackingProgressService::class)->resolve([
-            (object) ['codigo_evento' => 1, 'nombre_evento' => 'Recibir envio del cliente'],
-            (object) ['codigo_evento' => 8, 'nombre_evento' => 'Insertar envio en saca'],
             (object) ['codigo_evento' => 35, 'nombre_evento' => 'Enviar envio a ubicacion nacional'],
+            (object) ['codigo_evento' => 8, 'nombre_evento' => 'Insertar envio en saca'],
+            (object) ['codigo_evento' => 1, 'nombre_evento' => 'Recibir envio del cliente'],
         ], 'EMS');
 
         $this->assertSame(['Admision', 'Despacho', 'Expedicion', 'Ventanilla', 'Entregado'], $progress['steps']);
@@ -23,9 +23,9 @@ class TrackingProgressServiceTest extends TestCase
     public function test_national_delivery_event_marks_delivered(): void
     {
         $progress = app(TrackingProgressService::class)->resolve([
-            (object) ['evento_id' => 295, 'nombre_evento' => 'Paquete recibido del cliente.'],
-            (object) ['evento_id' => 4477, 'nombre_evento' => 'Paquete asignado a cartero para entrega fisica.'],
             (object) ['evento_id' => 316, 'nombre_evento' => 'Paquete entregado exitosamente.'],
+            (object) ['evento_id' => 4477, 'nombre_evento' => 'Paquete asignado a cartero para entrega fisica.'],
+            (object) ['evento_id' => 295, 'nombre_evento' => 'Paquete recibido del cliente.'],
         ], 'CERTI');
 
         $this->assertSame(['Clasificacion', 'Despacho', 'Expedicion', 'Ventanilla', 'Cartero', 'Entregado'], $progress['steps']);
@@ -76,9 +76,9 @@ class TrackingProgressServiceTest extends TestCase
     public function test_national_delivery_express_events_cover_each_initial_stage(): void
     {
         $progress = app(TrackingProgressService::class)->resolve([
-            (object) ['evento_id' => 2239, 'nombre_evento' => 'Delivery Express registrado.'],
-            (object) ['evento_id' => 2240, 'nombre_evento' => 'Delivery Express recibido en almacen.'],
             (object) ['evento_id' => 2241, 'nombre_evento' => 'Delivery Express enviado en saca interna.'],
+            (object) ['evento_id' => 2240, 'nombre_evento' => 'Delivery Express recibido en almacen.'],
+            (object) ['evento_id' => 2239, 'nombre_evento' => 'Delivery Express registrado.'],
         ], 'EMS');
 
         $this->assertSame(2, $progress['current_index']);
@@ -123,7 +123,7 @@ class TrackingProgressServiceTest extends TestCase
         $this->assertFalse($progress['is_held']);
     }
 
-    public function test_customs_information_at_destination_makes_combined_step_ready_for_pickup(): void
+    public function test_customs_information_at_destination_does_not_mean_released_or_ready_for_pickup(): void
     {
         $progress = app(TrackingProgressService::class)->resolve([
             (object) [
@@ -141,10 +141,10 @@ class TrackingProgressServiceTest extends TestCase
         ], 'ORDI');
 
         $this->assertSame('Ventanilla = Aduana', $progress['steps'][$progress['current_index']]);
-        $this->assertTrue($progress['is_pickup_available']);
-        $this->assertTrue($progress['pickup_ready_at_destination_customs']);
-        $this->assertFalse($progress['is_customs']);
-        $this->assertSame('Listo para recoger', $progress['status']);
+        $this->assertFalse($progress['is_pickup_available']);
+        $this->assertFalse($progress['pickup_ready_at_destination_customs']);
+        $this->assertTrue($progress['is_customs']);
+        $this->assertSame('En Aduana', $progress['status']);
     }
 
     public function test_customs_event_in_transit_city_does_not_make_package_ready_for_destination_pickup(): void
@@ -227,7 +227,19 @@ class TrackingProgressServiceTest extends TestCase
 
         $this->assertSame('Ventanilla = Aduana', $progress['steps'][$progress['current_index']]);
         $this->assertTrue($progress['is_pickup_available']);
+        $this->assertSame('Listo para recoger', $progress['status']);
         $this->assertFalse($progress['customs_action_required']);
+    }
+
+    public function test_newer_delivery_office_event_replaces_a_stale_delivery_status(): void
+    {
+        $progress = app(TrackingProgressService::class)->resolve([
+            (object) ['codigo_evento' => 30, 'nombre_evento' => 'Receive item at inward office of exchange'],
+            (object) ['codigo_evento' => 37, 'nombre_evento' => 'Deliver item (Inb)'],
+        ], 'EMS');
+
+        $this->assertSame(2, $progress['current_index']);
+        $this->assertSame('En transito', $progress['status']);
     }
 
     public function test_local_pickup_point_event_marks_ventanilla_available(): void
@@ -238,7 +250,24 @@ class TrackingProgressServiceTest extends TestCase
         ], 'EMS');
 
         $this->assertTrue($progress['is_pickup_available']);
+        $this->assertSame('Listo para recoger', $progress['status']);
         $this->assertSame('Ventanilla = Aduana', $progress['steps'][$progress['current_index']]);
+    }
+
+    public function test_delivery_office_event_at_transit_city_does_not_mark_pickup_ready(): void
+    {
+        $progress = app(TrackingProgressService::class)->resolve([
+            (object) [
+                'codigo_evento' => 32,
+                'nombre_evento' => 'Receive item at delivery office (Inb)',
+                'office' => 'BOSRZA - SANTA CRUZ DE LA SIERRA',
+                'ciudad_destino' => 'La Paz',
+            ],
+        ], 'EMS');
+
+        $this->assertFalse($progress['is_pickup_available']);
+        $this->assertTrue($progress['pickup_at_non_destination_office']);
+        $this->assertSame('En transito', $progress['status']);
     }
 
     public function test_eme_marks_the_package_as_held_by_customs(): void

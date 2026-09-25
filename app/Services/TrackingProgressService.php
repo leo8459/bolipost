@@ -82,6 +82,7 @@ class TrackingProgressService
         // El estado actual lo determina el evento más reciente. Un evento
         // antiguo de devolución no debe ocultar una entrega posterior.
         $latestEvent = $events->first();
+        $latestStage = $latestEvent !== null ? $this->stageFor($latestEvent) : null;
         $isReturning = $latestEvent !== null && $this->isReturnStatus((object) $latestEvent);
         $isHeldByCustoms = $latestEvent !== null && $this->isHeldByCustoms((object) $latestEvent);
         $isHeldAtExchange = $latestEvent !== null && $this->isHeldAtExchange((object) $latestEvent);
@@ -92,8 +93,11 @@ class TrackingProgressService
         $customsPurchaseProofRequired = $latestEvent !== null && $this->hasCustomsPurchaseProofReason((object) $latestEvent);
         $pickupReadyAtDestination = $latestEvent !== null
             && $this->isCustomsReadyAtDestination((object) $latestEvent, $events);
+        $pickupAtNonDestinationOffice = $latestEvent !== null
+            && $this->isPickupAtNonDestinationOffice((object) $latestEvent, $events);
         $pickupAvailable = $latestEvent !== null
-            && ($this->isPickupAvailable((object) $latestEvent) || $pickupReadyAtDestination);
+            && (($this->isPickupAvailable((object) $latestEvent) && !$pickupAtNonDestinationOffice)
+                || $pickupReadyAtDestination);
         if ($pickupReadyAtDestination && !$isHeldByCustoms && !$customsActionRequired) {
             $isInCustoms = false;
         }
@@ -140,7 +144,15 @@ class TrackingProgressService
             }
             $steps[] = 'Devolución';
             $returnStatus = $this->returnStatusCode($events);
-            $isReturnCompleted = in_array($returnStatus, [22, 23], true);
+            $latestEventObject = (object) $latestEvent;
+            $returnText = $this->normalize((string) (
+                ($latestEventObject->postal_status ?? $latestEventObject->estado_postal ?? '')
+                . ' ' . $this->eventText($latestEventObject)
+            ));
+            $isReturnCompleted = $this->containsAny($returnText, [
+                'returned to sender', 'devuelto al remitente', 'retorno al remitente',
+                'retorno completado', 'devolucion completada',
+            ]);
             // Las etapas futuras se muestran como pendientes para que el
             // usuario entienda el flujo esperado; no representan eventos ya
             // registrados en IPS.
@@ -170,12 +182,17 @@ class TrackingProgressService
         }
         $steps[] = 'Entregado';
 
-        $isDelivered = $highestStage === self::STAGE_DELIVERED;
+        // Solo el evento vigente puede dejar el envío como entregado. Si IPS
+        // agrega después una actualización de movimiento, no conservamos una
+        // entrega vieja como estado actual.
+        $isDelivered = $latestStage === self::STAGE_DELIVERED
+            || ($latestStage === null && $highestStage === self::STAGE_DELIVERED);
+        $currentStage = $isDelivered ? self::STAGE_DELIVERED : ($latestStage ?? $highestStage);
         $customsCounterCurrent = !$isDelivered && $hasCustomsCounterFlow
             && ($isInCustoms
                 || $pickupReadyAtDestination
                 || ($latestEvent !== null && $this->numericValue(((object) $latestEvent)->codigo_evento ?? null) === 38)
-                || $highestStage >= self::STAGE_COUNTER);
+                || $currentStage >= self::STAGE_COUNTER);
         $currentIndex = $isDelivered
             ? count($steps) - 1
             : ($customsCounterCurrent
@@ -183,7 +200,7 @@ class TrackingProgressService
                 : ($isInCustoms
                     ? 3
                     : $this->stepIndex(
-                    $highestStage,
+                    $currentStage,
                     $hasCourierEvent,
                     $hasCustomsStep && !$hasCustomsCounterFlow
                 )));
@@ -198,6 +215,7 @@ class TrackingProgressService
             'customs_action_required' => $customsActionRequired,
             'customs_purchase_proof_required' => $customsPurchaseProofRequired,
             'is_pickup_available' => $pickupAvailable,
+            'pickup_at_non_destination_office' => $pickupAtNonDestinationOffice,
             'pickup_ready_at_destination_customs' => $pickupReadyAtDestination,
             'customs_returned_to_postal_flow' => $customsReturnedToPostalFlow,
             'is_held' => $isHeldByCustoms || $isHeldAtExchange,
@@ -206,7 +224,7 @@ class TrackingProgressService
             'is_returning' => $isReturning,
             'status' => $isHeldByCustoms
                 ? 'Retenido por aduana'
-                : ($pickupReadyAtDestination && !$customsActionRequired
+                : (($pickupReadyAtDestination || $pickupAvailable) && !$customsActionRequired
                     ? 'Listo para recoger'
                     : ($isInCustoms
                     ? 'En Aduana'
@@ -304,26 +322,38 @@ class TrackingProgressService
 
     private function isReturnStatus(object $event): bool
     {
-        $code = $this->numericValue(
-            $event->postal_status_cd ?? $event->codigo_estado_postal ?? null
-        );
-        if (in_array($code, [6, 7, 22, 23], true)) {
+        $code = $this->numericValue($event->postal_status_cd ?? $event->codigo_estado_postal ?? null);
+        $statusText = $this->normalize((string) ($event->postal_status ?? $event->estado_postal ?? ''));
+        $eventText = $this->eventText($event);
+        $explicitReturn = $this->containsAny($statusText, [
+            'being returned', 'return in progress', 'return to sender', 'returned to sender',
+            'devolucion en curso', 'en devolucion', 'retorno al remitente', 'devuelto al remitente',
+        ]) || $this->containsAny($eventText, [
+            'being returned', 'return in progress', 'return to sender', 'returned to sender',
+            'devolucion en curso', 'en devolucion', 'retorno al remitente', 'devuelto al remitente',
+        ]);
+        if ($explicitReturn) {
             return true;
         }
 
-        return $this->containsAny($this->normalize((string) (
-            $event->postal_status ?? $event->estado_postal ?? ''
-        )), [
-            'being returned', 'return in progress', 'devolucion en curso',
-            'devolucion', 'en devolucion', 'retorno al remitente',
-        ]);
+        // 22 y 23 son motivos de no entrega en IPS.POST (p. ej. no reclamado
+        // o destinatario fallecido); no prueban que el paquete ya se devuelva.
+        // Tampoco se deja que un estado numérico tape una llegada a ventanilla
+        // o el retorno de Aduana al flujo postal.
+        if (in_array($code, [22, 23, 38], true)
+            || $this->isPickupAvailable($event)
+            || $this->isCustomsReturnedToPostalFlow($event)) {
+            return false;
+        }
+
+        return in_array($code, [6, 7], true);
     }
 
     private function returnStatusCode(iterable $events): ?int
     {
         foreach ($events as $event) {
             $code = $this->numericValue(((object) $event)->postal_status_cd ?? null);
-            if (in_array($code, [6, 7, 22, 23], true)) {
+            if (in_array($code, [6, 7], true)) {
                 return $code;
             }
         }
@@ -387,19 +417,44 @@ class TrackingProgressService
         }
 
         return $this->containsAny($this->eventText($event), [
-            'listo para entregar', 'listo para recoger', 'oficina de entrega', 'ventanilla',
+            'listo para entregar', 'listo para recoger', 'oficina de entrega',
             'punto de recogida', 'received at collection point', 'receive item at collection point',
             'available for collection', 'item available for collection',
             'collection point for pick-up', 'collection point for pickup',
         ]);
     }
 
+    private function isPickupAtNonDestinationOffice(object $event, iterable $events): bool
+    {
+        if (!$this->isPickupAvailable($event)) {
+            return false;
+        }
+
+        $destination = '';
+        foreach ($events as $candidate) {
+            $value = trim((string) (((object) $candidate)->ciudad_destino ?? ''));
+            if ($value !== '' && !in_array($this->normalize($value), ['bo', 'bolivia', 'plurinational state of bolivia'], true)) {
+                $destination = $this->normalize($value);
+                break;
+            }
+        }
+
+        $office = $this->normalize((string) ($event->office ?? ''));
+        if ($destination === '' || $office === '') {
+            return false;
+        }
+
+        $destination = trim(preg_replace('/\\s+/u', ' ', preg_replace('/[^a-z0-9]+/u', ' ', $destination) ?? $destination) ?? $destination);
+        $office = trim(preg_replace('/\\s+/u', ' ', preg_replace('/[^a-z0-9]+/u', ' ', $office) ?? $office) ?? $office);
+
+        return $destination !== '' && $office !== '' && !str_contains($office, $destination);
+    }
+
     private function isCustomsReadyAtDestination(object $event, iterable $events): bool
     {
-        // IPS code 34 records customs information, not a generic pickup event.
-        // In this postal flow, it indicates the combined Aduana/Ventanilla
-        // handoff only when the event is at the package's registered destination.
-        if ($this->numericValue($event->codigo_evento ?? null) !== 34
+        // Code 34 records customs information; only code 38 returns the item
+        // to postal processing. Pickup is ready only at the destination office.
+        if (!$this->isCustomsReturnedToPostalFlow($event)
             || $this->isHeldByCustoms($event)
             || $this->isCustomsRecipientAction($event)) {
             return false;
@@ -418,7 +473,7 @@ class TrackingProgressService
             return false;
         }
 
-        $office = $this->normalize((string) ($event->office ?? $event->next_office ?? ''));
+        $office = $this->normalize((string) ($event->office ?? ''));
         if ($office === '') {
             return false;
         }

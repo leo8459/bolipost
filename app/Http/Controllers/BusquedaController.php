@@ -6,6 +6,7 @@ use App\Models\Destino;
 use App\Models\TrackingSubscription;
 use App\Services\TrackingLocalEventRuleService;
 use App\Services\TrackingProgressService;
+use App\Services\SitraIpsClient;
 use App\Support\CodigoContinuacionEvent;
 use App\Support\CarteroEvent;
 use App\Support\EncargadoEvent;
@@ -173,17 +174,7 @@ class BusquedaController extends Controller
         $codigo = $this->obtenerCodigoValidado($request);
         $resultado = $this->buscarEventosPorCodigo($codigo);
         $eventos = $resultado['eventos'];
-
-        // The external IPS payload often says only "Bolivia" as destination.
-        // Prefer the city registered with the local package so the progress
-        // state can distinguish a destination customs office from a transit
-        // office (for example Oruro versus Santa Cruz on the way to La Paz).
-        $ciudadDestinoLocal = $this->buscarCiudadDestinoPaquete($codigo);
-        if ($ciudadDestinoLocal !== null) {
-            $eventos->each(function ($evento) use ($ciudadDestinoLocal): void {
-                $evento->ciudad_destino = $ciudadDestinoLocal;
-            });
-        }
+        $this->enriquecerCiudadDestinoTracking($codigo, $eventos);
         $this->reportTrackingAnalytics($request, $codigo, $eventos, $resultado['fuente'], 'bolipost_home');
 
         if ($eventos->isEmpty()) {
@@ -213,6 +204,7 @@ class BusquedaController extends Controller
         $codigo = $this->obtenerCodigoValidado($request);
         $resultado = $this->buscarEventosPorCodigo($codigo);
         $eventos = $resultado['eventos'];
+        $this->enriquecerCiudadDestinoTracking($codigo, $eventos);
 
         // The homepage AJAX query already recorded Bolipost's own searches.
         // Frontweb and the result-page retry arrive directly here.
@@ -686,6 +678,51 @@ class BusquedaController extends Controller
         return null;
     }
 
+    private function enriquecerCiudadDestinoTracking(string $codigo, Collection $eventos): void
+    {
+        if ($eventos->isEmpty()) {
+            return;
+        }
+
+        // El endpoint de eventos puede responder solo "Bolivia" y la versión
+        // desplegada de SITRA aún puede no incluir meta.destination_city.
+        // Primero usamos un destino municipal ya conocido en Bolipost.
+        $ciudadDestino = $this->buscarCiudadDestinoPaquete($codigo);
+        if ($ciudadDestino === null) {
+            $ciudadDestino = $eventos
+                ->pluck('ciudad_destino')
+                ->map(fn ($ciudad) => trim((string) $ciudad))
+                ->first(fn (string $ciudad) => $ciudad !== '' && !in_array(
+                    mb_strtolower($ciudad),
+                    ['bo', 'bolivia', 'plurinational state of bolivia'],
+                    true
+                ));
+        }
+
+        // El local_id de IPS permite determinar la oficina de destino cuando
+        // hay una liberación aduanera. No inferimos destino a partir de la
+        // oficina actual: podría ser solo una escala en tránsito.
+        $ultimoEvento = $eventos->first();
+        $codigoEvento = (int) ($ultimoEvento->codigo_evento ?? $ultimoEvento->event_code ?? 0);
+        if ($ciudadDestino === null && in_array($codigoEvento, [32, 34, 38, 75], true)) {
+            try {
+                $paqueteIps = app(SitraIpsClient::class)->package($codigo);
+                $localId = strtoupper(trim((string) data_get($paqueteIps, 'package.local_id', '')));
+                $ciudadDestino = config('tracking.local_id_destination_cities.' . $localId);
+            } catch (\Throwable $exception) {
+                // El historial sigue disponible aunque la consulta auxiliar de
+                // IPS no responda; sin destino verificado no se marca recojo.
+                report($exception);
+            }
+        }
+
+        if (is_string($ciudadDestino) && trim($ciudadDestino) !== '') {
+            $eventos->each(function ($evento) use ($ciudadDestino): void {
+                $evento->ciudad_destino = $ciudadDestino;
+            });
+        }
+    }
+
     private function consultarEventosDesdeApi(string $codigo): Collection
     {
         $codigo = $this->normalizeTrackingCode($codigo);
@@ -905,6 +942,8 @@ class BusquedaController extends Controller
         ));
         $ciudadDestino = trim((string) (
             $evento['ciudad_destino']
+            ?? $evento['destination_city']
+            ?? data_get($payload, 'meta.destination_city')
             ?? $evento['destino']
             ?? data_get($payload, 'destino')
             ?? data_get($payload, 'pais_destino')
