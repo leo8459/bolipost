@@ -34,7 +34,12 @@ class AclRoleManager
             $resolvedPermissions = self::resolvePermissionsFromPatterns($permissionNames, $patterns);
 
             if ($roleName === $superAdminRole) {
-                $role->syncPermissions($resolvedPermissions);
+                $expectedPermissions = collect($resolvedPermissions)->unique()->sort()->values()->all();
+                $currentPermissions = $role->permissions()->pluck('name')->sort()->values()->all();
+
+                if ($currentPermissions !== $expectedPermissions) {
+                    $role->syncPermissions($resolvedPermissions);
+                }
                 continue;
             }
 

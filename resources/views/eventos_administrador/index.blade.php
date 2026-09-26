@@ -6,7 +6,7 @@
     <div class="d-flex flex-wrap justify-content-between align-items-center">
         <div>
             <h1 class="mb-1">Eventos Administrador</h1>
-            <p class="text-muted mb-0">Ingresos al sistema y cambios detectados en la base de datos.</p>
+            <p class="text-muted mb-0">Creaciones y ediciones de paquetes, además de eliminaciones de las tablas auditadas.</p>
         </div>
         <span class="badge badge-dark p-2"><i class="fas fa-shield-alt mr-1"></i> Vista exclusiva para administradores</span>
     </div>
@@ -16,13 +16,7 @@
     <div class="row">
         <div class="col-md-6 col-xl-3">
             <div class="small-box bg-info">
-                <div class="inner"><h3>{{ number_format($loginCount, 0, ',', '.') }}</h3><p>Sesiones iniciadas</p></div>
-                <div class="icon"><i class="fas fa-sign-in-alt"></i></div>
-            </div>
-        </div>
-        <div class="col-md-6 col-xl-3">
-            <div class="small-box bg-warning">
-                <div class="inner"><h3>{{ number_format($mutationCount, 0, ',', '.') }}</h3><p>Cambios registrados en BD</p></div>
+                <div class="inner"><h3>{{ number_format($visibleEventCount, 0, ',', '.') }}</h3><p>Eventos mostrados</p></div>
                 <div class="icon"><i class="fas fa-database"></i></div>
             </div>
         </div>
@@ -33,15 +27,16 @@
         <div class="card-body">
             <form method="GET" action="{{ route('eventos-administrador.index') }}" class="row align-items-end">
                 <div class="col-lg-4 form-group">
-                    <label for="buscar">Usuario, IP, paquete o tabla</label>
-                    <input id="buscar" name="buscar" class="form-control" value="{{ $search }}" placeholder="Ej.: usuario, 192.168.1.10 o EE123456789BO">
+                    <label for="buscar">Usuario, IP, código o tabla</label>
+                    <input id="buscar" name="buscar" class="form-control" value="{{ $search }}" placeholder="Ej.: usuario, IP, código de paquete o tabla">
                 </div>
                 <div class="col-lg-2 form-group">
                     <label for="tipo">Tipo de evento</label>
                     <select id="tipo" name="tipo" class="form-control">
-                        <option value="todos" @selected($type === 'todos')>Todos</option>
-                        <option value="accesos" @selected($type === 'accesos')>Ingresos y salidas</option>
-                        <option value="cambios" @selected($type === 'cambios')>Cambios en la base</option>
+                        <option value="todos" @selected($type === 'todos')>Todos los eventos mostrados</option>
+                        <option value="creacion" @selected($type === 'creacion')>Paquetes creados</option>
+                        <option value="edicion" @selected($type === 'edicion')>Paquetes editados</option>
+                        <option value="eliminacion" @selected($type === 'eliminacion')>Eliminaciones de tablas auditadas</option>
                     </select>
                 </div>
                 <div class="col-lg-2 form-group">
@@ -57,13 +52,13 @@
                     <a class="btn btn-outline-secondary" href="{{ route('eventos-administrador.index') }}" title="Limpiar filtros"><i class="fas fa-times"></i></a>
                 </div>
             </form>
-            <div class="small text-muted">Los cambios se registran desde que se instala la auditoría. Para conexiones directas, la IP mostrada es el origen que ve PostgreSQL; una VPN, NAT o proxy puede mostrar una IP distinta a la configurada en el equipo.</div>
+            <div class="small text-muted">Incluye creaciones y ediciones de paquetes y eliminaciones de las tablas auditadas desde que se instaló la auditoría. Los ingresos y salidas no aparecen aquí.</div>
         </div>
     </div>
 
     <div class="card">
         <div class="card-header">
-            <h3 class="card-title">Historial de accesos y modificaciones</h3>
+            <h3 class="card-title">Paquetes y eliminaciones del sistema</h3>
             <div class="card-tools"><span class="badge badge-light">{{ number_format($events->total(), 0, ',', '.') }} eventos</span></div>
         </div>
         <div class="card-body p-0">
@@ -74,7 +69,7 @@
                             <th>Fecha y hora</th>
                             <th>Evento</th>
                             <th>Usuario / conexión BD</th>
-                            <th>Paquete / tabla</th>
+                            <th>Paquete / registro eliminado</th>
                             <th>IP del equipo / origen observado</th>
                             <th>Equipo / cliente BD</th>
                             <th>Detalle del cambio</th>
@@ -101,7 +96,7 @@
                             @endphp
                             <tr>
                                 <td class="text-nowrap">{{ \Illuminate\Support\Carbon::parse($event->happened_at)->format('d/m/Y H:i:s') }}</td>
-                                <td><span class="badge {{ $badge }}">{{ $event->action }}</span><small class="d-block text-muted">{{ $event->source === 'ACCESO' ? 'Sesión' : strtoupper($event->table_name) }}</small></td>
+                                <td><span class="badge {{ $badge }}">{{ $event->action }}</span><small class="d-block text-muted">{{ strtoupper($event->table_name) }}</small></td>
                                 <td>
                                     <strong>{{ $event->actor ?: 'No identificado' }}</strong>
                                     @if($event->actor_alias)<small class="d-block text-muted">Alias: {{ $event->actor_alias }}</small>@endif
@@ -109,11 +104,7 @@
                                     @if($event->database_user)<small class="d-block text-muted">Rol BD: {{ $event->database_user }}@if($event->session_role && $event->session_role !== $event->database_user) / sesión: {{ $event->session_role }}@endif</small>@endif
                                 </td>
                                 <td>
-                                    @if($event->source === 'ACCESO')
-                                        Usuario #{{ $event->record_identifier }}
-                                    @else
-                                        <strong>{{ $event->target_label }}</strong><small class="d-block text-muted">{{ $event->table_name }}</small>
-                                    @endif
+                                    <strong>{{ $event->target_label }}</strong><small class="d-block text-muted">{{ $event->table_name }}</small>
                                 </td>
                                 <td>
                                     <span class="badge badge-light">{{ $observedIp ?: 'No disponible' }}</span>
@@ -125,9 +116,7 @@
                                     @if($event->application_name && $event->user_agent)<small class="d-block text-muted">Cliente BD: {{ $event->application_name }}</small>@endif
                                 </td>
                                 <td style="min-width: 220px;">
-                                    @if($event->source === 'ACCESO')
-                                        {{ $event->action === 'INGRESO' ? 'Inicio de sesión registrado' : 'Cierre de sesión registrado' }}
-                                    @elseif(count($event->changes))
+                                    @if(count($event->changes))
                                         @foreach($event->changes as $change)
                                             <div class="mb-1"><code>{{ $change['field'] }}</code>:
                                                 <span class="text-muted">{{ is_scalar($change['before']) ? $change['before'] : json_encode($change['before'], JSON_UNESCAPED_UNICODE) }}</span>

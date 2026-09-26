@@ -1040,7 +1040,14 @@ class AclPermissionRegistry
         $guardName = $guardName ?: (string) config('auth.defaults.guard', 'web');
         $permissionNames = self::allPermissionNames();
         $timestamp = now();
+        $existingNames = Permission::query()
+            ->where('guard_name', $guardName)
+            ->whereIn('name', $permissionNames)
+            ->pluck('name')
+            ->all();
+        $existingLookup = array_fill_keys($existingNames, true);
         $rows = collect($permissionNames)
+            ->reject(fn (string $permissionName): bool => isset($existingLookup[$permissionName]))
             ->map(fn (string $permissionName): array => [
                 'name' => $permissionName,
                 'guard_name' => $guardName,
@@ -1051,11 +1058,7 @@ class AclPermissionRegistry
             ->all();
 
         if ($rows !== []) {
-            Permission::query()->upsert(
-                $rows,
-                ['name', 'guard_name'],
-                ['updated_at']
-            );
+            Permission::query()->insertOrIgnore($rows);
         }
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();

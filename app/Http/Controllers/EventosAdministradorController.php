@@ -14,103 +14,67 @@ class EventosAdministradorController extends Controller
     {
         $filters = $request->validate([
             'buscar' => ['nullable', 'string', 'max:120'],
-            'tipo' => ['nullable', 'in:todos,accesos,cambios'],
+            'tipo' => ['nullable', 'string', 'max:20'],
             'desde' => ['nullable', 'date_format:Y-m-d'],
             'hasta' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:desde'],
         ]);
 
         $search = trim((string) ($filters['buscar'] ?? ''));
-        $type = (string) ($filters['tipo'] ?? 'todos');
+        $requestedType = (string) ($filters['tipo'] ?? 'todos');
+        $type = in_array($requestedType, ['todos', 'creacion', 'edicion', 'eliminacion'], true)
+            ? $requestedType
+            : 'todos';
         $from = $filters['desde'] ?? null;
         $until = $filters['hasta'] ?? null;
 
-        $accessEvents = DB::table('user_login_logs')->selectRaw(<<<'SQL'
-            ('INGRESO-' || id::text) AS event_id,
-            'ACCESO'::text AS source,
-            logged_in_at AS happened_at,
-            'INGRESO'::text AS action,
-            'users'::text AS table_name,
-            user_id::text AS record_identifier,
-            COALESCE(NULLIF(user_name, ''), NULLIF(user_alias, ''), 'Usuario sin nombre')::text AS actor,
-            NULLIF(user_alias, '')::text AS actor_alias,
-            user_id::text AS actor_id,
-            ip_address::text AS ip_address,
-            ip_address::text AS request_ip,
-            NULL::text AS database_client_ip,
-            user_agent::text AS user_agent,
-            NULL::text AS application_name,
-            NULL::text AS database_user,
-            NULL::text AS session_role,
-            NULL::text AS database_pid,
-            '[]'::text AS changed_fields,
-            '{}'::text AS old_values,
-            '{}'::text AS new_values
-        SQL);
+        $visibleEvents = static fn (): Builder => DB::table('system_audit_logs')
+            ->where(function (Builder $query): void {
+                $query->whereRaw("left(table_name, 9) = 'paquetes_'")
+                    ->orWhereIn('operation', ['DELETE', 'TRUNCATE']);
+            });
 
-        $logoutEvents = DB::table('user_login_logs')
-            ->whereNotNull('logged_out_at')
+        $auditEvents = $visibleEvents()
+            ->when($type === 'creacion', fn (Builder $query) => $query
+                ->whereRaw("left(table_name, 9) = 'paquetes_'")
+                ->where('operation', 'INSERT'))
+            ->when($type === 'edicion', fn (Builder $query) => $query
+                ->whereRaw("left(table_name, 9) = 'paquetes_'")
+                ->where('operation', 'UPDATE'))
+            ->when($type === 'eliminacion', fn (Builder $query) => $query->whereIn('operation', ['DELETE', 'TRUNCATE']))
             ->selectRaw(<<<'SQL'
-                ('SALIDA-' || id::text) AS event_id,
-                'ACCESO'::text AS source,
-                logged_out_at AS happened_at,
-                'SALIDA'::text AS action,
-                'users'::text AS table_name,
-                user_id::text AS record_identifier,
-                COALESCE(NULLIF(user_name, ''), NULLIF(user_alias, ''), 'Usuario sin nombre')::text AS actor,
-                NULLIF(user_alias, '')::text AS actor_alias,
-                user_id::text AS actor_id,
-                ip_address::text AS ip_address,
-                ip_address::text AS request_ip,
-                NULL::text AS database_client_ip,
+                ('EVENTO-' || id::text) AS event_id,
+                'CAMBIO'::text AS source,
+                operation::text AS operation,
+                occurred_at AS happened_at,
+                CASE
+                    WHEN operation IN ('DELETE', 'TRUNCATE') THEN 'ELIMINACION'
+                    WHEN operation = 'INSERT' THEN 'CREACION'
+                    WHEN EXISTS (
+                        SELECT 1
+                          FROM jsonb_array_elements_text(changed_fields) AS changed_field(field_name)
+                         WHERE lower(changed_field.field_name) ~ '(estado|status|cancel|anul|baja|active|activo|deleted_at|eliminad)'
+                    ) THEN 'CAMBIO DE ESTADO'
+                    ELSE 'EDICION'
+                END::text AS action,
+                table_name::text AS table_name,
+                COALESCE(record_identifier, '-')::text AS record_identifier,
+                COALESCE(NULLIF(request_user_name, ''), NULLIF(request_user_alias, ''), database_user, database_session_user, 'Conexion de base de datos')::text AS actor,
+                NULLIF(request_user_alias, '')::text AS actor_alias,
+                request_user_id::text AS actor_id,
+                COALESCE(request_ip, database_client_ip)::text AS ip_address,
+                request_ip::text AS request_ip,
+                database_client_ip::text AS database_client_ip,
                 user_agent::text AS user_agent,
-                NULL::text AS application_name,
-                NULL::text AS database_user,
-                NULL::text AS session_role,
-                NULL::text AS database_pid,
-                '[]'::text AS changed_fields,
-                '{}'::text AS old_values,
-                '{}'::text AS new_values
+                application_name::text AS application_name,
+                database_user::text AS database_user,
+                database_session_user::text AS session_role,
+                database_pid::text AS database_pid,
+                changed_fields::text AS changed_fields,
+                COALESCE(old_values::text, '{}')::text AS old_values,
+                COALESCE(new_values::text, '{}')::text AS new_values
             SQL);
 
-        $mutationEvents = DB::table('system_audit_logs')->selectRaw(<<<'SQL'
-            ('CAMBIO-' || id::text) AS event_id,
-            'CAMBIO'::text AS source,
-            occurred_at AS happened_at,
-            CASE
-                WHEN operation = 'DELETE' THEN 'ELIMINACION'
-                WHEN operation = 'INSERT' THEN 'CREACION'
-                WHEN EXISTS (
-                    SELECT 1
-                      FROM jsonb_array_elements_text(changed_fields) AS changed_field(field_name)
-                     WHERE lower(changed_field.field_name) ~ '(estado|status|cancel|anul|baja|active|activo|deleted_at|eliminad)'
-                ) THEN 'CAMBIO DE ESTADO'
-                ELSE 'EDICION'
-            END::text AS action,
-            table_name::text AS table_name,
-            COALESCE(record_identifier, '-')::text AS record_identifier,
-            COALESCE(NULLIF(request_user_name, ''), NULLIF(request_user_alias, ''), database_user, database_session_user, 'Conexión de base de datos')::text AS actor,
-            NULLIF(request_user_alias, '')::text AS actor_alias,
-            request_user_id::text AS actor_id,
-            COALESCE(request_ip, database_client_ip)::text AS ip_address,
-            request_ip::text AS request_ip,
-            database_client_ip::text AS database_client_ip,
-            user_agent::text AS user_agent,
-            application_name::text AS application_name,
-            database_user::text AS database_user,
-            database_session_user::text AS session_role,
-            database_pid::text AS database_pid,
-            changed_fields::text AS changed_fields,
-            COALESCE(old_values::text, '{}')::text AS old_values,
-            COALESCE(new_values::text, '{}')::text AS new_values
-        SQL);
-
-        $allEvents = $accessEvents
-            ->unionAll($logoutEvents)
-            ->unionAll($mutationEvents);
-
-        $eventsQuery = DB::query()->fromSub($allEvents, 'system_events')
-            ->when($type === 'accesos', fn (Builder $query) => $query->where('source', 'ACCESO'))
-            ->when($type === 'cambios', fn (Builder $query) => $query->where('source', 'CAMBIO'))
+        $eventsQuery = DB::query()->fromSub($auditEvents, 'audit_events')
             ->when($from, fn (Builder $query) => $query->where('happened_at', '>=', Carbon::parse($from)->startOfDay()))
             ->when($until, fn (Builder $query) => $query->where('happened_at', '<=', Carbon::parse($until)->endOfDay()))
             ->when($search !== '', function (Builder $query) use ($search): void {
@@ -119,52 +83,43 @@ class EventosAdministradorController extends Controller
                     foreach (['actor', 'actor_alias', 'actor_id', 'ip_address', 'table_name', 'record_identifier', 'user_agent', 'application_name', 'database_user', 'session_role'] as $column) {
                         $query->orWhere($column, 'ILIKE', $like);
                     }
+                    $query->orWhere('old_values', 'ILIKE', $like)
+                        ->orWhere('new_values', 'ILIKE', $like);
                 });
             })
             ->orderByDesc('happened_at')
             ->orderByDesc('event_id');
 
         $events = $eventsQuery->paginate(30)->withQueryString();
-        $targetUserIds = $events->getCollection()
-            ->filter(fn (object $event): bool => $event->source === 'CAMBIO'
-                && $event->table_name === 'users'
-                && ctype_digit((string) $event->record_identifier))
-            ->pluck('record_identifier')
-            ->map(fn ($id): int => (int) $id)
-            ->unique()
-            ->values();
-        $targetUsers = $targetUserIds->isEmpty()
-            ? collect()
-            : DB::table('users')->whereIn('id', $targetUserIds)->get(['id', 'name', 'alias', 'email'])->keyBy('id');
-
-        $events->getCollection()->transform(function (object $event) use ($targetUsers): object {
+        $events->getCollection()->transform(function (object $event): object {
             $event->changed_fields = json_decode((string) $event->changed_fields, true) ?: [];
             $oldValues = json_decode((string) $event->old_values, true) ?: [];
             $newValues = json_decode((string) $event->new_values, true) ?: [];
 
             $event->target_label = (string) ($event->record_identifier ?: '—');
+            if ($event->operation === 'TRUNCATE') {
+                $event->target_label = 'Todos los registros';
+            }
 
-            if ($event->source === 'CAMBIO' && $event->table_name === 'users') {
-                $targetId = (int) $event->record_identifier;
-                $currentUser = $targetUsers->get($targetId);
-                $name = $newValues['name'] ?? $oldValues['name'] ?? $currentUser?->name;
-                $alias = $newValues['alias'] ?? $oldValues['alias'] ?? $currentUser?->alias;
-                $email = $newValues['email'] ?? $oldValues['email'] ?? $currentUser?->email;
-                $label = trim((string) $name) ?: trim((string) $email) ?: 'Usuario';
+            $labelFields = $event->table_name === 'users'
+                ? ['name', 'username', 'usuario', 'alias', 'email']
+                : ['codigo', 'codigo_guia', 'codigo_paquete', 'guia', 'tracking_number', 'name', 'nombre', 'username', 'usuario', 'alias', 'email'];
 
-                if (trim((string) $alias) !== '' && trim((string) $alias) !== $label) {
-                    $label .= ' ('.$alias.')';
+            foreach ($labelFields as $labelField) {
+                $label = $newValues[$labelField] ?? $oldValues[$labelField] ?? null;
+                if (is_scalar($label) && trim((string) $label) !== '') {
+                    $event->target_label = (string) $label;
+                    break;
                 }
+            }
 
-                $event->target_label = $label.' · ID '.$targetId;
-            } elseif ($event->source === 'CAMBIO' && str_starts_with((string) $event->table_name, 'paquetes_')) {
-                foreach (['codigo', 'codigo_guia', 'codigo_paquete', 'guia', 'tracking_number'] as $codeField) {
-                    $code = $newValues[$codeField] ?? $oldValues[$codeField] ?? null;
-                    if (is_scalar($code) && trim((string) $code) !== '') {
-                        $event->target_label = (string) $code;
-                        break;
-                    }
+            if ($event->table_name === 'users') {
+                $alias = trim((string) ($oldValues['alias'] ?? $newValues['alias'] ?? ''));
+                $userId = $oldValues['id'] ?? $event->record_identifier;
+                if ($alias !== '' && $alias !== $event->target_label) {
+                    $event->target_label .= ' ('.$alias.')';
                 }
+                $event->target_label .= ' · ID '.$userId;
             }
 
             $event->changes = collect($event->changed_fields)
@@ -184,8 +139,7 @@ class EventosAdministradorController extends Controller
             'type' => $type,
             'from' => $from,
             'until' => $until,
-            'loginCount' => DB::table('user_login_logs')->count(),
-            'mutationCount' => DB::table('system_audit_logs')->count(),
+            'visibleEventCount' => $visibleEvents()->count(),
         ]);
     }
 }
