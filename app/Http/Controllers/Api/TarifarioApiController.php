@@ -19,7 +19,11 @@ class TarifarioApiController extends Controller
                 $query->whereRaw('UPPER(nombre_servicio) = ?', ['EMS_NACIONAL']);
             })
             ->orderBy('id')
-            ->get();
+            ->get()
+            ->each(function (Tarifario $tarifario): void {
+                $tarifario->setAttribute('origen_nombre', $tarifario->origen?->nombre_origen);
+                $tarifario->setAttribute('destino_nombre', $tarifario->destino?->nombre_destino);
+            });
 
         return $this->response('TARIFARIO EMS NACIONAL', 'tarifario', $tarifarios);
     }
