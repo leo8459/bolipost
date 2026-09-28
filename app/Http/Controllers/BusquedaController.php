@@ -274,7 +274,9 @@ class BusquedaController extends Controller
             $service = $this->determinarServicio([], ['codigo' => $codigo], $codigo);
         }
         $visitor = hash('sha256', 'bolipost:' . (string) $request->ip() . ':' . (string) $request->userAgent());
-        $session = hash('sha256', 'bolipost:' . $request->session()->getId());
+        // Public tracking is stateless: do not create or read a Laravel session.
+        // Reuse the anonymous visitor token for analytics' session field.
+        $session = $visitor;
         $common = [
             'visitor_token' => $visitor,
             'session_token' => $session,
