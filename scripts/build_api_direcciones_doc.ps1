@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $OutputPath = Join-Path (Get-Location) "docs\documentacion_api_direcciones_destino.docx"
 $TempRoot = Join-Path (Get-Location) "storage\app\docx_api_direcciones_build"
-$BaseUrl = "https://trackingbo.correos.gob.bo:8100"
+$BaseUrl = "https://trackingbo.correos.gob.bo"
 
 $Token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOlwvXC9sb2NhbGhvc3QiLCJhdWQiOiJib2xpcG9zdC1kaXJlY2Npb25lcy1kZXN0aW5vIiwic3ViIjoiMSIsImp0aSI6ImFjYjg4ZWM1MjNiMTNiYjIzMWFlYTAwOTQ1Zjc4Y2U1MzI1MDRmODYxMjQ2NmMyZjEzNTBlMDdjNTQwNjFiZDAiLCJuYW1lIjoiQVBJIDEiLCJpYXQiOjE3ODQzMDU2ODN9.QFRWGF0ph0_MhqWrf9AAJ6QQUmPQxTj5vKFvFAIDP0Q"
 

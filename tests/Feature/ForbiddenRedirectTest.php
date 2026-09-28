@@ -14,7 +14,7 @@ class ForbiddenRedirectTest extends TestCase
         });
 
         $this->get('/testing/forbidden')
-            ->assertRedirect('https://trackingbo.correos.gob.bo:8100/inicio');
+            ->assertRedirect('https://trackingbo.correos.gob.bo/inicio');
     }
 
     public function test_json_forbidden_response_keeps_its_403_status(): void

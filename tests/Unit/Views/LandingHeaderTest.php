@@ -13,6 +13,6 @@ class LandingHeaderTest extends TestCase
         ])->render();
 
         $this->assertSame(2, substr_count($html, 'href="/clientes/login"'));
-        $this->assertStringNotContainsString('trackingbo.correos.gob.bo:8100/clientes/login', $html);
+        $this->assertStringNotContainsString('trackingbo.correos.gob.bo/clientes/login', $html);
     }
 }

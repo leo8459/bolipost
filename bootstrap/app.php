@@ -87,7 +87,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
             return redirect()->away((string) config(
                 'acl.forbidden_redirect_url',
-                'https://trackingbo.correos.gob.bo:8100/inicio'
+                'https://trackingbo.correos.gob.bo/inicio'
             ));
         });
 

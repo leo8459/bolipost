@@ -17,7 +17,7 @@ return [
 
     'forbidden_redirect_url' => env(
         'FORBIDDEN_REDIRECT_URL',
-        'https://trackingbo.correos.gob.bo:8100/inicio'
+        'https://trackingbo.correos.gob.bo/inicio'
     ),
 
     /*
