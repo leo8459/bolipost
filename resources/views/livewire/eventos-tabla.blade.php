@@ -528,7 +528,12 @@
                             @forelse ($registros as $registro)
                                 <tr>
                                     <td><span class="pill-id">{{ $registro->codigo }}</span></td>
-                                    <td>{{ $registro->evento_nombre_mostrado ?? $registro->evento_nombre ?? ('#' . $registro->evento_id) }}</td>
+                                    <td>
+                                        {{ $registro->evento_nombre_mostrado ?? $registro->evento_nombre ?? ('#' . $registro->evento_id) }}
+                                        @if (!empty($registro->es_bastion))
+                                            <span class="badge badge-warning ml-1">Bastión</span>
+                                        @endif
+                                    </td>
                                     @if ($config['table'] === 'eventos_contrato')
                                         <td class="evento-ruta">
                                             <div class="evento-ruta-trayecto">
@@ -625,20 +630,24 @@
                                         @endif
                                     </td>
                                     <td>
-                                        @if ($canEventosEdit)
-                                        <button wire:click="openEditModal({{ $registro->id }})"
-                                            class="btn btn-sm btn-azul"
-                                            title="Editar">
-                                            <i class="fas fa-pen"></i>
-                                        </button>
-                                        @endif
-                                        @if ($canEventosDelete)
-                                        <button wire:click="delete({{ $registro->id }})"
-                                            class="btn btn-sm btn-outline-azul"
-                                            title="Eliminar"
-                                            onclick="return confirm('Seguro que deseas eliminar este registro?')">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
+                                        @if (!empty($registro->es_bastion))
+                                            <span class="text-muted small">Archivado</span>
+                                        @else
+                                            @if ($canEventosEdit)
+                                            <button wire:click="openEditModal({{ $registro->id }})"
+                                                class="btn btn-sm btn-azul"
+                                                title="Editar">
+                                                <i class="fas fa-pen"></i>
+                                            </button>
+                                            @endif
+                                            @if ($canEventosDelete)
+                                            <button wire:click="delete({{ $registro->id }})"
+                                                class="btn btn-sm btn-outline-azul"
+                                                title="Eliminar"
+                                                onclick="return confirm('Seguro que deseas eliminar este registro?')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                            @endif
                                         @endif
                                     </td>
                                 </tr>

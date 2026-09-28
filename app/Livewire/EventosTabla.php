@@ -179,6 +179,8 @@ class EventosTabla extends Component
         $supportsClienteId = $this->supportsClienteId();
         $supportsCodigoRelacionado = Schema::hasColumn($table, 'codigo_relacionado');
         $supportsDetalleEvento = Schema::hasColumn($table, 'detalle_evento');
+        $hasBastionEvents = $this->tipo === 'contrato' && Schema::hasTable('bastion_eventos');
+        $hasBastionContracts = $this->tipo === 'contrato' && Schema::hasTable('bastion_contratos');
         $contratoBuscado = null;
         $usuarioNombreSelect = $this->tipo === 'ems'
             ? "COALESCE(
@@ -210,7 +212,43 @@ class EventosTabla extends Component
         $empresaScope = $this->authenticatedEmpresaScope();
         $showEventUser = $this->shouldShowEventUser();
 
-        $registrosQuery = DB::table($table . ' as t')
+        $eventosBaseQuery = DB::table($table . ' as t');
+
+        if ($hasBastionEvents) {
+            $columnCodigoRelacionado = $supportsCodigoRelacionado
+                ? 'codigo_relacionado'
+                : 'CAST(NULL AS VARCHAR)';
+            $columnDetalleEvento = $supportsDetalleEvento
+                ? 'detalle_evento'
+                : 'CAST(NULL AS VARCHAR)';
+
+            $eventosActuales = DB::table('eventos_contrato')
+                ->select(['id', 'codigo', 'evento_id', 'user_id', 'created_at'])
+                ->selectRaw($columnCodigoRelacionado . ' as codigo_relacionado')
+                ->selectRaw($columnDetalleEvento . ' as detalle_evento')
+                ->selectRaw('false as es_bastion');
+
+            $eventosArchivados = DB::table('bastion_eventos as be')
+                ->where('be.tipo_paquete', 'CONTRATO')
+                ->whereNotExists(function ($query): void {
+                    $query->selectRaw('1')
+                        ->from('eventos_contrato as ec')
+                        ->whereColumn('ec.id', 'be.id_origen')
+                        ->whereRaw('TRIM(UPPER(ec.codigo)) = TRIM(UPPER(be.codigo))');
+                })
+                ->selectRaw(
+                    'be.id_origen as id, be.codigo, be.evento_id, be.user_id, be.created_at, '
+                    . 'CAST(NULL AS VARCHAR) as codigo_relacionado, '
+                    . 'CAST(NULL AS VARCHAR) as detalle_evento, true as es_bastion'
+                );
+
+            $eventosBaseQuery = DB::query()->fromSub(
+                $eventosActuales->unionAll($eventosArchivados),
+                't'
+            );
+        }
+
+        $registrosQuery = $eventosBaseQuery
             ->leftJoin('eventos as e', 'e.id', '=', 't.evento_id')
             ->leftJoin('users as u', 'u.id', '=', 't.user_id')
             ->select([
@@ -220,13 +258,14 @@ class EventosTabla extends Component
                 't.user_id',
                 't.created_at',
                 'e.nombre_evento as evento_nombre',
+                DB::raw($hasBastionEvents ? 't.es_bastion' : 'false as es_bastion'),
                 DB::raw($supportsCodigoRelacionado ? 't.codigo_relacionado' : 'NULL as codigo_relacionado'),
                 DB::raw($supportsDetalleEvento ? 't.detalle_evento' : 'NULL as detalle_evento'),
                 DB::raw($usuarioNombreSelect),
                 DB::raw($imagenSelect),
             ])
-            ->when($q !== '', function ($query) use ($q, $supportsClienteId, $supportsCodigoRelacionado, $supportsDetalleEvento, $table) {
-                $query->where(function ($sub) use ($q, $supportsClienteId, $supportsCodigoRelacionado, $supportsDetalleEvento, $table) {
+            ->when($q !== '', function ($query) use ($q, $supportsClienteId, $supportsCodigoRelacionado, $supportsDetalleEvento, $table, $hasBastionContracts) {
+                $query->where(function ($sub) use ($q, $supportsClienteId, $supportsCodigoRelacionado, $supportsDetalleEvento, $table, $hasBastionContracts) {
                     $sub->where('t.codigo', 'ILIKE', '%' . $q . '%')
                         ->orWhere('e.nombre_evento', 'ILIKE', '%' . $q . '%');
 
@@ -255,6 +294,17 @@ class EventosTabla extends Component
                     }
 
                     if (
+                        $hasBastionContracts
+                        && Schema::hasColumn('bastion_contratos', 'codigo_madre')
+                    ) {
+                        $sub->orWhereIn('t.codigo', function ($childQuery) use ($q) {
+                            $childQuery->select('codigo')
+                                ->from('bastion_contratos')
+                                ->where('codigo_madre', 'ILIKE', '%' . $q . '%');
+                        });
+                    }
+
+                    if (
                         $table === 'eventos_contrato'
                         && Schema::hasTable('paquetes_contrato')
                         && Schema::hasTable('empresa')
@@ -268,6 +318,27 @@ class EventosTabla extends Component
                                     ->from('paquetes_contrato as pc_busqueda')
                                     ->join('empresa as emp_busqueda', 'emp_busqueda.id', '=', 'pc_busqueda.empresa_id')
                                     ->whereColumn('pc_busqueda.codigo', 't.codigo')
+                                    ->whereRaw(
+                                        "REPLACE(UPPER(TRIM(COALESCE(emp_busqueda.codigo_cliente, ''))), ' ', '') LIKE ?",
+                                        ['%' . $codigoClienteBuscado . '%']
+                                    );
+                            });
+                        }
+                    }
+
+                    if (
+                        $hasBastionContracts
+                        && Schema::hasTable('empresa')
+                        && Schema::hasColumn('empresa', 'codigo_cliente')
+                    ) {
+                        $codigoClienteBuscado = $this->normalizeCodigoCliente($q);
+
+                        if ($codigoClienteBuscado !== '') {
+                            $sub->orWhereExists(function ($packageQuery) use ($codigoClienteBuscado) {
+                                $packageQuery->selectRaw('1')
+                                    ->from('bastion_contratos as bc_busqueda')
+                                    ->join('empresa as emp_busqueda', 'emp_busqueda.id', '=', 'bc_busqueda.empresa_id')
+                                    ->whereColumn('bc_busqueda.codigo', 't.codigo')
                                     ->whereRaw(
                                         "REPLACE(UPPER(TRIM(COALESCE(emp_busqueda.codigo_cliente, ''))), ' ', '') LIKE ?",
                                         ['%' . $codigoClienteBuscado . '%']
@@ -290,13 +361,25 @@ class EventosTabla extends Component
             ->when($this->tipo === 'contrato' && $descripcionEvento !== '', function ($query) use ($descripcionEvento) {
                 $query->where('e.nombre_evento', 'ILIKE', '%' . $descripcionEvento . '%');
             })
-            ->when($this->tipo === 'contrato' && $empresaScope['empresa_id'] > 0, function ($query) use ($empresaScope) {
-                $query->whereExists(function ($subQuery) use ($empresaScope) {
-                    $subQuery->selectRaw('1')
-                        ->from('paquetes_contrato as pc')
-                        ->whereColumn('pc.codigo', 't.codigo');
+            ->when($this->tipo === 'contrato' && $empresaScope['empresa_id'] > 0, function ($query) use ($empresaScope, $hasBastionContracts) {
+                $query->where(function ($packageScope) use ($empresaScope, $hasBastionContracts): void {
+                    $packageScope->whereExists(function ($subQuery) use ($empresaScope) {
+                        $subQuery->selectRaw('1')
+                            ->from('paquetes_contrato as pc')
+                            ->whereColumn('pc.codigo', 't.codigo');
 
-                    $this->scopeContratoPackagesByEmpresa($subQuery, $empresaScope, 'pc');
+                        $this->scopeContratoPackagesByEmpresa($subQuery, $empresaScope, 'pc');
+                    });
+
+                    if ($hasBastionContracts) {
+                        $packageScope->orWhereExists(function ($subQuery) use ($empresaScope) {
+                            $subQuery->selectRaw('1')
+                                ->from('bastion_contratos as bc')
+                                ->whereColumn('bc.codigo', 't.codigo');
+
+                            $this->scopeContratoPackagesByEmpresa($subQuery, $empresaScope, 'bc');
+                        });
+                    }
                 });
             });
 
@@ -316,14 +399,41 @@ class EventosTabla extends Component
                         '=',
                         'ruta_contrato.codigo_normalizado'
                     );
-                })
-                ->addSelect([
+                });
+
+            if ($hasBastionContracts) {
+                $rutasBastion = DB::table('bastion_contratos')
+                    ->selectRaw('TRIM(UPPER(codigo)) as codigo_normalizado')
+                    ->selectRaw("MAX(NULLIF(TRIM(origen), '')) as origen")
+                    ->selectRaw("MAX(NULLIF(TRIM(provincia_origen), '')) as provincia_origen")
+                    ->selectRaw("MAX(NULLIF(TRIM(destino), '')) as destino")
+                    ->selectRaw("MAX(NULLIF(TRIM(provincia), '')) as provincia_destino")
+                    ->groupByRaw('TRIM(UPPER(codigo))');
+
+                $registrosQuery
+                    ->leftJoinSub($rutasBastion, 'ruta_bastion', function ($join) {
+                        $join->on(
+                            DB::raw('TRIM(UPPER(t.codigo))'),
+                            '=',
+                            'ruta_bastion.codigo_normalizado'
+                        );
+                    })
+                    ->addSelect([
+                        DB::raw("COALESCE(NULLIF(ruta_contrato.origen, ''), ruta_bastion.origen) as paquete_origen"),
+                        DB::raw("COALESCE(NULLIF(ruta_contrato.provincia_origen, ''), ruta_bastion.provincia_origen) as paquete_provincia_origen"),
+                        DB::raw("COALESCE(NULLIF(ruta_contrato.destino, ''), ruta_bastion.destino) as paquete_destino"),
+                        DB::raw("COALESCE(NULLIF(ruta_contrato.provincia_destino, ''), ruta_bastion.provincia_destino) as paquete_provincia_destino"),
+                        'u.ciudad as usuario_ciudad',
+                    ]);
+            } else {
+                $registrosQuery->addSelect([
                     'ruta_contrato.origen as paquete_origen',
                     'ruta_contrato.provincia_origen as paquete_provincia_origen',
                     'ruta_contrato.destino as paquete_destino',
                     'ruta_contrato.provincia_destino as paquete_provincia_destino',
                     'u.ciudad as usuario_ciudad',
                 ]);
+            }
         }
 
         if ($supportsClienteId) {
@@ -337,6 +447,7 @@ class EventosTabla extends Component
         }
 
         $registros = $registrosQuery
+            ->orderByDesc('t.created_at')
             ->orderByDesc('t.id')
             ->paginate(100);
 
