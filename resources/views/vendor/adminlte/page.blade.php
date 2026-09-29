@@ -30,7 +30,7 @@
         .form-control,
         .nav-sidebar,
         .info-box {
-            font-family: Verdana, Geneva, sans-serif !important;
+            font-family: "Segoe UI", Inter, Arial, sans-serif !important;
         }
 
         .contract-alert-toast {

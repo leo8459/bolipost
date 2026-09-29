@@ -2,58 +2,64 @@
 
 namespace App\Exports;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 
 class AreaContratosEntregadosExport implements WithMultipleSheets
 {
     public function __construct(
-        private readonly Collection $rows,
+        private readonly Builder $query,
+        private readonly Collection $summaryRows,
+        private readonly array $totals,
         private readonly array $filters = []
     ) {
     }
 
     public function sheets(): array
     {
-        $groups = $this->rows
-            ->groupBy(fn ($row) => $this->normalizeOrigin((string) ($row->origen ?? '')));
+        $sheets = [];
+        $originExpression = "COALESCE(NULLIF(TRIM(origen), ''), 'SIN ORIGEN')";
 
-        if ($groups->isEmpty()) {
-            return [
-                new AreaContratosEntregadosSheetExport(
-                    'SIN DATOS',
-                    collect(),
-                    $this->filters
-                ),
-                new AreaContratosEntregadosResumenSheetExport(
-                    $this->rows,
-                    $this->filters
-                ),
-            ];
+        foreach ($this->summaryRows as $summaryRow) {
+            $origin = (string) $summaryRow->origen;
+            $query = (clone $this->query)
+                ->whereRaw("{$originExpression} = ?", [$origin])
+                ->orderBy('fecha_recojo')
+                ->orderBy('id');
+
+            $sheets[] = new AreaContratosEntregadosSheetExport(
+                $origin,
+                $query,
+                (int) $summaryRow->total,
+                (float) $summaryRow->peso,
+                (float) $summaryRow->subtotal,
+                $this->filters
+            );
         }
 
-        $detailSheets = $groups
-            ->sortKeys(SORT_NATURAL | SORT_FLAG_CASE)
-            ->map(fn (Collection $items, string $origin) => new AreaContratosEntregadosSheetExport(
-                $origin,
-                $items->values(),
+        if ($sheets === []) {
+            $sheets[] = new AreaContratosEntregadosSheetExport(
+                'SIN DATOS',
+                (clone $this->query)->whereRaw('1 = 0'),
+                0,
+                0.0,
+                0.0,
                 $this->filters
-            ))
-            ->values()
-            ->all();
+            );
+        }
 
-        $detailSheets[] = new AreaContratosEntregadosResumenSheetExport(
-            $this->rows,
+        $sheets[] = new AreaContratosEntregadosResumenSheetExport(
+            $this->summaryRows->map(fn ($row) => [
+                'origin' => (string) $row->origen,
+                'weight' => (float) $row->peso,
+                'count' => (int) $row->total,
+                'subtotal' => (float) $row->subtotal,
+            ])->all(),
+            $this->totals,
             $this->filters
         );
 
-        return $detailSheets;
-    }
-
-    private function normalizeOrigin(string $origin): string
-    {
-        $origin = trim($origin);
-
-        return $origin !== '' ? $origin : 'SIN ORIGEN';
+        return $sheets;
     }
 }

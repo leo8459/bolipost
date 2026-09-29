@@ -184,9 +184,17 @@
             @if(collect($contratosPorRecogerPorDepartamento ?? [])->isNotEmpty())
                 <div class="mt-2 d-flex flex-wrap">
                     @foreach($contratosPorRecogerPorDepartamento as $departamento)
-                        <span class="btn btn-sm btn-light border mr-2 mb-2">
+                        <button
+                            type="button"
+                            class="btn btn-sm btn-light border mr-2 mb-2 js-dashboard-department-alert"
+                            data-alert-type="pickup"
+                            data-department="{{ $departamento->departamento }}"
+                            data-details-url="{{ route('dashboard.alerts.department-details', [], false) }}"
+                            data-toggle="modal"
+                            data-target="#dashboardDepartmentAlertModal"
+                        >
                             {{ $departamento->departamento }}: {{ \App\Support\BolivianNumber::format((int) $departamento->total) }}
-                        </span>
+                        </button>
                     @endforeach
                 </div>
             @endif
@@ -218,9 +226,17 @@
             @if(collect(data_get($regionalPendingAlert, 'departments', []))->isNotEmpty())
                 <div class="mt-2 d-flex flex-wrap">
                     @foreach(data_get($regionalPendingAlert, 'departments', []) as $departamento)
-                        <span class="btn btn-sm btn-light border mr-2 mb-2">
+                        <button
+                            type="button"
+                            class="btn btn-sm btn-light border mr-2 mb-2 js-dashboard-department-alert"
+                            data-alert-type="pending"
+                            data-department="{{ $departamento->departamento }}"
+                            data-details-url="{{ route('dashboard.alerts.department-details', [], false) }}"
+                            data-toggle="modal"
+                            data-target="#dashboardDepartmentAlertModal"
+                        >
                             {{ $departamento->departamento }}: {{ \App\Support\BolivianNumber::format((int) $departamento->total) }}
-                        </span>
+                        </button>
                     @endforeach
                 </div>
             @endif
@@ -233,6 +249,153 @@
     </div>
 </div>
 @endif
+
+<div class="modal fade" id="dashboardDepartmentAlertModal" tabindex="-1" role="dialog" aria-labelledby="dashboardDepartmentAlertModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
+        <div class="modal-content border-0">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title font-weight-bold" id="dashboardDepartmentAlertModalTitle">Detalle por departamento</h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Cerrar">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-light border mb-3" id="dashboardDepartmentAlertModalSummary">Cargando paquetes...</div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped table-hover mb-0">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Módulo</th>
+                                <th>Código</th>
+                                <th>Estado</th>
+                                <th>Origen</th>
+                                <th>Destino</th>
+                                <th>Destinatario</th>
+                                <th>Fecha</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dashboardDepartmentAlertModalRows">
+                            <tr><td colspan="7" class="text-center text-muted py-4">Selecciona un departamento.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="dashboardDepartmentAlertPrev" disabled>Anterior</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="dashboardDepartmentAlertNext" disabled>Siguiente</button>
+                    <span class="small text-muted ml-2" id="dashboardDepartmentAlertPage"></span>
+                </div>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        var modal = document.getElementById('dashboardDepartmentAlertModal');
+        var title = document.getElementById('dashboardDepartmentAlertModalTitle');
+        var summary = document.getElementById('dashboardDepartmentAlertModalSummary');
+        var rows = document.getElementById('dashboardDepartmentAlertModalRows');
+        var previous = document.getElementById('dashboardDepartmentAlertPrev');
+        var next = document.getElementById('dashboardDepartmentAlertNext');
+        var pageLabel = document.getElementById('dashboardDepartmentAlertPage');
+        var active = null;
+        var requestSequence = 0;
+        var columns = ['modulo', 'codigo', 'estado', 'origen', 'destino', 'destinatario', 'fecha'];
+
+        function setMessage(message) {
+            rows.replaceChildren();
+            var row = document.createElement('tr');
+            var cell = document.createElement('td');
+            cell.colSpan = columns.length;
+            cell.className = 'text-center text-muted py-4';
+            cell.textContent = message;
+            row.appendChild(cell);
+            rows.appendChild(row);
+        }
+
+        function render(payload) {
+            rows.replaceChildren();
+            if (!payload.items || payload.items.length === 0) {
+                setMessage('No hay paquetes para mostrar en este departamento.');
+            } else {
+                payload.items.forEach(function (item) {
+                    var row = document.createElement('tr');
+                    columns.forEach(function (column) {
+                        var cell = document.createElement('td');
+                        cell.textContent = item[column] || '-';
+                        row.appendChild(cell);
+                    });
+                    rows.appendChild(row);
+                });
+            }
+
+            active.page = Number(payload.page || 1);
+            active.lastPage = Number(payload.last_page || 1);
+            summary.textContent = 'Total: ' + Number(payload.total || 0).toLocaleString('es-BO') + ' paquetes.';
+            pageLabel.textContent = 'Página ' + active.page + ' de ' + active.lastPage;
+            previous.disabled = active.page <= 1;
+            next.disabled = active.page >= active.lastPage;
+        }
+
+        function loadPage() {
+            if (!active) return;
+
+            var sequence = ++requestSequence;
+            var url = new URL(active.url, window.location.origin);
+            url.searchParams.set('type', active.type);
+            url.searchParams.set('department', active.department);
+            url.searchParams.set('page', String(active.page));
+            summary.textContent = 'Cargando paquetes de ' + active.department + '...';
+            pageLabel.textContent = '';
+            previous.disabled = true;
+            next.disabled = true;
+            setMessage('Cargando...');
+
+            fetch(url.toString(), { headers: { 'Accept': 'application/json' } })
+                .then(function (response) {
+                    if (!response.ok) throw new Error('No se pudo cargar el detalle.');
+                    return response.json();
+                })
+                .then(function (payload) {
+                    if (sequence === requestSequence) render(payload);
+                })
+                .catch(function () {
+                    if (sequence === requestSequence) {
+                        summary.textContent = 'No se pudo cargar el detalle de ' + active.department + '.';
+                        pageLabel.textContent = '';
+                        setMessage('Intenta nuevamente más tarde.');
+                    }
+                });
+        }
+
+        document.addEventListener('click', function (event) {
+            var trigger = event.target.closest('.js-dashboard-department-alert');
+            if (trigger) {
+                active = {
+                    type: trigger.dataset.alertType,
+                    department: trigger.dataset.department,
+                    url: trigger.dataset.detailsUrl,
+                    page: 1,
+                    lastPage: 1,
+                };
+                title.textContent = (active.type === 'pickup' ? 'Paquetes por recoger - ' : 'Paquetes pendientes - ') + active.department;
+                loadPage();
+                return;
+            }
+
+            if (event.target.closest('#dashboardDepartmentAlertPrev') && active && active.page > 1) {
+                active.page--;
+                loadPage();
+            } else if (event.target.closest('#dashboardDepartmentAlertNext') && active && active.page < active.lastPage) {
+                active.page++;
+                loadPage();
+            }
+        });
+    })();
+</script>
 
 @if(((int) data_get($carteroPendingAlert ?? [], 'count', 0)) > 0)
 <div class="alert alert-info d-flex flex-column flex-md-row align-items-md-center justify-content-between mb-3">

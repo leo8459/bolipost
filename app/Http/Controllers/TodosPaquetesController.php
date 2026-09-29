@@ -17,6 +17,7 @@ use App\Support\CarteroEvent;
 use App\Support\CodigoContinuacionEvent;
 use App\Support\EncargadoEvent;
 use App\Support\PackageWeightFilter;
+use App\Support\StoredImage;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -394,11 +395,20 @@ class TodosPaquetesController extends Controller
             $rules['codigo_solicitud'][] = Rule::unique($config['table'], 'codigo_solicitud')->ignore($model->getKey());
         }
 
-        $data = $request->validate($rules);
+        $rules['foto'] = ['nullable', 'file', 'max:10240', 'mimes:jpg,jpeg,png,webp,heic,heif'];
 
-        DB::transaction(function () use ($model, $data) {
+        $data = $request->validate($rules);
+        $foto = $data['foto'] ?? null;
+        unset($data['foto']);
+        $imagen = $foto ? StoredImage::fromUploadedFile($foto) : null;
+
+        DB::transaction(function () use ($model, $data, $foto, $imagen) {
             foreach ($data as $field => $value) {
                 $model->{$field} = is_string($value) ? trim($value) : $value;
+            }
+
+            if ($foto && $imagen !== null) {
+                $model->imagen = $imagen;
             }
 
             $model->save();
@@ -1140,6 +1150,7 @@ class TodosPaquetesController extends Controller
             'label' => $config['label'],
             'fields' => $config['editable'],
             'numeric' => $config['numeric'] ?? [],
+            'image_url' => StoredImage::url($model->imagen ?? null),
             'values' => collect(array_keys($config['editable']))
                 ->mapWithKeys(function ($field) use ($model) {
                     $value = $model->{$field};

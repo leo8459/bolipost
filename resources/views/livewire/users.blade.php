@@ -442,7 +442,8 @@
                             <option value="">Todos los codigos de cliente</option>
                             @foreach($codigoClienteOptions as $codigoOption)
                                 <option value="{{ $codigoOption['codigo'] }}">
-                                    {{ $codigoOption['codigo'] }} - {{ $codigoOption['empresas_count'] }} empresa(s)
+                                    {{ $codigoOption['codigo'] }} - {{ $codigoOption['empresas_nombres'] ?: 'Sin nombre' }}
+                                    ({{ $codigoOption['empresas_count'] }} empresa(s))
                                 </option>
                             @endforeach
                         </select>
@@ -1033,7 +1034,8 @@
                                 <option value="">Selecciona un codigo de cliente</option>
                                 @foreach($codigoClienteOptions as $codigoOption)
                                     <option value="{{ $codigoOption['codigo'] }}">
-                                        {{ $codigoOption['codigo'] }} - {{ $codigoOption['empresas_count'] }} empresa(s)
+                                        {{ $codigoOption['codigo'] }} - {{ $codigoOption['empresas_nombres'] ?: 'Sin nombre' }}
+                                        ({{ $codigoOption['empresas_count'] }} empresa(s))
                                     </option>
                                 @endforeach
                             </select>

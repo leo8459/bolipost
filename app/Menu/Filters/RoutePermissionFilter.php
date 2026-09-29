@@ -11,12 +11,25 @@ use JeroenNoten\LaravelAdminLte\Menu\Filters\FilterInterface;
 class RoutePermissionFilter implements FilterInterface
 {
     /**
-     * Add a dynamic "can" key to menu items using route names.
+     * Enforce inherited menu permissions and add route-derived permissions.
      */
     public function transform($item)
     {
         if (! Auth::check()) {
+            if (! empty($item['required_parent_can'])) {
+                return false;
+            }
+
             return $item;
+        }
+
+        $requiredParentPermissions = (array) ($item['required_parent_can'] ?? []);
+        unset($item['required_parent_can']);
+
+        foreach ($requiredParentPermissions as $permissionName) {
+            if (! Auth::user()?->can($permissionName)) {
+                return false;
+            }
         }
 
         if (! empty($item['can']) || empty($item['url'])) {

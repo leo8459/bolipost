@@ -4,10 +4,10 @@ namespace App\Exports;
 
 use App\Models\Recojo;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Collection;
-use Maatwebsite\Excel\Concerns\FromCollection;
-use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\FromQuery;
+use Maatwebsite\Excel\Concerns\WithCustomChunkSize;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
@@ -20,22 +20,27 @@ use PhpOffice\PhpSpreadsheet\Style\Font;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
 
-class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSize, WithEvents, WithHeadings, WithMapping, WithTitle
+class AreaContratosEntregadosSheetExport implements FromQuery, WithCustomChunkSize, WithEvents, WithHeadings, WithMapping, WithTitle
 {
+    private int $sequence = 0;
+
     public function __construct(
         private readonly string $origin,
-        private readonly Collection $rows,
+        private readonly Builder $rowsQuery,
+        private readonly int $rowCount,
+        private readonly float $weightTotal,
+        private readonly float $amountTotal,
         private readonly array $filters = []
     ) {}
 
-    public function collection(): Collection
+    public function query(): Builder
     {
-        return $this->rows->values()->map(function (Model $row, int $index) {
-            return [
-                'sequence' => $index + 1,
-                'row' => $row,
-            ];
-        });
+        return $this->rowsQuery;
+    }
+
+    public function chunkSize(): int
+    {
+        return 500;
     }
 
     public function headings(): array
@@ -58,6 +63,8 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
                 '',
                 '',
                 'ENTREGA',
+                '',
+                '',
                 '',
                 '',
                 '',
@@ -85,18 +92,18 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
                 'NOMBRE DEL CARTERO',
                 'OBSERVACIONES',
                 'IMAGEN DE ENTREGA / DEVOLUCION',
+                '',
             ],
         ];
     }
 
     public function map($row): array
     {
-        if (! is_array($row) || ! isset($row['row']) || ! $row['row'] instanceof Model) {
+        if (! $row instanceof Model) {
             return [];
         }
 
-        /** @var Model $model */
-        $model = $row['row'];
+        $model = $row;
         $provinciaOrigen = $this->normalizeUpper((string) ($model->provincia_origen ?? ''));
         $provincia = trim((string) ($model->provincia ?? ''));
         $destinoRegistrado = trim((string) ($model->destino_registrado ?? ''));
@@ -104,9 +111,15 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
             ? $destinoRegistrado
             : trim((string) ($model->destino ?? ''));
         $precio = (float) ($model->precio ?? 0);
+        $imageUrl = $this->hasDeliveryImage($model)
+            ? $this->resolveDeliveryImageUrl($model)
+            : null;
+        $imageLabel = $imageUrl !== null
+            ? ($model instanceof Recojo && $model->esDevolucion() ? 'Imagen de devolucion' : 'Imagen de entrega')
+            : '';
 
         return [
-            (int) ($row['sequence'] ?? 0),
+            ++$this->sequence,
             $this->formatDate($model->fecha_recojo),
             (string) ($model->codigo ?? ''),
             (string) ($model->origen ?? ''),
@@ -126,9 +139,8 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
             (string) ($model->nombre_d ?? ''),
             (string) optional($model->user)->name,
             (string) ($model->observacion ?? ''),
-            $this->hasDeliveryImage($model)
-                ? ($model instanceof Recojo && $model->esDevolucion() ? 'Imagen de devolucion' : 'Imagen de entrega')
-                : '',
+            $imageLabel,
+            $imageUrl ?? '',
         ];
     }
 
@@ -158,7 +170,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
             AfterSheet::class => function (AfterSheet $event): void {
                 $sheet = $event->sheet->getDelegate();
                 $lastColumn = 'U';
-                $dataCount = $this->rows->count();
+                $dataCount = $this->rowCount;
                 $highestRow = max(1, $sheet->getHighestDataRow());
                 $headerImagePath = $this->resolveHeaderImagePath();
 
@@ -281,8 +293,15 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
                     $this->addDeliveryImageLinks($sheet, $dataStartRow);
                 }
 
-                $sheet->getColumnDimension('U')->setAutoSize(false);
-                $sheet->getColumnDimension('U')->setWidth(18);
+                foreach ([
+                    'A' => 8, 'B' => 16, 'C' => 22, 'D' => 16, 'E' => 14, 'F' => 12,
+                    'G' => 22, 'H' => 16, 'I' => 12, 'J' => 9, 'K' => 16, 'L' => 14,
+                    'M' => 14, 'N' => 14, 'O' => 14, 'P' => 18, 'Q' => 16, 'R' => 28,
+                    'S' => 26, 'T' => 42, 'U' => 22,
+                ] as $column => $width) {
+                    $sheet->getColumnDimension($column)->setWidth($width);
+                }
+                $sheet->getColumnDimension('V')->setVisible(false);
 
                 $sheet->getPageSetup()
                     ->setOrientation(PageSetup::ORIENTATION_LANDSCAPE)
@@ -299,9 +318,9 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
                 $totalRow = max($dataStartRow, $highestRow + 1);
                 $sheet->mergeCells("A{$totalRow}:K{$totalRow}");
                 $sheet->setCellValue("A{$totalRow}", 'TOTALES');
-                $sheet->setCellValue("L{$totalRow}", (float) $this->rows->sum('peso'));
-                $sheet->setCellValue("M{$totalRow}", (float) $this->rows->sum('precio'));
-                $sheet->setCellValue("O{$totalRow}", (float) $this->rows->sum('precio'));
+                $sheet->setCellValue("L{$totalRow}", $this->weightTotal);
+                $sheet->setCellValue("M{$totalRow}", $this->amountTotal);
+                $sheet->setCellValue("O{$totalRow}", $this->amountTotal);
 
                 $sheet->getStyle("A{$totalRow}:U{$totalRow}")->applyFromArray([
                     'font' => [
@@ -436,8 +455,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
 
     private function resolveDeliveryImageUrl(Model $model): ?string
     {
-        $imagePath = trim((string) ($model instanceof Recojo ? $model->imagenParaReporte() : $model->imagen));
-        if ($imagePath === '' || ! isset($model->id)) {
+        if (! isset($model->id)) {
             return null;
         }
 
@@ -450,27 +468,25 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
 
     private function hasDeliveryImage(Model $model): bool
     {
-        return trim((string) ($model instanceof Recojo ? $model->imagenParaReporte() : $model->imagen)) !== '';
+        $value = $model->getAttribute('report_has_delivery_image');
+
+        if ($value === true || $value === 1) {
+            return true;
+        }
+
+        return in_array(strtolower(trim((string) $value)), ['1', 't', 'true', 'yes'], true);
     }
 
     private function addDeliveryImageLinks($sheet, int $dataStartRow): void
     {
-        foreach ($this->rows->values() as $index => $model) {
-            if (! $model instanceof Model) {
+        $lastDataRow = $dataStartRow + $this->rowCount - 1;
+        for ($row = $dataStartRow; $row <= $lastDataRow; $row++) {
+            $url = trim((string) $sheet->getCell('V'.$row)->getValue());
+            if ($url === '') {
                 continue;
             }
 
-            if (! $this->hasDeliveryImage($model)) {
-                continue;
-            }
-
-            $row = $dataStartRow + $index;
             $cell = 'U'.$row;
-            $url = $this->resolveDeliveryImageUrl($model);
-            if ($url === null) {
-                continue;
-            }
-
             $sheet->setCellValue($cell, 'DESCARGAR IMAGEN');
             $sheet->getCell($cell)->getHyperlink()->setUrl($url);
             $sheet->getStyle($cell)->applyFromArray([
@@ -488,6 +504,7 @@ class AreaContratosEntregadosSheetExport implements FromCollection, ShouldAutoSi
                     'vertical' => Alignment::VERTICAL_CENTER,
                 ],
             ]);
+            $sheet->setCellValue('V'.$row, null);
         }
     }
 }

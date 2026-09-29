@@ -11,7 +11,7 @@ use JeroenNoten\LaravelAdminLte\Menu\Filters\HrefFilter;
 use JeroenNoten\LaravelAdminLte\Menu\Filters\LangFilter;
 use JeroenNoten\LaravelAdminLte\Menu\Filters\SearchFilter;
 
-return [
+$config = [
 
     /*
     |--------------------------------------------------------------------------
@@ -25,9 +25,9 @@ return [
     |
     */
 
-    'title' => 'TrackingBO',
+    'title' => 'SIOP',
     'title_prefix' => '',
-    'title_postfix' => '| TrackingBO',
+    'title_postfix' => '| SIOP',
 
     /*
     |--------------------------------------------------------------------------
@@ -74,12 +74,12 @@ return [
     |
     */
 
-    'logo' => '<b>Tracking</b>BO',
+    'logo' => '<b>SIOP</b>',
     'logo_img' => 'images/AGBClogo1.png',
     'logo_img_class' => 'brand-image img-circle',
     'logo_img_xl' => null,
     'logo_img_xl_class' => 'brand-image-xs',
-    'logo_img_alt' => 'TrackingBO',
+    'logo_img_alt' => 'SIOP',
 
     /*
     |--------------------------------------------------------------------------
@@ -319,7 +319,7 @@ return [
         // Sidebar items:
         [
             'type' => 'sidebar-menu-search',
-            'text' => 'search',
+            'text' => 'Buscar en el menú...',
         ],
         [
             'header' => 'CLIENTE',
@@ -433,118 +433,73 @@ return [
                     'icon' => 'fas fa-history',
                     'can' => 'admin-only-menu',
                 ],
+                [
+                    'text' => 'IPS',
+                    'url' => 'ips',
+                    'icon' => 'fas fa-globe-americas',
+                    'can' => 'ips.index',
+                ],
             ],
         ],
         [
-            'text' => 'IPS',
-            'url' => 'ips',
-            'icon' => 'fas fa-globe-americas',
-            'can' => 'ips.index',
-        ],
-        [
-            'text' => 'Dir. Operaciones',
-            'icon' => 'fas fa-chart-line',
-            'can' => 'dashboard.dir-operaciones',
+            'text' => 'Reportes Ejecutivos',
+            'icon' => 'fas fa-chart-pie',
+            'can' => [
+                'dashboard.dir-comercial',
+                'dashboard.dir-financiera',
+                'dashboard.dir-operaciones',
+            ],
             'submenu' => [
                 [
+                    'text' => 'Detalle por Servicio',
+                    'can' => 'dashboard.financiera.ventas-servicios.detalle',
+                    'required_parent_can' => 'dashboard.dir-financiera',
+                    'url' => '/dir-financiera/ventas-servicios/detalle',
+                    'icon' => 'fas fa-table',
+                ],
+                [
+                    'text' => 'Entregas',
+                    'required_parent_can' => 'dashboard.dir-operaciones',
+                    'url' => '/entregas',
+                    'icon' => 'fas fa-clipboard-check',
+                ],
+                [
+                    'text' => 'Envíos Oficiales',
+                    'required_parent_can' => 'dashboard.dir-operaciones',
+                    'url' => '/dir-operaciones/envios-oficiales',
+                    'icon' => 'fas fa-stamp',
+                ],
+                [
+                    'text' => 'Flujo de cajero',
+                    'can' => 'dashboard.financiera.flujo-cajero',
+                    'required_parent_can' => 'dashboard.dir-financiera',
+                    'url' => '/dir-financiera/flujo-cajero',
+                    'icon' => 'fas fa-cash-register',
+                ],
+                [
                     'text' => 'Global Nivel Nacional (Ingreso)',
+                    'required_parent_can' => 'dashboard.dir-operaciones',
                     'url' => '/dir-operaciones/global-ingreso',
                     'icon' => 'fas fa-globe-americas',
                 ],
                 [
                     'text' => 'Global por servicio',
+                    'required_parent_can' => 'dashboard.dir-operaciones',
                     'url' => '/dir-operaciones/global-por-servicio',
                     'icon' => 'fas fa-stream',
                 ],
                 [
-                    'text' => 'Envios Oficiales',
-                    'url' => '/dir-operaciones/envios-oficiales',
-                    'icon' => 'fas fa-stamp',
-                ],
-                [
-                    'text' => 'Reimprimir CN-33',
-                    'url' => '/dir-operaciones/reimprimir-cn33',
-                    'icon' => 'fas fa-file-excel',
-                ],
-                [
-                    'text' => 'Generacion de CN',
-                    'url' => '/dir-operaciones/generacion-cn',
-                    'icon' => 'fas fa-file-alt',
-                    'can' => 'dashboard.generacion-cn',
-                ],
-                [
-                    'text' => 'Marbetes',
-                    'url' => '/dir-operaciones/marbetes',
-                    'icon' => 'fas fa-tags',
-                    'can' => 'dashboard.marbetes',
-                ],
-            ],
-        ],
-        [
-            'text' => 'Dir. Comercial',
-            'icon' => 'fas fa-bullhorn',
-            'can' => 'dashboard.dir-comercial',
-            'submenu' => [
-                [
                     'text' => 'Rendimiento Servicios',
+                    'required_parent_can' => 'dashboard.dir-comercial',
                     'url' => '/dir-comercial/rendimiento-servicios',
                     'icon' => 'fas fa-chart-pie',
                 ],
-
-            ],
-        ],
-        [
-            'text' => 'Dir. Financiera',
-            'icon' => 'fas fa-coins',
-            'can' => 'dashboard.dir-financiera',
-            'submenu' => [
                 [
                     'text' => 'Ventas por Servicio',
                     'can' => 'dashboard.financiera.ventas-servicios',
+                    'required_parent_can' => 'dashboard.dir-financiera',
                     'url' => '/dir-financiera/ventas-servicios',
                     'icon' => 'fas fa-file-invoice-dollar',
-                ],
-                [
-                    'text' => 'Flujo de cajero',
-                    'can' => 'dashboard.financiera.flujo-cajero',
-                    'url' => '/dir-financiera/flujo-cajero',
-                    'icon' => 'fas fa-cash-register',
-                ],
-                [
-                    'text' => 'Detalle por Servicio',
-                    'can' => 'dashboard.financiera.ventas-servicios.detalle',
-                    'url' => '/dir-financiera/ventas-servicios/detalle',
-                    'icon' => 'fas fa-table',
-                ],
-                [
-                    'text' => 'Panel Financiero',
-                    'can' => 'dashboard.financiera.panel',
-                    'url' => '/dir-financiera/panel',
-                    'icon' => 'fas fa-wallet',
-                ],
-                [
-                    'text' => 'Presupuesto Institucional',
-                    'can' => 'dashboard.financiera.presupuesto',
-                    'url' => '/dir-financiera/presupuesto',
-                    'icon' => 'fas fa-file-invoice-dollar',
-                ],
-                [
-                    'text' => 'Ingresos y Egresos',
-                    'can' => 'dashboard.financiera.ingresos-egresos',
-                    'url' => '/dir-financiera/ingresos-egresos',
-                    'icon' => 'fas fa-exchange-alt',
-                ],
-                [
-                    'text' => 'Cuentas por Cobrar',
-                    'can' => 'dashboard.financiera.cuentas-cobrar',
-                    'url' => '/dir-financiera/cuentas-cobrar',
-                    'icon' => 'fas fa-money-check-alt',
-                ],
-                [
-                    'text' => 'Indicadores Financieros',
-                    'can' => 'dashboard.financiera.indicadores',
-                    'url' => '/dir-financiera/indicadores',
-                    'icon' => 'fas fa-chart-line',
                 ],
             ],
         ],
@@ -603,17 +558,6 @@ return [
             ],
         ],
         [
-            'text' => 'Factura Tranporte',
-            'url' => '/bitacoras',
-            'icon' => 'fas fa-book',
-        ],
-        [
-            'text' => 'Malencaminados',
-            'url' => '/malencaminados',
-            'icon' => 'fas fa-random',
-            'can' => 'malencaminados.index',
-        ],
-        [
             'text' => 'Bastiones',
             'icon' => 'fas fa-shield-alt',
             'submenu' => [
@@ -645,7 +589,7 @@ return [
                     'icon' => 'fas fa-warehouse',
                 ],
                 [
-                    'text' => 'Nueva Solicitud',
+                    'text' => 'Nueva Delivery Express',
                     'url' => 'paquetes-ems/solicitudes',
                     'icon' => 'fas fa-file-signature',
                 ],
@@ -655,6 +599,11 @@ return [
             'text' => 'Empresa',
             'icon' => 'fas fa-building',
             'submenu' => [
+                [
+                    'text' => 'Generar códigos',
+                    'url' => 'codigo-empresa',
+                    'icon' => 'fas fa-qrcode',
+                ],
                 [
                     'text' => 'Guías Empresa',
                     'url' => 'empresa/guias',
@@ -805,6 +754,37 @@ return [
                     'text' => 'Devueltos',
                     'url' => 'paquetes-ems/devueltos',
                     'icon' => 'fas fa-reply-all',
+                ],
+                [
+                    'text' => 'Generación de CN',
+                    'required_parent_can' => 'dashboard.dir-operaciones',
+                    'url' => '/dir-operaciones/generacion-cn',
+                    'icon' => 'fas fa-file-alt',
+                    'can' => 'dashboard.generacion-cn',
+                ],
+                [
+                    'text' => 'Factura Transporte',
+                    'url' => '/bitacoras',
+                    'icon' => 'fas fa-book',
+                ],
+                [
+                    'text' => 'Malencaminados',
+                    'url' => '/malencaminados',
+                    'icon' => 'fas fa-random',
+                    'can' => 'malencaminados.index',
+                ],
+                [
+                    'text' => 'Marbetes',
+                    'required_parent_can' => 'dashboard.dir-operaciones',
+                    'url' => '/dir-operaciones/marbetes',
+                    'icon' => 'fas fa-tags',
+                    'can' => 'dashboard.marbetes',
+                ],
+                [
+                    'text' => 'Reimprimir CN-33',
+                    'required_parent_can' => 'dashboard.dir-operaciones',
+                    'url' => '/dir-operaciones/reimprimir-cn33',
+                    'icon' => 'fas fa-file-excel',
                 ],
             ],
         ],
@@ -1092,22 +1072,6 @@ return [
             ],
         ],
         [
-            'text' => 'CODIGOS',
-            'icon' => 'fas fa-barcode',
-            'submenu' => [
-                [
-                    'text' => 'Empresa',
-                    'url' => 'empresas',
-                    'icon' => 'fas fa-building',
-                ],
-                [
-                    'text' => 'Generar codigos',
-                    'url' => 'codigo-empresa',
-                    'icon' => 'fas fa-qrcode',
-                ],
-            ],
-        ],
-        [
             'text' => 'Eventos',
             'icon' => 'fas fa-calendar-alt',
             'submenu' => [
@@ -1352,12 +1316,6 @@ return [
                 ],
             ],
         ],
-        [
-            'text' => 'Entregas',
-            'url' => '/entregas',
-            'icon' => 'fas fa-clipboard-check',
-        ],
-
     ],
 
     /*
@@ -1547,3 +1505,55 @@ return [
 
     'livewire' => false,
 ];
+
+// Keep the system sidebar alphabetized while leaving Dashboard at the top.
+$sortMenuItems = static function (array $items) use (&$sortMenuItems): array {
+    foreach ($items as &$item) {
+        if (isset($item['submenu']) && is_array($item['submenu'])) {
+            $item['submenu'] = $sortMenuItems($item['submenu']);
+        }
+    }
+    unset($item);
+
+    $sortKey = static function (array $item): string {
+        $label = (string) ($item['text'] ?? $item['header'] ?? '');
+        $asciiLabel = strtr($label, [
+            'Á' => 'A', 'É' => 'E', 'Í' => 'I', 'Ó' => 'O', 'Ú' => 'U', 'Ü' => 'U', 'Ñ' => 'N',
+            'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ü' => 'u', 'ñ' => 'n',
+        ]);
+
+        return strtolower($asciiLabel);
+    };
+
+    usort($items, static fn (array $left, array $right): int => $sortKey($left) <=> $sortKey($right));
+
+    return array_values($items);
+};
+
+$systemHeaderIndex = null;
+foreach ($config['menu'] as $index => $item) {
+    if (($item['header'] ?? null) === 'SISTEMA DE INFORMACION') {
+        $systemHeaderIndex = $index;
+        break;
+    }
+}
+
+if ($systemHeaderIndex !== null) {
+    $systemItems = array_slice($config['menu'], $systemHeaderIndex + 1);
+    $dashboardItems = array_values(array_filter(
+        $systemItems,
+        static fn (array $item): bool => ($item['text'] ?? null) === 'Dashboard'
+    ));
+    $systemItems = array_values(array_filter(
+        $systemItems,
+        static fn (array $item): bool => ($item['text'] ?? null) !== 'Dashboard'
+    ));
+
+    $config['menu'] = array_merge(
+        array_slice($config['menu'], 0, $systemHeaderIndex + 1),
+        $dashboardItems,
+        $sortMenuItems($systemItems)
+    );
+}
+
+return $config;

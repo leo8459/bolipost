@@ -387,7 +387,7 @@
         <div class="modal fade show" id="editPackageModal" tabindex="-1" role="dialog" style="display:block;" aria-modal="true">
             <div class="modal-dialog modal-lg tp-edit-dialog" role="document">
                 <div class="modal-content tp-modal">
-                    <form method="POST" class="tp-edit-form" action="{{ route('todos-paquetes.datos', ['type' => $editing['type'], 'id' => $editing['id']]) }}">
+                    <form method="POST" enctype="multipart/form-data" class="tp-edit-form" action="{{ route('todos-paquetes.datos', ['type' => $editing['type'], 'id' => $editing['id']]) }}">
                         @csrf
                         @method('PUT')
                         @foreach(request()->except(['edit_type', 'edit_id']) as $key => $value)
@@ -438,6 +438,26 @@
                                         @enderror
                                     </div>
                                 @endforeach
+                                <div class="col-12 mb-3">
+                                    <label for="editPackagePhoto" class="small font-weight-bold">Imagen del paquete</label>
+                                    <div class="mb-2">
+                                        <img
+                                            id="editPackageImagePreview"
+                                            src="{{ $editing['image_url'] ?? '' }}"
+                                            alt="Imagen actual del paquete"
+                                            class="img-thumbnail"
+                                            style="max-width: 100%; max-height: 220px; object-fit: contain; {{ empty($editing['image_url']) ? 'display:none;' : '' }}"
+                                        >
+                                        <div id="editPackageImageEmpty" class="small text-muted" style="{{ empty($editing['image_url']) ? '' : 'display:none;' }}">
+                                            Este paquete no tiene una imagen cargada.
+                                        </div>
+                                    </div>
+                                    <input type="file" id="editPackagePhoto" name="foto" accept="image/*" class="form-control-file @error('foto') is-invalid @enderror">
+                                    <small class="form-text text-muted">Selecciona una imagen nueva para reemplazar la actual. Si lo dejas vacío, se conservará la imagen existente. Máximo 10 MB.</small>
+                                    @error('foto')
+                                        <div class="text-danger small mt-1">{{ $message }}</div>
+                                    @enderror
+                                </div>
                             </div>
                         </div>
                         <div class="modal-footer">
@@ -1179,6 +1199,20 @@
             if (packageType) {
                 packageType.addEventListener('change', updateCreateForm);
                 updateCreateForm();
+            }
+
+            const editPackagePhoto = document.getElementById('editPackagePhoto');
+            const editPackageImagePreview = document.getElementById('editPackageImagePreview');
+            const editPackageImageEmpty = document.getElementById('editPackageImageEmpty');
+            if (editPackagePhoto && editPackageImagePreview) {
+                editPackagePhoto.addEventListener('change', function () {
+                    const file = editPackagePhoto.files && editPackagePhoto.files[0];
+                    if (!file) return;
+
+                    editPackageImagePreview.src = URL.createObjectURL(file);
+                    editPackageImagePreview.style.display = '';
+                    if (editPackageImageEmpty) editPackageImageEmpty.style.display = 'none';
+                });
             }
 
             @if($showCreateModal || $editing)

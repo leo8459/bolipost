@@ -353,12 +353,69 @@ class AreaContratosController extends Controller
             ]
             : null;
 
-        $rows = $this->buildContratosReportQuery($search, $empresaIds, $from, $to)
-            ->with('asignacionConFotoDevolucion')
+        $rowsQuery = $this->buildContratosReportQuery($search, $empresaIds, $from, $to, false)
+            ->select([
+                'paquetes_contrato.id',
+                'paquetes_contrato.user_id',
+                'paquetes_contrato.estados_id',
+                'paquetes_contrato.codigo',
+                'paquetes_contrato.origen',
+                'paquetes_contrato.provincia_origen',
+                'paquetes_contrato.destino',
+                'paquetes_contrato.destino_registrado',
+                'paquetes_contrato.provincia',
+                'paquetes_contrato.peso',
+                'paquetes_contrato.precio',
+                'paquetes_contrato.fecha_recojo',
+                'paquetes_contrato.updated_at',
+                'paquetes_contrato.nombre_d',
+                'paquetes_contrato.observacion',
+            ])
+            ->with([
+                'estadoRegistro:id,nombre_estado',
+                'user:id,name',
+            ])
+            // Solo necesitamos saber si existe una imagen para poner un enlace.
+            // No cargamos las imágenes (que pueden ser base64) en cada fila del Excel.
+            ->selectRaw(
+                "CASE
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM estados AS report_estado
+                        WHERE report_estado.id = paquetes_contrato.estados_id
+                          AND UPPER(TRIM(report_estado.nombre_estado)) IN (?, ?, ?)
+                    ) THEN EXISTS (
+                        SELECT 1
+                        FROM cartero AS report_cartero
+                        WHERE report_cartero.id_paquetes_contrato = paquetes_contrato.id
+                          AND report_cartero.imagen_devolucion IS NOT NULL
+                          AND report_cartero.imagen_devolucion <> ''
+                    )
+                    ELSE paquetes_contrato.imagen IS NOT NULL
+                         AND paquetes_contrato.imagen <> ''
+                END AS report_has_delivery_image",
+                ['DEVOLUCION', 'DEVOLUCIÓN', 'DEVOLUCIÃ“N']
+            );
+
+        $originExpression = "COALESCE(NULLIF(TRIM(origen), ''), 'SIN ORIGEN')";
+        $summaryRows = (clone $rowsQuery)
+            ->toBase()
+            ->select([])
+            ->selectRaw("{$originExpression} as origen")
+            ->selectRaw('COUNT(*) as total')
+            ->selectRaw('COALESCE(SUM(peso), 0) as peso')
+            ->selectRaw('COALESCE(SUM(precio), 0) as subtotal')
+            ->groupByRaw($originExpression)
             ->orderBy('origen')
-            ->orderBy('fecha_recojo')
-            ->orderBy('id')
-            ->get();
+            ->get()
+            ->sortBy('origen', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
+
+        $totals = [
+            'count' => (int) $summaryRows->sum('total'),
+            'weight' => (float) $summaryRows->sum('peso'),
+            'subtotal' => (float) $summaryRows->sum('subtotal'),
+        ];
 
         $empresaCodigo = trim((string) ($empresa->codigo_cliente ?? ''));
         $empresaNombre = $empresaCodigo !== ''
@@ -372,16 +429,15 @@ class AreaContratosController extends Controller
 
         $filename = 'PLANILLA-'.strtoupper($empresaSlug).'-'.now()->format('Ymd-His').'.xlsx';
 
-        return Excel::download(
-            new AreaContratosEntregadosExport($rows, [
-                'empresa' => $empresa,
-                'from' => $from,
-                'to' => $to,
-                'search' => $search,
-                'logged_user' => $request->user(),
-            ]),
-            $filename
-        );
+        $export = new AreaContratosEntregadosExport($rowsQuery, $summaryRows, $totals, [
+            'empresa' => $empresa,
+            'from' => $from,
+            'to' => $to,
+            'search' => $search,
+            'logged_user' => $request->user(),
+        ]);
+
+        return Excel::download($export, $filename);
     }
 
     public function downloadImagenEntrega(Recojo $contrato)
@@ -486,14 +542,15 @@ class AreaContratosController extends Controller
         string $search,
         array $empresaIds,
         string $from,
-        string $to
+        string $to,
+        bool $withRelations = true
     ) {
         return Recojo::query()
-            ->with([
+            ->when($withRelations, fn ($query) => $query->with([
                 'estadoRegistro:id,nombre_estado',
                 'empresa:id,nombre,sigla,codigo_cliente',
                 'user:id,name',
-            ])
+            ]))
             ->whereNotNull('fecha_recojo')
             ->whereNotNull('estados_id')
             ->where('estados_id', '!=', 0)

@@ -781,6 +781,12 @@ class Users extends Component
             ->map(fn ($items, $codigo) => [
                 'codigo' => (string) $codigo,
                 'empresas_count' => $items->count(),
+                'empresas_nombres' => $items
+                    ->pluck('nombre')
+                    ->filter(fn ($nombre) => filled($nombre))
+                    ->unique()
+                    ->values()
+                    ->implode(', '),
             ])
             ->sortBy('codigo', SORT_NATURAL | SORT_FLAG_CASE)
             ->values();

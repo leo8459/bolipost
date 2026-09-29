@@ -136,7 +136,7 @@ class DashboardController extends Controller
         $data = Cache::remember(
             $this->dashboardCacheKey($request),
             now()->addSeconds(self::DASHBOARD_CACHE_SECONDS),
-            fn () => $this->buildDashboardData($request, false, false)
+            fn () => $this->buildDashboardData($request, false, true)
         );
 
         // Las metricas pesadas usan cache, pero las alertas tienen una ventana
@@ -144,6 +144,53 @@ class DashboardController extends Controller
         $data = array_replace($data, $this->cachedDashboardAlerts(Auth::user()));
 
         return view('dashboard', $data);
+    }
+
+    public function departmentAlertDetails(Request $request)
+    {
+        $type = strtolower(trim((string) $request->query('type', '')));
+        abort_unless(in_array($type, ['pickup', 'pending'], true), 404);
+
+        $requestedDepartment = strtoupper(trim(preg_replace(
+            '/\s+/',
+            ' ',
+            (string) $request->query('department', '')
+        ) ?? ''));
+        $department = $type === 'pending'
+            ? $this->normalizePendingAlertDepartment($requestedDepartment)
+            : $requestedDepartment;
+        $allowedDepartments = array_merge(
+            self::DESTINOS_BASE,
+            ['SUCRE', 'TRINIDAD', 'COBIJA', 'SIN DEPARTAMENTO', 'CHUQUISACA', 'BENI', 'RURRENABAQUE', 'PANDO']
+        );
+        abort_unless(in_array($department, $allowedDepartments, true), 404);
+
+        $authUser = $request->user();
+        $hasGlobalDepartmentAccess = (bool) ($authUser?->hasGlobalDepartmentAccess() ?? false);
+        $userCity = strtoupper(trim((string) ($authUser?->ciudad ?? '')));
+        $departmentScope = $this->normalizePendingAlertDepartment($department);
+        abort_unless(
+            $hasGlobalDepartmentAccess
+                || ($userCity !== '' && $departmentScope === $this->normalizePendingAlertDepartment($userCity)),
+            403
+        );
+
+        $page = max(1, (int) $request->query('page', 1));
+        $perPage = 50;
+
+        $result = $type === 'pickup'
+            ? $this->buildPickupDepartmentAlertPage($department, $page, $perPage)
+            : $this->buildPendingDepartmentAlertPage($department, $userCity, $hasGlobalDepartmentAccess, $page, $perPage);
+
+        return response()->json([
+            'type' => $type,
+            'department' => $department,
+            'total' => $result['total'],
+            'page' => $result['page'],
+            'per_page' => $perPage,
+            'last_page' => $result['last_page'],
+            'items' => $result['items'],
+        ]);
     }
 
     public function welcome(Request $request)
@@ -170,7 +217,7 @@ class DashboardController extends Controller
             'date' => now()->toDateString(),
         ];
 
-        return 'dashboard:v5:' . sha1(json_encode($filters, JSON_UNESCAPED_UNICODE));
+        return 'dashboard:v6:' . sha1(json_encode($filters, JSON_UNESCAPED_UNICODE));
     }
 
     private function cachedDashboardAlerts($authUser): array
@@ -744,6 +791,159 @@ class DashboardController extends Controller
             'hours' => 72,
             'scope' => $hasGlobalDepartmentAccess ? 'nacional' : 'regional',
             'departments' => $departments,
+        ];
+    }
+
+    private function buildPickupDepartmentAlertPage(string $department, int $page, int $perPage): array
+    {
+        $estadoSolicitudId = $this->resolveEstadoIdByName('SOLICITUD');
+        if (!$estadoSolicitudId) {
+            return ['total' => 0, 'page' => 1, 'last_page' => 1, 'items' => []];
+        }
+
+        $query = Recojo::query()
+            ->where('estados_id', $estadoSolicitudId)
+            ->whereRaw("coalesce(nullif(trim(upper(origen)), ''), 'SIN DEPARTAMENTO') = ?", [$department]);
+
+        $total = (int) (clone $query)->count();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $page = min($page, $lastPage);
+
+        $items = $query
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->forPage($page, $perPage)
+            ->get(['codigo', 'estados_id', 'origen', 'destino', 'nombre_d', 'created_at'])
+            ->map(fn ($row) => [
+                'modulo' => 'CONTRATOS',
+                'codigo' => (string) ($row->codigo ?? ''),
+                'estado' => 'SOLICITUD',
+                'origen' => (string) ($row->origen ?? '-'),
+                'destino' => (string) ($row->destino ?? '-'),
+                'destinatario' => (string) ($row->nombre_d ?? '-'),
+                'fecha' => optional($row->created_at)->format('d/m/Y H:i') ?? '-',
+            ])
+            ->values()
+            ->all();
+
+        return [
+            'total' => $total,
+            'page' => $page,
+            'last_page' => $lastPage,
+            'items' => $items,
+        ];
+    }
+
+    private function buildPendingDepartmentAlertPage(
+        string $department,
+        string $userCity,
+        bool $hasGlobalDepartmentAccess,
+        int $page,
+        int $perPage
+    ): array {
+        $estadoEntregadoId = $this->resolveEstadoIdByName('ENTREGADO');
+        $estadoCanceladoId = $this->resolveEstadoIdByName('CANCELADO');
+        $departmentAliases = match ($department) {
+            'SUCRE' => ['SUCRE', 'CHUQUISACA'],
+            'TRINIDAD' => ['TRINIDAD', 'BENI', 'RURRENABAQUE'],
+            'COBIJA' => ['COBIJA', 'PANDO'],
+            default => [$department],
+        };
+        $departmentRows = collect();
+        $eligibleHours = [];
+        $minimumStart = now()->subHours(72)->startOfHour();
+
+        foreach (self::MODULOS as $moduloKey => $config) {
+            $stateColumn = 't.' . $config['estado_column'];
+            $startExpression = $moduloKey === 'contrato'
+                ? 'coalesce(t.fecha_recojo, t.created_at)'
+                : 't.created_at';
+            $departmentExpression = $this->effectiveDepartamentoExpression($config, 't');
+
+            if ($departmentExpression === '') {
+                continue;
+            }
+
+            $identityColumns = $this->packageIdentityColumns($moduloKey, $config);
+            $query = DB::table($config['table'] . ' as t')
+                ->leftJoin('estados as e', 'e.id', '=', $stateColumn)
+                ->select([
+                    DB::raw("'" . $config['label'] . "' as modulo"),
+                    't.codigo as codigo',
+                    DB::raw("coalesce(e.nombre_estado, 'SIN ESTADO') as estado"),
+                    DB::raw($identityColumns['origen'] . ' as origen'),
+                    DB::raw($identityColumns['destino'] . ' as destino'),
+                    DB::raw($identityColumns['destinatario'] . ' as destinatario'),
+                    DB::raw($startExpression . ' as iniciado_at'),
+                ])
+                ->whereRaw($startExpression . ' <= ?', [$minimumStart]);
+
+            if (!$hasGlobalDepartmentAccess) {
+                $this->applyDepartamentoFilter($query, $config, $userCity, 't');
+            }
+
+            if ($department === 'SIN DEPARTAMENTO') {
+                $query->whereRaw("nullif(trim(upper({$departmentExpression})), '') is null");
+            } else {
+                $query->whereIn(DB::raw('trim(upper(' . $departmentExpression . '))'), $departmentAliases);
+            }
+
+            $this->excludeCanceledState($query, $stateColumn, $estadoCanceladoId);
+            if ($estadoEntregadoId) {
+                $query->where($stateColumn, '<>', $estadoEntregadoId);
+            }
+
+            $rows = $query
+                ->orderByRaw($startExpression . ' asc')
+                ->orderBy('t.codigo')
+                ->get();
+
+            foreach ($rows as $row) {
+                if (empty($row->iniciado_at)) {
+                    continue;
+                }
+
+                $startedAt = Carbon::parse($row->iniciado_at);
+                $hourStart = $startedAt->copy()->startOfHour();
+                $hourKey = $hourStart->format('Y-m-d H:i:s');
+                if (!array_key_exists($hourKey, $eligibleHours)) {
+                    $eligibleHours[$hourKey] = $this->hasExceededBusinessHours($hourStart, 72);
+                }
+
+                if (!$eligibleHours[$hourKey]) {
+                    continue;
+                }
+
+                $departmentRows->push([
+                    'sort' => $startedAt->timestamp,
+                    'item' => [
+                        'modulo' => (string) ($row->modulo ?? ''),
+                        'codigo' => (string) ($row->codigo ?? ''),
+                        'estado' => (string) ($row->estado ?? 'SIN ESTADO'),
+                        'origen' => (string) ($row->origen ?? '-'),
+                        'destino' => (string) ($row->destino ?? '-'),
+                        'destinatario' => (string) ($row->destinatario ?? '-'),
+                        'fecha' => $startedAt->format('d/m/Y H:i'),
+                    ],
+                ]);
+            }
+        }
+
+        $departmentRows = $departmentRows->sortBy('sort')->values();
+        $total = $departmentRows->count();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $page = min($page, $lastPage);
+        $items = $departmentRows
+            ->forPage($page, $perPage)
+            ->pluck('item')
+            ->values()
+            ->all();
+
+        return [
+            'total' => $total,
+            'page' => $page,
+            'last_page' => $lastPage,
+            'items' => $items,
         ];
     }
 

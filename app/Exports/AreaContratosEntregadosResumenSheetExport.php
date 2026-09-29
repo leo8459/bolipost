@@ -3,7 +3,6 @@
 namespace App\Exports;
 
 use Carbon\Carbon;
-use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithCustomStartCell;
@@ -18,32 +17,20 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 class AreaContratosEntregadosResumenSheetExport implements FromArray, ShouldAutoSize, WithCustomStartCell, WithTitle, WithEvents
 {
     public function __construct(
-        private readonly Collection $rows,
+        private readonly array $rows,
+        private readonly array $totals,
         private readonly array $filters = []
     ) {
     }
 
     public function array(): array
     {
-        $grouped = $this->rows
-            ->groupBy(fn ($row) => $this->normalizeOrigin((string) ($row->origen ?? '')))
-            ->sortKeys(SORT_NATURAL | SORT_FLAG_CASE);
-
-        $data = [];
-        foreach ($grouped as $origin => $items) {
-            $peso = (float) $items->sum('peso');
-            $guias = $items->count();
-            $subtotal = (float) $items->sum('precio');
-
-            $data[] = [
-                $origin,
-                $peso,
-                $guias,
-                $subtotal,
-            ];
-        }
-
-        return $data;
+        return array_map(fn (array $row) => [
+            $row['origin'] ?? 'SIN ORIGEN',
+            (float) ($row['weight'] ?? 0),
+            (int) ($row['count'] ?? 0),
+            (float) ($row['subtotal'] ?? 0),
+        ], $this->rows);
     }
 
     public function title(): string
@@ -61,7 +48,7 @@ class AreaContratosEntregadosResumenSheetExport implements FromArray, ShouldAuto
         return [
             AfterSheet::class => function (AfterSheet $event): void {
                 $sheet = $event->sheet->getDelegate();
-                $dataRows = max(1, $this->rows->groupBy(fn ($row) => $this->normalizeOrigin((string) ($row->origen ?? '')))->count());
+                $dataRows = max(1, count($this->rows));
                 $headerImagePath = $this->resolveHeaderImagePath();
 
                 if ($headerImagePath !== null) {
@@ -157,9 +144,9 @@ class AreaContratosEntregadosResumenSheetExport implements FromArray, ShouldAuto
                 $totalGuiasRow = $endRow + 2;
                 $totalFinalRow = $endRow + 3;
                 $sonRow = $endRow + 4;
-                $pesoTotal = (float) $this->rows->sum('peso');
-                $guiasTotal = (int) $this->rows->count();
-                $montoTotal = (float) $this->rows->sum('precio');
+                $pesoTotal = (float) ($this->totals['weight'] ?? 0);
+                $guiasTotal = (int) ($this->totals['count'] ?? 0);
+                $montoTotal = (float) ($this->totals['subtotal'] ?? 0);
 
                 $sheet->setCellValue("C{$totalPesoRow}", 'TOTAL PESO');
                 $sheet->setCellValue("D{$totalPesoRow}", $pesoTotal);
@@ -252,12 +239,6 @@ class AreaContratosEntregadosResumenSheetExport implements FromArray, ShouldAuto
         $name = trim((string) ($user->name ?? 'USUARIO DEL SISTEMA'));
 
         return $name !== '' ? $name : 'USUARIO DEL SISTEMA';
-    }
-
-    private function normalizeOrigin(string $origin): string
-    {
-        $origin = trim($origin);
-        return $origin !== '' ? $origin : 'SIN ORIGEN';
     }
 
     private function numberToWords(float $amount): string

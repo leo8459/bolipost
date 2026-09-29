@@ -179,6 +179,9 @@ Route::middleware(['auth', 'internal.only'])->group(function () {
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard');
+Route::get('/dashboard/alert-department-details', [DashboardController::class, 'departmentAlertDetails'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.alerts.department-details');
 Route::get('/inicio', [DashboardController::class, 'welcome'])
     ->middleware(['auth', 'internal.only', 'verified'])
     ->name('home.welcome');
