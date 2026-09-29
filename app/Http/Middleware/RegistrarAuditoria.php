@@ -65,6 +65,7 @@ class RegistrarAuditoria
             'telescope/*',
             'horizon/*',
             'pulse/*',
+            'window-load-metrics',
             'up',
             'sanctum/csrf-cookie',
             'livewire/livewire.js',

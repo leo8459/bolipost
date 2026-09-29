@@ -2,6 +2,7 @@
 
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
@@ -32,3 +33,7 @@ Schedule::command('operations:send-daily-closing')
 Schedule::command('contracts:cancel-expired-pickups')
     ->hourly()
     ->withoutOverlapping();
+
+Schedule::call(static function (): void {
+    DB::table('window_load_metrics')->where('measured_at', '<', now()->subDays(90))->delete();
+})->dailyAt('03:20')->name('prune-window-load-metrics')->withoutOverlapping();

@@ -5,17 +5,7 @@
 
 @section('adminlte_css')
     @include('partials.system-responsive-assets')
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-H41CHNHCL0"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-
-        function gtag() {
-            dataLayer.push(arguments);
-        }
-
-        gtag('js', new Date());
-        gtag('config', 'G-H41CHNHCL0');
-    </script>
+    @include('partials.google-analytics-lazy', ['trackingId' => 'G-H41CHNHCL0'])
     <style>
         body,
         .wrapper,

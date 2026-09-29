@@ -59,7 +59,7 @@ $config = [
     */
 
     'google_fonts' => [
-        'allowed' => true,
+        'allowed' => false,
     ],
 
     /*
@@ -402,6 +402,13 @@ $config = [
                     'text' => 'APIS',
                     'url' => '/configuracion/apis',
                     'icon' => 'fas fa-key',
+                ],
+                [
+                    'text' => 'Cargado de ventanas',
+                    'url' => 'administrador/cargado-ventanas',
+                    'icon' => 'fas fa-stopwatch',
+                    'can' => 'admin-only-menu',
+                    'active' => ['administrador/cargado-ventanas'],
                 ],
                 [
                     'text' => 'Envío de correo',
@@ -1507,6 +1514,37 @@ $config = [
 ];
 
 // Keep the system sidebar alphabetized while leaving Dashboard at the top.
+// Place executive reports and indicators under the main Reports section.
+$reportesIndex = null;
+$reportesAgrupados = [];
+$elementosMover = ['Reportes Ejecutivos', 'INDICADORES'];
+
+foreach ($config['menu'] as $index => $item) {
+    $texto = (string) ($item['text'] ?? '');
+
+    if ($texto === 'Reportes') {
+        $reportesIndex = $index;
+    }
+
+    if (in_array($texto, $elementosMover, true)) {
+        $reportesAgrupados[] = $item;
+    }
+}
+
+if ($reportesIndex !== null && $reportesAgrupados !== []) {
+    $config['menu'][$reportesIndex]['submenu'] = array_merge(
+        $config['menu'][$reportesIndex]['submenu'] ?? [],
+        $reportesAgrupados
+    );
+
+    $config['menu'] = array_values(array_filter(
+        $config['menu'],
+        static function (array $item) use ($elementosMover): bool {
+            return ! in_array((string) ($item['text'] ?? ''), $elementosMover, true);
+        }
+    ));
+}
+
 $sortMenuItems = static function (array $items) use (&$sortMenuItems): array {
     foreach ($items as &$item) {
         if (isset($item['submenu']) && is_array($item['submenu'])) {

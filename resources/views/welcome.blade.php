@@ -16,7 +16,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
         href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap"
-        rel="stylesheet">
+        rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet"></noscript>
     <link rel="stylesheet" href="{{ asset('css/landing-shared.css') }}">
     <link rel="stylesheet" href="{{ asset('css/welcome.css') }}">
 </head>
@@ -566,17 +567,7 @@
     </div>
 
     @include('partials.landing-footer')
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-H41CHNHCL0"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-
-        function gtag() {
-            dataLayer.push(arguments);
-        }
-        gtag('js', new Date());
-
-        gtag('config', 'G-H41CHNHCL0');
-    </script>
+    @include('partials.google-analytics-lazy', ['trackingId' => 'G-H41CHNHCL0'])
     <script>
         const topbar = document.getElementById('topbar');
         const menuToggle = document.getElementById('menuToggle');

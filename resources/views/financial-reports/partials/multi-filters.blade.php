@@ -1,13 +1,43 @@
-<div class="card report-filter-card shadow-sm">
-    <div class="card-header border-0 pb-0">
-        <div class="d-flex align-items-center">
-            <span class="filter-title-icon"><i class="fas fa-sliders-h"></i></span>
-            <div>
-                <h3 class="card-title font-weight-bold mb-0">{{ $filterTitle ?? 'Prepare su reporte' }}</h3>
-                <div class="text-muted small">{{ $filterHelp ?? 'Elija los servicios y periodos que desea comparar.' }}</div>
-            </div>
-        </div>
-    </div>
+@php
+    $reportFilterMonths = collect($selectedMonths ?? [])->map(fn ($month) => (int) $month);
+    $reportFilterServices = collect($selectedServices ?? []);
+    $reportHasAppliedFilters = request()->query->has('servicios')
+        && request()->query->has('meses')
+        && $reportFilterServices->isNotEmpty()
+        && $reportFilterMonths->isNotEmpty();
+    $reportMonthNames = [1 => 'Ene', 2 => 'Feb', 3 => 'Mar', 4 => 'Abr', 5 => 'May', 6 => 'Jun', 7 => 'Jul', 8 => 'Ago', 9 => 'Sep', 10 => 'Oct', 11 => 'Nov', 12 => 'Dic'];
+    $reportServiceLabel = $reportFilterServices->take(2)->implode(', ');
+    if ($reportFilterServices->count() > 2) {
+        $reportServiceLabel .= ' y ' . ($reportFilterServices->count() - 2) . ' más';
+    }
+    $reportMonthLabel = $reportFilterMonths
+        ->map(fn ($month) => $reportMonthNames[$month] ?? (string) $month)
+        ->implode(', ');
+    $reportFilterSummaryParts = [
+        $reportServiceLabel,
+        $reportMonthLabel,
+        'Año ' . (string) ($anio ?? now()->year),
+    ];
+    if ($showDepartmentFilter ?? false) {
+        $reportFilterSummaryParts[] = filled($selectedDepartment ?? '') ? $selectedDepartment : 'Todos los departamentos';
+    }
+    if ($showLimit ?? false) {
+        $reportFilterSummaryParts[] = 'Máx. ' . (int) ($limite ?? 200) . ' por mes';
+    }
+    $reportFilterSummary = collect($reportFilterSummaryParts)->filter()->implode(' · ');
+@endphp
+
+<details class="card report-filter-card shadow-sm" data-report-filter-card data-filters-applied="{{ $reportHasAppliedFilters ? 'true' : 'false' }}" @unless($reportHasAppliedFilters) open @endunless>
+    <summary class="card-header report-filter-summary">
+        <span class="filter-title-icon"><i class="fas fa-sliders-h"></i></span>
+        <span class="report-filter-heading">
+            <strong>{{ $reportHasAppliedFilters ? 'Filtros aplicados' : ($filterTitle ?? 'Prepare su reporte') }}</strong>
+            <span class="text-muted small d-block">{{ $reportHasAppliedFilters ? $reportFilterSummary : ($filterHelp ?? 'Elija los servicios y periodos que desea comparar.') }}</span>
+        </span>
+        <span class="report-filter-toggle-label report-filter-toggle-open"><i class="fas fa-sliders-h mr-1"></i> Cambiar filtros</span>
+        <span class="report-filter-toggle-label report-filter-toggle-close">Ocultar filtros</span>
+        <i class="fas fa-chevron-down report-filter-chevron" aria-hidden="true"></i>
+    </summary>
 
     <form method="GET" action="{{ $action }}" class="report-filter-form">
         @if($soloContratos ?? false)
@@ -113,7 +143,7 @@
             </div>
         </div>
     </form>
-</div>
+</details>
 
 @once
     <div class="report-loading-modal" data-report-loading-modal role="status" aria-live="assertive" aria-hidden="true">
@@ -132,8 +162,22 @@
 
     @push('css')
         <style>
-            .report-filter-card { border: 0; border-radius: 12px; overflow: hidden; }
-            .report-filter-card .card-header { background: linear-gradient(135deg, #fffaf0, #fff); }
+            details.report-filter-card { display: block; border: 0; border-radius: 12px; overflow: visible; }
+            .report-filter-card:not([open]) > .report-filter-form { display: none; }
+            .report-filter-card .card-header { background: linear-gradient(135deg, #fffaf0, #fff); border-radius: 12px 12px 0 0; }
+            .report-filter-card:not([open]) .card-header { border-radius: 12px; }
+            .report-filter-summary { display: flex; align-items: center; gap: 12px; cursor: pointer; list-style: none; padding: 14px 18px; }
+            .report-filter-summary::-webkit-details-marker { display: none; }
+            .report-filter-summary:focus-visible { outline: 3px solid rgba(19, 83, 155, .35); outline-offset: -3px; }
+            .report-filter-heading { flex: 1 1 auto; min-width: 0; }
+            .report-filter-heading strong { display: block; color: #173b63; }
+            .report-filter-heading .small { overflow-wrap: anywhere; }
+            .report-filter-toggle-label { flex: 0 0 auto; color: #13539b; font-size: .85rem; font-weight: 700; white-space: nowrap; }
+            .report-filter-toggle-close { display: none; }
+            .report-filter-card[open] .report-filter-toggle-open { display: none; }
+            .report-filter-card[open] .report-filter-toggle-close { display: inline; }
+            .report-filter-chevron { flex: 0 0 auto; color: #13539b; transition: transform .18s ease; }
+            .report-filter-card[open] .report-filter-chevron { transform: rotate(180deg); }
             .filter-title-icon { width: 42px; height: 42px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; margin-right: 12px; color: #13539b; background: #e8f1fc; }
             .picker-heading { min-height: 34px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
             .picker-step { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; margin-right: 7px; border-radius: 50%; background: #13539b; color: #fff; font-size: .8rem; }
@@ -147,20 +191,22 @@
             .service-picker-actions { display: flex; gap: 16px; padding: 8px 12px; border-bottom: 1px solid #edf2f7; }
             .picker-action { padding: 0; border: 0; background: transparent; color: #13539b; font-size: .82rem; font-weight: 600; }
             .picker-action:hover { color: #0b376b; text-decoration: underline; }
-            .service-options { max-height: 235px; overflow-y: auto; padding: 6px; }
-            .service-option { display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 9px 10px; border-radius: 7px; cursor: pointer; transition: background .15s ease; }
+            .service-options { max-height: 235px; overflow-y: auto; overscroll-behavior: contain; padding: 6px; }
+            .service-option { position: relative; display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 9px 10px; border-radius: 7px; cursor: pointer; transition: background .15s ease; }
             .service-option:hover { background: #f2f7fd; }
             .service-option.is-selected { background: #eaf3fe; color: #0d4789; }
-            .service-option input { position: absolute; opacity: 0; pointer-events: none; }
+            .service-option input { position: absolute; top: 9px; left: 10px; width: 20px; height: 20px; opacity: 0; pointer-events: none; }
             .service-check { flex: 0 0 20px; width: 20px; height: 20px; margin-top: 1px; border: 2px solid #a0aec0; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; color: transparent; font-size: .65rem; }
             .service-option input:checked + .service-check { border-color: #13539b; background: #13539b; color: #fff; }
+            .service-option input:focus-visible + .service-check { outline: 3px solid rgba(19, 83, 155, .35); outline-offset: 2px; }
             .service-name { line-height: 1.35; overflow-wrap: anywhere; }
             .month-picker { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
-            .month-option { margin: 0; cursor: pointer; }
-            .month-option input { position: absolute; opacity: 0; pointer-events: none; }
+            .month-option { position: relative; margin: 0; cursor: pointer; }
+            .month-option input { position: absolute; top: 0; left: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
             .month-option span { display: block; padding: 9px 4px; border: 1px solid #cbd5e0; border-radius: 8px; text-align: center; color: #4a5568; background: #fff; transition: all .15s ease; }
             .month-option span:hover { border-color: #13539b; color: #13539b; }
             .month-option input:checked + span { border-color: #13539b; background: #13539b; color: #fff; box-shadow: 0 3px 8px rgba(19, 83, 155, .2); }
+            .month-option input:focus-visible + span { outline: 3px solid rgba(19, 83, 155, .35); outline-offset: 2px; }
             .period-actions { padding: 16px; border-radius: 10px; background: #f8fafc; border: 1px solid #e7edf3; }
             .period-actions label { font-size: .82rem; color: #4a5568; }
             .report-submit { border-radius: 8px; font-weight: 600; }
@@ -193,6 +239,9 @@
             .financial-table .description-cell { min-width: 220px; max-width: 340px; white-space: normal; }
             .financial-table .code-cell { min-width: 135px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
             @media (max-width: 767.98px) {
+                .report-filter-summary { flex-wrap: wrap; }
+                .report-filter-heading { flex-basis: calc(100% - 60px); }
+                .report-filter-toggle-label { margin-left: 54px; }
                 .month-picker { grid-template-columns: repeat(4, 1fr); }
                 .service-options { max-height: 280px; }
             }
@@ -202,6 +251,9 @@
     @push('js')
         <script>
             document.addEventListener('DOMContentLoaded', function () {
+                document.querySelectorAll('[data-report-filter-card]').forEach(function (card) {
+                    card.scrollTop = 0;
+                });
                 document.querySelectorAll('.report-filter-form').forEach(function (form) {
                     var serviceInputs = Array.from(form.querySelectorAll('input[name="servicios[]"]'));
                     var monthInputs = Array.from(form.querySelectorAll('input[name="meses[]"]'));
@@ -209,6 +261,24 @@
                     var noResults = form.querySelector('.service-no-results');
                     var loadingModal = document.querySelector('[data-report-loading-modal]');
                     var submitButton = form.querySelector('.report-submit');
+
+                    form.querySelectorAll('.service-option, .month-option').forEach(function (option) {
+                        option.addEventListener('click', function (event) {
+                            var input = option.querySelector('input[type="checkbox"]');
+                            if (!input || event.target === input || event.detail === 0) {
+                                return;
+                            }
+
+                            var scrollX = window.scrollX;
+                            var scrollY = window.scrollY;
+                            input.focus({ preventScroll: true });
+                            window.requestAnimationFrame(function () {
+                                if (Math.abs(window.scrollY - scrollY) > 1 || Math.abs(window.scrollX - scrollX) > 1) {
+                                    window.scrollTo(scrollX, scrollY);
+                                }
+                            });
+                        });
+                    });
 
                     function refresh() {
                         serviceInputs.forEach(function (input) {
@@ -303,6 +373,12 @@
                 });
 
                 window.addEventListener('pageshow', function () {
+                    document.querySelectorAll('[data-report-filter-card]').forEach(function (card) {
+                        card.scrollTop = 0;
+                        if (card.dataset.filtersApplied === 'true') {
+                            card.open = false;
+                        }
+                    });
                     var loadingModal = document.querySelector('[data-report-loading-modal]');
                     if (loadingModal) {
                         loadingModal.classList.remove('is-visible');

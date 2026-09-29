@@ -69,6 +69,7 @@ use App\Http\Controllers\UserImpersonationController;
 use App\Http\Controllers\UserIpsLinkController;
 use App\Http\Controllers\UserLoginLogController;
 use App\Http\Controllers\VentanillaController;
+use App\Http\Controllers\WindowLoadMetricsController;
 use App\Http\Controllers\Web\DriverMemorandumController;
 use App\Http\Controllers\Web\FuelInvoiceFileController;
 use App\Http\Controllers\Web\FuelLogController;
@@ -155,6 +156,9 @@ Route::get('/vge/pdf', [PaquetesEmsBoletaController::class, 'verifyPdf'])
     ->name('paquetes-ems.verificar-guia.pdf');
 Route::middleware(['auth', 'internal.only'])->get('/acl/livewire-actions', [AclController::class, 'livewireActions'])
     ->name('acl.livewire-actions');
+Route::post('/window-load-metrics', [WindowLoadMetricsController::class, 'store'])
+    ->middleware('throttle:60,1')
+    ->name('window-load-metrics.store');
 Route::middleware(['auth', 'internal.only'])->group(function () {
     Route::get('/qz/certificate', [QzSecurityController::class, 'qzCertificate'])->name('qz.certificate');
     Route::post('/qz/sign', [QzSecurityController::class, 'qzSign'])->name('qz.sign');
@@ -348,6 +352,8 @@ Route::middleware(['auth', 'internal.only', 'verified'])->group(function () {
 
 Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function () {
     Route::middleware('can:admin-only-menu')->group(function () {
+        Route::get('/administrador/cargado-ventanas', [WindowLoadMetricsController::class, 'index'])
+            ->name('admin.window-load-metrics.index');
         Route::get('/administrador/eventos', [EventosAdministradorController::class, 'index'])
             ->name('eventos-administrador.index');
         Route::get('/administrador/correo-electronico', [ContractExpirationEmailController::class, 'index'])
