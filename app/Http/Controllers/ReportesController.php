@@ -1376,6 +1376,7 @@ class ReportesController extends Controller
                 $serviceName = $this->resolveCommercialServiceName($line, (string) ($row['servicio'] ?? ''), (string) ($row['modulo_key'] ?? ''));
                 $row['linea_negocio'] = $line;
                 $row['servicio_comercial'] = $serviceName;
+                unset($row['precio']);
 
                 return $row;
             });
@@ -1396,7 +1397,6 @@ class ReportesController extends Controller
                     ->map(fn (Collection $serviceItems, string $service) => [
                         'servicio' => $service,
                         'cantidad' => $serviceItems->count(),
-                        'precio' => round((float) $serviceItems->sum('precio'), 2),
                     ])
                     ->sortByDesc('cantidad')
                     ->values()
@@ -1408,7 +1408,6 @@ class ReportesController extends Controller
                     'entregados' => $items->where('is_entregado', true)->count(),
                     'no_entregados' => $items->where('is_entregado', false)->where('is_cancelado', false)->count(),
                     'peso' => round((float) $items->sum('peso'), 3),
-                    'precio' => round((float) $items->sum('precio'), 2),
                     'top_servicio' => (string) ($topService['servicio'] ?? 'SIN SERVICIO'),
                     'top_servicio_cantidad' => (int) ($topService['cantidad'] ?? 0),
                     'ultimo_registro' => (string) ($ordered->first()['created_at'] ?? '-'),
@@ -1435,38 +1434,38 @@ class ReportesController extends Controller
                     'entregados' => $items->where('is_entregado', true)->count(),
                     'no_entregados' => $items->where('is_entregado', false)->where('is_cancelado', false)->count(),
                     'peso' => round((float) $items->sum('peso'), 3),
-                    'precio' => round((float) $items->sum('precio'), 2),
                     'ultimo_registro' => (string) ($ordered->first()['created_at'] ?? '-'),
                 ];
             })
             ->sortByDesc('cantidad')
             ->values();
 
-        $data['scopeLabel'] = 'Rendimiento de Servicios o Productos';
-        $data['commercialPerformanceMode'] = true;
-        $data['lineOptions'] = self::COMMERCIAL_LINES;
-        $data['selectedLines'] = $selectedLines;
-        $data['lineRows'] = $lineRows;
-        $data['serviceRows'] = $serviceRows;
-        $data['commercialTotals'] = [
+        $commercialTotals = [
             'lineas' => $lineRows->count(),
             'registros' => $rows->count(),
             'entregados' => $rows->where('is_entregado', true)->count(),
             'no_entregados' => $rows->where('is_entregado', false)->where('is_cancelado', false)->count(),
             'peso_total' => round((float) $rows->sum('peso'), 3),
-            'precio_total' => round((float) $rows->sum('precio'), 2),
             'top_linea' => (string) ($lineRows->first()['linea'] ?? '-'),
             'top_linea_cantidad' => (int) ($lineRows->first()['cantidad'] ?? 0),
         ];
-        $data['commercialKpis'] = [
+        $commercialKpis = [
             'effectiveness' => $this->buildCommercialEffectivenessSummary($rows),
             'sla' => $this->buildCommercialSlaSummary($rows),
-            'budget' => $this->buildCommercialBudgetExecutionSummary($rows),
             'heatmap' => $this->buildCommercialHeatMapSummary($rows),
-            'collections' => $this->buildCommercialCollectionsSummary($rows),
         ];
 
-        return $data;
+        return [
+            'scopeLabel' => 'Rendimiento de servicios y productos',
+            'from' => $data['from'] ?? null,
+            'to' => $data['to'] ?? null,
+            'lineOptions' => self::COMMERCIAL_LINES,
+            'selectedLines' => $selectedLines,
+            'lineRows' => $lineRows,
+            'serviceRows' => $serviceRows,
+            'commercialTotals' => $commercialTotals,
+            'commercialKpis' => $commercialKpis,
+        ];
     }
 
     private function resolveCommercialLine(string $service, string $moduleKey = ''): string
@@ -1658,69 +1657,6 @@ class ReportesController extends Controller
         ];
     }
 
-    private function buildCommercialBudgetExecutionSummary(Collection $rows): array
-    {
-        $contractRows = $rows
-            ->where('modulo_key', 'contrato')
-            ->filter(fn (array $row) => trim((string) ($row['empresa'] ?? '')) !== '' && trim((string) ($row['empresa'] ?? '')) !== '-')
-            ->values();
-
-        if ($contractRows->isEmpty()) {
-            return [
-                'metodologia' => 'Cruce entre presupuesto registrado en empresas y monto consumido por paquetes contrato del periodo.',
-                'total_presupuesto' => 0,
-                'total_consumido' => 0,
-                'rows' => collect(),
-            ];
-        }
-
-        $budgetMap = DB::table('empresa')
-            ->select('nombre', 'codigo_cliente', 'presupuesto')
-            ->get()
-            ->mapWithKeys(function (object $empresa) {
-                $key = mb_strtoupper(trim((string) ($empresa->nombre ?? '')));
-
-                return [
-                    $key => [
-                        'codigo_cliente' => (string) ($empresa->codigo_cliente ?? ''),
-                        'presupuesto' => (float) ($empresa->presupuesto ?? 0),
-                    ],
-                ];
-            });
-
-        $rowsSummary = $contractRows
-            ->groupBy(fn (array $row) => mb_strtoupper(trim((string) ($row['empresa'] ?? 'SIN EMPRESA'))))
-            ->map(function (Collection $items, string $empresaKey) use ($budgetMap) {
-                $budgetData = $budgetMap->get($empresaKey, ['codigo_cliente' => '', 'presupuesto' => 0]);
-                $presupuesto = round((float) ($budgetData['presupuesto'] ?? 0), 2);
-                $consumido = round((float) $items->sum('precio'), 2);
-                $saldo = round($presupuesto - $consumido, 2);
-                $pct = $presupuesto > 0 ? round(($consumido / $presupuesto) * 100, 2) : 0;
-
-                return [
-                    'empresa' => (string) ($items->first()['empresa'] ?? 'SIN EMPRESA'),
-                    'codigo_cliente' => (string) ($budgetData['codigo_cliente'] ?? ''),
-                    'presupuesto' => $presupuesto,
-                    'consumido' => $consumido,
-                    'saldo' => $saldo,
-                    'ejecucion_pct' => $pct,
-                    'alerta' => $pct >= 100 ? 'AGOTADO' : ($pct >= 80 ? 'ALERTA' : 'OK'),
-                    'envios' => $items->count(),
-                    'ultimo_registro' => (string) ($items->sortByDesc('created_at_ts')->first()['created_at'] ?? '-'),
-                ];
-            })
-            ->sortByDesc('ejecucion_pct')
-            ->values();
-
-        return [
-            'metodologia' => 'Cruce entre presupuesto registrado en empresas y monto consumido por paquetes contrato del periodo.',
-            'total_presupuesto' => round((float) $rowsSummary->sum('presupuesto'), 2),
-            'total_consumido' => round((float) $rowsSummary->sum('consumido'), 2),
-            'empresas_alerta' => $rowsSummary->whereIn('alerta', ['ALERTA', 'AGOTADO'])->count(),
-            'rows' => $rowsSummary,
-        ];
-    }
-
     private function buildCommercialHeatMapSummary(Collection $rows): array
     {
         $originRows = $rows
@@ -1728,7 +1664,6 @@ class ReportesController extends Controller
                 return [
                     'origen' => $this->normalizeCommercialLocationValue((string) ($row['origen_registro'] ?? $row['origen'] ?? '')),
                     'peso' => (float) ($row['peso'] ?? 0),
-                    'precio' => (float) ($row['precio'] ?? 0),
                 ];
             })
             ->filter(fn (array $row) => $row['origen'] !== '')
@@ -1737,7 +1672,6 @@ class ReportesController extends Controller
                 'ubicacion' => $origen,
                 'cantidad' => $items->count(),
                 'peso' => round((float) $items->sum('peso'), 3),
-                'precio' => round((float) $items->sum('precio'), 2),
             ])
             ->sortByDesc('cantidad')
             ->values();
@@ -1747,7 +1681,6 @@ class ReportesController extends Controller
                 return [
                     'destino' => $this->normalizeCommercialLocationValue((string) ($row['destino'] ?? '')),
                     'peso' => (float) ($row['peso'] ?? 0),
-                    'precio' => (float) ($row['precio'] ?? 0),
                 ];
             })
             ->filter(fn (array $row) => $row['destino'] !== '')
@@ -1756,7 +1689,6 @@ class ReportesController extends Controller
                 'ubicacion' => $destino,
                 'cantidad' => $items->count(),
                 'peso' => round((float) $items->sum('peso'), 3),
-                'precio' => round((float) $items->sum('precio'), 2),
             ])
             ->sortByDesc('cantidad')
             ->values();
@@ -1768,7 +1700,6 @@ class ReportesController extends Controller
 
                 return [
                     'ruta' => $origen !== '' && $destino !== '' ? $origen . ' -> ' . $destino : '',
-                    'precio' => (float) ($row['precio'] ?? 0),
                     'peso' => (float) ($row['peso'] ?? 0),
                 ];
             })
@@ -1778,7 +1709,6 @@ class ReportesController extends Controller
                 'ruta' => $ruta,
                 'cantidad' => $items->count(),
                 'peso' => round((float) $items->sum('peso'), 3),
-                'precio' => round((float) $items->sum('precio'), 2),
             ])
             ->sortByDesc('cantidad')
             ->values();
@@ -1791,44 +1721,6 @@ class ReportesController extends Controller
             'origenes' => $originRows->take(15)->values(),
             'destinos' => $destinationRows->take(15)->values(),
             'rutas' => $routeRows->take(15)->values(),
-        ];
-    }
-
-    private function buildCommercialCollectionsSummary(Collection $rows): array
-    {
-        $facturasDisponible = Schema::hasTable('facturas')
-            && collect(Schema::getColumnListing('facturas'))->intersect(['cliente', 'empresa_id', 'monto', 'monto_cobrado', 'estado'])->isNotEmpty();
-
-        $rowsSummary = $rows
-            ->filter(fn (array $row) => trim((string) ($row['empresa'] ?? '')) !== '' && trim((string) ($row['empresa'] ?? '')) !== '-')
-            ->groupBy(fn (array $row) => trim((string) ($row['empresa'] ?? 'SIN EMPRESA')))
-            ->map(function (Collection $items, string $empresa) use ($facturasDisponible) {
-                $facturado = round((float) $items->sum('precio'), 2);
-                $cobrado = $facturasDisponible ? $facturado : 0;
-
-                return [
-                    'empresa' => $empresa,
-                    'facturado' => $facturado,
-                    'cobrado' => $cobrado,
-                    'pendiente' => round($facturado - $cobrado, 2),
-                    'cobranza_pct' => $facturado > 0 ? round(($cobrado / $facturado) * 100, 2) : 0,
-                    'observacion' => $facturasDisponible
-                        ? 'Fuente integrada'
-                        : 'Sin fuente de cobranza estructurada en la BD actual',
-                ];
-            })
-            ->sortByDesc('facturado')
-            ->values();
-
-        return [
-            'metodologia' => $facturasDisponible
-                ? 'Cobranza basada en estructura integrada de facturas.'
-                : 'Indicador preparado para la futura integracion de cobranzas. Hoy solo se expone lo facturado por el reporte comercial.',
-            'fuente_disponible' => $facturasDisponible,
-            'facturado_total' => round((float) $rowsSummary->sum('facturado'), 2),
-            'cobrado_total' => round((float) $rowsSummary->sum('cobrado'), 2),
-            'pendiente_total' => round((float) $rowsSummary->sum('pendiente'), 2),
-            'rows' => $rowsSummary,
         ];
     }
 

@@ -22,7 +22,7 @@
         .scope-note { margin: 0 0 10px; padding: 8px 10px; border: 1px solid #efd47b; border-left: 4px solid #f5b800; background: #fff9e6; color: #5f5230; }
         .audit-warning { margin: 0 0 10px; padding: 8px 10px; border: 1px solid #e3a7a7; border-left: 4px solid #bb3333; background: #fff1f1; color: #7b2525; }
         .metrics { margin-bottom: 10px; border-collapse: separate; border-spacing: 4px 0; }
-        .metrics td { width: 25%; padding: 8px 7px; border: 1px solid #d7e0e9; border-top: 3px solid #f5b800; }
+        .metrics td { width: 20%; padding: 8px 6px; border: 1px solid #d7e0e9; border-top: 3px solid #f5b800; }
         .metric-value { display: block; margin-top: 2px; color: #123f73; font-size: 13px; font-weight: bold; }
         .section-title { margin: 12px 0 6px; padding-bottom: 3px; border-bottom: 2px solid #f5b800; color: #123f73; font-size: 11.5px; text-transform: uppercase; }
         .executive-box { padding: 9px 11px; border: 1px solid #cbd8e6; background: #f4f8fc; }
@@ -94,23 +94,24 @@
     </div>
     @if(($cashierFlowCancellationLookupErrors ?? collect())->isNotEmpty())
         <div class="audit-warning">
-            <strong>Verificación incompleta:</strong> no se pudo consultar el estado fiscal de {{ $cashierFlowCancellationLookupErrors->count() }} detalle(s) en la API. Los servicios consultados correctamente se ajustaron; los que tuvieron error podrían conservar facturas anuladas en sus totales.
+            <strong>Verificación incompleta:</strong> no se pudo consultar el detalle de {{ $cashierFlowCancellationLookupErrors->count() }} servicio(s)/mes(es) en la API. El desglose por medio de pago puede quedar incompleto y algunos totales podrían conservar facturas anuladas.
         </div>
     @endif
 
     <table class="metrics">
         <tr>
             <td><span class="label">Ingresos totales</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format((float) ($totalReportIncome ?? $totalAmount), 2) }}</span></td>
+            <td><span class="label">Ingresos sin Contratos ni ECA</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format((float) ($summary['totalSinContratosEca'] ?? $summary['totalMonto'] ?? 0), 2) }}</span></td>
             <td><span class="label">Ventas realizadas</span><span class="metric-value">{{ \App\Support\BolivianNumber::format($totalSales) }}</span></td>
             <td><span class="label">Cajeros</span><span class="metric-value">{{ \App\Support\BolivianNumber::format($cashierRows->count()) }}</span></td>
-            <td><span class="label">Promedio total de ingresos por día</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format((float) ($averageDailyIncome ?? 0), 2) }}</span></td>
+            <td><span class="label">Promedio total de ingresos por día (lun-sáb)</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format((float) ($averageDailyIncome ?? 0), 2) }}</span></td>
         </tr>
     </table>
 
     <h2 class="section-title">Resumen ejecutivo</h2>
     <div class="executive-box">
         @if($totalSales > 0 || ($totalReportIncome ?? 0) > 0)
-            <p>En <span class="highlight">{{ $periodLabel }}</span> se registraron <span class="highlight">{{ \App\Support\BolivianNumber::format($totalSales) }} ventas realizadas</span> y los ingresos totales, incluidos los cobros aceptados, sumaron <span class="highlight">Bs {{ \App\Support\BolivianNumber::format((float) ($totalReportIncome ?? $totalAmount), 2) }}</span>.</p>
+            <p>En <span class="highlight">{{ $periodLabel }}</span> se registraron <span class="highlight">{{ \App\Support\BolivianNumber::format($totalSales) }} ventas realizadas</span>. Los ingresos totales, incluidos los cobros aceptados, sumaron <span class="highlight">Bs {{ \App\Support\BolivianNumber::format((float) ($totalReportIncome ?? $totalAmount), 2) }}</span>; sin Contratos ni ECA fueron <span class="highlight">Bs {{ \App\Support\BolivianNumber::format((float) ($summary['totalSinContratosEca'] ?? $summary['totalMonto'] ?? 0), 2) }}</span>.</p>
             @if($topCashier)
                 <p>El cajero con mayor ingreso registrado fue <span class="highlight">{{ $topCashier['usuarioNombre'] }}</span>, con <span class="highlight">Bs {{ \App\Support\BolivianNumber::format((float) ($topCashier['totalIngresos'] ?? $topCashier['totalMonto']), 2) }}</span>.</p>
             @endif
@@ -126,14 +127,16 @@
     <table class="sheet">
         <thead>
             <tr>
-                <th style="width: 4%">Pos.</th>
-                <th style="width: 24%">Cajero</th>
-                <th style="width: 14%">Regional / departamento</th>
-                <th style="width: 9%" class="right">Ventas realizadas</th>
-                <th style="width: 10%" class="right">Cantidad de paquetes</th>
-                <th style="width: 12%" class="right">Paquetes promedio por día</th>
-                <th style="width: 14%" class="right">Promedio de ingresos por día</th>
-                <th style="width: 13%" class="right">Ingresos</th>
+                <th style="width: 3%">Pos.</th>
+                <th style="width: 19%">Cajero</th>
+                <th style="width: 10%">Regional / departamento</th>
+                <th style="width: 7%" class="right">Ventas realizadas</th>
+                <th style="width: 8%" class="right">Cantidad de paquetes</th>
+                <th style="width: 9%" class="right">Paquetes promedio por día</th>
+                <th style="width: 11%" class="right">Promedio de ingresos por día (lun-sáb)</th>
+                <th style="width: 10%" class="right">Importe QR</th>
+                <th style="width: 10%" class="right">Importe efectivo</th>
+                <th style="width: 13%" class="right">Ingresos totales</th>
             </tr>
         </thead>
         <tbody>
@@ -142,47 +145,19 @@
                     <td class="center strong">{{ $loop->iteration }}</td>
                     <td><span class="strong">{{ $cashier['usuarioNombre'] }}</span>@if($cashier['usuarioCarnet'] !== '')<br><span class="muted">CI: {{ $cashier['usuarioCarnet'] }}</span>@endif</td>
                     <td>{{ $cashier['departamento'] }}</td>
-                    <td class="right">{{ \App\Support\BolivianNumber::format((float) $cashier['cantidadVentas']) }}</td>
-                    <td class="right">{{ \App\Support\BolivianNumber::format((float) $cashier['totalCantidad'], 2) }}</td>
+                    <td class="right">{{ \App\Support\BolivianNumber::format((float) ($cashier['cantidadVentas'] ?? 0)) }}</td>
+                    <td class="right">{{ \App\Support\BolivianNumber::format((float) ($cashier['totalCantidad'] ?? 0), 2) }}</td>
                     <td class="right">{{ \App\Support\BolivianNumber::format((float) ($cashier['promedioPaquetesDiario'] ?? 0), 2) }}</td>
                     <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($cashier['promedioDiario'] ?? 0), 2) }}</td>
+                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($cashier['paymentMethods']['qr']['totalMonto'] ?? 0), 2) }}</td>
+                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($cashier['paymentMethods']['efectivo']['totalMonto'] ?? 0), 2) }}</td>
                     <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($cashier['totalIngresos'] ?? $cashier['totalMonto']), 2) }}</td>
                 </tr>
             @empty
-                <tr><td colspan="8" class="center muted">Sin información por cajero.</td></tr>
+                <tr><td colspan="10" class="center muted">Sin información por cajero.</td></tr>
             @endforelse
         </tbody>
     </table>
-
-    @if(($cashierFlowCollectedMovements ?? collect())->isNotEmpty())
-        <h2 class="section-title">Detalle de cobros incluidos en los ingresos</h2>
-        <table class="sheet">
-            <thead>
-                <tr>
-                    <th style="width: 18%">Servicio</th>
-                    <th style="width: 12%">Fecha de factura</th>
-                    <th style="width: 13%">Fecha de cobro</th>
-                    <th style="width: 15%">Venta / detalle</th>
-                    <th style="width: 22%">Facturó</th>
-                    <th style="width: 8%" class="right">Paquetes</th>
-                    <th style="width: 12%" class="right">Importe incluido</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($cashierFlowCollectedMovements as $movement)
-                    <tr>
-                        <td class="strong">{{ $movement->servicio }}</td>
-                        <td>{{ $movement->fecha ?: '-' }}</td>
-                        <td class="nowrap">{{ $movement->cobrado_at?->timezone(config('app.timezone'))->format('d/m/Y H:i:s') ?? '-' }}</td>
-                        <td>{{ $movement->venta_id ?: '-' }}<br><span class="muted">Detalle: {{ $movement->detalle_id ?: '-' }}</span></td>
-                        <td>{{ $movement->facturado_por_nombre ?: $movement->facturado_por_alias ?: $movement->facturado_por_id ?: 'Sin dato' }}</td>
-                        <td class="right">{{ \App\Support\BolivianNumber::format((float) $movement->cantidad_paquetes, 2) }}</td>
-                        <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) $movement->monto, 2) }}</td>
-                    </tr>
-                @endforeach
-            </tbody>
-        </table>
-    @endif
 
     <h2 class="section-title">Ingresos por servicio</h2>
     <table class="sheet">
@@ -218,11 +193,11 @@
     </table>
 
     <div class="method-note">
-        <strong>Nota metodológica:</strong> los ingresos totales reúnen las ventas de ventanilla y los cobros aceptados de Contratos y ECA Internacional; las cuentas por cobrar pendientes se excluyen. Los importes cobrados ya están sumados por servicio y por cajero. El promedio diario divide ese total entre los días del periodo seleccionado, excluyendo domingos. El detalle de cobros permite identificar la fecha de aceptación y quién facturó. El reporte debe contrastarse con los respaldos transaccionales antes del cierre contable definitivo.
+        <strong>Nota metodológica:</strong> los ingresos totales reúnen las ventas de ventanilla y los cobros aceptados de Contratos y ECA Internacional; las cuentas por cobrar pendientes se excluyen. Los importes por QR y efectivo muestran los montos identificados para cada cajero. El promedio diario divide los ingresos entre los días del periodo seleccionado, excluyendo domingos. El reporte debe contrastarse con los respaldos transaccionales antes del cierre contable definitivo.
     </div>
 
-    <h2 class="section-title page-break">Facturas anuladas</h2>
-    <p class="muted">Las facturas con estado fiscal ANULADO o ANULADA se muestran aquí y se excluyen de los ingresos por servicio, por cajero y del promedio diario.</p>
+    <h2 class="section-title page-break">Facturas canceladas</h2>
+    <p class="muted">Las facturas con estado fiscal anulado o estado de pago anulado/cancelado se muestran aquí y se excluyen de los ingresos por servicio, por cajero y del promedio diario.</p>
     <table class="sheet">
         <thead>
             <tr>

@@ -103,6 +103,33 @@ class FinancialReportController extends Controller
                 ->get();
             $invoicePeriodMovements = $this->enrichCashierFlowCollectedMovements($invoicePeriodMovements);
         }
+        $cancellationServices = collect($data['services'])->concat($data['receivableServices']);
+        $invoiceAudit = $this->loadCashierFlowCancelledInvoices(
+            $this->cashierFlowInvoiceDetailFilters(
+                $cancellationServices,
+                $data['selectedMonths'],
+                $data['anio']
+            ),
+            $cancellationServices,
+            $data['selectedDepartment'],
+            [],
+            $request->boolean('actualizar')
+        );
+        $cancelledMovementKeys = $invoiceAudit['invoices']->pluck('_movementKey')->filter()->flip();
+        if ($cancelledMovementKeys->isNotEmpty()) {
+            $invoicePeriodMovements = $invoicePeriodMovements
+                ->reject(fn (CashierFlowReceivableMovement $movement): bool => $cancelledMovementKeys->has($movement->movement_key))
+                ->values();
+        }
+        $data['cashierFlowCancelledInvoices'] = $invoiceAudit['invoices']
+            ->unique(fn (array $invoice): string => filled($invoice['_movementKey'] ?? null)
+                ? (string) $invoice['_movementKey']
+                : (string) $invoice['_dedupeKey'])
+            ->sortByDesc('fecha')
+            ->values();
+        $data['cashierFlowCancellationLookupErrors'] = $invoiceAudit['errors']
+            ->unique()
+            ->values();
         $invoiceCollections = $invoicePeriodMovements->groupBy('servicio');
         $data['receivableServices'] = $receivableRows
             ->map(function (array $service) use ($invoiceCollections): array {
@@ -122,6 +149,7 @@ class FinancialReportController extends Controller
         $data['cashierFlowCollectedAmount'] = (float) $invoicePeriodMovements->sum('monto');
         $data['summary']['totalRecaudado'] = (float) ($data['summary']['totalMonto'] ?? 0)
             + $data['cashierFlowCollectedAmount'];
+        $data['summary']['totalSinContratosEca'] = (float) ($data['summary']['totalMonto'] ?? 0);
         $data['cashierRows'] = $this->addCashierReceivableIncome(
             $this->buildCashierBreakdown($data['services']),
             $invoicePeriodMovements
@@ -208,6 +236,7 @@ class FinancialReportController extends Controller
         $data['cashierFlowCollectedAmount'] = (float) $collectedMovements->sum('monto');
         $data['summary']['totalRecaudado'] = (float) ($data['summary']['totalMonto'] ?? 0)
             + $data['cashierFlowCollectedAmount'];
+        $data['summary']['totalSinContratosEca'] = (float) ($data['summary']['totalMonto'] ?? 0);
         $data['totalReportIncome'] = $data['summary']['totalRecaudado'];
         $data['cashierFlowCollectionsOmittedByDepartment'] = $data['selectedDepartment'] !== '';
         $data['cashierRows'] = $this->addCashierReceivableIncome(
@@ -218,6 +247,12 @@ class FinancialReportController extends Controller
             $data['cashierRows'],
             $data['selectedMonths'],
             $data['anio']
+        );
+        $data['cashierRows'] = $this->addCashierFlowPaymentBreakdown(
+            $data['cashierRows'],
+            $invoiceAudit['paymentBreakdown'],
+            $collectedMovements,
+            $invoiceAudit['movementPaymentMethods']->merge($collectionAudit['movementPaymentMethods'])
         );
         $data['generatedAt'] = now();
         $data['periodLabel'] = collect($data['selectedMonths'])
@@ -271,7 +306,9 @@ class FinancialReportController extends Controller
     private function loadCashierFlowCancelledInvoices(
         array $filters,
         ?Collection $departmentServices = null,
-        string $selectedDepartment = ''
+        string $selectedDepartment = '',
+        array $excludedCashierNames = self::CASHIER_FLOW_EXCLUDED_CASHIERS,
+        bool $refresh = false
     ): array
     {
         if ($filters === []) {
@@ -280,23 +317,29 @@ class FinancialReportController extends Controller
                 'errors' => collect(),
                 'nonCancelledAmounts' => collect(),
                 'completeServices' => collect(),
+                'paymentBreakdown' => collect(),
+                'movementPaymentMethods' => collect(),
             ];
         }
 
         try {
-            $results = $this->reports->serviceDetailsBatch($filters, true, false);
+            $results = $this->reports->serviceDetailsBatch($filters, true, $refresh);
         } catch (\Throwable $exception) {
             return [
                 'invoices' => collect(),
                 'errors' => collect([$exception->getMessage()]),
                 'nonCancelledAmounts' => collect(),
                 'completeServices' => collect(),
+                'paymentBreakdown' => collect(),
+                'movementPaymentMethods' => collect(),
             ];
         }
 
         $invoices = collect();
         $errors = collect();
         $nonCancelledAmounts = collect();
+        $paymentBreakdown = collect();
+        $movementPaymentMethods = collect();
         $successfulServiceMonths = collect();
         foreach ($results as $result) {
             $filter = (array) ($result['filter'] ?? []);
@@ -320,7 +363,7 @@ class FinancialReportController extends Controller
             );
 
             foreach ($rows as $row) {
-                if ($this->isCashierFlowExcludedInvoice($row)) {
+                if ($excludedCashierNames !== [] && $this->isCashierFlowExcludedInvoice($row, $excludedCashierNames)) {
                     continue;
                 }
                 if ($selectedDepartment !== ''
@@ -333,16 +376,6 @@ class FinancialReportController extends Controller
                     continue;
                 }
 
-                if (! $this->isCancelledCashierFlowInvoice($row)) {
-                    $nonCancelledAmounts->put(
-                        $serviceName,
-                        (float) $nonCancelledAmounts->get($serviceName, 0)
-                            + (float) ($row['totalLinea'] ?? $row['monto'] ?? 0)
-                    );
-
-                    continue;
-                }
-
                 $invoiceUser = (array) ($row['usuario'] ?? []);
                 $userId = trim((string) ($invoiceUser['id'] ?? $row['usuarioId'] ?? ''));
                 $userName = trim((string) ($invoiceUser['nombre'] ?? $invoiceUser['name'] ?? $row['usuarioNombre'] ?? ''));
@@ -350,8 +383,33 @@ class FinancialReportController extends Controller
                 $userAlias = trim((string) ($invoiceUser['alias'] ?? $row['usuarioAlias'] ?? ''));
                 $saleId = trim((string) ($row['ventaId'] ?? ''));
                 $detailId = trim((string) ($row['detalleId'] ?? ''));
-                $amount = round((float) ($row['totalLinea'] ?? $row['monto'] ?? 0), 2);
+                $rowAmount = (float) ($row['totalLinea'] ?? $row['monto'] ?? 0);
+                $amount = round($rowAmount, 2);
                 $movementKey = trim((string) ($row['_movementKey'] ?? ''));
+
+                if (! $this->isCancelledCashierFlowInvoice($row)) {
+                    $nonCancelledAmounts->put(
+                        $serviceName,
+                        (float) $nonCancelledAmounts->get($serviceName, 0)
+                            + $rowAmount
+                    );
+
+                    $paymentMethod = $this->cashierFlowPaymentMethod($row);
+                    if ($this->isCashierFlowReceivableService($serviceName)) {
+                        if ($movementKey !== '') {
+                            $movementPaymentMethods->put($movementKey, $paymentMethod);
+                        }
+                    } else {
+                        $cashierIdentity = $this->cashierIdentity($userId, $userEmail, $userAlias, $userName);
+                        $cashierMethods = $paymentBreakdown->get($cashierIdentity, []);
+                        $methodStats = $cashierMethods[$paymentMethod] ?? ['monto' => 0.0];
+                        $methodStats['monto'] += $amount;
+                        $cashierMethods[$paymentMethod] = $methodStats;
+                        $paymentBreakdown->put($cashierIdentity, $cashierMethods);
+                    }
+
+                    continue;
+                }
 
                 $invoices->push([
                     '_servicio' => $serviceName,
@@ -398,7 +456,28 @@ class FinancialReportController extends Controller
             'errors' => $errors,
             'nonCancelledAmounts' => $nonCancelledAmounts,
             'completeServices' => $completeServices,
+            'paymentBreakdown' => $paymentBreakdown,
+            'movementPaymentMethods' => $movementPaymentMethods,
         ];
+    }
+
+    private function cashierFlowPaymentMethod(array $row): string
+    {
+        $method = $this->normalizePersonName($this->firstReportTextValue(
+            $row['medioPago'] ?? null,
+            $row['medio_pago'] ?? null,
+            $row['metodoPago'] ?? null,
+            $row['metodo_pago'] ?? null
+        ));
+
+        if (str_contains($method, 'QR')) {
+            return 'qr';
+        }
+        if (str_contains($method, 'EFECTIVO')) {
+            return 'efectivo';
+        }
+
+        return 'otros';
     }
 
     private function isCancelledCashierFlowInvoice(array $row): bool
@@ -411,14 +490,14 @@ class FinancialReportController extends Controller
             || in_array($paymentStatus, [...$cancelledStatuses, 'CANCELADA', 'CANCELADO'], true);
     }
 
-    private function isCashierFlowExcludedInvoice(array $row): bool
+    private function isCashierFlowExcludedInvoice(array $row, array $excludedCashierNames): bool
     {
         $invoiceUser = (array) ($row['usuario'] ?? []);
         $name = $this->normalizePersonName((string) (
             $invoiceUser['nombre'] ?? $invoiceUser['name'] ?? $row['usuarioNombre'] ?? ''
         ));
 
-        return collect(self::CASHIER_FLOW_EXCLUDED_CASHIERS)
+        return collect($excludedCashierNames)
             ->map(fn (string $excludedName): string => $this->normalizePersonName($excludedName))
             ->contains(function (string $excludedName) use ($name): bool {
                 $tokens = array_filter(explode(' ', $excludedName));
@@ -1888,6 +1967,76 @@ class FinancialReportController extends Controller
         }
 
         return null;
+    }
+
+    private function addCashierFlowPaymentBreakdown(
+        Collection $cashierRows,
+        Collection $detailPaymentBreakdown,
+        Collection $collectedMovements,
+        Collection $movementPaymentMethods
+    ): Collection {
+        $paymentBreakdown = $detailPaymentBreakdown;
+        $cashierRowsByIdentity = $cashierRows->keyBy(fn (array $cashier): string => $this->cashierIdentity(
+            (string) ($cashier['usuarioId'] ?? ''),
+            (string) ($cashier['usuarioEmail'] ?? ''),
+            (string) ($cashier['usuarioAlias'] ?? ''),
+            (string) ($cashier['usuarioNombre'] ?? '')
+        ));
+
+        foreach ($collectedMovements as $movement) {
+            $movementCashier = [
+                'usuarioId' => (string) $movement->facturado_por_id,
+                'usuarioEmail' => (string) $movement->facturado_por_email,
+                'usuarioAlias' => (string) $movement->facturado_por_alias,
+                'usuarioNombre' => (string) $movement->facturado_por_nombre,
+            ];
+            $movementCashierIdentity = $this->cashierIdentity(
+                (string) $movement->facturado_por_id,
+                (string) $movement->facturado_por_email,
+                (string) $movement->facturado_por_alias,
+                (string) $movement->facturado_por_nombre
+            );
+            $cashierIdentity = $cashierRowsByIdentity->has($movementCashierIdentity)
+                ? $movementCashierIdentity
+                : ($this->matchingCashierRowKey($cashierRowsByIdentity, $movementCashier) ?? $movementCashierIdentity);
+            $paymentMethod = (string) $movementPaymentMethods->get((string) $movement->movement_key, 'otros');
+            if (! in_array($paymentMethod, ['qr', 'efectivo', 'otros'], true)) {
+                $paymentMethod = 'otros';
+            }
+
+            $cashierMethods = $paymentBreakdown->get($cashierIdentity, []);
+            $methodStats = $cashierMethods[$paymentMethod] ?? ['monto' => 0.0];
+            $methodStats['monto'] += (float) $movement->monto;
+            $cashierMethods[$paymentMethod] = $methodStats;
+            $paymentBreakdown->put($cashierIdentity, $cashierMethods);
+        }
+
+        return $cashierRows->map(function (array $cashier) use ($paymentBreakdown): array {
+            $cashierIdentity = $this->cashierIdentity(
+                (string) ($cashier['usuarioId'] ?? ''),
+                (string) ($cashier['usuarioEmail'] ?? ''),
+                (string) ($cashier['usuarioAlias'] ?? ''),
+                (string) ($cashier['usuarioNombre'] ?? '')
+            );
+            $cashierMethods = $paymentBreakdown->get($cashierIdentity, []);
+            $cashier['paymentMethods'] = [];
+
+            foreach (['qr', 'efectivo', 'otros'] as $method) {
+                $methodStats = (array) ($cashierMethods[$method] ?? []);
+                $cashier['paymentMethods'][$method] = [
+                    'totalMonto' => (float) ($methodStats['monto'] ?? 0),
+                ];
+            }
+
+            $knownAmount = (float) collect($cashier['paymentMethods'])->sum('totalMonto');
+            $unclassifiedAmount = max(0, round(
+                (float) ($cashier['totalIngresos'] ?? $cashier['totalMonto'] ?? 0) - $knownAmount,
+                2
+            ));
+            $cashier['paymentMethods']['otros']['totalMonto'] += $unclassifiedAmount;
+
+            return $cashier;
+        });
     }
 
     private function cashierIdentity(string $id, string $email, string $alias, string $name): string

@@ -355,6 +355,7 @@
             ['Ventas realizadas', $summary['cantidadVentas'] ?? 0, 'fa-file-invoice', 'info'],
             ['Cajeros', $cashierRows->count(), 'fa-users', 'secondary'],
             ['Cantidad de paquetes', $summary['totalCantidad'] ?? 0, 'fa-boxes', 'warning'],
+            ['Ingresos sin Contratos ni ECA', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['totalSinContratosEca'] ?? $summary['totalMonto'] ?? 0), 2), 'fa-coins', 'info'],
             ['Ingresos totales (incluye Contratos y ECA cobrados)', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['totalRecaudado'] ?? $summary['totalMonto'] ?? 0), 2), 'fa-cash-register', 'primary'],
         ] as $metric)
             @php([$label, $value, $icon, $color] = $metric)
@@ -454,6 +455,7 @@
                             <th class="text-right">Detalles</th>
                             <th class="text-right">Cantidad de paquetes</th>
                             <th class="text-right">Paquetes promedio por día</th>
+                            <th class="text-right">Promedio de ingresos por día (lun-sáb)</th>
                             <th class="text-right">Ingresos totales</th>
                             <th>Participación</th>
                         </tr>
@@ -476,6 +478,7 @@
                                 <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $cashier['cantidadDetalles']) }}</td>
                                 <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $cashier['totalCantidad'], 2) }}</td>
                                 <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($cashier['promedioPaquetesDiario'] ?? 0), 2) }}</td>
+                                <td class="text-right font-weight-bold">Bs {{ \App\Support\BolivianNumber::format((float) ($cashier['promedioDiario'] ?? 0), 2) }}</td>
                                 <td class="text-right font-weight-bold">Bs {{ \App\Support\BolivianNumber::format((float) ($cashier['totalIngresos'] ?? $cashier['totalMonto']), 2) }}</td>
                                 <td class="flow-progress">
                                     <span class="small font-weight-bold">{{ \App\Support\BolivianNumber::format($share, 1) }}%</span>
@@ -483,7 +486,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="9" class="text-center text-muted py-4">La API no devolvió información por cajero.</td></tr>
+                            <tr><td colspan="10" class="text-center text-muted py-4">La API no devolvió información por cajero.</td></tr>
                         @endforelse
                     </tbody>
                     @if($cashierRows->isNotEmpty())
@@ -494,6 +497,7 @@
                                 <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $cashierRows->sum('cantidadDetalles')) }}</td>
                                 <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $cashierRows->sum('totalCantidad'), 2) }}</td>
                                 <td></td>
+                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) $cashierRows->sum('promedioDiario'), 2) }}</td>
                                 <td class="text-right">Bs {{ \App\Support\BolivianNumber::format($cashierTotal, 2) }}</td>
                                 <td></td>
                             </tr>
@@ -585,6 +589,66 @@
             </div>
         </div>
     </div>
+
+    <div class="card card-outline card-danger flow-section-card">
+        <div class="card-header d-flex flex-column flex-md-row justify-content-between align-items-md-center">
+            <div class="d-flex align-items-center">
+                <span class="flow-icon flow-icon-warning"><i class="fas fa-file-invoice"></i></span>
+                <div>
+                    <strong>Facturas canceladas</strong>
+                    <div class="text-muted small">Facturas con estado fiscal anulado o estado de pago anulado/cancelado, dentro del periodo seleccionado.</div>
+                </div>
+            </div>
+            <div class="mt-2 mt-md-0 text-md-right">
+                <span class="badge badge-danger">{{ $cashierFlowCancelledInvoices->count() }} facturas</span>
+                <div class="font-weight-bold text-danger mt-1">Total: Bs {{ \App\Support\BolivianNumber::format((float) $cashierFlowCancelledInvoices->sum('monto'), 2) }}</div>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            @if($cashierFlowCancellationLookupErrors->isNotEmpty())
+                <div class="alert alert-warning rounded-0 mb-0" role="status">
+                    <strong>Consulta incompleta:</strong> no se pudo verificar el estado de {{ $cashierFlowCancellationLookupErrors->count() }} detalle(s). Algunas facturas canceladas podrían no aparecer.
+                </div>
+            @endif
+            <div class="table-responsive">
+                <table class="table table-sm table-striped table-hover mb-0 financial-table">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Servicio</th>
+                            <th>Fecha</th>
+                            <th>Venta / detalle</th>
+                            <th>Facturó</th>
+                            <th>Medio de pago</th>
+                            <th>Estado fiscal</th>
+                            <th>Estado de pago</th>
+                            <th class="text-right">Importe</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($cashierFlowCancelledInvoices as $invoice)
+                            <tr>
+                                <td class="font-weight-bold">{{ $invoice['servicio'] }}</td>
+                                <td class="text-nowrap">{{ $invoice['fecha'] !== '' ? $invoice['fecha'] : '-' }}</td>
+                                <td>
+                                    {{ $invoice['venta'] }}
+                                    <small class="d-block text-muted">Detalle: {{ $invoice['detalle'] }}</small>
+                                </td>
+                                <td>{{ $invoice['facturadoPor'] }}</td>
+                                <td>{{ $invoice['medioPago'] !== '' ? $invoice['medioPago'] : '-' }}</td>
+                                <td class="font-weight-bold">{{ $invoice['estadoFiscal'] !== '' ? $invoice['estadoFiscal'] : '-' }}</td>
+                                <td>{{ $invoice['estadoPago'] !== '' ? $invoice['estadoPago'] : '-' }}</td>
+                                <td class="text-right text-danger font-weight-bold">Bs {{ \App\Support\BolivianNumber::format((float) $invoice['monto'], 2) }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="8" class="text-center text-muted py-4">No se encontraron facturas canceladas en los detalles consultados.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+            <div class="small text-muted px-3 py-2 border-top">Se buscan facturas con estado fiscal ANULADO/ANULADA o estado de pago ANULADO/ANULADA/CANCELADO/CANCELADA.</div>
+        </div>
+    </div>
+
     <div class="modal fade flow-detail-modal" id="flow-detail-modal" tabindex="-1" role="dialog" aria-labelledby="flow-detail-modal-title" aria-hidden="true">
         <div class="modal-dialog flow-detail-dialog" role="document">
             <div class="modal-content">

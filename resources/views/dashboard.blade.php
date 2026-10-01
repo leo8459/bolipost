@@ -12,6 +12,9 @@
             <div class="text-muted mb-2">
                 <strong>Rango:</strong> {{ $rangoLabel }}
             </div>
+            <a id="dashboardPdfDownloadBtn" href="{{ route('dashboard.export.pdf', request()->query()) }}" class="btn btn-sm btn-outline-danger mr-1">
+                <i class="fas fa-file-pdf mr-1"></i> Descargar dashboard PDF
+            </a>
             <a href="{{ route('preregistros.public.create') }}" target="_blank" rel="noopener" class="btn btn-sm btn-primary">
                 Generar preenv&iacute;o EMS
             </a>
@@ -1166,6 +1169,29 @@
             </p>
         </div>
     </div>
+    <div
+        id="dashboardPdfDownloadModal"
+        class="dashboard-pdf-download-modal d-none"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dashboardPdfDownloadTitle"
+        aria-describedby="dashboardPdfDownloadMessage"
+    >
+        <div class="dashboard-pdf-download-backdrop"></div>
+        <div class="dashboard-pdf-download-dialog" role="document" tabindex="-1">
+            <div id="dashboardPdfDownloadSpinner" class="dashboard-pdf-download-spinner mb-3" role="status" aria-label="Descargando"></div>
+            <div id="dashboardPdfDownloadErrorIcon" class="dashboard-pdf-download-error-icon d-none mb-3" aria-hidden="true">
+                <i class="fas fa-exclamation"></i>
+            </div>
+            <h4 id="dashboardPdfDownloadTitle" class="mb-2">Descargando PDF</h4>
+            <p id="dashboardPdfDownloadMessage" class="mb-0 text-muted" aria-live="polite">
+                Estamos preparando el reporte del dashboard.
+            </p>
+            <button type="button" id="dashboardPdfDownloadClose" class="btn btn-outline-secondary btn-sm mt-3 d-none">
+                Cerrar
+            </button>
+        </div>
+    </div>
     @include('footer')
 @stop
 
@@ -1213,6 +1239,87 @@
             background: #fff;
             box-shadow: 0 18px 55px rgba(0, 0, 0, .28);
             text-align: center;
+        }
+        .dashboard-pdf-download-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 2060;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity .2s ease, visibility .2s ease;
+        }
+        .dashboard-pdf-download-modal.d-none {
+            display: none !important;
+        }
+        .dashboard-pdf-download-modal.is-visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        .dashboard-pdf-download-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(11, 24, 44, .62);
+            opacity: 0;
+            transition: opacity .25s ease;
+        }
+        .dashboard-pdf-download-modal.is-visible .dashboard-pdf-download-backdrop {
+            opacity: 1;
+        }
+        .dashboard-pdf-download-dialog {
+            position: relative;
+            width: min(100%, 390px);
+            padding: 2rem 2.25rem;
+            border: 1px solid rgba(32, 83, 154, .12);
+            border-radius: 18px;
+            background: #fff;
+            box-shadow: 0 22px 70px rgba(0, 0, 0, .3);
+            text-align: center;
+            transform: translateY(14px) scale(.97);
+            transition: transform .25s cubic-bezier(.2, .8, .2, 1);
+        }
+        .dashboard-pdf-download-modal.is-visible .dashboard-pdf-download-dialog {
+            transform: translateY(0) scale(1);
+        }
+        .dashboard-pdf-download-spinner {
+            width: 52px;
+            height: 52px;
+            margin-right: auto;
+            margin-left: auto;
+            border: 5px solid #e5edf8;
+            border-top-color: #20539a;
+            border-radius: 50%;
+            animation: dashboardPdfSpin .8s linear infinite;
+        }
+        .dashboard-pdf-download-error-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 52px;
+            height: 52px;
+            margin-right: auto;
+            margin-left: auto;
+            border-radius: 50%;
+            background: #fde8e7;
+            color: #b42318;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        @keyframes dashboardPdfSpin {
+            to { transform: rotate(360deg); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .dashboard-pdf-download-modal,
+            .dashboard-pdf-download-backdrop,
+            .dashboard-pdf-download-dialog {
+                transition-duration: .01ms !important;
+            }
+            .dashboard-pdf-download-spinner {
+                animation-duration: 2s;
+            }
         }
         body.dashboard-filter-loading {
             overflow: hidden;
@@ -1476,6 +1583,13 @@
         const dashboardFiltersForm = document.getElementById('dashboardFiltersForm');
         const dashboardFilterLoadingModal = document.getElementById('dashboardFilterLoadingModal');
         const dashboardFilterLoadingMessage = document.getElementById('dashboardFilterLoadingMessage');
+        const dashboardPdfDownloadBtn = document.getElementById('dashboardPdfDownloadBtn');
+        const dashboardPdfDownloadModal = document.getElementById('dashboardPdfDownloadModal');
+        const dashboardPdfDownloadTitle = document.getElementById('dashboardPdfDownloadTitle');
+        const dashboardPdfDownloadMessage = document.getElementById('dashboardPdfDownloadMessage');
+        const dashboardPdfDownloadSpinner = document.getElementById('dashboardPdfDownloadSpinner');
+        const dashboardPdfDownloadErrorIcon = document.getElementById('dashboardPdfDownloadErrorIcon');
+        const dashboardPdfDownloadClose = document.getElementById('dashboardPdfDownloadClose');
         const advancedFiltersPanel = document.getElementById('advancedFiltersPanel');
         const toggleAdvancedFiltersBtn = document.getElementById('toggleAdvancedFilters');
         const toggleAdvancedFiltersText = document.getElementById('toggleAdvancedFiltersText');
@@ -1684,6 +1798,101 @@
                 chart.resize();
             });
         };
+
+        let isDashboardPdfDownloading = false;
+        let dashboardPdfModalCloseTimer = null;
+
+        const hideDashboardPdfModal = () => {
+            if (!dashboardPdfDownloadModal) {
+                return;
+            }
+
+            dashboardPdfDownloadModal.classList.remove('is-visible');
+            window.setTimeout(() => dashboardPdfDownloadModal.classList.add('d-none'), 250);
+        };
+
+        const showDashboardPdfModal = () => {
+            if (!dashboardPdfDownloadModal) {
+                return;
+            }
+
+            window.clearTimeout(dashboardPdfModalCloseTimer);
+            dashboardPdfDownloadTitle.textContent = 'Descargando PDF';
+            dashboardPdfDownloadMessage.textContent = 'Estamos preparando el reporte del dashboard.';
+            dashboardPdfDownloadSpinner.classList.remove('d-none');
+            dashboardPdfDownloadErrorIcon.classList.add('d-none');
+            dashboardPdfDownloadClose.classList.add('d-none');
+            dashboardPdfDownloadModal.classList.remove('d-none');
+            window.requestAnimationFrame(() => dashboardPdfDownloadModal.classList.add('is-visible'));
+        };
+
+        const getDashboardPdfFilename = (response) => {
+            const disposition = response.headers.get('Content-Disposition') || '';
+            const match = disposition.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
+            const encodedFilename = match?.[1] || match?.[2] || 'dashboard-reporte.pdf';
+
+            try {
+                return decodeURIComponent(encodedFilename).split(/[\\/]/).pop() || 'dashboard-reporte.pdf';
+            } catch (error) {
+                return encodedFilename.split(/[\\/]/).pop() || 'dashboard-reporte.pdf';
+            }
+        };
+
+        if (dashboardPdfDownloadBtn && dashboardPdfDownloadModal) {
+            dashboardPdfDownloadBtn.addEventListener('click', async (event) => {
+                event.preventDefault();
+                if (isDashboardPdfDownloading) {
+                    return;
+                }
+
+                isDashboardPdfDownloading = true;
+                dashboardPdfDownloadBtn.setAttribute('aria-busy', 'true');
+                showDashboardPdfModal();
+
+                try {
+                    const response = await fetch(dashboardPdfDownloadBtn.href, {
+                        method: 'GET',
+                        credentials: 'same-origin',
+                        headers: { Accept: 'application/pdf' },
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('El servidor no pudo generar el PDF.');
+                    }
+
+                    const pdfBlob = await response.blob();
+                    const signature = await pdfBlob.slice(0, 5).text();
+                    if (signature !== '%PDF-') {
+                        throw new Error('La respuesta recibida no es un archivo PDF.');
+                    }
+
+                    const objectUrl = URL.createObjectURL(pdfBlob);
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = objectUrl;
+                    downloadLink.download = getDashboardPdfFilename(response);
+                    document.body.appendChild(downloadLink);
+                    downloadLink.click();
+                    downloadLink.remove();
+                    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+
+                    dashboardPdfDownloadTitle.textContent = 'PDF descargado';
+                    dashboardPdfDownloadMessage.textContent = 'La descarga del reporte ha comenzado.';
+                    dashboardPdfDownloadSpinner.classList.add('d-none');
+                    dashboardPdfModalCloseTimer = window.setTimeout(hideDashboardPdfModal, 1100);
+                } catch (error) {
+                    dashboardPdfDownloadTitle.textContent = 'No se pudo descargar el PDF';
+                    dashboardPdfDownloadMessage.textContent = error.message || 'Intenta nuevamente en unos momentos.';
+                    dashboardPdfDownloadSpinner.classList.add('d-none');
+                    dashboardPdfDownloadErrorIcon.classList.remove('d-none');
+                    dashboardPdfDownloadClose.classList.remove('d-none');
+                } finally {
+                    isDashboardPdfDownloading = false;
+                    dashboardPdfDownloadBtn.removeAttribute('aria-busy');
+                }
+            });
+
+            dashboardPdfDownloadClose.addEventListener('click', hideDashboardPdfModal);
+        }
 
         const forceRestoreChartLayout = () => {
             resizeAllCharts();

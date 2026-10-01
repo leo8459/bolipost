@@ -26,7 +26,21 @@
         .contract-alert-toast {
             position: relative;
             padding-right: 2.75rem;
+            max-height: min(65vh, 560px);
+            overflow-y: auto;
             transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+
+        .contract-alert-list {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .contract-alert-list li + li {
+            margin-top: 0.55rem;
+            padding-top: 0.55rem;
+            border-top: 1px solid rgba(33, 37, 41, 0.18);
         }
 
         .contract-alert-toast .contract-alert-close {
@@ -148,17 +162,21 @@
         @endempty
 
         @auth
-            @if(!empty($empresaContractAlerts) && collect($empresaContractAlerts)->isNotEmpty())
+            @if(request()->routeIs('dashboard') && !empty($empresaContractAlerts) && collect($empresaContractAlerts)->isNotEmpty())
                 <div class="position-fixed" style="top: 72px; right: 18px; z-index: 1055; width: min(460px, calc(100vw - 24px));">
-                    @foreach(collect($empresaContractAlerts)->take(5) as $contractAlert)
-                        <div class="alert alert-warning shadow-sm border mb-2 contract-alert-toast" data-contract-alert>
-                            <button type="button" class="contract-alert-close" data-contract-alert-close aria-label="Cerrar alerta" title="Cerrar alerta">
-                                <span aria-hidden="true">&times;</span>
-                            </button>
-                            <div class="font-weight-bold">Alerta de contrato</div>
-                            <div>{{ $contractAlert['message'] ?? '' }}</div>
+                    <div class="alert alert-warning shadow-sm border mb-2 contract-alert-toast" data-contract-alert role="status" aria-live="polite">
+                        <button type="button" class="contract-alert-close" data-contract-alert-close aria-label="Cerrar alerta" title="Cerrar alerta">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                        <div class="font-weight-bold mb-2">
+                            Contratos próximos a vencer ({{ collect($empresaContractAlerts)->count() }})
                         </div>
-                    @endforeach
+                        <ul class="contract-alert-list">
+                            @foreach(collect($empresaContractAlerts) as $contractAlert)
+                                <li>{{ $contractAlert['message'] ?? '' }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
                 </div>
             @endif
 
