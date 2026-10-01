@@ -92,6 +92,8 @@ return [
         'timeout' => env('FACTURACION_BRIDGE_TIMEOUT', 30),
         'connect_timeout' => env('FACTURACION_BRIDGE_CONNECT_TIMEOUT', 5),
         'ssl_verify' => env('FACTURACION_REPORTS_SSL_VERIFY', true),
+        'cache_active_seconds' => env('FACTURACION_REPORTS_CACHE_ACTIVE_SECONDS', 60),
+        'cache_closed_seconds' => env('FACTURACION_REPORTS_CACHE_CLOSED_SECONDS', 900),
     ],
 
     'whatsapp_alerts' => [

@@ -567,6 +567,12 @@ class AclPermissionRegistry
         'dashboard.conciliacion.conciliaciones.descargar' => [
             'dashboard.conciliacion.conciliaciones',
         ],
+        'dashboard.financiera.flujo-cajero.movimiento.cobro-realizado' => [
+            'dashboard.financiera.flujo-cajero',
+        ],
+        'dashboard.financiera.flujo-cajero.movimiento.devolver-por-cobrar' => [
+            'dashboard.financiera.flujo-cajero',
+        ],
         'users.empresas' => [
             'users.empresas',
             'feature.users.empresas.manage',
@@ -2010,6 +2016,8 @@ class AclPermissionRegistry
             'dashboard.dir-financiera' => 'Reportes Ejecutivos: Financiera',
             'dashboard.financiera.ventas-servicios' => 'Ventana: Ventas por Servicio',
             'dashboard.financiera.flujo-cajero' => 'Ventana: Flujo de cajero',
+            'dashboard.financiera.flujo-cajero.movimiento.cobro-realizado' => 'Acción: Marcar movimiento cobrado en Flujo de cajero',
+            'dashboard.financiera.flujo-cajero.movimiento.devolver-por-cobrar' => 'Acción: Devolver movimiento a Por cobrar en Flujo de cajero',
             'dashboard.financiera.flujo-cajero.pdf' => 'Exportar PDF: Reporte ejecutivo de Flujo de cajero',
             'dashboard.financiera.ventas-servicios.detalle' => 'Ventana: Detalle por Servicio',
             'dashboard.financiera.ventas-servicios.pdf' => 'Exportar PDF: Reporte ejecutivo de Ventas por Servicio',
@@ -2422,6 +2430,8 @@ class AclPermissionRegistry
             'dashboard.dir-financiera' => 'Controla la visibilidad de los reportes ejecutivos de Financiera.',
             'dashboard.financiera.ventas-servicios' => 'Controla el acceso al reporte mensual de ventas por servicio de Dir. Financiera.',
             'dashboard.financiera.flujo-cajero' => 'Controla el acceso al reporte de ventas por cajero de Dir. Financiera.',
+            'dashboard.financiera.flujo-cajero.movimiento.cobro-realizado' => 'Controla el registro individual de cobros realizados desde el flujo de cajero.',
+            'dashboard.financiera.flujo-cajero.movimiento.devolver-por-cobrar' => 'Controla la devolucion individual de cobros a Por cobrar desde el flujo de cajero.',
             'dashboard.financiera.flujo-cajero.pdf' => 'Controla la descarga del reporte ejecutivo PDF de Flujo de cajero.',
             'dashboard.financiera.ventas-servicios.detalle' => 'Controla el acceso al detalle mensual de ventas de un servicio de Dir. Financiera.',
             'dashboard.financiera.ventas-servicios.pdf' => 'Controla la descarga del reporte ejecutivo PDF de Ventas por Servicio.',

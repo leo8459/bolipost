@@ -87,7 +87,7 @@
                     </div>
                     <div class="col-sm-4 col-md-2 mb-2 mb-sm-0">
                         <label for="contract-report-year" class="small mb-1">Año</label>
-                        <input id="contract-report-year" type="number" name="anio" class="form-control" min="2000" max="{{ now()->year + 1 }}" value="{{ $anio }}">
+                        <input id="contract-report-year" type="number" name="anio" class="form-control" min="2000" max="{{ now()->year + 3 }}" value="{{ $anio }}">
                     </div>
                     <div class="col-sm-3 col-md-2">
                         <button type="submit" class="btn btn-primary btn-block">

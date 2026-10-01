@@ -7,25 +7,123 @@ use Illuminate\Http\Client\Pool;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class FacturacionReportService
 {
-    public function services(int $month, int $year, int $limit = 200): array
+    public function services(int $month, int $year, int $limit = 200, bool $useCache = false, bool $refresh = false): array
     {
-        return $this->get('/ventas/reportes/servicios', [
-            'mes' => $month,
-            'anio' => $year,
-            'limite' => $limit,
-        ]);
+        $query = ['mes' => $month, 'anio' => $year, 'limite' => $limit];
+        if (! $useCache) {
+            return $this->get('/ventas/reportes/servicios', $query);
+        }
+
+        $key = $this->summaryCacheKey($month, $year, $limit);
+
+        return $this->cachedReport($key, $month, $year, $refresh, fn (): array => $this->get(
+            '/ventas/reportes/servicios',
+            $query
+        ));
     }
 
-    public function serviceDetail(string $service, int $month, int $year): array
+    public function serviceDetail(string $service, int $month, int $year, bool $useCache = false, bool $refresh = false): array
     {
-        return $this->get('/ventas/reportes/servicios/detalle', [
-            'servicio' => $service,
-            'mes' => $month,
-            'anio' => $year,
-        ]);
+        $query = ['servicio' => $service, 'mes' => $month, 'anio' => $year];
+        if (! $useCache) {
+            return $this->get('/ventas/reportes/servicios/detalle', $query);
+        }
+
+        $key = $this->detailCacheKey($service, $month, $year);
+
+        return $this->cachedReport($key, $month, $year, $refresh, fn (): array => $this->get(
+            '/ventas/reportes/servicios/detalle',
+            $query
+        ));
+    }
+
+    /**
+     * Consulta mes por mes los reportes que todavía no están en caché.
+     *
+     * @param  array<int, array{mes: int, anio: int, limite: int}>  $filters
+     * @return array<int, array{filter: array, report: ?array, error: ?string}>
+     */
+    public function servicesBatch(array $filters, bool $refresh = false): array
+    {
+        $baseUrl = rtrim((string) config('services.facturacion_reports.base_url'), '/');
+        $token = trim((string) config('services.facturacion_reports.token'));
+
+        if ($baseUrl === '') {
+            throw new \RuntimeException('No se configuró FACTURACION_REPORTS_BASE_URL.');
+        }
+        if ($token === '') {
+            throw new \RuntimeException('No se configuró FACTURACION_BRIDGE_TOKEN.');
+        }
+
+        $results = [];
+        $uncached = [];
+        foreach (array_values($filters) as $index => $filter) {
+            $cached = $refresh ? null : $this->readCachedReport($this->summaryCacheKey(
+                (int) ($filter['mes'] ?? 0),
+                (int) ($filter['anio'] ?? 0),
+                (int) ($filter['limite'] ?? 0)
+            ));
+            if ($cached !== null) {
+                $results[$index] = ['filter' => $filter, 'report' => $cached, 'error' => null];
+            } else {
+                $uncached[$index] = $filter;
+            }
+        }
+
+        // Reportes pesados: consultar mes por mes evita saturar la memoria de la API remota.
+        foreach ($uncached as $index => $filter) {
+            try {
+                $response = Http::withToken($token)
+                    ->acceptJson()
+                    ->timeout((int) config('services.facturacion_reports.timeout', 30))
+                    ->connectTimeout((int) config('services.facturacion_reports.connect_timeout', 5))
+                    ->withOptions(['verify' => (bool) config('services.facturacion_reports.ssl_verify', true)])
+                    ->get($baseUrl.'/ventas/reportes/servicios', [
+                        'mes' => (int) ($filter['mes'] ?? 0),
+                        'anio' => (int) ($filter['anio'] ?? 0),
+                        'limite' => (int) ($filter['limite'] ?? 0),
+                    ]);
+            } catch (\Throwable $exception) {
+                $results[$index] = ['filter' => $filter, 'report' => null, 'error' => $exception->getMessage()];
+                continue;
+            }
+
+            if (! $response->successful()) {
+                $results[$index] = [
+                    'filter' => $filter,
+                    'report' => null,
+                    'error' => $this->reportHttpError($response),
+                ];
+                continue;
+            }
+
+            $body = preg_replace('/^\xEF\xBB\xBF/', '', $response->body()) ?? $response->body();
+            $decoded = json_decode($body, true);
+            if (is_array($decoded)) {
+                $this->storeCachedReport(
+                    $this->summaryCacheKey(
+                        (int) ($filter['mes'] ?? 0),
+                        (int) ($filter['anio'] ?? 0),
+                        (int) ($filter['limite'] ?? 0)
+                    ),
+                    $decoded,
+                    (int) ($filter['mes'] ?? 0),
+                    (int) ($filter['anio'] ?? 0)
+                );
+            }
+            $results[$index] = [
+                'filter' => $filter,
+                'report' => is_array($decoded) ? $decoded : null,
+                'error' => is_array($decoded) ? null : 'El servicio de reportes devolvió una respuesta inválida.',
+            ];
+        }
+        ksort($results);
+
+        return array_values($results);
     }
 
     /**
@@ -35,7 +133,7 @@ class FacturacionReportService
      * @param  array<int, array{servicio: string, mes: int, anio: int}>  $filters
      * @return array<int, array{filter: array, report: ?array, error: ?string}>
      */
-    public function serviceDetailsBatch(array $filters): array
+    public function serviceDetailsBatch(array $filters, bool $useCache = false, bool $refresh = false): array
     {
         $baseUrl = rtrim((string) config('services.facturacion_reports.base_url'), '/');
         $token = trim((string) config('services.facturacion_reports.token'));
@@ -49,7 +147,22 @@ class FacturacionReportService
         }
 
         $results = [];
-        foreach (array_chunk(array_values($filters), 10, true) as $chunk) {
+        $uncached = [];
+        foreach (array_values($filters) as $index => $filter) {
+            $key = $this->detailCacheKey(
+                (string) ($filter['servicio'] ?? ''),
+                (int) ($filter['mes'] ?? 0),
+                (int) ($filter['anio'] ?? 0)
+            );
+            $cached = $useCache && ! $refresh ? $this->readCachedReport($key) : null;
+            if ($cached !== null) {
+                $results[$index] = ['filter' => $filter, 'report' => $cached, 'error' => null];
+            } else {
+                $uncached[$index] = $filter;
+            }
+        }
+
+        foreach (array_chunk($uncached, 10, true) as $chunk) {
             try {
                 $responses = Http::pool(function (Pool $pool) use ($chunk, $baseUrl, $token): array {
                     $requests = [];
@@ -97,6 +210,18 @@ class FacturacionReportService
 
                 $body = preg_replace('/^\xEF\xBB\xBF/', '', $response->body()) ?? $response->body();
                 $decoded = json_decode($body, true);
+                if ($useCache && is_array($decoded)) {
+                    $this->storeCachedReport(
+                        $this->detailCacheKey(
+                            (string) ($filter['servicio'] ?? ''),
+                            (int) ($filter['mes'] ?? 0),
+                            (int) ($filter['anio'] ?? 0)
+                        ),
+                        $decoded,
+                        (int) ($filter['mes'] ?? 0),
+                        (int) ($filter['anio'] ?? 0)
+                    );
+                }
                 $results[$index] = [
                     'filter' => $filter,
                     'report' => is_array($decoded) ? $decoded : null,
@@ -108,6 +233,72 @@ class FacturacionReportService
         ksort($results);
 
         return array_values($results);
+    }
+
+    private function detailCacheKey(string $service, int $month, int $year): string
+    {
+        return 'facturacion:reportes:detalle:v2:'.$this->cacheNamespace().':'.sha1($service.'|'.$year.'|'.$month);
+    }
+
+    private function summaryCacheKey(int $month, int $year, int $limit): string
+    {
+        return 'facturacion:reportes:servicios:v1:'.$this->cacheNamespace().':'.$year.':'.$month.':'.$limit;
+    }
+
+    private function cacheNamespace(): string
+    {
+        return substr(sha1(rtrim((string) config('services.facturacion_reports.base_url'), '/')), 0, 12);
+    }
+
+    private function cachedReport(string $key, int $month, int $year, bool $refresh, callable $fetch): array
+    {
+        if (! $refresh) {
+            $cached = $this->readCachedReport($key);
+            if ($cached !== null) {
+                return $cached;
+            }
+        }
+
+        $report = $fetch();
+        $this->storeCachedReport($key, $report, $month, $year);
+
+        return $report;
+    }
+
+    private function readCachedReport(string $key): ?array
+    {
+        try {
+            $cached = Cache::get($key);
+
+            return is_array($cached) ? $cached : null;
+        } catch (\Throwable $exception) {
+            Log::warning('No se pudo leer la caché del reporte de facturación.', [
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+    private function storeCachedReport(string $key, array $report, int $month, int $year): void
+    {
+        $isCurrentMonth = $year === now()->year && $month === now()->month;
+        $ttl = (int) config(
+            $isCurrentMonth
+                ? 'services.facturacion_reports.cache_active_seconds'
+                : 'services.facturacion_reports.cache_closed_seconds',
+            $isCurrentMonth ? 60 : 900
+        );
+
+        try {
+            Cache::put($key, $report, max(1, $ttl));
+        } catch (\Throwable $exception) {
+            Log::warning('No se pudo guardar la caché del reporte de facturación.', [
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
+        }
     }
 
     public function invoicePdf(string $trackingCode): array
@@ -253,7 +444,7 @@ class FacturacionReportService
         }
 
         if (! $response->successful()) {
-            throw new \RuntimeException("El servicio de reportes respondió con el código {$response->status()}.");
+            throw new \RuntimeException($this->reportHttpError($response));
         }
 
         // El servicio remoto actualmente antepone un BOM UTF-8 a la respuesta JSON.
@@ -265,5 +456,19 @@ class FacturacionReportService
         }
 
         return $decoded;
+    }
+
+    private function reportHttpError(Response $response): string
+    {
+        $body = $response->json();
+        $message = is_array($body)
+            ? mb_strtolower(trim((string) ($body['message'] ?? $body['error'] ?? '')))
+            : '';
+
+        if (str_contains($message, 'allowed memory size')) {
+            return 'El servicio de reportes agotó la memoria al procesar este periodo. La API de facturación debe optimizar esta consulta o ampliar su memoria.';
+        }
+
+        return "El servicio de reportes respondió con el código {$response->status()}.";
     }
 }

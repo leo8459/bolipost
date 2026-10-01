@@ -129,7 +129,7 @@
                         </div>
                         <div class="col-md-3 form-group">
                             <label for="porCobrarAnio">Año conciliado</label>
-                            <input id="porCobrarAnio" type="number" name="anio" value="{{ $anio }}" min="2000" max="{{ now()->year + 1 }}" class="form-control" required>
+                            <input id="porCobrarAnio" type="number" name="anio" value="{{ $anio }}" min="2000" max="{{ now()->year + 3 }}" class="form-control" required>
                         </div>
                     </div>
                     <small class="text-muted"><i class="fas fa-info-circle mr-1"></i>La empresa debe tener previamente su documento de conciliación cargado para el mes elegido.</small>

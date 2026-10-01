@@ -442,6 +442,93 @@ class FinancialReportTest extends TestCase
         Http::assertSentCount(6);
     }
 
+    public function test_cashier_flow_reuses_cached_summary_and_can_refresh_it(): void
+    {
+        $remoteCalls = 0;
+        Http::fake(function () use (&$remoteCalls) {
+            $remoteCalls++;
+
+            return Http::response(['servicios' => [[
+                'servicio' => 'Servicio Internacional',
+                'cantidadVentas' => $remoteCalls,
+                'cantidadDetalles' => $remoteCalls,
+                'totalCantidad' => $remoteCalls,
+                'totalMonto' => 10 * $remoteCalls,
+            ]]], 200);
+        });
+
+        $url = route('dashboard.financiera.flujo-cajero', ['mes' => 8, 'anio' => 2026]);
+        $this->withoutMiddleware()->get($url)->assertOk()
+            ->assertViewHas('summary', fn (array $summary): bool => $summary['cantidadVentas'] === 1.0);
+        $this->withoutMiddleware()->get($url)->assertOk()
+            ->assertViewHas('summary', fn (array $summary): bool => $summary['cantidadVentas'] === 1.0);
+        $this->assertSame(1, $remoteCalls);
+
+        $this->withoutMiddleware()->get(route('dashboard.financiera.flujo-cajero', [
+            'mes' => 8, 'anio' => 2026, 'actualizar' => 1,
+        ]))->assertOk()
+            ->assertViewHas('summary', fn (array $summary): bool => $summary['cantidadVentas'] === 2.0);
+        $this->assertSame(2, $remoteCalls);
+    }
+
+    public function test_cashier_modal_reuses_cached_details_for_multiple_services(): void
+    {
+        Http::fake(fn (Request $request) => Http::response(['servicio' => [
+            'cantidadVentas' => 1,
+            'cantidadDetalles' => 1,
+            'totalCantidad' => 1,
+            'totalMonto' => 25,
+            'rows' => [[
+                'ventaId' => $request['servicio'],
+                'descripcion' => 'Detalle de prueba',
+                'fecha' => '2026-08-18',
+                'totalLinea' => 25,
+            ]],
+        ]], 200));
+
+        $url = route('dashboard.financiera.ventas-servicios.detalle', [
+            'servicios' => ['Servicio A', 'Servicio B'],
+            'meses' => [8],
+            'anio' => 2026,
+            'modal' => 1,
+        ]);
+
+        $this->withoutMiddleware()->get($url)->assertOk()
+            ->assertHeader('X-Flow-Detail-Fragment', '1')
+            ->assertSee('Movimientos individuales')
+            ->assertSee('Servicio A')
+            ->assertSee('Servicio B');
+        $this->withoutMiddleware()->get($url)->assertOk()
+            ->assertHeader('X-Flow-Detail-Fragment', '1');
+
+        Http::assertSentCount(2);
+
+        $this->withoutMiddleware()->get($url.'&actualizar=1')->assertOk()
+            ->assertHeader('X-Flow-Detail-Fragment', '1');
+        Http::assertSentCount(4);
+    }
+
+    public function test_cashier_flow_caches_multiple_months_after_parallel_fetch(): void
+    {
+        Http::fake(fn (Request $request) => Http::response(['servicios' => [[
+            'servicio' => 'Servicio Internacional',
+            'cantidadVentas' => (int) $request['mes'],
+            'cantidadDetalles' => (int) $request['mes'],
+            'totalCantidad' => (int) $request['mes'],
+            'totalMonto' => 10 * (int) $request['mes'],
+        ]]], 200));
+
+        $url = route('dashboard.financiera.flujo-cajero', [
+            'meses' => [7, 8], 'anio' => 2026,
+        ]);
+        $this->withoutMiddleware()->get($url)->assertOk()
+            ->assertViewHas('summary', fn (array $summary): bool => $summary['cantidadVentas'] === 15.0);
+        $this->withoutMiddleware()->get($url)->assertOk()
+            ->assertViewHas('summary', fn (array $summary): bool => $summary['cantidadVentas'] === 15.0);
+
+        Http::assertSentCount(2);
+    }
+
     public function test_cashier_flow_consolidates_totals_and_excludes_contracts(): void
     {
         Http::fake(function (Request $request) {

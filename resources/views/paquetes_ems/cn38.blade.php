@@ -10,10 +10,10 @@
 
         body {
             margin: 0;
-            font-family: "Courier New", "DejaVu Sans Mono", monospace;
-            font-size: 11px;
-            line-height: 1.12;
-            color: #7f95d1;
+            font-family: "DejaVu Sans", Arial, sans-serif;
+            font-size: 10.5px;
+            line-height: 1.25;
+            color: #1f2937;
         }
 
         .sheet {
@@ -23,6 +23,7 @@
         .top-note {
             font-size: 10px;
             margin-bottom: 4px;
+            color: #334155;
         }
 
         .header-grid {
@@ -38,13 +39,17 @@
 
         .center-title {
             text-align: center;
-            font-size: 12px;
+            font-size: 13px;
+            font-weight: bold;
+            color: #163a63;
             letter-spacing: 0.4px;
         }
 
         .right-box {
             text-align: right;
             white-space: nowrap;
+            font-weight: bold;
+            color: #163a63;
         }
 
         .block {
@@ -54,10 +59,12 @@
         .inline-label {
             display: inline-block;
             min-width: 148px;
+            color: #334155;
+            font-weight: bold;
         }
 
         .line {
-            border-top: 1px dashed #b9c6eb;
+            border-top: 1px solid #64748b;
             margin: 7px 0 6px;
         }
 
@@ -69,17 +76,32 @@
 
         table.list th,
         table.list td {
-            padding: 1px 4px;
+            padding: 3px 4px;
             font-weight: normal;
             text-align: left;
             vertical-align: top;
             overflow: hidden;
             white-space: nowrap;
             text-overflow: ellipsis;
+            color: #1f2937;
         }
 
         table.list th {
-            padding-bottom: 3px;
+            padding-top: 4px;
+            padding-bottom: 4px;
+            font-weight: bold;
+            color: #163a63;
+            background: #edf2f7;
+            border-top: 1px solid #475569;
+            border-bottom: 1px solid #475569;
+        }
+
+        table.list tbody tr td {
+            border-bottom: 1px solid #d5dbe4;
+        }
+
+        .c-despacho {
+            font-family: "DejaVu Sans Mono", "Courier New", monospace;
         }
 
         .c-despacho { width: 18%; }
@@ -125,13 +147,17 @@
             position: absolute;
             left: 0;
             bottom: 16px;
-            font-size: 16px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #163a63;
+            border: 1px solid #163a63;
+            padding: 5px 9px;
             letter-spacing: 1px;
             transform: rotate(-3deg);
         }
 
         .totals-line {
-            border-top: 1px dashed #b9c6eb;
+            border-top: 1px solid #475569;
             margin-top: 10px;
             padding-top: 4px;
         }
@@ -158,7 +184,7 @@
         <table class="header-grid">
             <tr>
                 <td style="width:36%;">
-                    <div>Admimistracion expedidora</div>
+                    <div>Administración expedidora</div>
                     <div>BO - BOLIVIA</div>
                 </td>
                 <td style="width:44%;" class="center-title">

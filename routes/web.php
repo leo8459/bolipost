@@ -243,6 +243,12 @@ Route::get('/dir-financiera/ventas-servicios', [FinancialReportController::class
 Route::get('/dir-financiera/flujo-cajero', [FinancialReportController::class, 'cashierFlow'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.financiera.flujo-cajero');
+Route::post('/dir-financiera/flujo-cajero/movimiento/cobro-realizado', [FinancialReportController::class, 'markCashierFlowMovementCollected'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.financiera.flujo-cajero.movimiento.cobro-realizado');
+Route::post('/dir-financiera/flujo-cajero/movimiento/devolver-por-cobrar', [FinancialReportController::class, 'returnCashierFlowMovementToPending'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.financiera.flujo-cajero.movimiento.devolver-por-cobrar');
 Route::get('/dir-financiera/flujo-cajero/reporte-ejecutivo.pdf', [FinancialReportController::class, 'cashierFlowReport'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.financiera.flujo-cajero.pdf');
@@ -281,6 +287,9 @@ Route::get('/entregas', [DashboardController::class, 'entregas'])
 Route::get('/entregas/export/excel', [DashboardController::class, 'exportEntregasExcel'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('entregas.export.excel');
+Route::get('/entregas/export/pdf', [DashboardController::class, 'exportEntregasPdf'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('entregas.export.pdf');
 Route::get('/reportes', [ReportesController::class, 'index'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('reportes.index');

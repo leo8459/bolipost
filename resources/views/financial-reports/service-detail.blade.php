@@ -75,8 +75,9 @@
             ['Detalles', $service['cantidadDetalles'] ?? 0, 'fa-list', 'info'],
             ['Cantidad total de paquetería', $service['totalCantidad'] ?? 0, 'fa-boxes', 'warning'],
             ['Ingresos de ventanilla', 'Bs ' . \App\Support\BolivianNumber::format((float) ($service['totalMonto'] ?? 0), 2), 'fa-money-bill-wave', 'success'],
+            ['Promedio diario facturado', 'Bs ' . \App\Support\BolivianNumber::format((float) ($service['promedioDiario'] ?? 0), 2), 'fa-chart-line', 'primary'],
         ] as [$label, $value, $icon, $color])
-            <div class="col-sm-6 col-xl-3 mb-3">
+            <div class="col-sm-6 col-xl mb-3">
                 <div class="info-box bg-white border mb-0">
                     <span class="info-box-icon bg-{{ $color }}"><i class="fas {{ $icon }}"></i></span>
                     <div class="info-box-content">

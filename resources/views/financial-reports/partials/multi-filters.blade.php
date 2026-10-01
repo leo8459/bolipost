@@ -123,7 +123,7 @@
                         <div class="row">
                             <div class="{{ ($showLimit ?? false) ? 'col-6' : 'col-12' }} mb-3">
                                 <label for="report-year">Año</label>
-                                <input id="report-year" type="number" name="anio" class="form-control" min="2000" max="{{ now()->year + 1 }}" value="{{ $anio }}">
+                                <input id="report-year" type="number" name="anio" class="form-control" min="2000" max="{{ now()->year + 3 }}" value="{{ $anio }}">
                             </div>
                             @if($showLimit ?? false)
                                 <div class="col-6 mb-3">
@@ -346,6 +346,81 @@
                 document.querySelectorAll('[data-report-download]').forEach(function (link) {
                     link.addEventListener('click', function (event) {
                         event.preventDefault();
+
+                        if (link.hasAttribute('data-wait-for-download')) {
+                            if (link.dataset.downloading === 'true') {
+                                return;
+                            }
+                            link.dataset.downloading = 'true';
+
+                            var downloadModal = document.querySelector('[data-report-loading-modal]');
+                            var downloadTitle = downloadModal ? downloadModal.querySelector('h2') : null;
+                            var downloadMessage = downloadModal ? downloadModal.querySelector('p') : null;
+                            function closeDownloadModal() {
+                                if (downloadModal) {
+                                    downloadModal.classList.remove('is-visible');
+                                    downloadModal.setAttribute('aria-hidden', 'true');
+                                }
+                                document.body.classList.remove('report-is-loading');
+                            }
+
+                            if (downloadTitle) downloadTitle.textContent = link.dataset.loadingTitle || 'Generando reporte';
+                            if (downloadMessage) downloadMessage.textContent = link.dataset.loadingMessage || 'Espere por favor, estamos preparando el PDF.';
+                            if (downloadModal) {
+                                downloadModal.classList.add('is-visible');
+                                downloadModal.setAttribute('aria-hidden', 'false');
+                            }
+                            document.body.classList.add('report-is-loading');
+
+                            fetch(link.href, { credentials: 'same-origin' })
+                                .then(function (response) {
+                                    if (!response.ok) {
+                                        throw new Error('El servidor respondió con el código ' + response.status + '.');
+                                    }
+
+                                    var contentType = (response.headers.get('Content-Type') || '').toLowerCase();
+                                    if (contentType && !contentType.includes('application/pdf') && !contentType.includes('application/octet-stream')) {
+                                        throw new Error('La respuesta recibida no es un archivo PDF.');
+                                    }
+
+                                    return response.blob().then(function (blob) {
+                                        if (blob.size === 0) {
+                                            throw new Error('El archivo recibido está vacío.');
+                                        }
+
+                                        return { response: response, blob: blob };
+                                    });
+                                })
+                                .then(function (result) {
+                                    var disposition = result.response.headers.get('Content-Disposition') || '';
+                                    var utf8Name = disposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
+                                    var regularName = disposition.match(/filename\s*=\s*"?([^";]+)"?/i);
+                                    var fileName = utf8Name ? decodeURIComponent(utf8Name[1]) : (regularName ? regularName[1].trim() : 'reporte-flujo-cajero.pdf');
+                                    var objectUrl = URL.createObjectURL(result.blob);
+                                    var downloadLink = document.createElement('a');
+                                    downloadLink.href = objectUrl;
+                                    downloadLink.download = fileName;
+                                    downloadLink.style.display = 'none';
+                                    document.body.appendChild(downloadLink);
+                                    downloadLink.click();
+                                    downloadLink.remove();
+                                    window.setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 1000);
+
+                                    if (downloadTitle) downloadTitle.textContent = 'Descarga iniciada';
+                                    if (downloadMessage) downloadMessage.textContent = 'El PDF se recibió completo y se envió a las descargas.';
+                                    window.setTimeout(closeDownloadModal, 900);
+                                })
+                                .catch(function (error) {
+                                    if (downloadTitle) downloadTitle.textContent = 'No se pudo descargar el PDF';
+                                    if (downloadMessage) downloadMessage.textContent = error.message || 'Revise su conexión e intente nuevamente.';
+                                    window.setTimeout(closeDownloadModal, 4000);
+                                })
+                                .finally(function () {
+                                    link.dataset.downloading = 'false';
+                                });
+
+                            return;
+                        }
 
                         var loadingModal = document.querySelector('[data-report-loading-modal]');
                         if (loadingModal) {

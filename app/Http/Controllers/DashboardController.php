@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Exports\DashboardReportExport;
-use App\Exports\DashboardEntregasRendimientoExport;
+use App\Exports\DashboardEntregasWorkbookExport;
 use App\Exports\DashboardRankingDepartamentosExport;
 use App\Models\Cartero;
 use App\Models\Estado;
@@ -41,6 +41,10 @@ class DashboardController extends Controller
     private const DASHBOARD_HEAVY_ALERT_CACHE_SECONDS = 300;
     private const DASHBOARD_MAX_EXECUTION_SECONDS = 180;
     private const DASHBOARD_INLINE_DEPARTMENT_MAX_ROWS = 100000;
+    private const ENTREGAS_EXCLUDED_COURIER_NAMES = [
+        'pasante',
+        'leonardo doria medina ochoa',
+    ];
     private const DESTINOS_LARGA_DISTANCIA = [
         'SANTA CRUZ',
         'TRINIDAD',
@@ -352,7 +356,36 @@ class DashboardController extends Controller
         $data = $this->buildEntregasData($request);
         $filename = 'entregas-rendimiento-' . now()->format('Ymd-His') . '.xlsx';
 
-        return Excel::download(new DashboardEntregasRendimientoExport($data), $filename);
+        return Excel::download(new DashboardEntregasWorkbookExport($data), $filename);
+    }
+
+    public function exportEntregasPdf(Request $request)
+    {
+        $data = $this->buildEntregasData($request);
+        $pdf = Pdf::loadView('entregas.pdf', $data)
+            ->setPaper('A4', 'landscape')
+            ->setOptions([
+                'dpi' => 72,
+                'defaultFont' => 'DejaVu Sans',
+                'isRemoteEnabled' => false,
+                'isHtml5ParserEnabled' => false,
+            ]);
+
+        $pdf->render();
+        $pdf->getDomPDF()->getCanvas()->page_text(
+            748,
+            562,
+            'Página {PAGE_NUM} de {PAGE_COUNT}',
+            null,
+            8,
+            [0.36, 0.42, 0.52]
+        );
+
+        $filename = 'entregas-ejecutivo-' . now()->format('Ymd-His') . '.pdf';
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, $filename, ['Content-Type' => 'application/pdf']);
     }
 
     private function buildEntregasData(Request $request): array
@@ -360,6 +393,11 @@ class DashboardController extends Controller
         $modulosSeleccionados = $this->resolveModulosSeleccionados($request);
         [$desde, $hasta, $rangoLabel, $rangoKey] = $this->resolveRangoFechas($request);
         $departamentoCartero = $this->resolveDepartamentoFiltroPorCampo($request, 'cartero_departamento');
+        $diasLaborables = $this->countDeliveryWorkingDays(
+            $modulosSeleccionados,
+            $desde,
+            $hasta
+        );
 
         $entregadores = $this->buildRankingEntregadores($modulosSeleccionados, $desde, $hasta, null, '', $departamentoCartero)
             ->map(function ($row) {
@@ -400,7 +438,7 @@ class DashboardController extends Controller
             ->keyBy('id')
             ->union($asignados)
             ->union($ventanilla)
-            ->map(function ($row, $userId) use ($entregadores, $asignados, $ventanilla) {
+            ->map(function ($row, $userId) use ($entregadores, $asignados, $ventanilla, $diasLaborables) {
                 $entregadoRow = $entregadores->firstWhere('id', $userId);
                 $asignadoRow = $asignados->get($userId);
                 $ventanillaRow = $ventanilla->get($userId);
@@ -408,6 +446,9 @@ class DashboardController extends Controller
                 $row->name = $entregadoRow->name ?? $asignadoRow->name ?? $ventanillaRow->name ?? $row->name;
                 $row->ciudad = $entregadoRow->ciudad ?? $asignadoRow->ciudad ?? $ventanillaRow->ciudad ?? $row->ciudad;
                 $row->total_entregados = (int) ($entregadoRow->total_entregados ?? 0);
+                $row->promedio_diario = $diasLaborables > 0
+                    ? $row->total_entregados / $diasLaborables
+                    : 0;
                 $row->total_ventanilla = (int) ($ventanillaRow->total_ventanilla ?? 0);
                 $row->total_cartero_entregados = max(0, $row->total_entregados - $row->total_ventanilla);
                 $row->ems = (int) ($entregadoRow->ems ?? 0);
@@ -445,11 +486,56 @@ class DashboardController extends Controller
 
                 return $row;
             })
+            ->reject(function ($row) {
+                $nombre = preg_replace('/\s+/u', ' ', trim((string) ($row->name ?? '')));
+                $nombre = mb_strtolower($nombre ?? '', 'UTF-8');
+
+                return in_array($nombre, self::ENTREGAS_EXCLUDED_COURIER_NAMES, true);
+            })
             ->sortByDesc(fn ($row) => ((int) $row->total_asignados * 1000000) + (int) $row->total_entregados + (int) $row->total_ventanilla)
+            ->values();
+
+        $totalEntregados = (int) $entregadores->sum('total_entregados');
+
+        $resumenDepartamentos = $entregadores
+            ->groupBy(function ($row) {
+                $departamento = strtoupper(trim((string) ($row->ciudad ?? '')));
+
+                return $departamento !== '' ? $departamento : 'SIN DEPARTAMENTO';
+            })
+            ->map(function ($carteros, string $departamento) use ($diasLaborables) {
+                $totalAsignados = (int) $carteros->sum('total_asignados');
+                $totalCarteroEntregados = (int) $carteros->sum('total_cartero_entregados');
+                $totalVentanilla = (int) $carteros->sum('total_ventanilla');
+                $totalEntregadosDepartamento = (int) $carteros->sum('total_entregados');
+
+                return [
+                    'departamento' => $departamento,
+                    'carteros' => $carteros->sortByDesc('total_entregados')->values(),
+                    'cantidad_carteros' => $carteros->count(),
+                    'total_asignados' => $totalAsignados,
+                    'total_cartero_entregados' => $totalCarteroEntregados,
+                    'total_ventanilla' => $totalVentanilla,
+                    'total_entregados' => $totalEntregadosDepartamento,
+                    'promedio_diario' => $diasLaborables > 0
+                        ? $totalEntregadosDepartamento / $diasLaborables
+                        : 0,
+                    'pendientes_asignados' => (int) $carteros->sum('pendientes_asignados'),
+                    'cumplimiento' => DeliveryFulfillment::percentage(
+                        $totalAsignados,
+                        $totalCarteroEntregados,
+                        $totalVentanilla
+                    ),
+                ];
+            })
+            ->sortByDesc('total_entregados')
             ->values();
 
         return [
             'entregadores' => $entregadores,
+            'resumenDepartamentos' => $resumenDepartamentos,
+            'diasLaborables' => $diasLaborables,
+            'promedioDiarioGeneral' => $diasLaborables > 0 ? $totalEntregados / $diasLaborables : 0,
             'modulosDisponibles' => self::MODULOS,
             'modulosSeleccionados' => $modulosSeleccionados,
             'rangoDesde' => $desde ? $desde->toDateString() : null,
@@ -459,6 +545,61 @@ class DashboardController extends Controller
             'departamentoCartero' => $departamentoCartero,
             'departamentosDisponibles' => self::DESTINOS_BASE,
         ];
+    }
+
+    private function countDeliveryWorkingDays(
+        array $modulosSeleccionados,
+        ?Carbon $from,
+        ?Carbon $to
+    ): int {
+        if (!$from || !$to) {
+            $firstDeliveryAt = null;
+            $lastDeliveryAt = null;
+
+            foreach ($modulosSeleccionados as $moduloKey) {
+                $config = self::MODULOS[$moduloKey];
+                $query = DB::table($config['event_table'] . ' as delivered')
+                    ->where('delivered.evento_id', self::EVENTO_ENTREGADO_ID);
+
+                $this->excludeCanceledPackageForEvent($query, $config, 'delivered');
+
+                $bounds = $query
+                    ->selectRaw('MIN(delivered.created_at) as first_delivery_at, MAX(delivered.created_at) as last_delivery_at')
+                    ->first();
+
+                if (!empty($bounds->first_delivery_at)) {
+                    $first = Carbon::parse($bounds->first_delivery_at);
+                    $last = Carbon::parse($bounds->last_delivery_at);
+                    if (!$firstDeliveryAt || $first->lt($firstDeliveryAt)) {
+                        $firstDeliveryAt = $first;
+                    }
+                    if (!$lastDeliveryAt || $last->gt($lastDeliveryAt)) {
+                        $lastDeliveryAt = $last;
+                    }
+                }
+            }
+
+            if (!$firstDeliveryAt || !$lastDeliveryAt) {
+                return 0;
+            }
+
+            $from = $firstDeliveryAt;
+            $to = $lastDeliveryAt;
+        }
+
+        $day = $from->copy()->startOfDay();
+        $lastDay = $to->copy()->startOfDay();
+        $workingDays = 0;
+
+        while ($day->lte($lastDay)) {
+            if ($day->dayOfWeek !== Carbon::SUNDAY) {
+                $workingDays++;
+            }
+
+            $day->addDay();
+        }
+
+        return $workingDays;
     }
 
     public function reportes(Request $request)

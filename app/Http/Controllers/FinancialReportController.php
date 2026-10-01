@@ -2,13 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CashierFlowReceivableCollection;
+use App\Models\CashierFlowReceivableMovement;
 use App\Models\ConciliacionEmpresa;
 use App\Models\Empresa;
 use App\Models\User;
 use App\Services\FacturacionReportService;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -83,32 +87,137 @@ class FinancialReportController extends Controller
             forceOnlyContracts: false,
             reconcileContracts: false,
             excludeContracts: true,
-            excludedCashierNames: self::CASHIER_FLOW_EXCLUDED_CASHIERS,
-            enableDepartmentFilter: true
+            excludedCashierNames: [],
+            enableDepartmentFilter: true,
+            cacheReports: true,
+            showReceivablesSeparately: true
         );
-        $data['cashierRows'] = $this->buildCashierBreakdown($data['services']);
+        $receivableRows = collect($data['receivableServices']);
+        $invoicePeriodMovements = collect();
+        if (Schema::hasTable('cashier_flow_receivable_movements') && $data['selectedDepartment'] === '') {
+            $invoicePeriodMovements = CashierFlowReceivableMovement::query()
+                ->where('cobro_activo', true)
+                ->where('anio', $data['anio'])
+                ->whereIn('mes', $data['selectedMonths'])
+                ->whereIn('servicio', $receivableRows->pluck('servicio')->all())
+                ->get();
+            $invoicePeriodMovements = $this->enrichCashierFlowCollectedMovements($invoicePeriodMovements);
+        }
+        $invoiceCollections = $invoicePeriodMovements->groupBy('servicio');
+        $data['receivableServices'] = $receivableRows
+            ->map(function (array $service) use ($invoiceCollections): array {
+                $serviceCollections = $invoiceCollections->get((string) ($service['servicio'] ?? ''), collect());
+                $service['_montoCobrado'] = (float) $serviceCollections->sum('monto');
+                $service['_montoPendiente'] = max(0, (float) ($service['totalMonto'] ?? 0) - $service['_montoCobrado']);
+                $service['_cobroRealizado'] = $service['_montoCobrado'] > 0;
+
+                return $service;
+            })
+            ->values();
+        $collectedServiceRows = $this->buildCollectedReceivableServiceRows($invoicePeriodMovements->groupBy('servicio'));
+        $data['serviceGroups'] = $this->buildServiceGroups(
+            collect($data['services'])->concat($collectedServiceRows)
+        );
+        $data['summary']['cantidadServicios'] = $data['serviceGroups']->count();
+        $data['cashierFlowCollectedAmount'] = (float) $invoicePeriodMovements->sum('monto');
+        $data['summary']['totalRecaudado'] = (float) ($data['summary']['totalMonto'] ?? 0)
+            + $data['cashierFlowCollectedAmount'];
+        $data['cashierRows'] = $this->addCashierReceivableIncome(
+            $this->buildCashierBreakdown($data['services']),
+            $invoicePeriodMovements
+        );
+        $data['cashierRows'] = $this->addCashierPeriodAverages(
+            $data['cashierRows'],
+            $data['selectedMonths'],
+            $data['anio']
+        );
 
         return view('financial-reports.cashier-flow', $data);
     }
 
     public function cashierFlowReport(Request $request)
     {
+        @set_time_limit(300);
+        @ini_set('max_execution_time', '300');
+        @ini_set('memory_limit', '1024M');
+
         $data = $this->buildServicesReportData(
             $request,
             forceOnlyContracts: false,
             reconcileContracts: false,
             excludeContracts: true,
             excludedCashierNames: self::CASHIER_FLOW_EXCLUDED_CASHIERS,
-            enableDepartmentFilter: true
+            enableDepartmentFilter: true,
+            cacheReports: true,
+            showReceivablesSeparately: true
         );
-        $data['cashierRows'] = $this->buildCashierBreakdown($data['services']);
-        $data['cashierRows'] = $this->addCashierWorkMetrics(
-            $data['cashierRows'],
-            $data['services'],
+        $invoiceDetailFilters = $this->cashierFlowInvoiceDetailFilters(
+            collect($data['services'])->concat($data['receivableServices']),
             $data['selectedMonths'],
-            $data['anio'],
-            $data['selectedDepartment'],
-            self::CASHIER_FLOW_EXCLUDED_CASHIERS
+            $data['anio']
+        );
+        $invoiceAudit = $this->loadCashierFlowCancelledInvoices(
+            $invoiceDetailFilters,
+            collect($data['services'])->concat($data['receivableServices']),
+            $data['selectedDepartment']
+        );
+        $periodCancelledInvoices = $invoiceAudit['invoices'];
+        $summaryCancelledInvoices = $periodCancelledInvoices
+            ->reject(fn (array $invoice): bool => $this->isCashierFlowReceivableService((string) $invoice['_servicio']));
+        $data['services'] = $this->subtractCancelledInvoicesFromServices(
+            collect($data['services']),
+            $summaryCancelledInvoices,
+            $invoiceAudit['nonCancelledAmounts'],
+            $invoiceAudit['completeServices']
+        );
+        $data['summary']['totalMonto'] = (float) $data['services']->sum('totalMonto');
+        $data['summary']['cantidadVentas'] = (float) $data['services']->sum('cantidadVentas');
+        $data['summary']['cantidadDetalles'] = (float) $data['services']->sum('cantidadDetalles');
+        $data['summary']['totalCantidad'] = (float) $data['services']->sum('totalCantidad');
+        $collectedMovements = Schema::hasTable('cashier_flow_receivable_movements') && $data['selectedDepartment'] === ''
+            ? $this->cashierFlowCollectedMovementsForPeriod($data['selectedMonths'], $data['anio'])
+            : collect();
+        $collectionAudit = $this->loadCashierFlowCancelledInvoices(
+            $this->cashierFlowMovementDetailFilters($collectedMovements)
+        );
+        $cancelledMovementKeys = $collectionAudit['invoices']->pluck('_movementKey')->filter()->flip();
+        if ($cancelledMovementKeys->isNotEmpty()) {
+            $collectedMovements = $collectedMovements
+                ->reject(fn (CashierFlowReceivableMovement $movement): bool => $cancelledMovementKeys->has($movement->movement_key))
+                ->values();
+        }
+        $data['cashierFlowCancelledInvoices'] = $periodCancelledInvoices
+            ->concat($collectionAudit['invoices'])
+            ->unique(fn (array $invoice): string => filled($invoice['_movementKey'] ?? null)
+                ? (string) $invoice['_movementKey']
+                : (string) $invoice['_dedupeKey'])
+            ->sortByDesc('fecha')
+            ->values();
+        $data['cashierFlowCancellationLookupErrors'] = $invoiceAudit['errors']
+            ->concat($collectionAudit['errors'])
+            ->unique()
+            ->values();
+        $collectedServiceRows = $this->buildCollectedReceivableServiceRows(
+            $collectedMovements->groupBy('servicio')
+        );
+        $data['serviceGroups'] = $this->buildServiceGroups(
+            collect($data['services'])->concat($collectedServiceRows)
+        );
+        $data['summary']['cantidadServicios'] = $data['serviceGroups']->count();
+        $data['cashierFlowCollectedMovements'] = $collectedMovements;
+        $data['cashierFlowCollectedAmount'] = (float) $collectedMovements->sum('monto');
+        $data['summary']['totalRecaudado'] = (float) ($data['summary']['totalMonto'] ?? 0)
+            + $data['cashierFlowCollectedAmount'];
+        $data['totalReportIncome'] = $data['summary']['totalRecaudado'];
+        $data['cashierFlowCollectionsOmittedByDepartment'] = $data['selectedDepartment'] !== '';
+        $data['cashierRows'] = $this->addCashierReceivableIncome(
+            $this->buildCashierBreakdown($data['services']),
+            $collectedMovements
+        );
+        $data['cashierRows'] = $this->addCashierPeriodAverages(
+            $data['cashierRows'],
+            $data['selectedMonths'],
+            $data['anio']
         );
         $data['generatedAt'] = now();
         $data['periodLabel'] = collect($data['selectedMonths'])
@@ -119,15 +228,793 @@ class FinancialReportController extends Controller
             ][$month] ?? (string) $month)
             ->implode(', ').' de '.$data['anio'];
 
-        $totalAmount = (float) ($data['summary']['totalMonto'] ?? 0);
-        $totalSales = (float) ($data['summary']['cantidadVentas'] ?? 0);
-        $data['averageTicket'] = $totalSales > 0 ? $totalAmount / $totalSales : 0;
+        $reportDays = $this->countReportDaysExcludingSundays($data['selectedMonths'], $data['anio']);
+        $data['averageDailyIncome'] = $reportDays > 0 ? $data['totalReportIncome'] / $reportDays : 0.0;
         $data['topCashier'] = $data['cashierRows']->first();
         $data['topService'] = $data['serviceGroups']->first();
 
         return Pdf::loadView('financial-reports.cashier-flow-pdf', $data)
             ->setPaper('A4', 'portrait')
-            ->download('reporte-flujo-cajero-sin-contratos-'.$data['anio'].'-'.now()->format('Ymd_His').'.pdf');
+            ->download('reporte-flujo-cajero-'.$data['anio'].'-'.now()->format('Ymd_His').'.pdf');
+    }
+
+    private function cashierFlowInvoiceDetailFilters(Collection $services, array $months, int $year): array
+    {
+        return $services
+            ->pluck('servicio')
+            ->map(fn ($service): string => trim((string) $service))
+            ->filter()
+            ->unique()
+            ->flatMap(fn (string $service) => collect($months)
+                ->map(fn ($month): array => [
+                    'servicio' => $service,
+                    'mes' => (int) $month,
+                    'anio' => $year,
+                ]))
+            ->values()
+            ->all();
+    }
+
+    private function cashierFlowMovementDetailFilters(Collection $movements): array
+    {
+        return $movements
+            ->map(fn (CashierFlowReceivableMovement $movement): array => [
+                'servicio' => (string) $movement->servicio,
+                'mes' => (int) $movement->mes,
+                'anio' => (int) $movement->anio,
+            ])
+            ->unique(fn (array $filter): string => $filter['servicio'].'|'.$filter['mes'].'|'.$filter['anio'])
+            ->values()
+            ->all();
+    }
+
+    private function loadCashierFlowCancelledInvoices(
+        array $filters,
+        ?Collection $departmentServices = null,
+        string $selectedDepartment = ''
+    ): array
+    {
+        if ($filters === []) {
+            return [
+                'invoices' => collect(),
+                'errors' => collect(),
+                'nonCancelledAmounts' => collect(),
+                'completeServices' => collect(),
+            ];
+        }
+
+        try {
+            $results = $this->reports->serviceDetailsBatch($filters, true, false);
+        } catch (\Throwable $exception) {
+            return [
+                'invoices' => collect(),
+                'errors' => collect([$exception->getMessage()]),
+                'nonCancelledAmounts' => collect(),
+                'completeServices' => collect(),
+            ];
+        }
+
+        $invoices = collect();
+        $errors = collect();
+        $nonCancelledAmounts = collect();
+        $successfulServiceMonths = collect();
+        foreach ($results as $result) {
+            $filter = (array) ($result['filter'] ?? []);
+            if (($result['error'] ?? null) !== null || ! is_array($result['report'] ?? null)) {
+                $errors->push((string) ($result['error'] ?? 'No se pudo consultar el detalle del servicio.'));
+
+                continue;
+            }
+
+            $serviceName = trim((string) ($filter['servicio'] ?? ''));
+            $month = (int) ($filter['mes'] ?? 0);
+            $year = (int) ($filter['anio'] ?? 0);
+            $successfulServiceMonths->push($serviceName.'|'.$month);
+            $rows = $this->attachCashierFlowMovementKeys(
+                collect(data_get($result, 'report.servicio.rows', []))->map(fn ($row): array => [
+                    ...(array) $row,
+                    '_servicio' => $serviceName,
+                    '_mes' => $month,
+                ]),
+                $year
+            );
+
+            foreach ($rows as $row) {
+                if ($this->isCashierFlowExcludedInvoice($row)) {
+                    continue;
+                }
+                if ($selectedDepartment !== ''
+                    && ! $this->cashierFlowDetailRowMatchesDepartment(
+                        $row,
+                        $serviceName,
+                        $departmentServices ?? collect(),
+                        $selectedDepartment
+                    )) {
+                    continue;
+                }
+
+                if (! $this->isCancelledCashierFlowInvoice($row)) {
+                    $nonCancelledAmounts->put(
+                        $serviceName,
+                        (float) $nonCancelledAmounts->get($serviceName, 0)
+                            + (float) ($row['totalLinea'] ?? $row['monto'] ?? 0)
+                    );
+
+                    continue;
+                }
+
+                $invoiceUser = (array) ($row['usuario'] ?? []);
+                $userId = trim((string) ($invoiceUser['id'] ?? $row['usuarioId'] ?? ''));
+                $userName = trim((string) ($invoiceUser['nombre'] ?? $invoiceUser['name'] ?? $row['usuarioNombre'] ?? ''));
+                $userEmail = trim((string) ($invoiceUser['email'] ?? $row['usuarioEmail'] ?? ''));
+                $userAlias = trim((string) ($invoiceUser['alias'] ?? $row['usuarioAlias'] ?? ''));
+                $saleId = trim((string) ($row['ventaId'] ?? ''));
+                $detailId = trim((string) ($row['detalleId'] ?? ''));
+                $amount = round((float) ($row['totalLinea'] ?? $row['monto'] ?? 0), 2);
+                $movementKey = trim((string) ($row['_movementKey'] ?? ''));
+
+                $invoices->push([
+                    '_servicio' => $serviceName,
+                    '_movementKey' => $movementKey,
+                    '_dedupeKey' => hash('sha256', implode('|', [$serviceName, $month, $year, $saleId, $detailId, $amount])),
+                    '_cashierIdentity' => $this->cashierIdentity($userId, $userEmail, $userAlias, $userName),
+                    '_usuarioId' => $userId,
+                    '_usuarioEmail' => $userEmail,
+                    '_usuarioAlias' => $userAlias,
+                    '_departamento' => $this->firstReportTextValue(
+                        $row['departamento'] ?? null,
+                        $row['regional'] ?? null,
+                        $invoiceUser['departamento'] ?? null,
+                        $invoiceUser['regional'] ?? null
+                    ),
+                    '_ventaId' => $saleId,
+                    '_detalleId' => $detailId,
+                    '_cantidad' => round((float) ($row['cantidad'] ?? 0), 2),
+                    'servicio' => $serviceName,
+                    'fecha' => trim((string) ($row['fecha'] ?? '')),
+                    'venta' => $saleId !== '' ? $saleId : '-',
+                    'detalle' => $detailId !== '' ? $detailId : '-',
+                    'facturadoPor' => $userName !== '' ? $userName : ($userAlias !== '' ? $userAlias : ($userId !== '' ? $userId : 'Sin dato')),
+                    'medioPago' => trim((string) ($row['medioPago'] ?? $row['medio_pago'] ?? '')),
+                    'estadoFiscal' => trim((string) ($row['estadoFiscal'] ?? $row['estado_fiscal'] ?? '')),
+                    'estadoPago' => trim((string) ($row['estadoPago'] ?? $row['estado_pago'] ?? '')),
+                    'monto' => $amount,
+                ]);
+            }
+        }
+
+        $expectedMonthsByService = collect($filters)
+            ->groupBy(fn (array $filter): string => trim((string) ($filter['servicio'] ?? '')))
+            ->map(fn (Collection $serviceFilters): int => $serviceFilters->pluck('mes')->map(fn ($month): int => (int) $month)->unique()->count());
+        $completeServices = $expectedMonthsByService->map(
+            fn (int $expectedMonths, string $serviceName): bool => $successfulServiceMonths
+                ->filter(fn (string $key): bool => str_starts_with($key, $serviceName.'|'))
+                ->unique()
+                ->count() === $expectedMonths
+        );
+
+        return [
+            'invoices' => $invoices,
+            'errors' => $errors,
+            'nonCancelledAmounts' => $nonCancelledAmounts,
+            'completeServices' => $completeServices,
+        ];
+    }
+
+    private function isCancelledCashierFlowInvoice(array $row): bool
+    {
+        $fiscalStatus = $this->normalizePersonName((string) ($row['estadoFiscal'] ?? $row['estado_fiscal'] ?? ''));
+        $paymentStatus = $this->normalizePersonName((string) ($row['estadoPago'] ?? $row['estado_pago'] ?? ''));
+        $cancelledStatuses = ['ANULADA', 'ANULADO'];
+
+        return in_array($fiscalStatus, $cancelledStatuses, true)
+            || in_array($paymentStatus, [...$cancelledStatuses, 'CANCELADA', 'CANCELADO'], true);
+    }
+
+    private function isCashierFlowExcludedInvoice(array $row): bool
+    {
+        $invoiceUser = (array) ($row['usuario'] ?? []);
+        $name = $this->normalizePersonName((string) (
+            $invoiceUser['nombre'] ?? $invoiceUser['name'] ?? $row['usuarioNombre'] ?? ''
+        ));
+
+        return collect(self::CASHIER_FLOW_EXCLUDED_CASHIERS)
+            ->map(fn (string $excludedName): string => $this->normalizePersonName($excludedName))
+            ->contains(function (string $excludedName) use ($name): bool {
+                $tokens = array_filter(explode(' ', $excludedName));
+
+                return $name !== ''
+                    && $tokens !== []
+                    && collect($tokens)->every(fn (string $token): bool => str_contains($name, $token));
+            });
+    }
+
+    private function cashierFlowDetailRowMatchesDepartment(
+        array $row,
+        string $serviceName,
+        Collection $services,
+        string $department
+    ): bool
+    {
+        $rowDepartment = $this->firstReportTextValue(
+            $row['departamento'] ?? null,
+            $row['regional'] ?? null,
+            $row['regionalNombre'] ?? null
+        );
+        if ($rowDepartment !== '') {
+            return $this->sameNormalizedText($this->canonicalDepartmentName($rowDepartment), $department);
+        }
+        if (isset($row['codigosSucursal']) && is_array($row['codigosSucursal'])) {
+            return $this->sameNormalizedText($this->departmentNameFromRegionalRow($row), $department);
+        }
+
+        $service = $services->first(
+            fn (array $candidate): bool => (string) ($candidate['servicio'] ?? '') === $serviceName
+        );
+        if (! $service) {
+            return false;
+        }
+
+        $invoiceUser = (array) ($row['usuario'] ?? []);
+        $invoicePerson = [
+            'usuarioId' => $invoiceUser['id'] ?? $row['usuarioId'] ?? '',
+            'usuarioNombre' => $invoiceUser['nombre'] ?? $invoiceUser['name'] ?? $row['usuarioNombre'] ?? '',
+            'usuarioEmail' => $invoiceUser['email'] ?? $row['usuarioEmail'] ?? '',
+            'usuarioAlias' => $invoiceUser['alias'] ?? $row['usuarioAlias'] ?? '',
+        ];
+        $people = collect($service['_porPersonas'] ?? [])
+            ->map(fn ($person): array => (array) $person)
+            ->keyBy(fn (array $person): string => $this->cashierIdentity(
+                (string) ($person['usuarioId'] ?? ''),
+                (string) ($person['usuarioEmail'] ?? ''),
+                (string) ($person['usuarioAlias'] ?? ''),
+                (string) ($person['usuarioNombre'] ?? '')
+            ));
+        $personKey = $people->has($this->cashierIdentity(
+            (string) $invoicePerson['usuarioId'],
+            (string) $invoicePerson['usuarioEmail'],
+            (string) $invoicePerson['usuarioAlias'],
+            (string) $invoicePerson['usuarioNombre']
+        ))
+            ? $this->cashierIdentity(
+                (string) $invoicePerson['usuarioId'],
+                (string) $invoicePerson['usuarioEmail'],
+                (string) $invoicePerson['usuarioAlias'],
+                (string) $invoicePerson['usuarioNombre']
+            )
+            : $this->matchingCashierRowKey($people, $invoicePerson);
+        if ($personKey === null) {
+            return false;
+        }
+
+        $person = $people->get($personKey);
+        $departments = collect($person['_departamentos'] ?? $person['departamentos'] ?? []);
+        if ($departments->isEmpty() && filled($person['departamento'] ?? null)) {
+            $departments = collect(explode(',', (string) $person['departamento']));
+        }
+
+        return $departments->contains(
+            fn ($personDepartment): bool => $this->sameNormalizedText(
+                $this->canonicalDepartmentName((string) $personDepartment),
+                $department
+            )
+        );
+    }
+
+    private function subtractCancelledInvoicesFromServices(
+        Collection $services,
+        Collection $cancelledInvoices,
+        Collection $nonCancelledAmounts,
+        Collection $completeServices
+    ): Collection
+    {
+        $cancelledByService = $cancelledInvoices->groupBy('_servicio');
+
+        return $services->map(function (array $service) use ($cancelledByService, $nonCancelledAmounts, $completeServices): array {
+            $cancelled = $cancelledByService->get((string) ($service['servicio'] ?? ''), collect());
+            $serviceName = (string) ($service['servicio'] ?? '');
+            if ($cancelled->isEmpty() || ! $completeServices->get($serviceName, false)) {
+                return $service;
+            }
+
+            $reportedAmount = (float) ($service['totalMonto'] ?? 0);
+            $nonCancelledAmount = (float) $nonCancelledAmounts->get($serviceName, 0);
+            $cancelledAmount = (float) $cancelled->sum('monto');
+            $amountToRemove = min($cancelledAmount, max(0, $reportedAmount - $nonCancelledAmount));
+            if ($amountToRemove <= 0) {
+                return $service;
+            }
+            $includedShare = $cancelledAmount > 0 ? min(1, $amountToRemove / $cancelledAmount) : 0;
+            $includedCancelled = $cancelled->map(function (array $invoice) use ($includedShare): array {
+                $invoice['monto'] = (float) $invoice['monto'] * $includedShare;
+                $invoice['_cantidad'] = (float) $invoice['_cantidad'] * $includedShare;
+
+                return $invoice;
+            });
+
+            $service['totalMonto'] = max(0, $reportedAmount - $amountToRemove);
+            $service['totalCantidad'] = max(0, (float) ($service['totalCantidad'] ?? 0) - (float) $includedCancelled->sum('_cantidad'));
+            $service['cantidadDetalles'] = max(0, (float) ($service['cantidadDetalles'] ?? 0) - ($includedShare >= 1 ? $cancelled->count() : 0));
+            $cancelledSaleCount = $includedShare >= 1
+                ? max(1, $cancelled->pluck('_ventaId')->filter()->unique()->count())
+                : 0;
+            $service['cantidadVentas'] = max(0, (float) ($service['cantidadVentas'] ?? 0) - $cancelledSaleCount);
+
+            $cancelledByCashier = $includedCancelled
+                ->groupBy('_cashierIdentity')
+                ->map(function (Collection $cashierInvoices): array {
+                    $first = $cashierInvoices->first();
+
+                    return [
+                        'usuarioId' => $first['_usuarioId'],
+                        'usuarioNombre' => $first['facturadoPor'],
+                        'usuarioEmail' => $first['_usuarioEmail'],
+                        'usuarioAlias' => $first['_usuarioAlias'],
+                        'totalMonto' => (float) $cashierInvoices->sum('monto'),
+                        'totalCantidad' => (float) $cashierInvoices->sum('_cantidad'),
+                        'cantidadDetalles' => (float) ($cashierInvoices->first()['monto'] > 0 ? $cashierInvoices->count() : 0),
+                        'cantidadVentas' => (float) ($cashierInvoices->first()['monto'] > 0
+                            ? max(1, $cashierInvoices->pluck('_ventaId')->filter()->unique()->count())
+                            : 0),
+                    ];
+                });
+
+            $service['_porPersonas'] = collect($service['_porPersonas'] ?? [])
+                ->map(function ($person) use ($cancelledByCashier): array {
+                    $person = (array) $person;
+                    $personIdentity = $this->cashierIdentity(
+                        (string) ($person['usuarioId'] ?? ''),
+                        (string) ($person['usuarioEmail'] ?? ''),
+                        (string) ($person['usuarioAlias'] ?? ''),
+                        (string) ($person['usuarioNombre'] ?? '')
+                    );
+                    $adjustmentKey = $cancelledByCashier->has($personIdentity)
+                        ? $personIdentity
+                        : $this->matchingCashierRowKey($cancelledByCashier, $person);
+                    $adjustment = $adjustmentKey !== null ? $cancelledByCashier->get($adjustmentKey) : null;
+                    if ($adjustment === null) {
+                        return $person;
+                    }
+
+                    foreach (['totalMonto', 'totalCantidad', 'cantidadDetalles', 'cantidadVentas'] as $field) {
+                        $person[$field] = max(0, (float) ($person[$field] ?? 0) - (float) ($adjustment[$field] ?? 0));
+                    }
+
+                    return $person;
+                })
+                ->values()
+                ->all();
+
+            return $service;
+        });
+    }
+
+    private function cashierFlowCollectedMovementsForPeriod(array $months, int $year): Collection
+    {
+        $months = collect($months)
+            ->map(fn ($month): int => (int) $month)
+            ->filter(fn (int $month): bool => $month >= 1 && $month <= 12)
+            ->unique()
+            ->values()
+            ->all();
+        if ($months === [] || ! Schema::hasTable('cashier_flow_receivable_movements')) {
+            return collect();
+        }
+
+        $movements = CashierFlowReceivableMovement::query()
+            ->where('cobro_activo', true)
+            ->whereYear('cobrado_at', $year)
+            ->where(function ($query) use ($months): void {
+                $query->whereMonth('cobrado_at', $months[0]);
+                foreach (array_slice($months, 1) as $month) {
+                    $query->orWhereMonth('cobrado_at', $month);
+                }
+            })
+            ->orderBy('cobrado_at')
+            ->get();
+
+        return $this->enrichCashierFlowCollectedMovements($movements);
+    }
+
+    private function buildCollectedReceivableServiceRows(Collection $collectionsByService): Collection
+    {
+        return $collectionsByService
+            ->map(function (Collection $serviceMovements, string $serviceName): array {
+                if ($serviceMovements->isEmpty()) {
+                    return [];
+                }
+
+                return [
+                    'servicio' => $serviceName,
+                    'cantidadVentas' => $serviceMovements->pluck('venta_id')->filter()->unique()->count(),
+                    'cantidadDetalles' => $serviceMovements->count(),
+                    'totalCantidad' => (float) $serviceMovements->sum('cantidad_paquetes'),
+                    'totalMonto' => (float) $serviceMovements->sum('monto'),
+                    'ultimaFecha' => $serviceMovements
+                        ->sortBy('cobrado_at')
+                        ->last()?->cobrado_at?->timezone(config('app.timezone'))
+                        ->format('Y-m-d H:i:s'),
+                    '_meses' => $serviceMovements->pluck('mes')->map(fn ($month): int => (int) $month)->unique()->sort()->values()->all(),
+                    '_esCobroReceivable' => true,
+                    '_porRegionales' => [],
+                    '_porPersonas' => [],
+                ];
+            })
+            ->values();
+    }
+
+    private function enrichCashierFlowCollectedMovements(Collection $movements): Collection
+    {
+        foreach ($movements
+            ->filter(fn (CashierFlowReceivableMovement $movement): bool =>
+                blank($movement->facturado_por_id)
+                || blank($movement->facturado_por_nombre)
+                || blank($movement->facturado_por_email)
+                || blank($movement->facturado_por_alias)
+                || (float) $movement->cantidad_paquetes === 0.0
+            )
+            ->groupBy(fn (CashierFlowReceivableMovement $movement): string => $movement->servicio.'|'.$movement->mes.'|'.$movement->anio) as $monthMovements) {
+            /** @var CashierFlowReceivableMovement $first */
+            $first = $monthMovements->first();
+            $serviceName = (string) $first->servicio;
+            $month = (int) $first->mes;
+            $year = (int) $first->anio;
+
+            try {
+                $report = $this->reports->serviceDetail($serviceName, $month, $year, true, false);
+                $rows = $this->attachCashierFlowMovementKeys(
+                    collect(($report['servicio']['rows'] ?? []))->map(fn ($row): array => [
+                        ...(array) $row,
+                        '_servicio' => $serviceName,
+                        '_mes' => $month,
+                    ]),
+                    $year
+                )->keyBy('_movementKey');
+
+                foreach ($monthMovements as $movement) {
+                    $row = $rows->get($movement->movement_key);
+                    if (! $row) {
+                        continue;
+                    }
+                    $invoiceUser = (array) ($row['usuario'] ?? []);
+                    $attributes = [];
+                    foreach ([
+                        'id' => ['facturado_por_id', 80],
+                        'nombre' => ['facturado_por_nombre', 180],
+                        'email' => ['facturado_por_email', 180],
+                        'alias' => ['facturado_por_alias', 180],
+                    ] as $sourceKey => [$column, $maxLength]) {
+                        if (blank($movement->{$column}) && filled($invoiceUser[$sourceKey] ?? null)) {
+                            $attributes[$column] = mb_substr(trim((string) $invoiceUser[$sourceKey]), 0, $maxLength);
+                        }
+                    }
+                    if ((float) $movement->cantidad_paquetes === 0.0 && isset($row['cantidad'])) {
+                        $attributes['cantidad_paquetes'] = round((float) $row['cantidad'], 2);
+                    }
+                    if ($attributes !== []) {
+                        $movement->forceFill($attributes)->save();
+                    }
+                }
+            } catch (\Throwable $exception) {
+                $this->logDetailError($exception, $serviceName, $month, $year);
+            }
+        }
+
+        return $movements->values();
+    }
+
+    public function markCashierFlowReceivableCollected(Request $request)
+    {
+        $validated = $request->validate([
+            'servicio_cobro' => ['required', 'string', 'max:180'],
+            'meses' => ['required', 'array', 'min:1', 'max:12'],
+            'meses.*' => ['required', 'integer', 'distinct', 'between:1,12'],
+            'anio' => ['required', 'integer', 'between:2000,'.(now()->year + 3)],
+            'limite' => ['nullable', 'integer', 'between:1,200'],
+            'departamento' => ['nullable', 'string', 'max:120'],
+            'filtro_servicios' => ['nullable', 'array', 'max:50'],
+            'filtro_servicios.*' => ['string', 'distinct', 'max:180'],
+        ]);
+
+        $serviceName = trim((string) $validated['servicio_cobro']);
+        abort_unless(
+            $this->serviceGroupName($serviceName) === 'Servicio Contratos' || $this->isEcaInternationalService($serviceName),
+            404
+        );
+
+        $redirectFilters = [
+            'servicios' => $validated['filtro_servicios'] ?? [],
+            'meses' => collect($validated['meses'])->map(fn ($month): int => (int) $month)->unique()->sort()->values()->all(),
+            'anio' => (int) $validated['anio'],
+            'limite' => (int) ($validated['limite'] ?? 200),
+            'departamento' => $this->canonicalDepartmentName((string) ($validated['departamento'] ?? '')),
+        ];
+
+        $backToFlow = fn () => redirect()->route('dashboard.financiera.flujo-cajero', $redirectFilters);
+        if (! Schema::hasTable('cashier_flow_receivable_collections')) {
+            return $backToFlow()->with('cashierFlowError', 'Falta preparar el registro de cobros. Ejecuta las migraciones de la aplicacion.');
+        }
+
+        $months = $redirectFilters['meses'];
+        $limit = $redirectFilters['limite'];
+        $department = $redirectFilters['departamento'];
+        $reportRequest = Request::create('/dir-financiera/flujo-cajero', 'GET', [
+            'servicios' => [$serviceName],
+            'meses' => $months,
+            'anio' => $redirectFilters['anio'],
+            'limite' => $limit,
+            'departamento' => $department,
+        ]);
+        $data = $this->buildServicesReportData(
+            $reportRequest,
+            forceOnlyContracts: false,
+            reconcileContracts: false,
+            excludeContracts: true,
+            excludedCashierNames: [],
+            enableDepartmentFilter: true,
+            cacheReports: true,
+            showReceivablesSeparately: true
+        );
+
+        if ($data['errors']->isNotEmpty()) {
+            return $backToFlow()->with('cashierFlowError', $data['errors']->first());
+        }
+
+        $receivable = $data['receivableServices']->first(
+            fn (array $service): bool => (string) ($service['servicio'] ?? '') === $serviceName
+        );
+        if (! $receivable) {
+            return $backToFlow()->with('cashierFlowError', 'No se encontro el servicio por cobrar en el periodo seleccionado. Actualiza los datos e intentalo nuevamente.');
+        }
+
+        $amount = round((float) ($receivable['totalMonto'] ?? 0), 2);
+        if ($amount <= 0) {
+            return $backToFlow()->with('cashierFlowError', 'El servicio no tiene un importe pendiente para registrar como cobrado.');
+        }
+
+        $scopeHash = $this->cashierFlowReceivableScopeHash(
+            $data['selectedMonths'],
+            $data['anio'],
+            $data['limite'],
+            $data['selectedDepartment'],
+            $serviceName
+        );
+        try {
+            $collection = CashierFlowReceivableCollection::query()->firstOrCreate(
+                ['scope_hash' => $scopeHash],
+                [
+                    'servicio' => $serviceName,
+                    'anio' => $data['anio'],
+                    'meses' => $data['selectedMonths'],
+                    'limite' => $data['limite'],
+                    'departamento' => $data['selectedDepartment'] !== '' ? $data['selectedDepartment'] : null,
+                    'monto_cobrado' => $amount,
+                    'cobrado_por' => $request->user()?->id,
+                    'cobrado_at' => now(),
+                ]
+            );
+        } catch (QueryException $exception) {
+            $collection = CashierFlowReceivableCollection::query()->where('scope_hash', $scopeHash)->first();
+            if (! $collection) {
+                throw $exception;
+            }
+        }
+
+        $reactivated = false;
+        if (! $collection->wasRecentlyCreated && ! $collection->cobro_activo) {
+            $collection->forceFill([
+                'monto_cobrado' => $amount,
+                'cobrado_por' => $request->user()?->id,
+                'cobrado_at' => now(),
+                'cobro_activo' => true,
+            ])->save();
+            $reactivated = true;
+        }
+
+        $message = $collection->wasRecentlyCreated || $reactivated
+            ? 'Cobro realizado por Bs '.\App\Support\BolivianNumber::format($amount, 2).' y agregado al total recaudado.'
+            : 'Este servicio ya estaba marcado como cobrado y permanece en el total recaudado.';
+
+        return $backToFlow()->with('cashierFlowSuccess', $message);
+    }
+
+    public function returnCashierFlowReceivableToPending(Request $request)
+    {
+        $validated = $request->validate([
+            'servicio_cobro' => ['required', 'string', 'max:180'],
+            'meses' => ['required', 'array', 'min:1', 'max:12'],
+            'meses.*' => ['required', 'integer', 'distinct', 'between:1,12'],
+            'anio' => ['required', 'integer', 'between:2000,'.(now()->year + 3)],
+            'limite' => ['nullable', 'integer', 'between:1,200'],
+            'departamento' => ['nullable', 'string', 'max:120'],
+            'filtro_servicios' => ['nullable', 'array', 'max:50'],
+            'filtro_servicios.*' => ['string', 'distinct', 'max:180'],
+        ]);
+
+        $serviceName = trim((string) $validated['servicio_cobro']);
+        abort_unless(
+            $this->serviceGroupName($serviceName) === 'Servicio Contratos' || $this->isEcaInternationalService($serviceName),
+            404
+        );
+
+        $months = collect($validated['meses'])->map(fn ($month): int => (int) $month)->unique()->sort()->values()->all();
+        $limit = (int) ($validated['limite'] ?? 200);
+        $department = $this->canonicalDepartmentName((string) ($validated['departamento'] ?? ''));
+        $redirectFilters = [
+            'servicios' => $validated['filtro_servicios'] ?? [],
+            'meses' => $months,
+            'anio' => (int) $validated['anio'],
+            'limite' => $limit,
+            'departamento' => $department,
+        ];
+        $backToFlow = fn () => redirect()->route('dashboard.financiera.flujo-cajero', $redirectFilters);
+
+        $scopeHash = $this->cashierFlowReceivableScopeHash(
+            $months,
+            (int) $validated['anio'],
+            $limit,
+            $department,
+            $serviceName
+        );
+        $collection = Schema::hasTable('cashier_flow_receivable_collections')
+            ? CashierFlowReceivableCollection::query()->where('scope_hash', $scopeHash)->first()
+            : null;
+
+        if (! $collection || ! $collection->cobro_activo) {
+            return $backToFlow()->with('cashierFlowError', 'Este servicio ya esta por cobrar o no tiene un cobro registrado.');
+        }
+
+        $collection->forceFill([
+            'cobro_activo' => false,
+            'devuelto_at' => now(),
+            'devuelto_por' => $request->user()?->id,
+        ])->save();
+
+        return $backToFlow()->with('cashierFlowSuccess', 'El servicio fue devuelto a Por cobrar y se resto de Total recaudado.');
+    }
+
+    public function markCashierFlowMovementCollected(Request $request)
+    {
+        return $this->updateCashierFlowMovementStatus($request, true);
+    }
+
+    public function returnCashierFlowMovementToPending(Request $request)
+    {
+        return $this->updateCashierFlowMovementStatus($request, false);
+    }
+
+    private function updateCashierFlowMovementStatus(Request $request, bool $collected)
+    {
+        $validated = $request->validate([
+            'movement_key' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/'],
+            'servicio_cobro' => ['required', 'string', 'max:180'],
+            'mes_cobro' => ['required', 'integer', 'between:1,12'],
+            'anio' => ['required', 'integer', 'between:2000,'.(now()->year + 3)],
+            'filtro_meses' => ['nullable', 'array', 'min:1', 'max:12'],
+            'filtro_meses.*' => ['required', 'integer', 'distinct', 'between:1,12'],
+            'filtro_anio' => ['nullable', 'integer', 'between:2000,'.(now()->year + 3)],
+            'filtro_limite' => ['nullable', 'integer', 'between:1,200'],
+            'filtro_departamento' => ['nullable', 'string', 'max:120'],
+            'filtro_servicios' => ['nullable', 'array', 'max:50'],
+            'filtro_servicios.*' => ['string', 'distinct', 'max:180'],
+        ]);
+
+        $serviceName = trim((string) $validated['servicio_cobro']);
+        abort_unless($this->isCashierFlowReceivableService($serviceName), 404);
+
+        $months = collect($validated['filtro_meses'] ?? [$validated['mes_cobro']])
+            ->map(fn ($month): int => (int) $month)->unique()->sort()->values()->all();
+        $filterYear = (int) ($validated['filtro_anio'] ?? $validated['anio']);
+        $redirectFilters = [
+            'servicios' => $validated['filtro_servicios'] ?? [],
+            'meses' => $months,
+            'anio' => $filterYear,
+            'limite' => (int) ($validated['filtro_limite'] ?? 200),
+            'departamento' => $this->canonicalDepartmentName((string) ($validated['filtro_departamento'] ?? '')),
+        ];
+        $backToFlow = fn () => redirect()->route('dashboard.financiera.flujo-cajero', $redirectFilters);
+
+        if ($redirectFilters['departamento'] !== '') {
+            return $backToFlow()->with('cashierFlowError', 'Quita el filtro de departamento antes de registrar cobros desde el detalle.');
+        }
+        if (! Schema::hasTable('cashier_flow_receivable_movements')) {
+            return $backToFlow()->with('cashierFlowError', 'Falta preparar el registro individual de cobros. Ejecuta las migraciones de la aplicacion.');
+        }
+
+        $month = (int) $validated['mes_cobro'];
+        $year = (int) $validated['anio'];
+        try {
+            $report = $this->reports->serviceDetail($serviceName, $month, $year, true, false);
+        } catch (\Throwable $exception) {
+            $this->logDetailError($exception, $serviceName, $month, $year);
+
+            return $backToFlow()->with('cashierFlowError', 'No se pudo actualizar el movimiento. Vuelve a abrir el detalle e intentalo nuevamente.');
+        }
+
+        $movementRows = $this->attachCashierFlowMovementKeys(
+            collect(($report['servicio']['rows'] ?? []))->map(fn ($row): array => [
+                ...(array) $row,
+                '_servicio' => $serviceName,
+                '_mes' => $month,
+            ]),
+            $year
+        );
+        $row = $movementRows->first(fn (array $movement): bool => hash_equals(
+            (string) ($movement['_movementKey'] ?? ''),
+            (string) $validated['movement_key']
+        ));
+        if (! $row) {
+            return $backToFlow()->with('cashierFlowError', 'El movimiento ya no aparece en el reporte actualizado. Vuelve a abrir el detalle antes de cambiar su estado.');
+        }
+
+        $collection = CashierFlowReceivableMovement::query()
+            ->where('movement_key', $validated['movement_key'])
+            ->first();
+        if ($collected) {
+            $movementAmount = round((float) ($row['totalLinea'] ?? 0), 2);
+            if ($movementAmount <= 0) {
+                return $backToFlow()->with('cashierFlowError', 'El movimiento no tiene un importe positivo para registrar como cobrado.');
+            }
+            if ($collection?->cobro_activo) {
+                return $backToFlow()->with('cashierFlowSuccess', 'Este movimiento ya estaba marcado como cobrado.');
+            }
+
+            $invoiceUser = (array) ($row['usuario'] ?? []);
+
+            $attributes = [
+                'servicio' => $serviceName,
+                'anio' => $year,
+                'mes' => $month,
+                'venta_id' => isset($row['ventaId']) ? mb_substr((string) $row['ventaId'], 0, 180) : null,
+                'detalle_id' => isset($row['detalleId']) ? mb_substr((string) $row['detalleId'], 0, 180) : null,
+                'facturado_por_id' => isset($invoiceUser['id']) ? mb_substr((string) $invoiceUser['id'], 0, 80) : null,
+                'facturado_por_nombre' => isset($invoiceUser['nombre']) ? mb_substr(trim((string) $invoiceUser['nombre']), 0, 180) : null,
+                'facturado_por_email' => isset($invoiceUser['email']) ? mb_substr(trim((string) $invoiceUser['email']), 0, 180) : null,
+                'facturado_por_alias' => isset($invoiceUser['alias']) ? mb_substr(trim((string) $invoiceUser['alias']), 0, 180) : null,
+                'codigo_orden' => isset($row['codigoOrden']) ? mb_substr((string) $row['codigoOrden'], 0, 180) : null,
+                'codigo_seguimiento' => isset($row['codigoSeguimiento']) ? mb_substr((string) $row['codigoSeguimiento'], 0, 180) : null,
+                'fecha' => isset($row['fecha']) ? mb_substr((string) $row['fecha'], 0, 80) : null,
+                'descripcion' => isset($row['descripcion']) ? (string) $row['descripcion'] : null,
+                'monto' => $movementAmount,
+                'cantidad_paquetes' => round((float) ($row['cantidad'] ?? 0), 2),
+                'cobro_activo' => true,
+                'cobrado_por' => $request->user()?->id,
+                'cobrado_at' => now(),
+            ];
+
+            try {
+                if ($collection) {
+                    $collection->forceFill($attributes)->save();
+                } else {
+                    CashierFlowReceivableMovement::query()->create([
+                        'movement_key' => $validated['movement_key'],
+                        ...$attributes,
+                    ]);
+                }
+            } catch (QueryException $exception) {
+                $collection = CashierFlowReceivableMovement::query()
+                    ->where('movement_key', $validated['movement_key'])
+                    ->first();
+                if (! $collection) {
+                    throw $exception;
+                }
+                $collection->forceFill($attributes)->save();
+            }
+
+            return $backToFlow()->with('cashierFlowSuccess', 'Cobro individual realizado por Bs '.\App\Support\BolivianNumber::format((float) $attributes['monto'], 2).'.');
+        }
+
+        if (! $collection || ! $collection->cobro_activo) {
+            return $backToFlow()->with('cashierFlowError', 'Este movimiento ya estaba por cobrar o no tiene un cobro activo.');
+        }
+
+        $collection->forceFill([
+            'cobro_activo' => false,
+            'devuelto_at' => now(),
+            'devuelto_por' => $request->user()?->id,
+        ])->save();
+
+        return $backToFlow()->with('cashierFlowSuccess', 'El movimiento fue devuelto a Por cobrar.');
     }
 
     public function invoicedContracts(Request $request)
@@ -191,7 +1078,9 @@ class FinancialReportController extends Controller
         bool $reconcileContracts = true,
         bool $excludeContracts = false,
         array $excludedCashierNames = [],
-        bool $enableDepartmentFilter = false
+        bool $enableDepartmentFilter = false,
+        bool $cacheReports = false,
+        bool $showReceivablesSeparately = false
     ): array {
         $validated = $request->validate([
             'servicio' => ['nullable', 'string', 'max:180'],
@@ -200,14 +1089,16 @@ class FinancialReportController extends Controller
             'mes' => ['nullable', 'integer', 'between:1,12'],
             'meses' => ['nullable', 'array', 'min:1', 'max:12'],
             'meses.*' => ['integer', 'distinct', 'between:1,12'],
-            'anio' => ['nullable', 'integer', 'between:2000,'.(now()->year + 1)],
+            'anio' => ['nullable', 'integer', 'between:2000,'.(now()->year + 3)],
             'limite' => ['nullable', 'integer', 'between:1,200'],
             'solo_contratos' => ['nullable', 'boolean'],
             'departamento' => ['nullable', 'string', 'max:120'],
+            'actualizar' => ['nullable', 'boolean'],
         ]);
 
         $year = (int) ($validated['anio'] ?? now()->year);
         $limit = (int) ($validated['limite'] ?? 200);
+        $refresh = (bool) ($validated['actualizar'] ?? false);
         $onlyContracts = $forceOnlyContracts ?? (bool) ($validated['solo_contratos'] ?? false);
         $selectedMonths = collect($validated['meses'] ?? [$validated['mes'] ?? now()->month])
             ->map(fn ($month) => (int) $month)
@@ -224,10 +1115,32 @@ class FinancialReportController extends Controller
         $aggregated = collect();
         $serviceOptions = $requestedServices->keyBy(fn ($service) => $service);
         $errors = collect();
+        $batchReports = null;
+        if ($cacheReports && $selectedMonths->count() > 1) {
+            try {
+                $filters = $selectedMonths->map(fn (int $month): array => [
+                    'mes' => $month,
+                    'anio' => $year,
+                    'limite' => $limit,
+                ])->all();
+                $batchReports = collect($this->reports->servicesBatch($filters, $refresh))
+                    ->keyBy(fn (array $result): int => (int) ($result['filter']['mes'] ?? 0));
+            } catch (\Throwable) {
+                // La consulta individual conserva el manejo de errores por mes.
+            }
+        }
 
         foreach ($selectedMonths as $month) {
             try {
-                $monthlyReport = $this->reports->services($month, $year, $limit);
+                if ($batchReports !== null) {
+                    $result = $batchReports->get($month);
+                    if ($result === null || ($result['error'] ?? null) !== null) {
+                        throw new \RuntimeException((string) ($result['error'] ?? 'No se recibió el resumen del mes.'));
+                    }
+                    $monthlyReport = (array) ($result['report'] ?? []);
+                } else {
+                    $monthlyReport = $this->reports->services($month, $year, $limit, $cacheReports, $refresh);
+                }
 
                 foreach ((array) ($monthlyReport['servicios'] ?? []) as $row) {
                     $name = trim((string) ($row['servicio'] ?? ''));
@@ -278,6 +1191,21 @@ class FinancialReportController extends Controller
             }
         }
 
+        $receivableServices = collect();
+        if ($showReceivablesSeparately) {
+            $receivableServices = $aggregated
+                ->filter(function (array $service) use ($hasServiceFilter, $requestedServices): bool {
+                    $name = (string) ($service['servicio'] ?? '');
+
+                    return $this->serviceGroupName($name) === 'Servicio Contratos'
+                        || ($this->isEcaInternationalService($name)
+                            && (! $hasServiceFilter || $requestedServices->contains(
+                                fn (string $requestedService): bool => $this->sameNormalizedText($requestedService, $name)
+                            )));
+                })
+                ->values();
+        }
+
         if ($excludeContracts) {
             $isContractService = fn (string $service): bool => $this->serviceGroupName($service) === 'Servicio Contratos';
             $aggregated = $aggregated->reject(
@@ -289,6 +1217,12 @@ class FinancialReportController extends Controller
             $requestedServices = $requestedServices->reject(
                 fn (string $service): bool => $isContractService($service)
             )->values();
+        }
+
+        if ($showReceivablesSeparately) {
+            $aggregated = $aggregated->reject(
+                fn (array $service): bool => $this->isEcaInternationalService((string) ($service['servicio'] ?? ''))
+            );
         }
 
         $contractServices = $aggregated
@@ -337,9 +1271,29 @@ class FinancialReportController extends Controller
         }
         if ($enableDepartmentFilter && $selectedDepartment !== '') {
             $services = $this->filterServicesByDepartment($services, $selectedDepartment);
+            $receivableServices = $this->filterServicesByDepartment(
+                $this->attachDepartmentsToPeople($receivableServices),
+                $selectedDepartment
+            );
+        } elseif ($enableDepartmentFilter) {
+            $receivableServices = $this->attachDepartmentsToPeople($receivableServices);
         }
         if ($excludedCashierNames !== []) {
             $services = $this->excludeCashiersFromServices($services, $excludedCashierNames);
+            $receivableServices = $this->excludeCashiersFromServices($receivableServices, $excludedCashierNames);
+        }
+        if ($showReceivablesSeparately) {
+            $reportDays = $this->countReportDaysExcludingSundays($selectedMonths->all(), $year);
+            $receivableServices = $receivableServices
+                ->map(function (array $service) use ($reportDays): array {
+                    $service['promedioPaquetesDiario'] = $reportDays > 0
+                        ? (float) ($service['totalCantidad'] ?? 0) / $reportDays
+                        : 0.0;
+
+                    return $service;
+                })
+                ->sortByDesc('totalMonto')
+                ->values();
         }
         $summary = [
             'cantidadServicios' => $services->count(),
@@ -372,6 +1326,7 @@ class FinancialReportController extends Controller
                 : $serviceOptions->sortKeys()->values(),
             'summary' => $summary,
             'services' => $services,
+            'receivableServices' => $receivableServices,
             'serviceGroups' => $serviceGroups,
             'meta' => [],
             'errors' => $errors,
@@ -431,8 +1386,11 @@ class FinancialReportController extends Controller
             'mes' => ['nullable', 'integer', 'between:1,12'],
             'meses' => ['nullable', 'array', 'min:1', 'max:12'],
             'meses.*' => ['integer', 'distinct', 'between:1,12'],
-            'anio' => ['nullable', 'integer', 'between:2000,'.(now()->year + 1)],
+            'anio' => ['nullable', 'integer', 'between:2000,'.(now()->year + 3)],
             'page' => ['nullable', 'integer', 'min:1'],
+            'actualizar' => ['nullable', 'boolean'],
+            'buscar' => ['nullable', 'string', 'max:180'],
+            'solo_cobrados' => ['nullable', 'boolean'],
         ]);
 
         $year = (int) ($validated['anio'] ?? now()->year);
@@ -447,21 +1405,26 @@ class FinancialReportController extends Controller
             ->filter()
             ->unique()
             ->values();
+        $isModal = $request->boolean('modal');
+        $refresh = (bool) ($validated['actualizar'] ?? false);
+        $showCollectedOnly = (bool) ($validated['solo_cobrados'] ?? false);
         $serviceOptions = $selectedServices->keyBy(fn ($service) => $service);
         $errors = collect();
 
-        foreach ($selectedMonths as $month) {
-            try {
-                $monthlyReport = $this->reports->services($month, $year, 200);
-                foreach ((array) ($monthlyReport['servicios'] ?? []) as $serviceRow) {
-                    $name = trim((string) ($serviceRow['servicio'] ?? ''));
-                    if ($name !== '') {
-                        $serviceOptions->put($name, $name);
+        if (! $isModal) {
+            foreach ($selectedMonths as $month) {
+                try {
+                    $monthlyReport = $this->reports->services($month, $year, 200);
+                    foreach ((array) ($monthlyReport['servicios'] ?? []) as $serviceRow) {
+                        $name = trim((string) ($serviceRow['servicio'] ?? ''));
+                        if ($name !== '') {
+                            $serviceOptions->put($name, $name);
+                        }
                     }
+                } catch (\Throwable $exception) {
+                    $errors->push("No se pudo obtener la lista de servicios del mes {$month}: {$exception->getMessage()}");
+                    $this->logDetailError($exception, null, $month, $year);
                 }
-            } catch (\Throwable $exception) {
-                $errors->push("No se pudo obtener la lista de servicios del mes {$month}: {$exception->getMessage()}");
-                $this->logDetailError($exception, null, $month, $year);
             }
         }
 
@@ -474,38 +1437,145 @@ class FinancialReportController extends Controller
             'totalMonto' => 0,
         ];
 
-        foreach ($selectedServices as $serviceName) {
-            foreach ($selectedMonths as $month) {
-                try {
-                    $report = $this->reports->serviceDetail($serviceName, $month, $year);
-                    $detail = (array) ($report['servicio'] ?? []);
-                    foreach (['cantidadVentas', 'cantidadDetalles', 'totalCantidad', 'totalMonto'] as $totalKey) {
-                        $service[$totalKey] += (float) ($detail[$totalKey] ?? 0);
-                    }
-                    $rows->push(...collect($detail['rows'] ?? [])->map(fn ($row) => [
-                        ...(array) $row,
-                        '_servicio' => $serviceName,
-                        '_mes' => $month,
-                    ])->all());
-                } catch (\Throwable $exception) {
-                    $errors->push("No se pudo cargar {$serviceName} para el mes {$month}: {$exception->getMessage()}");
-                    $this->logDetailError($exception, $serviceName, $month, $year);
-                }
+        $detailFilters = $selectedServices->flatMap(fn (string $serviceName) => $selectedMonths->map(
+            fn (int $month): array => ['servicio' => $serviceName, 'mes' => $month, 'anio' => $year]
+        ))->values()->all();
+        if (count($detailFilters) === 1) {
+            $filter = $detailFilters[0];
+            try {
+                $detailResults = [[
+                    'filter' => $filter,
+                    'report' => $this->reports->serviceDetail($filter['servicio'], $filter['mes'], $year, $isModal, $refresh),
+                    'error' => null,
+                ]];
+            } catch (\Throwable $exception) {
+                $detailResults = [['filter' => $filter, 'report' => null, 'error' => $exception->getMessage()]];
+            }
+        } else {
+            try {
+                $detailResults = $this->reports->serviceDetailsBatch($detailFilters, $isModal, $refresh);
+            } catch (\Throwable $exception) {
+                $detailResults = array_map(fn (array $filter): array => [
+                    'filter' => $filter,
+                    'report' => null,
+                    'error' => $exception->getMessage(),
+                ], $detailFilters);
+            }
+        }
+
+        foreach ($detailResults as $result) {
+            $filter = (array) ($result['filter'] ?? []);
+            $serviceName = (string) ($filter['servicio'] ?? '');
+            $month = (int) ($filter['mes'] ?? 0);
+            if ($result['error'] !== null) {
+                $exception = new \RuntimeException((string) $result['error']);
+                $errors->push("No se pudo cargar {$serviceName} para el mes {$month}: {$exception->getMessage()}");
+                $this->logDetailError($exception, $serviceName, $month, $year);
+
+                continue;
+            }
+
+            $detail = (array) (($result['report'] ?? [])['servicio'] ?? []);
+            foreach (['cantidadVentas', 'cantidadDetalles', 'totalCantidad', 'totalMonto'] as $totalKey) {
+                $service[$totalKey] += (float) ($detail[$totalKey] ?? 0);
+            }
+            $rows->push(...collect($detail['rows'] ?? [])->map(fn ($row) => [
+                ...(array) $row,
+                '_servicio' => $serviceName,
+                '_mes' => $month,
+            ])->all());
+        }
+
+        $canManageReceivables = $isModal
+            && $request->boolean('flujo_cajero')
+            && $selectedServices->isNotEmpty()
+            && $selectedServices->every(fn (string $serviceName): bool => $this->isCashierFlowReceivableService($serviceName))
+            && trim((string) $request->query('filtro_departamento', '')) === ''
+            && Schema::hasTable('cashier_flow_receivable_movements');
+        $cashierFlowContext = [
+            'services' => collect($request->query('filtro_servicios', []))->filter(fn ($value) => is_string($value))
+                ->map(fn ($value) => trim($value))->filter()->unique()->values()->all(),
+            'months' => collect($request->query('filtro_meses', []))->filter(fn ($value) => is_numeric($value))
+                ->map(fn ($value): int => (int) $value)->filter(fn (int $value): bool => $value >= 1 && $value <= 12)->unique()->sort()->values()->all(),
+            'year' => (int) $request->query('filtro_anio', $year),
+            'limit' => max(1, min(200, (int) $request->query('filtro_limite', 200))),
+            'department' => trim((string) $request->query('filtro_departamento', '')),
+        ];
+
+        if ($canManageReceivables) {
+            $rows = $this->attachCashierFlowMovementKeys($rows, $year);
+            $movementKeys = $rows->pluck('_movementKey')->filter()->values();
+            $movementStatuses = $movementKeys->isNotEmpty()
+                ? CashierFlowReceivableMovement::query()->whereIn('movement_key', $movementKeys)->get()->keyBy('movement_key')
+                : collect();
+            $rows = $rows->map(function (array $row) use ($movementStatuses): array {
+                $movement = $movementStatuses->get($row['_movementKey']);
+                $invoiceUser = (array) ($row['usuario'] ?? []);
+                $row['_cobroRealizado'] = (bool) ($movement?->cobro_activo ?? false);
+                $row['_montoCobrado'] = $row['_cobroRealizado'] ? (float) $movement->monto : 0.0;
+                $row['_fechaCobro'] = $row['_cobroRealizado'] && $movement?->cobrado_at
+                    ? $movement->cobrado_at->timezone(config('app.timezone'))->format('d/m/Y H:i:s')
+                    : null;
+                $row['_facturadoPor'] = trim((string) (
+                    $movement?->facturado_por_nombre
+                    ?: ($invoiceUser['nombre'] ?? $invoiceUser['alias'] ?? '')
+                ));
+                $row['_cantidadPaquetesCobrados'] = $row['_cobroRealizado']
+                    ? (float) ($movement->cantidad_paquetes ?: ($row['cantidad'] ?? 0))
+                    : 0.0;
+
+                return $row;
+            });
+            $paidRows = $rows->filter(fn (array $row): bool => (bool) ($row['_cobroRealizado'] ?? false));
+            $service['totalMontoCobrado'] = (float) $paidRows->sum('_montoCobrado');
+            $service['cantidadMovimientosCobrados'] = $paidRows->count();
+            $service['cantidadVentasCobradas'] = $paidRows->pluck('ventaId')->filter()->unique()->count();
+            $service['totalMontoPendiente'] = max(0, (float) $service['totalMonto'] - $service['totalMontoCobrado']);
+            if ($showCollectedOnly) {
+                $rows = $rows->filter(fn (array $row): bool => (bool) ($row['_cobroRealizado'] ?? false))->values();
             }
         }
 
         $rows = $rows->sortByDesc('fecha')->values();
+        $reportDays = $this->countReportDaysExcludingSundays($selectedMonths->all(), $year);
+        $service['promedioDiario'] = $reportDays > 0
+            ? (float) $service['totalMonto'] / $reportDays
+            : 0;
+
+        $searchTerm = trim((string) ($validated['buscar'] ?? ''));
+        if ($searchTerm !== '') {
+            $normalizedSearch = mb_strtolower(Str::ascii($searchTerm));
+            $rows = $rows->filter(function (array $row) use ($normalizedSearch): bool {
+                $searchableValues = [
+                    $row['_servicio'] ?? '',
+                    $row['ventaId'] ?? '',
+                    $row['detalleId'] ?? '',
+                    $row['descripcion'] ?? '',
+                    $row['codigoOrden'] ?? '',
+                    $row['codigoSeguimiento'] ?? '',
+                    $row['fecha'] ?? '',
+                    $row['totalLinea'] ?? '',
+                    \App\Support\BolivianNumber::format((float) ($row['totalLinea'] ?? 0), 2),
+                ];
+                $haystack = collect($searchableValues)
+                    ->filter(fn ($value): bool => is_scalar($value))
+                    ->map(fn ($value): string => (string) $value)
+                    ->implode(' ');
+
+                return str_contains(mb_strtolower(Str::ascii($haystack)), $normalizedSearch);
+            })->values();
+        }
         $page = max(1, (int) $request->query('page', 1));
-        $perPage = 50;
+        $perPage = $isModal ? 20 : 50;
         $paginatedRows = new LengthAwarePaginator(
             $rows->forPage($page, $perPage)->values(),
             $rows->count(),
             $perPage,
             $page,
-            ['path' => $request->url(), 'query' => $request->except('page')]
+            ['path' => $request->url(), 'query' => $request->except('page', 'actualizar')]
         );
 
-        return view('financial-reports.service-detail', [
+        $viewData = [
             'mes' => (int) $selectedMonths->first(),
             'anio' => $year,
             'selectedMonths' => $selectedMonths->all(),
@@ -516,7 +1586,19 @@ class FinancialReportController extends Controller
             'rows' => $paginatedRows,
             'errors' => $errors,
             'error' => $errors->first(),
-        ]);
+            'searchTerm' => $searchTerm,
+            'canManageReceivables' => $canManageReceivables,
+            'cashierFlowContext' => $cashierFlowContext,
+            'showCollectedOnly' => $showCollectedOnly && $canManageReceivables,
+        ];
+
+        if ($isModal) {
+            return response()
+                ->view('financial-reports.partials.service-detail-modal-content', $viewData)
+                ->header('X-Flow-Detail-Fragment', '1');
+        }
+
+        return view('financial-reports.service-detail', $viewData);
     }
 
     private function logDetailError(\Throwable $exception, ?string $service, int $month, int $year): void
@@ -598,6 +1680,7 @@ class FinancialReportController extends Controller
                     'totalCantidad' => $children->sum('totalCantidad'),
                     'totalMonto' => $children->sum('totalMonto'),
                     'ultimaFecha' => $children->pluck('ultimaFecha')->filter()->max(),
+                    '_ultimaFechaEsCobro' => $children->contains(fn (array $service): bool => (bool) ($service['_esCobroReceivable'] ?? false)),
                     '_meses' => $children->pluck('_meses')->flatten()->unique()->sort()->values()->all(),
                     '_children' => $children->sortByDesc('totalMonto')->values(),
                 ];
@@ -652,12 +1735,9 @@ class FinancialReportController extends Controller
                 $name = trim((string) ($row['usuarioNombre'] ?? ''));
                 $email = trim((string) ($row['usuarioEmail'] ?? ''));
                 $alias = trim((string) ($row['usuarioAlias'] ?? ''));
-                $identity = $id !== ''
-                    ? 'id:'.$id
-                    : ($email !== '' ? 'email:'.mb_strtolower($email) : 'user:'.mb_strtolower($alias !== '' ? $alias : $name));
 
                 return [
-                    '_identity' => $identity !== 'user:' ? $identity : 'user:sin-identificar',
+                    '_identity' => $this->cashierIdentity($id, $email, $alias, $name),
                     'usuarioId' => $id,
                     'usuarioNombre' => $name !== '' ? $name : 'USUARIO SIN IDENTIFICAR',
                     'usuarioEmail' => $email,
@@ -706,127 +1786,224 @@ class FinancialReportController extends Controller
             ->values();
     }
 
-    private function addCashierWorkMetrics(
-        Collection $cashierRows,
-        Collection $services,
-        array $months,
-        int $year,
-        string $selectedDepartment,
-        array $excludedNames
-    ): Collection {
-        $filters = $services
-            ->pluck('servicio')
-            ->filter()
-            ->unique()
-            ->flatMap(fn (string $service): Collection => collect($months)->map(fn ($month): array => [
-                'servicio' => $service,
-                'mes' => (int) $month,
-                'anio' => $year,
-            ]))
-            ->values()
-            ->all();
-        $workedDates = [];
-        $normalizedExcludedNames = collect($excludedNames)
-            ->map(fn (string $name): string => $this->normalizePersonName($name))
-            ->filter()
-            ->values();
+    private function addCashierReceivableIncome(Collection $cashierRows, Collection $movements): Collection
+    {
+        $rows = $cashierRows
+            ->map(function (array $cashier): array {
+                $cashier['totalMontoVentanilla'] = (float) ($cashier['totalMonto'] ?? 0);
+                $cashier['totalMontoCobrado'] = (float) ($cashier['totalMontoCobrado'] ?? 0);
+                $cashier['totalIngresos'] = $cashier['totalMontoVentanilla'] + $cashier['totalMontoCobrado'];
 
-        if ($filters !== []) {
-            foreach ($this->reports->serviceDetailsBatch($filters) as $result) {
-                if (($result['error'] ?? null) !== null) {
-                    Log::warning('No se pudo calcular los días trabajados del flujo de cajero.', [
-                        'message' => $result['error'],
-                        'servicio' => data_get($result, 'filter.servicio'),
-                        'mes' => data_get($result, 'filter.mes'),
-                        'anio' => data_get($result, 'filter.anio'),
-                    ]);
-
-                    continue;
-                }
-
-                foreach ((array) data_get($result, 'report.servicio.rows', []) as $detailRow) {
-                    $detailRow = (array) $detailRow;
-                    $person = (array) ($detailRow['usuario'] ?? []);
-                    $personName = trim((string) ($person['nombre'] ?? ''));
-                    $normalizedPersonName = $this->normalizePersonName($personName);
-                    $isExcluded = $normalizedExcludedNames->contains(function (string $excludedName) use ($normalizedPersonName): bool {
-                        $tokens = array_filter(explode(' ', $excludedName));
-
-                        return $normalizedPersonName !== ''
-                            && $tokens !== []
-                            && collect($tokens)->every(fn (string $token): bool => str_contains($normalizedPersonName, $token));
-                    });
-                    if ($isExcluded || ($selectedDepartment !== '' && ! $this->sameNormalizedText(
-                        $this->detailRowDepartment($detailRow),
-                        $selectedDepartment
-                    ))) {
-                        continue;
-                    }
-
-                    $date = substr(trim((string) ($detailRow['fecha'] ?? '')), 0, 10);
-                    if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
-                        continue;
-                    }
-
-                    $identity = $this->cashierIdentity(
-                        (string) ($person['id'] ?? ''),
-                        (string) ($person['email'] ?? ''),
-                        (string) ($person['alias'] ?? ''),
-                        $personName
-                    );
-                    $workedDates[$identity][$date] = true;
-                }
-            }
-        }
-
-        return $cashierRows->map(function (array $cashier) use ($workedDates): array {
-            $identity = $this->cashierIdentity(
+                return $cashier;
+            })
+            ->keyBy(fn (array $cashier): string => $this->cashierIdentity(
                 (string) ($cashier['usuarioId'] ?? ''),
                 (string) ($cashier['usuarioEmail'] ?? ''),
                 (string) ($cashier['usuarioAlias'] ?? ''),
                 (string) ($cashier['usuarioNombre'] ?? '')
-            );
-            $workedDays = count($workedDates[$identity] ?? []);
-            $cashier['diasTrabajados'] = $workedDays;
-            $cashier['promedioDiario'] = $workedDays > 0
-                ? (float) ($cashier['totalMonto'] ?? 0) / $workedDays
+            ));
+
+        $acceptedByCashier = $movements
+            ->groupBy(function (CashierFlowReceivableMovement $movement): string {
+                return $this->cashierIdentity(
+                    (string) $movement->facturado_por_id,
+                    (string) $movement->facturado_por_email,
+                    (string) $movement->facturado_por_alias,
+                    (string) $movement->facturado_por_nombre
+                );
+            })
+            ->map(function (Collection $cashierMovements): array {
+                /** @var CashierFlowReceivableMovement $first */
+                $first = $cashierMovements->first();
+                $id = trim((string) $first->facturado_por_id);
+                $email = trim((string) $first->facturado_por_email);
+                $alias = trim((string) $first->facturado_por_alias);
+                $name = trim((string) $first->facturado_por_nombre);
+
+                return [
+                    'usuarioId' => $id,
+                    'usuarioNombre' => $name !== '' ? $name : ($alias !== '' ? $alias : ($id !== '' ? $id : 'USUARIO SIN IDENTIFICAR')),
+                    'usuarioEmail' => $email,
+                    'usuarioAlias' => $alias,
+                    'usuarioCarnet' => '',
+                    'departamentos' => [],
+                    'departamento' => 'SIN REGIONAL ASIGNADA',
+                    'cantidadVentas' => 0.0,
+                    'cantidadDetalles' => 0.0,
+                    'totalCantidad' => 0.0,
+                    'totalMonto' => 0.0,
+                    'totalMontoVentanilla' => 0.0,
+                    'totalMontoCobrado' => (float) $cashierMovements->sum('monto'),
+                    'totalIngresos' => (float) $cashierMovements->sum('monto'),
+                ];
+            });
+
+        foreach ($acceptedByCashier as $identity => $accepted) {
+            $cashierKey = $rows->has($identity)
+                ? $identity
+                : $this->matchingCashierRowKey($rows, $accepted);
+            $cashier = $cashierKey !== null ? $rows->get($cashierKey) : null;
+            if ($cashier !== null) {
+                $cashier['totalMontoCobrado'] += (float) $accepted['totalMontoCobrado'];
+                $cashier['totalIngresos'] = $cashier['totalMontoVentanilla'] + $cashier['totalMontoCobrado'];
+                $rows->put($cashierKey, $cashier);
+
+                continue;
+            }
+
+            $rows->put($identity, $accepted);
+        }
+
+        return $rows->sortByDesc('totalIngresos')->values();
+    }
+
+    private function matchingCashierRowKey(Collection $cashierRows, array $person): ?string
+    {
+        $personId = trim((string) ($person['usuarioId'] ?? ''));
+        $personEmail = mb_strtolower(trim((string) ($person['usuarioEmail'] ?? '')));
+        $personAlias = mb_strtolower(trim((string) ($person['usuarioAlias'] ?? '')));
+        $personName = $this->normalizePersonName((string) ($person['usuarioNombre'] ?? ''));
+
+        foreach ($cashierRows as $key => $cashier) {
+            $cashierId = trim((string) ($cashier['usuarioId'] ?? ''));
+            $cashierEmail = mb_strtolower(trim((string) ($cashier['usuarioEmail'] ?? '')));
+            $cashierAlias = mb_strtolower(trim((string) ($cashier['usuarioAlias'] ?? '')));
+            $cashierName = $this->normalizePersonName((string) ($cashier['usuarioNombre'] ?? ''));
+            $sameName = $personName !== '' && $personName === $cashierName;
+
+            // The report's visible "Facturó" name is the source of truth for assigning these collections.
+            if ($sameName) {
+                return (string) $key;
+            }
+
+            if ($personId !== '' && $cashierId !== '' && $personId !== $cashierId) {
+                continue;
+            }
+
+            $sameEmail = $personEmail !== '' && $personEmail === $cashierEmail;
+            $sameAlias = $personAlias !== '' && $personAlias === $cashierAlias;
+            if ($sameEmail || $sameAlias) {
+                return (string) $key;
+            }
+        }
+
+        return null;
+    }
+
+    private function cashierIdentity(string $id, string $email, string $alias, string $name): string
+    {
+        $id = trim($id);
+        $email = trim($email);
+        $alias = trim($alias);
+        $name = trim($name);
+
+        if ($id !== '') {
+            return 'id:'.$id;
+        }
+        if ($email !== '') {
+            return 'email:'.mb_strtolower($email);
+        }
+
+        $user = mb_strtolower($alias !== '' ? $alias : $name);
+
+        return $user !== '' ? 'user:'.$user : 'user:sin-identificar';
+    }
+
+    private function addCashierPeriodAverages(Collection $cashierRows, array $months, int $year): Collection
+    {
+        $reportDays = $this->countReportDaysExcludingSundays($months, $year);
+
+        return $cashierRows->map(function (array $cashier) use ($reportDays): array {
+            $cashier['promedioPaquetesDiario'] = $reportDays > 0
+                ? (float) ($cashier['totalCantidad'] ?? 0) / $reportDays
+                : 0.0;
+            $cashier['promedioDiario'] = $reportDays > 0
+                ? (float) ($cashier['totalIngresos'] ?? $cashier['totalMonto'] ?? 0) / $reportDays
                 : 0.0;
 
             return $cashier;
         });
     }
 
-    private function cashierIdentity(string $id, string $email, string $alias, string $name): string
+    private function countReportDaysExcludingSundays(array $months, int $year): int
     {
-        $id = trim($id);
-        $email = mb_strtolower(trim($email));
-        $alias = mb_strtolower(trim($alias));
-        $name = mb_strtolower(trim($name));
+        $reportDays = 0;
 
-        return $id !== ''
-            ? 'id:'.$id
-            : ($email !== '' ? 'email:'.$email : 'user:'.($alias !== '' ? $alias : ($name !== '' ? $name : 'sin-identificar')));
+        foreach (collect($months)->map(fn ($month): int => (int) $month)->unique() as $month) {
+            if ($month < 1 || $month > 12) {
+                continue;
+            }
+
+            $date = Carbon::create($year, $month, 1);
+            $daysInMonth = $date->daysInMonth;
+
+            for ($day = 1; $day <= $daysInMonth; $day++) {
+                if (! $date->copy()->day($day)->isSunday()) {
+                    $reportDays++;
+                }
+            }
+        }
+
+        return $reportDays;
     }
 
-    private function detailRowDepartment(array $row): string
+    private function cashierFlowReceivableScopeHash(
+        array $months,
+        int $year,
+        int $limit,
+        string $department,
+        string $service
+    ): string {
+        $scope = [
+            'anio' => $year,
+            'meses' => collect($months)->map(fn ($month): int => (int) $month)->unique()->sort()->values()->all(),
+            'limite' => $limit,
+            'departamento' => $this->normalizePersonName($department),
+            'servicio' => trim($service),
+        ];
+
+        return hash('sha256', json_encode($scope, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+    }
+
+    private function isCashierFlowReceivableService(string $service): bool
     {
-        $regional = $row['regional'] ?? [];
-        $regionalName = is_array($regional)
-            ? trim((string) ($regional['nombre'] ?? ''))
-            : trim((string) $regional);
-        if ($regionalName !== '') {
-            return $this->canonicalDepartmentName($regionalName);
-        }
+        return $this->serviceGroupName($service) === 'Servicio Contratos'
+            || $this->isEcaInternationalService($service);
+    }
 
-        $branch = (array) ($row['sucursal'] ?? []);
-        $department = trim((string) ($branch['departamento'] ?? $branch['nombre'] ?? ''));
-        if ($department !== '') {
-            return $this->canonicalDepartmentName($department);
-        }
+    private function isEcaInternationalService(string $service): bool
+    {
+        $normalizedService = $this->normalizePersonName($service);
 
-        $branchCode = trim((string) ($branch['codigoSucursal'] ?? ''));
+        return str_contains($normalizedService, 'ECA')
+            && str_contains($normalizedService, 'INTERNACIONAL');
+    }
 
-        return self::DEPARTMENT_BY_BRANCH_CODE[$branchCode] ?? '';
+    private function attachCashierFlowMovementKeys(Collection $rows, int $year): Collection
+    {
+        $occurrences = [];
+
+        return $rows->map(function ($row) use (&$occurrences, $year): array {
+            $row = (array) $row;
+            $identity = [
+                'servicio' => (string) ($row['_servicio'] ?? ''),
+                'anio' => $year,
+                'mes' => (int) ($row['_mes'] ?? 0),
+                'venta' => (string) ($row['ventaId'] ?? ''),
+                'detalle' => (string) ($row['detalleId'] ?? ''),
+                'orden' => (string) ($row['codigoOrden'] ?? ''),
+                'seguimiento' => (string) ($row['codigoSeguimiento'] ?? ''),
+                'fecha' => (string) ($row['fecha'] ?? ''),
+                'monto' => number_format((float) ($row['totalLinea'] ?? 0), 2, '.', ''),
+                'descripcion' => (string) ($row['descripcion'] ?? ''),
+            ];
+            $identityHash = hash('sha256', json_encode($identity, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+            $occurrence = $occurrences[$identityHash] ?? 0;
+            $occurrences[$identityHash] = $occurrence + 1;
+            $row['_movementKey'] = hash('sha256', $identityHash.':'.$occurrence);
+
+            return $row;
+        });
     }
 
     private function excludeCashiersFromServices(Collection $services, array $excludedNames): Collection
@@ -1027,7 +2204,7 @@ class FinancialReportController extends Controller
             }
         }
 
-        return $this->canonicalDepartmentName((string) ($row['regional'] ?? ''));
+        return $this->canonicalDepartmentName($this->reportTextValue($row['regional'] ?? null));
     }
 
     private function canonicalDepartmentName(string $department): string
@@ -1040,6 +2217,44 @@ class FinancialReportController extends Controller
         return self::DEPARTMENT_ALIASES[$normalized] ?? $normalized;
     }
 
+    private function firstReportTextValue(mixed ...$values): string
+    {
+        foreach ($values as $value) {
+            $text = $this->reportTextValue($value);
+            if ($text !== '') {
+                return $text;
+            }
+        }
+
+        return '';
+    }
+
+    private function reportTextValue(mixed $value): string
+    {
+        if (is_string($value) || is_int($value) || is_float($value)) {
+            return trim((string) $value);
+        }
+
+        if (! is_array($value)) {
+            return '';
+        }
+
+        foreach (['nombre', 'name', 'descripcion', 'description', 'label', 'valor', 'value', 'departamento', 'regional', 'codigo', 'id'] as $key) {
+            if (array_key_exists($key, $value)) {
+                $text = $this->reportTextValue($value[$key]);
+                if ($text !== '') {
+                    return $text;
+                }
+            }
+        }
+
+        return collect($value)
+            ->map(fn ($item): string => $this->reportTextValue($item))
+            ->filter()
+            ->unique()
+            ->implode(', ');
+    }
+
     private function normalizePersonName(string $name): string
     {
         return mb_strtoupper(trim((string) preg_replace('/\s+/', ' ', Str::ascii($name))));
@@ -1047,10 +2262,21 @@ class FinancialReportController extends Controller
 
     private function serviceGroupName(string $service): string
     {
+        $normalizedService = $this->normalizePersonName($service);
+
+        if ($this->isEcaInternationalService($service)) {
+            return 'Servicio ECA Internacional';
+        }
+
         foreach (self::SERVICE_GROUPS as $groupName => $subservices) {
-            if (in_array($service, $subservices, true)) {
+            if (in_array($service, $subservices, true)
+                || in_array($normalizedService, array_map(fn (string $name): string => $this->normalizePersonName($name), $subservices), true)) {
                 return $groupName;
             }
+        }
+
+        if (str_contains($normalizedService, 'CONTRATO')) {
+            return 'Servicio Contratos';
         }
 
         return $service !== '' ? $service : 'Otros servicios';
@@ -1060,7 +2286,7 @@ class FinancialReportController extends Controller
     {
         $rules = [
             'mes' => ['nullable', 'integer', 'between:1,12'],
-            'anio' => ['nullable', 'integer', 'between:2000,'.(now()->year + 1)],
+            'anio' => ['nullable', 'integer', 'between:2000,'.(now()->year + 3)],
         ];
 
         if ($withLimit) {
