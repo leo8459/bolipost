@@ -75,7 +75,11 @@
     <thead><tr><th class="center">#</th><th>Línea</th><th class="num">Registros</th><th class="num">Entregados</th><th class="num">No entregados</th><th class="num">Efectividad</th><th class="num">Peso (kg)</th><th>Servicio principal</th><th>Último registro</th></tr></thead>
     <tbody>
         @forelse(($lineRows ?? []) as $idx => $lineRow)
-            @php($lineEffectiveness = (int) ($lineRow['cantidad'] ?? 0) > 0 ? ((int) ($lineRow['entregados'] ?? 0) / (int) $lineRow['cantidad']) * 100 : 0)
+            @php
+                $lineEffectiveness = (int) ($lineRow['cantidad'] ?? 0) > 0
+                    ? ((int) ($lineRow['entregados'] ?? 0) / (int) $lineRow['cantidad']) * 100
+                    : 0;
+            @endphp
             <tr>
                 <td class="center">{{ $idx + 1 }}</td>
                 <td>{{ $lineRow['linea'] }}</td>

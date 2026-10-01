@@ -245,7 +245,11 @@
                         <thead><tr><th class="text-center">#</th><th>Línea de negocio</th><th class="text-right">Registros</th><th class="text-right">Entregados</th><th class="text-right">No entregados</th><th class="text-right">Efectividad</th><th class="text-right">Peso (kg)</th><th>Servicio principal</th><th>Último registro</th></tr></thead>
                         <tbody>
                             @forelse($lineRows as $lineRow)
-                                @php($lineEffectiveness = (int) ($lineRow['cantidad'] ?? 0) > 0 ? ((int) ($lineRow['entregados'] ?? 0) / (int) $lineRow['cantidad']) * 100 : 0)
+                                @php
+                                    $lineEffectiveness = (int) ($lineRow['cantidad'] ?? 0) > 0
+                                        ? ((int) ($lineRow['entregados'] ?? 0) / (int) $lineRow['cantidad']) * 100
+                                        : 0;
+                                @endphp
                                 <tr>
                                     <td class="text-center"><span class="rank-badge">{{ $loop->iteration }}</span></td>
                                     <td class="font-weight-bold">{{ $lineRow['linea'] }}</td>

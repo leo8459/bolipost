@@ -2856,7 +2856,7 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header border-bottom border-dark" style="background: #fff; color: #000;">
-                    <h5 class="modal-title">Elegir reporte para Factura BOA</h5>
+                    <h5 class="modal-title">Preparar Factura BOA</h5>
                     <button
                         type="button"
                         class="close text-dark"
@@ -2867,18 +2867,26 @@
                     </button>
                 </div>
                 <div class="modal-body">
-                    <p class="mb-3">
-                        Configura la Factura BOA antes de imprimir y elige el tipo de reporte.
-                    </p>
-                    <div class="form-row">
-                        <div class="form-group col-md-4 mb-2">
-                            <label>Cantidad de sacas</label>
+                    <div class="alert alert-info py-2 mb-3">
+                        <strong>1. Revisa los datos.</strong> Luego elige el reporte y el formato. Cada botón descargará un PDF.
+                    </div>
+                    <div class="form-row align-items-end">
+                        <div class="form-group col-sm-4 mb-2">
+                            <label for="cn38BagCount">Cantidad de sacas</label>
                             <input
+                                id="cn38BagCount"
                                 type="number"
                                 min="1"
                                 class="form-control"
                                 wire:model.live="cn38BagCount"
                             >
+                        </div>
+                        <div class="form-group col-sm-8 mb-2">
+                            <label for="cn38TransportMode">Tipo de transporte</label>
+                            <select id="cn38TransportMode" class="form-control" wire:model.live="cn38TransportMode">
+                                <option value="TERRESTRE">TERRESTRE</option>
+                                <option value="AEREO">AÉREO</option>
+                            </select>
                         </div>
                     </div>
                     <div class="form-row">
@@ -2902,22 +2910,60 @@
                         @endfor
                     </div>
                     <small class="text-muted d-block mb-3">
-                        El reporte saldra como {{ strtoupper(trim((string) $cn38Despacho)) ?: 'CN33' }}/0001 y la ultima saca llevara la marca /F.
+                        Verifica el peso de cada saca. La última se identificará con <strong>/F</strong>.
+                        El despacho aparecerá como {{ strtoupper(trim((string) $cn38Despacho)) ?: 'CN33' }}/0001.
                     </small>
-                    <div class="form-group">
-                        <label>Transporte</label>
-                        <select class="form-control" wire:model.live="cn38TransportMode">
-                            <option value="TERRESTRE">TERRESTRE</option>
-                            <option value="AEREO">AEREO</option>
-                        </select>
-                    </div>
-                    <div class="d-flex flex-column flex-sm-row" style="gap: 10px;">
-                        <button type="button" class="btn btn-outline-dark flex-fill" wire:click="generarCn38Lq590">
-                            <i class="fas fa-file-alt mr-1"></i> Generar CN-38
-                        </button>
-                        <button type="button" class="btn btn-dark flex-fill" wire:click="generarCn41Lq590">
-                            <i class="fas fa-file-alt mr-1"></i> Generar CN-41
-                        </button>
+                    <h6 class="font-weight-bold mb-2">2. Elige el reporte y el papel</h6>
+                    <p class="small text-muted mb-3">
+                        Para la TMII 20, descarga el formato térmico y selecciona esa impresora al imprimir el PDF.
+                    </p>
+                    <div class="form-row">
+                        <div class="form-group col-12 col-md-6 mb-3">
+                            <div class="border rounded bg-light p-3 h-100">
+                                <div class="d-flex align-items-center mb-3">
+                                    <span class="badge badge-primary mr-2">REPORTE 1</span>
+                                    <div>
+                                        <strong class="d-block">CN-38</strong>
+                                        <small class="text-muted">Factura de entrega</small>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <button type="button" class="btn btn-outline-primary btn-block" wire:click="generarCn38Lq590">
+                                        <i class="fas fa-file-alt mr-1"></i> PDF para hoja bond (A4)
+                                    </button>
+                                    <small class="text-muted d-block mt-1">Imprimir en papel bond tamaño A4.</small>
+                                </div>
+                                <div>
+                                    <button type="button" class="btn btn-dark btn-block" wire:click="generarCn38Termica">
+                                        <i class="fas fa-receipt mr-1"></i> PDF térmico (80 mm)
+                                    </button>
+                                    <small class="text-muted d-block mt-1">Al imprimir, selecciona la TMII 20.</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group col-12 col-md-6 mb-3">
+                            <div class="border rounded bg-light p-3 h-100">
+                                <div class="d-flex align-items-center mb-3">
+                                    <span class="badge badge-secondary mr-2">REPORTE 2</span>
+                                    <div>
+                                        <strong class="d-block">CN-41</strong>
+                                        <small class="text-muted">Factura de entrega</small>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <button type="button" class="btn btn-outline-primary btn-block" wire:click="generarCn41Lq590">
+                                        <i class="fas fa-file-alt mr-1"></i> PDF para hoja bond (A4)
+                                    </button>
+                                    <small class="text-muted d-block mt-1">Imprimir en papel bond tamaño A4.</small>
+                                </div>
+                                <div>
+                                    <button type="button" class="btn btn-dark btn-block" wire:click="generarCn41Termica">
+                                        <i class="fas fa-receipt mr-1"></i> PDF térmico (80 mm)
+                                    </button>
+                                    <small class="text-muted d-block mt-1">Al imprimir, selecciona la TMII 20.</small>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer bg-white border-top">

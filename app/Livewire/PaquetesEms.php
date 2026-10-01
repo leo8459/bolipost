@@ -2530,12 +2530,22 @@ class PaquetesEms extends Component
 
     public function generarCn38Lq590()
     {
-        return $this->generarCn38EnFormato('lq590', 'CN-38');
+        return $this->generarCn38EnFormato('bond', 'CN-38');
     }
 
     public function generarCn41Lq590()
     {
-        return $this->generarCn38EnFormato('lq590', 'CN-41');
+        return $this->generarCn38EnFormato('bond', 'CN-41');
+    }
+
+    public function generarCn38Termica()
+    {
+        return $this->generarCn38EnFormato('termica', 'CN-38');
+    }
+
+    public function generarCn41Termica()
+    {
+        return $this->generarCn38EnFormato('termica', 'CN-41');
     }
 
     protected function generarCn38EnFormato(string $formato, string $documentType = 'CN-38')
@@ -2614,7 +2624,15 @@ class PaquetesEms extends Component
         $loggedInUserCity = trim((string) optional(Auth::user())->ciudad);
         $destinationCity = trim((string) ($rows->first()->destino ?? ''));
 
-        $view = $formato === 'carta' ? 'paquetes_ems.cn38-carta' : 'paquetes_ems.cn38';
+        $esTermica = $formato === 'termica';
+        $esCarta = $formato === 'carta';
+        $view = $esTermica
+            ? 'paquetes_ems.cn38-termica'
+            : ($esCarta ? 'paquetes_ems.cn38-carta' : 'paquetes_ems.cn38');
+
+        $paper = $esTermica
+            ? [0, 0, 226.77, max(651.97, (145 + ($rows->count() * 20)) * 72 / 25.4)]
+            : ($esCarta ? 'letter' : 'a4');
 
         try {
             $pdf = Pdf::loadView($view, [
@@ -2629,7 +2647,7 @@ class PaquetesEms extends Component
                 'selectedTransport' => trim((string) $this->cn38TransportMode) !== '' ? trim((string) $this->cn38TransportMode) : 'TERRESTRE',
                 'transportNumber' => 'S/N',
                 'documentType' => $documentType,
-            ])->setPaper($formato === 'carta' ? 'letter' : 'a4', 'portrait');
+            ])->setPaper($paper, 'portrait');
         } catch (\Throwable $exception) {
             report($exception);
 
@@ -2641,11 +2659,12 @@ class PaquetesEms extends Component
 
         $this->cerrarCn38OpcionesImpresion();
 
-        session()->flash('success', $documentType . ' generado en formato ' . strtoupper($formato) . ' con ' . $rows->count() . ' despacho(s).');
+        $formatoLabel = $esTermica ? 'TERMICA TMII 20' : ($esCarta ? 'CARTA' : 'HOJA BOND');
+        session()->flash('success', $documentType . ' generado en formato ' . $formatoLabel . ' con ' . $rows->count() . ' despacho(s).');
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
-        }, strtolower(str_replace('-', '', $documentType)) . '-' . $despacho . '-' . $formato . '.pdf');
+        }, strtolower(str_replace('-', '', $documentType)) . '-' . $despacho . '-' . ($esTermica ? 'termica' : ($esCarta ? 'carta' : 'bond')) . '.pdf');
     }
 
     public function openEditModal($id)
