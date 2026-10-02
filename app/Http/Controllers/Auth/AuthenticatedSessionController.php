@@ -10,7 +10,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Route;
 use Illuminate\View\View;
 
 class AuthenticatedSessionController extends Controller
@@ -36,21 +35,14 @@ class AuthenticatedSessionController extends Controller
 
         Auth::guard('cliente')->logout();
         $user = $request->user();
-        $fallbackUrl = $this->firstAuthorizedUrl($user);
-        $rawIntendedUrl = (string) $request->session()->get('url.intended', $fallbackUrl);
-        $intendedUrl = $this->isUnsafeIntendedUrl($rawIntendedUrl) ? $fallbackUrl : $rawIntendedUrl;
-
-        if ($intendedUrl === $fallbackUrl) {
-            $request->session()->forget('url.intended');
-        }
+        $redirectUrl = route('home.welcome', absolute: false);
+        $request->session()->forget('url.intended');
 
         Log::info('Login autenticado; preparando redireccion del panel interno.', [
             'user_id' => $user?->id,
             'alias' => $user?->alias,
             'role' => $user?->role,
-            'url_intended_original' => $rawIntendedUrl,
-            'url_intended_resuelta' => $intendedUrl,
-            'fallback_url' => $fallbackUrl,
+            'redirect_url' => $redirectUrl,
             'session_id_before_regenerate' => $request->session()->getId(),
         ]);
 
@@ -86,7 +78,7 @@ class AuthenticatedSessionController extends Controller
             }
         }
 
-        return redirect()->intended($fallbackUrl);
+        return redirect()->to($redirectUrl);
     }
 
     /**
@@ -152,24 +144,6 @@ class AuthenticatedSessionController extends Controller
         }
     }
 
-    private function firstAuthorizedUrl(?Authenticatable $user): string
-    {
-        if (! $user) {
-            return route('login', absolute: false);
-        }
-
-        $role = mb_strtolower(trim((string) ($user->role ?? '')));
-        if ($role === 'taller') {
-            return route('livewire.workshops', absolute: false);
-        }
-
-        if ($this->isEmpresaUser($user)) {
-            return route('paquetes-contrato.index', absolute: false);
-        }
-
-        return route('home.welcome', absolute: false);
-    }
-
     private function logoutRedirectUrl(?Authenticatable $user): string
     {
         if ($this->isEmpresaUser($user)) {
@@ -184,84 +158,6 @@ class AuthenticatedSessionController extends Controller
         return $user !== null
             && method_exists($user, 'hasRole')
             && $user->hasRole('empresa');
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private function authorizedMenuUrls(Authenticatable $user): array
-    {
-        $urls = [];
-
-        foreach ((array) config('adminlte.menu', []) as $item) {
-            foreach ($this->extractAuthorizedMenuUrls($item, $user) as $url) {
-                $urls[] = $url;
-            }
-        }
-
-        return array_values(array_unique($urls));
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private function extractAuthorizedMenuUrls(array $item, Authenticatable $user): array
-    {
-        if (isset($item['header']) || isset($item['type'])) {
-            return [];
-        }
-
-        $submenu = $item['submenu'] ?? null;
-        if (is_array($submenu) && $submenu !== []) {
-            $urls = [];
-
-            foreach ($submenu as $child) {
-                if (! is_array($child)) {
-                    continue;
-                }
-
-                foreach ($this->extractAuthorizedMenuUrls($child, $user) as $url) {
-                    $urls[] = $url;
-                }
-            }
-
-            return $urls;
-        }
-
-        $url = trim((string) ($item['url'] ?? ''));
-        if ($url === '' || str_starts_with($url, 'http') || str_starts_with($url, '#')) {
-            return [];
-        }
-
-        $routeName = $this->routeNameFromMenuUrl($url);
-        if ($routeName === null) {
-            return [];
-        }
-
-        if (! $user->can($routeName)) {
-            return [];
-        }
-
-        return ['/' . trim($url, '/')];
-    }
-
-    private function routeNameFromMenuUrl(string $url): ?string
-    {
-        $path = trim(parse_url($url, PHP_URL_PATH) ?? '', '/');
-
-        if ($path === '') {
-            return null;
-        }
-
-        try {
-            $route = Route::getRoutes()->match(Request::create('/' . $path, 'GET'));
-        } catch (\Throwable) {
-            return null;
-        }
-
-        $name = $route->getName();
-
-        return is_string($name) && $name !== '' ? $name : null;
     }
 
     private function isUnsafeIntendedUrl(string $url): bool

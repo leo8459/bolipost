@@ -349,11 +349,6 @@ $config = [
         ],
         ['header' => 'SISTEMA DE INFORMACION'],
         [
-            'text' => 'Dashboard',
-            'url' => '/dashboard',
-            'icon' => 'fas fa-tachometer-alt',
-        ],
-        [
             'text' => 'Conciliación',
             'icon' => 'fas fa-balance-scale',
             'can' => 'dashboard.conciliacion',
@@ -515,10 +510,21 @@ $config = [
             'icon' => 'fas fa-file-pdf',
             'submenu' => [
                 [
+                    'text' => 'Dashboard',
+                    'url' => '/dashboard',
+                    'icon' => 'fas fa-tachometer-alt',
+                ],
+                [
                     'text' => 'Movimiento de toda la vida',
                     'url' => '/reportes/movimiento-toda-la-vida',
                     'icon' => 'fas fa-history',
                     'can' => 'reportes.scope',
+                ],
+                [
+                    'text' => 'Flujo de paquetería',
+                    'url' => '/dir-operaciones/flujo-paqueteria',
+                    'icon' => 'fas fa-box-open',
+                    'can' => 'dashboard.flujo-paqueteria',
                 ],
                 [
                     'text' => 'Mis ventas',
@@ -1513,8 +1519,7 @@ $config = [
     'livewire' => false,
 ];
 
-// Keep the system sidebar alphabetized while leaving Dashboard at the top.
-// Place executive reports and indicators under the main Reports section.
+// Keep the system sidebar alphabetized and place executive reports and indicators under Reports.
 $reportesIndex = null;
 $reportesAgrupados = [];
 $elementosMover = ['Reportes Ejecutivos', 'INDICADORES'];
@@ -1578,18 +1583,8 @@ foreach ($config['menu'] as $index => $item) {
 
 if ($systemHeaderIndex !== null) {
     $systemItems = array_slice($config['menu'], $systemHeaderIndex + 1);
-    $dashboardItems = array_values(array_filter(
-        $systemItems,
-        static fn (array $item): bool => ($item['text'] ?? null) === 'Dashboard'
-    ));
-    $systemItems = array_values(array_filter(
-        $systemItems,
-        static fn (array $item): bool => ($item['text'] ?? null) !== 'Dashboard'
-    ));
-
     $config['menu'] = array_merge(
         array_slice($config['menu'], 0, $systemHeaderIndex + 1),
-        $dashboardItems,
         $sortMenuItems($systemItems)
     );
 }

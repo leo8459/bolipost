@@ -159,6 +159,7 @@ class FinancialReportController extends Controller
             $data['selectedMonths'],
             $data['anio']
         );
+        $data['cashierDepartmentGroups'] = $this->buildCashierDepartmentGroups($data['cashierRows']);
 
         return view('financial-reports.cashier-flow', $data);
     }
@@ -254,6 +255,7 @@ class FinancialReportController extends Controller
             $collectedMovements,
             $invoiceAudit['movementPaymentMethods']->merge($collectionAudit['movementPaymentMethods'])
         );
+        $data['cashierDepartmentGroups'] = $this->buildCashierDepartmentGroups($data['cashierRows']);
         $data['generatedAt'] = now();
         $data['periodLabel'] = collect($data['selectedMonths'])
             ->map(fn (int $month) => [
@@ -1862,6 +1864,49 @@ class FinancialReportController extends Controller
                 ];
             })
             ->sortByDesc('totalMonto')
+            ->values();
+    }
+
+    private function buildCashierDepartmentGroups(Collection $cashierRows): Collection
+    {
+        return $cashierRows
+            ->map(function (array $cashier): array {
+                $departments = collect($cashier['departamentos'] ?? [])
+                    ->map(fn ($department): string => $this->canonicalDepartmentName((string) $department))
+                    ->filter()
+                    ->unique()
+                    ->sort()
+                    ->values();
+
+                if ($departments->isEmpty()) {
+                    $departmentLabel = 'SIN REGIONAL ASIGNADA';
+                } elseif ($departments->count() === 1) {
+                    $departmentLabel = (string) $departments->first();
+                } else {
+                    // Keep multi-regional cashiers in one group so their income is not duplicated.
+                    $departmentLabel = 'VARIOS DEPARTAMENTOS: '.$departments->implode(', ');
+                }
+
+                $cashier['departamentoReporte'] = $departmentLabel;
+
+                return $cashier;
+            })
+            ->groupBy('departamentoReporte')
+            ->map(function (Collection $cashiers, string $department): array {
+                return [
+                    'departamento' => $department,
+                    'cajeros' => $cashiers->sortByDesc('totalIngresos')->values(),
+                    'cantidadCajeros' => $cashiers->count(),
+                    'cantidadVentas' => (float) $cashiers->sum('cantidadVentas'),
+                    'cantidadDetalles' => (float) $cashiers->sum('cantidadDetalles'),
+                    'totalCantidad' => (float) $cashiers->sum('totalCantidad'),
+                    'totalMontoVentanilla' => (float) $cashiers->sum('totalMontoVentanilla'),
+                    'totalMontoCobrado' => (float) $cashiers->sum('totalMontoCobrado'),
+                    'totalIngresos' => (float) $cashiers->sum('totalIngresos'),
+                    'promedioDiario' => (float) $cashiers->sum('promedioDiario'),
+                ];
+            })
+            ->sortByDesc('totalIngresos')
             ->values();
     }
 

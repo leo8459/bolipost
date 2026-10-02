@@ -438,7 +438,8 @@
         <div class="card-header d-flex align-items-center">
             <span class="flow-icon"><i class="fas fa-cash-register"></i></span>
             <div>
-                <strong>Ingresos por cajero</strong>
+                    <strong>Ingresos por cajero</strong>
+                    <div class="text-muted small">Separado por departamento. Los cajeros asignados a varias regionales se agrupan aparte para evitar duplicar ingresos.</div>
                 <div class="text-muted small">Los cobros aceptados se atribuyen al usuario que facturó el contrato o ECA.</div>
             </div>
         </div>
@@ -461,30 +462,46 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse($cashierRows as $cashier)
-                            @php($share = $cashierTotal > 0 ? ((float) $cashier['totalIngresos'] / $cashierTotal) * 100 : 0)
-                            <tr>
-                                <td class="text-center"><span class="flow-rank">{{ $loop->iteration }}</span></td>
-                                <td class="cashier-name">
-                                    <div class="font-weight-bold">{{ $cashier['usuarioNombre'] }}</div>
-                                    @if($cashier['usuarioCarnet'] !== '')
-                                        <small class="text-muted">CI: {{ $cashier['usuarioCarnet'] }}</small>
-                                    @endif
+                        @forelse($cashierDepartmentGroups as $departmentGroup)
+                            <tr class="table-info font-weight-bold">
+                                <td colspan="3">
+                                    <i class="fas fa-map-marker-alt text-primary mr-1"></i>
+                                    {{ $departmentGroup['departamento'] }}
+                                    <span class="text-muted font-weight-normal">({{ $departmentGroup['cantidadCajeros'] }} cajeros)</span>
                                 </td>
-                                <td class="cashier-meta">
-                                    <span class="badge badge-primary">{{ $cashier['departamento'] }}</span>
-                                </td>
-                                <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $cashier['cantidadVentas']) }}</td>
-                                <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $cashier['cantidadDetalles']) }}</td>
-                                <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $cashier['totalCantidad'], 2) }}</td>
-                                <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($cashier['promedioPaquetesDiario'] ?? 0), 2) }}</td>
-                                <td class="text-right font-weight-bold">Bs {{ \App\Support\BolivianNumber::format((float) ($cashier['promedioDiario'] ?? 0), 2) }}</td>
-                                <td class="text-right font-weight-bold">Bs {{ \App\Support\BolivianNumber::format((float) ($cashier['totalIngresos'] ?? $cashier['totalMonto']), 2) }}</td>
-                                <td class="flow-progress">
-                                    <span class="small font-weight-bold">{{ \App\Support\BolivianNumber::format($share, 1) }}%</span>
-                                    <div class="progress"><div class="progress-bar bg-success" style="width: {{ min(100, $share) }}%"></div></div>
-                                </td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format($departmentGroup['cantidadVentas']) }}</td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format($departmentGroup['cantidadDetalles']) }}</td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format($departmentGroup['totalCantidad'], 2) }}</td>
+                                <td></td>
+                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format($departmentGroup['promedioDiario'], 2) }}</td>
+                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format($departmentGroup['totalIngresos'], 2) }}</td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format($cashierTotal > 0 ? ($departmentGroup['totalIngresos'] / $cashierTotal) * 100 : 0, 1) }}%</td>
                             </tr>
+                            @foreach($departmentGroup['cajeros'] as $cashier)
+                                @php($share = $departmentGroup['totalIngresos'] > 0 ? ((float) $cashier['totalIngresos'] / $departmentGroup['totalIngresos']) * 100 : 0)
+                                <tr>
+                                    <td class="text-center"><span class="flow-rank">{{ $loop->iteration }}</span></td>
+                                    <td class="cashier-name">
+                                        <div class="font-weight-bold">{{ $cashier['usuarioNombre'] }}</div>
+                                        @if($cashier['usuarioCarnet'] !== '')
+                                            <small class="text-muted">CI: {{ $cashier['usuarioCarnet'] }}</small>
+                                        @endif
+                                    </td>
+                                    <td class="cashier-meta">
+                                        <span class="badge badge-primary">{{ $cashier['departamento'] }}</span>
+                                    </td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $cashier['cantidadVentas']) }}</td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $cashier['cantidadDetalles']) }}</td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $cashier['totalCantidad'], 2) }}</td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($cashier['promedioPaquetesDiario'] ?? 0), 2) }}</td>
+                                    <td class="text-right font-weight-bold">Bs {{ \App\Support\BolivianNumber::format((float) ($cashier['promedioDiario'] ?? 0), 2) }}</td>
+                                    <td class="text-right font-weight-bold">Bs {{ \App\Support\BolivianNumber::format((float) ($cashier['totalIngresos'] ?? $cashier['totalMonto']), 2) }}</td>
+                                    <td class="flow-progress">
+                                        <span class="small font-weight-bold">{{ \App\Support\BolivianNumber::format($share, 1) }}%</span>
+                                        <div class="progress"><div class="progress-bar bg-success" style="width: {{ min(100, $share) }}%"></div></div>
+                                    </td>
+                                </tr>
+                            @endforeach
                         @empty
                             <tr><td colspan="10" class="text-center text-muted py-4">La API no devolvió información por cajero.</td></tr>
                         @endforelse

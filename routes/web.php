@@ -44,6 +44,7 @@ use App\Http\Controllers\PaquetesEmsBoletaController;
 use App\Http\Controllers\PaquetesEmsController;
 use App\Http\Controllers\PaquetesIpsController;
 use App\Http\Controllers\PaquetesOrdiController;
+use App\Http\Controllers\PaqueteriaFlowController;
 use App\Http\Controllers\PerformanceController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\PesoController;
@@ -213,6 +214,15 @@ Route::get('/dir-operaciones/global-por-servicio/export/excel', [ReportesControl
 Route::get('/dir-operaciones/global-por-servicio/export/pdf', [ReportesController::class, 'exportGlobalPorServicioPdf'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.global-por-servicio.pdf');
+Route::get('/dir-operaciones/flujo-paqueteria', [PaqueteriaFlowController::class, 'index'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.flujo-paqueteria');
+Route::get('/dir-operaciones/flujo-paqueteria/export/excel', [PaqueteriaFlowController::class, 'exportExcel'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.flujo-paqueteria.excel');
+Route::get('/dir-operaciones/flujo-paqueteria/export/pdf', [PaqueteriaFlowController::class, 'exportPdf'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.flujo-paqueteria.pdf');
 Route::get('/dir-operaciones/envios-oficiales', [ReportesController::class, 'enviosOficiales'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.envios-oficiales');

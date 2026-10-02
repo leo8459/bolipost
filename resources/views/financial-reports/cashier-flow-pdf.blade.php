@@ -41,6 +41,12 @@
         .muted { color: #64748b; }
         .nowrap { white-space: nowrap; }
         .page-break { page-break-before: always; }
+        .department-page { page-break-before: always; }
+        .department-head { width: 100%; margin-bottom: 8px; border-collapse: collapse; }
+        .department-head td { padding: 9px 11px; border: 1px solid #cbd8e6; background: #f4f8fc; }
+        .department-name { color: #123f73; font-size: 15px; font-weight: bold; }
+        .department-subtitle { margin-top: 3px; color: #64748b; font-size: 8px; }
+        .sheet tr { page-break-inside: avoid; }
         .signatures { margin: 20px 0 8px; border-collapse: separate; border-spacing: 25px 0; page-break-inside: avoid; }
         .signatures td { width: 50%; padding-top: 7px; border-top: 1px solid #64748b; text-align: center; color: #475569; }
         .method-note { margin-top: 10px; padding: 7px 9px; border-left: 3px solid #94a3b8; background: #f8fafc; color: #526174; font-size: 7.5px; }
@@ -78,7 +84,7 @@
 
     <div class="title-block">
         <h1 class="title">Reporte ejecutivo de flujo de cajero</h1>
-        <div class="subtitle">Ingresos totales por cajero y servicio</div>
+        <div class="subtitle">Ingresos por departamento, cajero y servicio</div>
     </div>
 
     <table class="meta">
@@ -123,43 +129,99 @@
         @endif
     </div>
 
-    <h2 class="section-title">Ingresos por cajero</h2>
-    <table class="sheet">
-        <thead>
+    <h2 class="section-title">Resumen por departamento</h2>
+<table class="sheet">
+    <thead>
+        <tr>
+            <th style="width: 34%">Departamento</th>
+            <th style="width: 11%" class="right">Cajeros</th>
+            <th style="width: 13%" class="right">Ventas</th>
+            <th style="width: 14%" class="right">Paquetes</th>
+            <th style="width: 14%" class="right">Promedio diario</th>
+            <th style="width: 14%" class="right">Ingresos</th>
+        </tr>
+    </thead>
+    <tbody>
+        @forelse($cashierDepartmentGroups as $departmentGroup)
             <tr>
-                <th style="width: 3%">Pos.</th>
-                <th style="width: 19%">Cajero</th>
-                <th style="width: 10%">Regional / departamento</th>
-                <th style="width: 7%" class="right">Ventas realizadas</th>
-                <th style="width: 8%" class="right">Cantidad de paquetes</th>
-                <th style="width: 9%" class="right">Paquetes promedio por día</th>
-                <th style="width: 11%" class="right">Promedio de ingresos por día (lun-sáb)</th>
-                <th style="width: 10%" class="right">Importe QR</th>
-                <th style="width: 10%" class="right">Importe efectivo</th>
-                <th style="width: 13%" class="right">Ingresos totales</th>
+                <td class="strong">{{ $departmentGroup['departamento'] }}</td>
+                <td class="right">{{ \App\Support\BolivianNumber::format($departmentGroup['cantidadCajeros']) }}</td>
+                <td class="right">{{ \App\Support\BolivianNumber::format($departmentGroup['cantidadVentas']) }}</td>
+                <td class="right">{{ \App\Support\BolivianNumber::format($departmentGroup['totalCantidad'], 2) }}</td>
+                <td class="right money">Bs {{ \App\Support\BolivianNumber::format($departmentGroup['promedioDiario'], 2) }}</td>
+                <td class="right money">Bs {{ \App\Support\BolivianNumber::format($departmentGroup['totalIngresos'], 2) }}</td>
             </tr>
-        </thead>
-        <tbody>
-            @forelse($cashierRows as $cashier)
-                <tr>
-                    <td class="center strong">{{ $loop->iteration }}</td>
-                    <td><span class="strong">{{ $cashier['usuarioNombre'] }}</span>@if($cashier['usuarioCarnet'] !== '')<br><span class="muted">CI: {{ $cashier['usuarioCarnet'] }}</span>@endif</td>
-                    <td>{{ $cashier['departamento'] }}</td>
-                    <td class="right">{{ \App\Support\BolivianNumber::format((float) ($cashier['cantidadVentas'] ?? 0)) }}</td>
-                    <td class="right">{{ \App\Support\BolivianNumber::format((float) ($cashier['totalCantidad'] ?? 0), 2) }}</td>
-                    <td class="right">{{ \App\Support\BolivianNumber::format((float) ($cashier['promedioPaquetesDiario'] ?? 0), 2) }}</td>
-                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($cashier['promedioDiario'] ?? 0), 2) }}</td>
-                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($cashier['paymentMethods']['qr']['totalMonto'] ?? 0), 2) }}</td>
-                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($cashier['paymentMethods']['efectivo']['totalMonto'] ?? 0), 2) }}</td>
-                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($cashier['totalIngresos'] ?? $cashier['totalMonto']), 2) }}</td>
-                </tr>
-            @empty
-                <tr><td colspan="10" class="center muted">Sin información por cajero.</td></tr>
-            @endforelse
-        </tbody>
-    </table>
+        @empty
+            <tr><td colspan="6" class="center muted">No hay información por cajero para los filtros seleccionados.</td></tr>
+        @endforelse
+        @if($cashierRows->isNotEmpty())
+            <tr>
+                <td class="strong">TOTAL GENERAL</td>
+                <td class="right strong">{{ \App\Support\BolivianNumber::format($cashierRows->count()) }}</td>
+                <td class="right strong">{{ \App\Support\BolivianNumber::format((float) $cashierRows->sum('cantidadVentas')) }}</td>
+                <td class="right strong">{{ \App\Support\BolivianNumber::format((float) $cashierRows->sum('totalCantidad'), 2) }}</td>
+                <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) $cashierRows->sum('promedioDiario'), 2) }}</td>
+                <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) $cashierRows->sum('totalIngresos'), 2) }}</td>
+            </tr>
+        @endif
+    </tbody>
+</table>
+<p class="muted">Los cajeros asignados a varias regionales aparecen en una sección propia para evitar duplicar sus ingresos.</p>
 
-    <h2 class="section-title">Ingresos por servicio</h2>
+@foreach($cashierDepartmentGroups as $departmentGroup)
+    <div class="department-page">
+        <table class="department-head">
+            <tr>
+                <td>
+                    <div class="label">Detalle por departamento</div>
+                    <div class="department-name">{{ $departmentGroup['departamento'] }}</div>
+                    <div class="department-subtitle">
+                        {{ \App\Support\BolivianNumber::format($departmentGroup['cantidadCajeros']) }} cajeros | {{ $periodLabel }}
+                        | Ingresos: Bs {{ \App\Support\BolivianNumber::format($departmentGroup['totalIngresos'], 2) }}
+                    </div>
+                </td>
+            </tr>
+        </table>
+        <table class="sheet">
+            <thead>
+                <tr>
+                    <th style="width: 4%" class="center">Pos.</th>
+                    <th style="width: 25%">Cajero</th>
+                    <th style="width: 10%" class="right">Ventas</th>
+                    <th style="width: 11%" class="right">Paquetes</th>
+                    <th style="width: 14%" class="right">Promedio ingresos/día</th>
+                    <th style="width: 12%" class="right">QR</th>
+                    <th style="width: 12%" class="right">Efectivo</th>
+                    <th style="width: 12%" class="right">Ingresos totales</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($departmentGroup['cajeros'] as $cashier)
+                    <tr>
+                        <td class="center">{{ $loop->iteration }}</td>
+                        <td><span class="strong">{{ $cashier['usuarioNombre'] }}</span>@if($cashier['usuarioCarnet'] !== '')<br><span class="muted">CI: {{ $cashier['usuarioCarnet'] }}</span>@endif</td>
+                        <td class="right">{{ \App\Support\BolivianNumber::format((float) ($cashier['cantidadVentas'] ?? 0)) }}</td>
+                        <td class="right">{{ \App\Support\BolivianNumber::format((float) ($cashier['totalCantidad'] ?? 0), 2) }}</td>
+                        <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($cashier['promedioDiario'] ?? 0), 2) }}</td>
+                        <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($cashier['paymentMethods']['qr']['totalMonto'] ?? 0), 2) }}</td>
+                        <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($cashier['paymentMethods']['efectivo']['totalMonto'] ?? 0), 2) }}</td>
+                        <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($cashier['totalIngresos'] ?? $cashier['totalMonto']), 2) }}</td>
+                    </tr>
+                @endforeach
+                <tr>
+                    <td colspan="2" class="strong">TOTAL {{ strtoupper($departmentGroup['departamento']) }}</td>
+                    <td class="right strong">{{ \App\Support\BolivianNumber::format($departmentGroup['cantidadVentas']) }}</td>
+                    <td class="right strong">{{ \App\Support\BolivianNumber::format($departmentGroup['totalCantidad'], 2) }}</td>
+                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format($departmentGroup['promedioDiario'], 2) }}</td>
+                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format(collect($departmentGroup['cajeros'])->sum(fn ($cashier) => (float) data_get($cashier, 'paymentMethods.qr.totalMonto', 0)), 2) }}</td>
+                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format(collect($departmentGroup['cajeros'])->sum(fn ($cashier) => (float) data_get($cashier, 'paymentMethods.efectivo.totalMonto', 0)), 2) }}</td>
+                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format($departmentGroup['totalIngresos'], 2) }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+@endforeach
+<h2 class="section-title">Ingresos por servicio</h2>
     <table class="sheet">
         <thead>
             <tr>
