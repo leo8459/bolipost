@@ -1,7 +1,8 @@
 <?php
 
-use App\Http\Middleware\ApplySecurityHeaders;
 use App\Http\Middleware\AddServerTiming;
+use App\Http\Middleware\ApplyBrowserRestrictions;
+use App\Http\Middleware\ApplySecurityHeaders;
 use App\Http\Middleware\EnsureAclPermissionsSynced;
 use App\Http\Middleware\EnsureChasquiCartero;
 use App\Http\Middleware\EnsureClienteAclPermissionsSynced;
@@ -66,6 +67,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             AddServerTiming::class,
             ApplySecurityHeaders::class,
+            ApplyBrowserRestrictions::class,
             SetSystemAuditContext::class,
             EnsureAclPermissionsSynced::class,
             EnsureEmpresaContractUsersActive::class,
