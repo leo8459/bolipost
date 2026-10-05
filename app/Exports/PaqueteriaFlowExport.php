@@ -22,6 +22,14 @@ class PaqueteriaFlowExport implements FromArray, ShouldAutoSize, WithHeadings, W
     public function array(): array
     {
         $rows = [];
+        $rows[] = [
+            'Cobertura',
+            $this->reportData['periodLabel'],
+            'Departamentos de origen: '.$this->reportData['departmentLabel'],
+            null,
+            null,
+            null,
+        ];
 
         foreach ($this->reportData['months'] as $month) {
             $monthName = $month['nombre'];

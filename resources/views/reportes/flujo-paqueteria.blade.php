@@ -7,7 +7,7 @@
         <div>
             <div class="flow-eyebrow">DIRECCIÓN DE OPERACIONES · COMPARATIVO MENSUAL</div>
             <h1 class="mb-1">Flujo de paquetería</h1>
-            <p class="mb-0 text-muted">Guías, kilos de CN-33 tomados de bitácoras, empresas y paquetes EMS para {{ $periodLabel }}.</p>
+            <p class="mb-0 text-muted">Guías, kilos de CN-33 tomados de bitácoras, empresas y paquetes EMS para {{ $periodLabel }} · Origen: {{ $departmentLabel }}.</p>
         </div>
     </div>
 @stop
@@ -31,6 +31,7 @@
         #paqueteria-flow .month-option { align-items:center; background:#fff; border:1px solid #e1e8ef; border-radius:6px; color:#40566b; cursor:pointer; display:inline-flex; font-size:.78rem; margin:0 5px 6px 0; padding:6px 9px; }
         #paqueteria-flow .month-option input { margin:0 6px 0 0; }
         #paqueteria-flow .month-option:has(input:checked) { background:#edf5ff; border-color:#8ab5df; color:#174f82; }
+        #paqueteria-flow .department-picker-note { color:var(--flow-muted); font-size:.74rem; margin-top:7px; }
         #paqueteria-flow .metric-card { background:#fff; border:1px solid var(--flow-line); border-radius:10px; height:100%; min-height:127px; overflow:hidden; padding:16px 18px; position:relative; }
         #paqueteria-flow .metric-card:before { background:var(--metric-color,#2364aa); content:''; height:100%; left:0; position:absolute; top:0; width:4px; }
         #paqueteria-flow .metric-label { color:var(--flow-muted); font-size:.72rem; font-weight:700; text-transform:uppercase; }
@@ -93,17 +94,17 @@
         <div class="card flow-card mb-3">
             <div class="card-header d-flex flex-column flex-md-row justify-content-between align-items-md-center">
                 <div>
-                    <h2 class="flow-title"><i class="fas fa-sliders-h text-primary mr-2"></i>Periodo del reporte</h2>
-                    <div class="flow-subtitle">Elige uno o varios meses para actualizar el reporte y sus exportaciones.</div>
+                    <h2 class="flow-title"><i class="fas fa-sliders-h text-primary mr-2"></i>Filtros del reporte</h2>
+                    <div class="flow-subtitle">Elige uno o varios meses y departamentos de origen para actualizar el reporte y sus exportaciones.</div>
                 </div>
                 <div class="mt-3 mt-md-0">
                     @canany(['dashboard.flujo-paqueteria.pdf', 'dashboard.flujo-paqueteria'])
-                        <a href="{{ route('dashboard.flujo-paqueteria.pdf', ['anio' => $anio, 'meses' => $selectedMonths]) }}" class="btn btn-danger btn-sm mr-1">
+                        <a href="{{ route('dashboard.flujo-paqueteria.pdf', ['anio' => $anio, 'meses' => $selectedMonths, 'departamentos' => $selectedDepartments]) }}" class="btn btn-danger btn-sm mr-1">
                             <i class="fas fa-file-pdf mr-1"></i> Descargar PDF
                         </a>
                     @endcan
                     @can('dashboard.flujo-paqueteria.excel')
-                    <a href="{{ route('dashboard.flujo-paqueteria.excel', ['anio' => $anio, 'meses' => $selectedMonths]) }}" class="btn btn-outline-success btn-sm">
+                    <a href="{{ route('dashboard.flujo-paqueteria.excel', ['anio' => $anio, 'meses' => $selectedMonths, 'departamentos' => $selectedDepartments]) }}" class="btn btn-outline-success btn-sm">
                         <i class="fas fa-file-excel mr-1"></i> Exportar Excel
                     </a>
                     @endcan
@@ -121,6 +122,18 @@
                             </select>
                         </div>
                         <div class="col-12 mt-3">
+                            <div class="flow-label">Departamentos de origen</div>
+                            <div class="month-picker">
+                                @foreach($departmentOptions as $departmentCode => $departmentName)
+                                    <label class="month-option">
+                                        <input type="checkbox" name="departamentos[]" value="{{ $departmentCode }}" {{ in_array($departmentCode, $selectedDepartments, true) ? 'checked' : '' }}>
+                                        {{ $departmentName }}
+                                    </label>
+                                @endforeach
+                            </div>
+                            <div class="department-picker-note">Puedes elegir uno o varios departamentos de origen. Si no marcas ninguno, se muestran todos. Los CN-33 se filtran por el origen de sus paquetes vinculados.</div>
+                        </div>
+                        <div class="col-12 mt-3">
                             <div class="flow-label">Meses a incluir</div>
                             <div class="month-picker">
                                 @foreach($monthOptions as $monthNumber => $monthName)
@@ -135,7 +148,7 @@
                         <div class="col-12 mt-3 d-flex align-items-end">
                             <button type="submit" class="btn btn-primary mr-2"><i class="fas fa-filter mr-1"></i> Aplicar</button>
                             <a href="{{ route('dashboard.flujo-paqueteria') }}" class="btn btn-light border">Limpiar</a>
-                            <span class="flow-note ml-3 mb-2">{{ count($selectedMonths) }} {{ count($selectedMonths) === 1 ? 'mes seleccionado' : 'meses seleccionados' }} · {{ $periodLabel }}</span>
+                            <span class="flow-note ml-3 mb-2">{{ count($selectedMonths) }} {{ count($selectedMonths) === 1 ? 'mes seleccionado' : 'meses seleccionados' }} · Origen: {{ $departmentLabel }} · {{ $periodLabel }}</span>
                         </div>
                     </div>
                 </div>
@@ -284,7 +297,7 @@
                 <div><div class="flow-kicker">ALCANCE DE LOS DATOS</div><h2>Cómo se calcula</h2></div>
             </div>
             <div class="card flow-card"><div class="card-body flow-note">
-                Las guías son códigos únicos de paquetes EMS y de contrato registrados en cada mes. Los paquetes EMS suman el campo cantidad y su peso registrado. Se excluyen de las cifras de contrato y del ranking la empresa "EMPRESA" y las empresas cuyo nombre contiene "prueba". Los kilos aéreos y terrestres suman el campo peso de las bitácoras de CN-33 registradas en cada mes y se clasifican por el texto de transportadora.
+                Las guías son códigos únicos de paquetes EMS y de contrato registrados en cada mes, según la columna created_at de su tabla. Los conteos y pesos de paquetes de contratos y EMS excluyen los que actualmente están en estado CANCELADO. Los paquetes EMS suman el campo cantidad y su peso registrado. En contratos también se excluye del conteo la empresa "EMPRESA" y las empresas cuyo nombre contiene "prueba". Los kilos aéreos y terrestres son un cálculo aparte: suman el peso de la última bitácora CN-33 según bitacoras.created_at y no se filtran por el estado individual de los paquetes.
             </div></div>
         </div>
     </div>

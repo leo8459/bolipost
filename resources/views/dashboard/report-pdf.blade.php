@@ -67,7 +67,6 @@
         .kpi .b3 { background: #c58416; }
         .kpi .b4 { background: #b63b3b; }
         .kpi .b5 { background: #1f6f9b; }
-        .kpi .b6 { background: #6b58b4; }
 
         .pulse {
             width: 100%;
@@ -272,7 +271,6 @@
         <td class="b3"><div class="k">Pendientes</div><div class="v">{{ \App\Support\BolivianNumber::format($totales['pendientes']) }}</div></td>
         <td class="b4"><div class="k">Rezago</div><div class="v">{{ \App\Support\BolivianNumber::format($totales['rezago']) }}</div></td>
         <td class="b5"><div class="k">Atrasados</div><div class="v">{{ \App\Support\BolivianNumber::format($totales['atrasados']) }}</div></td>
-        <td class="b6"><div class="k">Ingresos (Bs)</div><div class="v">{{ \App\Support\BolivianNumber::format($totales['ingresos'], 2) }}</div></td>
     </tr>
 </table>
 
@@ -462,7 +460,6 @@
 <div class="section">
     <div class="h">Resultados por módulo</div>
     <div class="b">
-        <p class="muted" style="margin-top:0;">Los ingresos se expresan en bolivianos (Bs). Los contratos no se incluyen en ingresos por el esquema tarifario.</p>
         <table class="table">
             <thead>
             <tr>
@@ -476,7 +473,6 @@
                 <th class="num">Entrega (%)</th>
                 <th class="num">Peso (kg)</th>
                 <th>Nivel de cumplimiento</th>
-                <th class="num">Ingresos (Bs)</th>
             </tr>
             </thead>
             <tbody>
@@ -494,11 +490,10 @@
                     <td class="num"><span class="tag {{ $tasa >= 80 ? 'ok' : ($tasa >= 50 ? 'warn' : 'bad') }}">{{ \App\Support\BolivianNumber::format($tasa,1) }}%</span></td>
                     <td class="num">{{ \App\Support\BolivianNumber::format($fila['peso_total'], 3) }}</td>
                     <td><div class="bar-wrap"><div class="bar" style="width: {{ max(0,min(100,$tasa)) }}%;"></div></div></td>
-                    <td class="num">{{ \App\Support\BolivianNumber::format($fila['ingresos'], 2) }}</td>
                 </tr>
             @endforeach
             @else
-                <tr><td colspan="11" class="muted">Sin datos para el periodo seleccionado.</td></tr>
+                <tr><td colspan="10" class="muted">Sin datos para el periodo seleccionado.</td></tr>
             @endif
             </tbody>
         </table>

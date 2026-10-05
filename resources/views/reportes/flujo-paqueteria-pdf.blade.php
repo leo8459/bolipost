@@ -110,9 +110,12 @@
             <td><span class="label">Fecha de emisión</span>{{ now()->format('d/m/Y H:i') }}</td>
             <td><span class="label">Cobertura</span>{{ count($selectedMonths) }} {{ count($selectedMonths) === 1 ? 'mes seleccionado' : 'meses seleccionados' }} de {{ $anio }}</td>
         </tr>
+        <tr>
+            <td colspan="3"><span class="label">Departamentos de origen</span>{{ $departmentLabel }}</td>
+        </tr>
     </table>
 
-    <div class="scope-note"><strong>Alcance:</strong> resumen de guías y kilos recibidos de contratos, paquetes EMS y peso de CN-33 registrado en bitácoras durante el periodo elegido.</div>
+    <div class="scope-note"><strong>Alcance:</strong> resumen de guías y kilos recibidos de contratos, paquetes EMS y peso de CN-33 registrado en bitácoras durante el periodo elegido, con origen en {{ $departmentLabel }}.</div>
 
     <table class="kpis">
         <tr>
@@ -127,7 +130,7 @@
     <h2 class="section-title">Resumen ejecutivo</h2>
     <div class="executive-box">
         @if($totals['guias_total'] > 0 || $totals['peso_recibido'] > 0 || $totals['paquetes_ems'] > 0 || $totals['aereo'] > 0 || $totals['terrestre'] > 0)
-            <p>En <span class="highlight">{{ $periodLabel }}</span> se procesaron <span class="highlight">{{ $formatCount($totals['guias_total']) }} guías</span> y se recibieron <span class="highlight">{{ $formatWeight($totals['peso_recibido']) }} kg en total</span> entre contratos y EMS.</p>
+            <p>En <span class="highlight">{{ $periodLabel }}</span> con origen en <span class="highlight">{{ $departmentLabel }}</span> se procesaron <span class="highlight">{{ $formatCount($totals['guias_total']) }} guías</span> y se recibieron <span class="highlight">{{ $formatWeight($totals['peso_recibido']) }} kg en total</span> entre contratos y EMS.</p>
             <p>Contratos: <span class="highlight">{{ $formatCount($totals['guias_contrato']) }} guías y {{ $formatWeight($totals['peso_contrato']) }} kg</span>. EMS: <span class="highlight">{{ $formatCount($totals['guias_ems']) }} guías, {{ $formatCount($totals['paquetes_ems']) }} paquetes y {{ $formatWeight($totals['peso_ems']) }} kg</span>.</p>
             <p>Las bitácoras de CN-33 sumaron <span class="highlight">{{ $formatWeight($totals['aereo']) }} kg por vía aérea</span> y <span class="highlight">{{ $formatWeight($totals['terrestre']) }} kg por vía terrestre</span>, según el nombre de la transportadora registrada.</p>
         @else
@@ -226,7 +229,7 @@
         </table>
 
         <div class="method-note">
-            <strong>Cómo leer el detalle:</strong> las guías son códigos únicos por mes; un mismo código puede contarse en meses distintos. El peso recibido suma los kilos registrados de contratos y EMS. Los paquetes EMS suman el campo cantidad. Cada variación compara las guías del servicio con el mes seleccionado anterior. Se excluyen de contratos la empresa "EMPRESA" y las empresas cuyo nombre contiene "prueba".
+            <strong>Cómo leer el detalle:</strong> las guías son códigos únicos por mes; un mismo código puede contarse en meses distintos. Contratos y EMS se filtran por la columna created_at de su tabla, y los conteos y pesos de esos paquetes excluyen el estado actual CANCELADO. El peso recibido suma sus kilos y los paquetes EMS suman el campo cantidad. Los kilos CN-33 son un cálculo aparte: usan bitacoras.created_at de la última bitácora por código y no filtran por estado individual del paquete. Cada variación compara las guías del servicio con el mes seleccionado anterior. En contratos también se excluyen la empresa "EMPRESA" y las empresas cuyo nombre contiene "prueba".
         </div>
     </div>
 

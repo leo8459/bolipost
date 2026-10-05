@@ -81,7 +81,6 @@ class DashboardController extends Controller
             'origen_column' => 'origen',
             'departamento_column' => 'ciudad',
             'peso_column' => 'peso',
-            'precio_column' => 'precio',
             'event_table' => 'eventos_ems',
             'registro_eventos' => [295],
             'operational_start_events' => [295],
@@ -95,7 +94,6 @@ class DashboardController extends Controller
             'origen_column' => 'origen',
             'departamento_column' => 'destino',
             'peso_column' => 'peso',
-            'precio_column' => 'precio',
             'event_table' => 'eventos_contrato',
             'registro_eventos' => [318, 295],
             'operational_start_events' => [295],
@@ -109,7 +107,6 @@ class DashboardController extends Controller
             'origen_column' => null,
             'departamento_column' => 'cuidad',
             'peso_column' => 'peso',
-            'precio_column' => null,
             'event_table' => 'eventos_certi',
             'registro_eventos' => [168],
             'operational_start_events' => [168],
@@ -123,7 +120,6 @@ class DashboardController extends Controller
             'origen_column' => null,
             'departamento_column' => 'ciudad',
             'peso_column' => 'peso',
-            'precio_column' => null,
             'event_table' => 'eventos_ordi',
             'registro_eventos' => [295],
             'operational_start_events' => [295],
@@ -217,11 +213,12 @@ class DashboardController extends Controller
             'to' => trim((string) $request->query('to', '')),
             'group' => $this->resolveAgrupacion($request),
             'departamento' => $this->resolveDepartamentoFiltro($request),
+            'departamento_origen' => $this->resolveDepartamentoOrigenFiltro($request),
             // Evita reutilizar rangos relativos al cambiar de dia.
             'date' => now()->toDateString(),
         ];
 
-        return 'dashboard:v6:' . sha1(json_encode($filters, JSON_UNESCAPED_UNICODE));
+        return 'dashboard:v10:' . sha1(json_encode($filters, JSON_UNESCAPED_UNICODE));
     }
 
     private function cachedDashboardAlerts($authUser): array
@@ -694,6 +691,7 @@ class DashboardController extends Controller
         [$desde, $hasta, $rangoLabel, $rangoKey] = $this->resolveRangoFechas($request);
         $agrupacion = $this->resolveAgrupacion($request);
         $departamento = $this->resolveDepartamentoFiltro($request);
+        $departamentoOrigen = $this->resolveDepartamentoOrigenFiltro($request);
         $authUser = Auth::user();
 
         $estadoEntregadoId = $this->resolveEstadoIdByName('ENTREGADO');
@@ -706,6 +704,8 @@ class DashboardController extends Controller
             $query = DB::table($config['table']);
             $this->applyDateFilter($query, 'created_at', $desde, $hasta);
             $this->applyDepartamentoFilter($query, $config, $departamento);
+            $this->applyOrigenDepartamentoFilter($query, $config, $departamentoOrigen);
+            $this->excludeTestCompanyPackages($query, $config);
 
             $stateColumn = $config['estado_column'];
             $notCanceledSql = $estadoCanceladoId
@@ -715,15 +715,10 @@ class DashboardController extends Controller
                 ? "{$stateColumn} = " . (int) $estadoEntregadoId
                 : 'FALSE';
             $aggregate = $query
-                ->selectRaw("SUM(CASE WHEN ({$notCanceledSql}) THEN 1 ELSE 0 END) as total")
-                ->selectRaw("SUM(CASE WHEN ({$notCanceledSql}) AND ({$deliveredSql}) THEN 1 ELSE 0 END) as entregados")
-                ->selectRaw("SUM(CASE WHEN " . ($estadoCanceladoId ? "{$stateColumn} = " . (int) $estadoCanceladoId : 'FALSE') . " THEN 1 ELSE 0 END) as cancelados")
+                ->selectRaw("COUNT(DISTINCT CASE WHEN ({$notCanceledSql}) THEN codigo END) as total")
+                ->selectRaw("COUNT(DISTINCT CASE WHEN ({$notCanceledSql}) AND ({$deliveredSql}) THEN codigo END) as entregados")
+                ->selectRaw("COUNT(DISTINCT CASE WHEN " . ($estadoCanceladoId ? "{$stateColumn} = " . (int) $estadoCanceladoId : 'FALSE') . " THEN codigo END) as cancelados")
                 ->selectRaw("COALESCE(SUM(CASE WHEN ({$notCanceledSql}) THEN COALESCE({$config['peso_column']}, 0) ELSE 0 END), 0) as peso_total")
-                ->when(!empty($config['precio_column']), function ($query) use ($notCanceledSql, $config) {
-                    $query->selectRaw("COALESCE(SUM(CASE WHEN ({$notCanceledSql}) THEN COALESCE({$config['precio_column']}, 0) ELSE 0 END), 0) as ingresos");
-                }, function ($query) {
-                    $query->selectRaw('0 as ingresos');
-                })
                 ->first();
 
             $total = (int) ($aggregate->total ?? 0);
@@ -734,7 +729,8 @@ class DashboardController extends Controller
                 $estadoEntregadoId,
                 $desde,
                 $hasta,
-                $departamento
+                $departamento,
+                $departamentoOrigen
             );
             $correctos = (int) ($situacionInventario['correcto'] ?? 0);
             $atrasados = (int) ($situacionInventario['retraso'] ?? 0);
@@ -755,7 +751,6 @@ class DashboardController extends Controller
                 'atrasados' => $atrasados,
                 'rezago' => $rezago,
                 'peso_total' => round((float) ($aggregate->peso_total ?? 0), 3),
-                'ingresos' => round((float) ($aggregate->ingresos ?? 0), 2),
                 'tasa_entrega' => $total > 0 ? round(($entregados * 100) / $total, 1) : 0.0,
             ];
         }
@@ -768,7 +763,6 @@ class DashboardController extends Controller
             'atrasados' => (int) array_sum(array_column($resumenPorModulo, 'atrasados')),
             'rezago' => (int) array_sum(array_column($resumenPorModulo, 'rezago')),
             'peso_total' => round((float) array_sum(array_column($resumenPorModulo, 'peso_total')), 3),
-            'ingresos' => round((float) array_sum(array_column($resumenPorModulo, 'ingresos')), 2),
         ];
 
         $totales['porcentaje_entrega'] = $totales['paquetes'] > 0
@@ -782,20 +776,21 @@ class DashboardController extends Controller
             $rangoLabel,
             $rangoKey,
             $agrupacion,
-            $departamento
+            $departamento,
+            $departamentoOrigen
         );
 
         $includeDepartmentRanking = $includeDepartmentDetails
             || $totales['paquetes'] <= self::DASHBOARD_INLINE_DEPARTMENT_MAX_ROWS;
         $includeInlineRankings = $includeDepartmentRanking;
         $rankingEntregadores = $includeInlineRankings
-            ? $this->buildRankingEntregadores($modulosSeleccionados, $desde, $hasta, null, $departamento)
+            ? $this->buildRankingEntregadores($modulosSeleccionados, $desde, $hasta, null, $departamento, '', $departamentoOrigen)
             : collect();
         $rankingDepartamentos = $includeDepartmentRanking
-            ? $this->buildRankingDepartamentos($modulosSeleccionados, $desde, $hasta, $includeDepartmentDetails)
+            ? $this->buildRankingDepartamentos($modulosSeleccionados, $desde, $hasta, $includeDepartmentDetails, $departamentoOrigen)
             : collect();
         $rankingRegistradores = $includeInlineRankings
-            ? $this->buildRankingRegistradores($modulosSeleccionados, $desde, $hasta, $departamento)
+            ? $this->buildRankingRegistradores($modulosSeleccionados, $desde, $hasta, $departamento, $departamentoOrigen)
             : collect();
         $insightsEjecutivos = $this->buildExecutiveInsights(
             $totales,
@@ -820,7 +815,9 @@ class DashboardController extends Controller
             'rangoKey' => $rangoKey,
             'agrupacion' => $agrupacion,
             'departamento' => $departamento,
+            'departamentoOrigen' => $departamentoOrigen,
             'departamentosDisponibles' => self::DESTINOS_BASE,
+            'departamentosOrigenDisponibles' => array_keys($this->departamentoAliasMap()),
             'resumenPorModulo' => $resumenPorModulo,
             'totales' => $totales,
             'chartVersus' => [
@@ -1482,6 +1479,14 @@ class DashboardController extends Controller
         return $this->resolveDepartamentoFiltroPorCampo($request, 'departamento');
     }
 
+    private function resolveDepartamentoOrigenFiltro(Request $request): string
+    {
+        $value = strtoupper(trim((string) $request->query('departamento_origen', '')));
+        $value = preg_replace('/\s+/', ' ', $value) ?? $value;
+
+        return array_key_exists($value, $this->departamentoAliasMap()) ? $value : '';
+    }
+
     private function resolveDepartamentoFiltroPorCampo(Request $request, string $field): string
     {
         $value = strtoupper(trim((string) $request->query($field, '')));
@@ -1589,6 +1594,7 @@ class DashboardController extends Controller
 
     private function excludeCanceledPackageForEvent(Builder $query, array $config, string $eventAlias): void
     {
+        $this->excludeTestCompanyEvents($query, $config, $eventAlias);
         $estadoCanceladoId = $this->resolveEstadoIdByName('CANCELADO');
         if (!$estadoCanceladoId) {
             return;
@@ -1599,6 +1605,37 @@ class DashboardController extends Controller
 
         $query->join($config['table'] . ' as ' . $alias, $alias . '.codigo', '=', $eventAlias . '.codigo');
         $this->excludeCanceledState($query, $alias . '.' . $config['estado_column'], $estadoCanceladoId);
+    }
+
+    private function excludedCompanyQuery(string $packageAlias): Builder
+    {
+        return DB::table('empresa as excluded_company')
+            ->selectRaw('1')
+            ->whereRaw('excluded_company.id = COALESCE('.$packageAlias.'.empresa_id, '
+                .'(SELECT company_user.empresa_id FROM users as company_user WHERE company_user.id = '.$packageAlias.'.user_id))')
+            ->where(function (Builder $company): void {
+                $company->whereRaw("LOWER(TRIM(COALESCE(excluded_company.nombre, ''))) LIKE ?", ['%prueba%'])
+                    ->orWhereRaw("UPPER(TRIM(COALESCE(excluded_company.nombre, ''))) = ?", ['EMPRESA']);
+            });
+    }
+
+    private function excludeTestCompanyPackages(Builder $query, array $config, string $tableAlias = ''): void
+    {
+        if ($config['table'] === 'paquetes_contrato') {
+            $query->whereNotExists($this->excludedCompanyQuery($tableAlias !== '' ? $tableAlias : $config['table']));
+        }
+    }
+
+    private function excludeTestCompanyEvents(Builder $query, array $config, string $eventAlias): void
+    {
+        if ($config['table'] === 'paquetes_contrato') {
+            $query->whereNotExists(
+                DB::table('paquetes_contrato as excluded_package')
+                    ->selectRaw('1')
+                    ->whereColumn('excluded_package.codigo', $eventAlias.'.codigo')
+                    ->whereExists($this->excludedCompanyQuery('excluded_package'))
+            );
+        }
     }
 
     private function resolveEstadoIdByName(string $estadoNombre): ?int
@@ -1646,7 +1683,8 @@ class DashboardController extends Controller
         ?int $estadoEntregadoId,
         ?Carbon $from,
         ?Carbon $to,
-        string $departamento = ''
+        string $departamento = '',
+        string $departamentoOrigen = ''
     ): array {
         $startSub = DB::table($config['event_table'])
             ->select('codigo', DB::raw('MIN(created_at) as start_at'))
@@ -1661,6 +1699,8 @@ class DashboardController extends Controller
         $this->applyNoEntregadoScope($query, 't.' . $config['estado_column'], $estadoEntregadoId);
         $this->applyDateFilter($query, 't.created_at', $from, $to);
         $this->applyDepartamentoFilter($query, $config, $departamento, 't');
+        $this->applyOrigenDepartamentoFilter($query, $config, $departamentoOrigen, 't');
+        $this->excludeTestCompanyPackages($query, $config, 't');
 
         $startAt = 'operational_start.start_at';
         $elapsedDays = "EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - {$startAt})) / 86400.0";
@@ -1677,10 +1717,10 @@ class DashboardController extends Controller
         }
 
         $row = $query
-            ->selectRaw("COALESCE(SUM(CASE WHEN {$startAt} IS NOT NULL AND {$elapsedDays} <= {$greenDays} THEN 1 ELSE 0 END), 0) as correcto")
-            ->selectRaw("COALESCE(SUM(CASE WHEN {$startAt} IS NOT NULL AND {$elapsedDays} > {$greenDays} AND {$elapsedDays} <= {$yellowDays} THEN 1 ELSE 0 END), 0) as retraso")
-            ->selectRaw("COALESCE(SUM(CASE WHEN {$startAt} IS NOT NULL AND {$elapsedDays} > {$yellowDays} THEN 1 ELSE 0 END), 0) as rezago")
-            ->selectRaw("COALESCE(SUM(CASE WHEN {$startAt} IS NULL THEN 1 ELSE 0 END), 0) as sin_datos")
+            ->selectRaw("COUNT(DISTINCT CASE WHEN {$startAt} IS NOT NULL AND {$elapsedDays} <= {$greenDays} THEN t.codigo END) as correcto")
+            ->selectRaw("COUNT(DISTINCT CASE WHEN {$startAt} IS NOT NULL AND {$elapsedDays} > {$greenDays} AND {$elapsedDays} <= {$yellowDays} THEN t.codigo END) as retraso")
+            ->selectRaw("COUNT(DISTINCT CASE WHEN {$startAt} IS NOT NULL AND {$elapsedDays} > {$yellowDays} THEN t.codigo END) as rezago")
+            ->selectRaw("COUNT(DISTINCT CASE WHEN {$startAt} IS NULL THEN t.codigo END) as sin_datos")
             ->first();
 
         return [
@@ -1864,8 +1904,9 @@ class DashboardController extends Controller
                 $registrosQuery = DB::table($config['table'])
                     ->whereBetween('created_at', [$desde, $hasta]);
                 $this->applyDepartamentoFilter($registrosQuery, $config, $departamento);
+                $this->excludeTestCompanyPackages($registrosQuery, $config);
                 $this->excludeCanceledState($registrosQuery, $config['estado_column'], $this->resolveEstadoIdByName('CANCELADO'));
-                $countRegistros += (int) $registrosQuery->count();
+                $countRegistros += (int) $registrosQuery->distinct()->count('codigo');
 
                 $entregasQuery = DB::table($config['event_table'])
                     ->where('evento_id', self::EVENTO_ENTREGADO_ID)
@@ -1889,7 +1930,8 @@ class DashboardController extends Controller
         string $rangoLabel,
         string $rangoKey,
         string $agrupacion,
-        string $departamento = ''
+        string $departamento = '',
+        string $departamentoOrigen = ''
     ): array {
         [$chartFrom, $chartTo, $chartLabel] = $this->resolveChartRange($from, $to, $rangoLabel, $rangoKey, $agrupacion);
         [$labels, $bucketExpression] = $this->buildBuckets($chartFrom, $chartTo, $agrupacion);
@@ -1901,9 +1943,11 @@ class DashboardController extends Controller
             $config = self::MODULOS[$moduloKey];
 
             $rowsRegistros = DB::table($config['table'])
-                ->selectRaw($bucketExpression . ' as bucket, COUNT(*) as total')
+                ->selectRaw($bucketExpression . ' as bucket, COUNT(DISTINCT codigo) as total')
                 ->whereBetween('created_at', [$chartFrom, $chartTo]);
             $this->applyDepartamentoFilter($rowsRegistros, $config, $departamento);
+            $this->applyOrigenDepartamentoFilter($rowsRegistros, $config, $departamentoOrigen);
+            $this->excludeTestCompanyPackages($rowsRegistros, $config);
             $this->excludeCanceledState($rowsRegistros, $config['estado_column'], $this->resolveEstadoIdByName('CANCELADO'));
             $rowsRegistros = $rowsRegistros
                 ->groupBy(DB::raw($bucketExpression))
@@ -1922,6 +1966,7 @@ class DashboardController extends Controller
                 ->where('evento_id', self::EVENTO_ENTREGADO_ID)
                 ->whereBetween($config['event_table'] . '.created_at', [$chartFrom, $chartTo]);
             $this->applyEventDepartamentoFilter($rowsEntregados, $config, $departamento);
+            $this->applyEventOrigenDepartamentoFilter($rowsEntregados, $config, $departamentoOrigen);
             $this->excludeCanceledPackageForEvent($rowsEntregados, $config, $config['event_table']);
             $rowsEntregados = $rowsEntregados
                 ->groupBy(DB::raw($eventBucketExpression))
@@ -2021,7 +2066,7 @@ class DashboardController extends Controller
         return [$labels, "to_char(date_trunc('day', created_at), 'YYYY-MM-DD')"];
     }
 
-    private function buildRankingEntregadores(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, ?int $limit = 10, string $departamento = '', string $departamentoCartero = '')
+    private function buildRankingEntregadores(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, ?int $limit = 10, string $departamento = '', string $departamentoCartero = '', string $departamentoOrigen = '')
     {
         $queries = [];
 
@@ -2038,6 +2083,7 @@ class DashboardController extends Controller
 
             $this->applyDateFilter($query, $config['event_table'] . '.created_at', $from, $to);
             $this->applyEventDepartamentoFilter($query, $config, $departamento);
+            $this->applyEventOrigenDepartamentoFilter($query, $config, $departamentoOrigen);
             $this->excludeCanceledPackageForEvent($query, $config, $config['event_table']);
             $queries[] = $query;
         }
@@ -2113,7 +2159,8 @@ class DashboardController extends Controller
         array $modulosSeleccionados,
         ?Carbon $from,
         ?Carbon $to,
-        bool $includeDetails = true
+        bool $includeDetails = true,
+        string $departamentoOrigen = ''
     )
     {
         $estadoEntregadoId = $this->resolveEstadoIdByName('ENTREGADO');
@@ -2121,7 +2168,7 @@ class DashboardController extends Controller
         $estadoTransitoId = $this->resolveEstadoIdByName('TRANSITO');
 
         $rows = collect($this->departamentoAliasMap())
-            ->map(function (array $aliases, string $departamento) use ($modulosSeleccionados, $from, $to, $estadoEntregadoId, $estadoCanceladoId, $estadoTransitoId, $includeDetails) {
+            ->map(function (array $aliases, string $departamento) use ($modulosSeleccionados, $from, $to, $estadoEntregadoId, $estadoCanceladoId, $estadoTransitoId, $includeDetails, $departamentoOrigen) {
                 $total = 0;
                 $entregados = 0;
                 $cancelados = 0;
@@ -2132,31 +2179,33 @@ class DashboardController extends Controller
                     $query = DB::table($config['table']);
                     $this->applyDateFilter($query, 'created_at', $from, $to);
                     $this->applyDepartamentoAliasesFilter($query, $config, $aliases);
+                    $this->applyOrigenDepartamentoFilter($query, $config, $departamentoOrigen);
+                    $this->excludeTestCompanyPackages($query, $config);
 
                     $querySinCancelados = clone $query;
                     $this->excludeCanceledState($querySinCancelados, $config['estado_column'], $estadoCanceladoId);
 
-                    $total += (int) (clone $querySinCancelados)->count();
+                    $total += (int) (clone $querySinCancelados)->distinct()->count('codigo');
                     $entregados += $estadoEntregadoId
-                        ? (int) (clone $querySinCancelados)->where($config['estado_column'], $estadoEntregadoId)->count()
+                        ? (int) (clone $querySinCancelados)->where($config['estado_column'], $estadoEntregadoId)->distinct()->count('codigo')
                         : 0;
                     $cancelados += $estadoCanceladoId
-                        ? (int) (clone $query)->where($config['estado_column'], $estadoCanceladoId)->count()
+                        ? (int) (clone $query)->where($config['estado_column'], $estadoCanceladoId)->distinct()->count('codigo')
                         : 0;
                 }
 
                 $detalleTransito = $includeDetails
-                    ? $this->buildDepartamentoTransitoDetails($modulosSeleccionados, $from, $to, $aliases, $estadoTransitoId, $departamento)
-                    : $this->buildDepartamentoTransitoSummary($modulosSeleccionados, $from, $to, $aliases, $estadoTransitoId);
+                    ? $this->buildDepartamentoTransitoDetails($modulosSeleccionados, $from, $to, $aliases, $estadoTransitoId, $departamento, $departamentoOrigen)
+                    : $this->buildDepartamentoTransitoSummary($modulosSeleccionados, $from, $to, $aliases, $estadoTransitoId, $departamentoOrigen);
                 $transito = (int) array_sum($detalleTransito['totales']);
                 $cumplimiento = $total > 0 ? round(($entregados * 100) / $total, 1) : 0.0;
-                $topEntregador = $this->buildTopEntregadorDepartamento($modulosSeleccionados, $from, $to, $aliases);
+                $topEntregador = $this->buildTopEntregadorDepartamento($modulosSeleccionados, $from, $to, $aliases, $departamentoOrigen);
                 $detalleEntregados = $includeDetails
-                    ? $this->buildDepartamentoDeliveredDetails($modulosSeleccionados, $from, $to, $aliases)
-                    : $this->buildDepartamentoDeliveredSummary($modulosSeleccionados, $from, $to, $aliases);
+                    ? $this->buildDepartamentoDeliveredDetails($modulosSeleccionados, $from, $to, $aliases, $departamentoOrigen)
+                    : $this->buildDepartamentoDeliveredSummary($modulosSeleccionados, $from, $to, $aliases, $departamentoOrigen);
                 $detallePendientes = $includeDetails
-                    ? $this->buildDepartamentoPendingDetails($modulosSeleccionados, $from, $to, $aliases, $estadoEntregadoId, $estadoCanceladoId, $estadoTransitoId)
-                    : $this->buildDepartamentoPendingSummary($modulosSeleccionados, $from, $to, $aliases, $estadoEntregadoId, $estadoCanceladoId, $estadoTransitoId);
+                    ? $this->buildDepartamentoPendingDetails($modulosSeleccionados, $from, $to, $aliases, $estadoEntregadoId, $estadoCanceladoId, $estadoTransitoId, $departamentoOrigen)
+                    : $this->buildDepartamentoPendingSummary($modulosSeleccionados, $from, $to, $aliases, $estadoEntregadoId, $estadoCanceladoId, $estadoTransitoId, $departamentoOrigen);
                 $pendientes = (int) array_sum($detallePendientes['totales']);
 
                 return (object) [
@@ -2189,7 +2238,7 @@ class DashboardController extends Controller
             });
     }
 
-    private function buildTopEntregadorDepartamento(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, array $aliases)
+    private function buildTopEntregadorDepartamento(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, array $aliases, string $departamentoOrigen = '')
     {
         $queries = [];
 
@@ -2209,6 +2258,8 @@ class DashboardController extends Controller
 
             $this->applyDateFilter($query, $eventTable . '.created_at', $from, $to);
             $this->applyDepartamentoAliasesFilter($query, $config, $aliases, 'pkg_departamento');
+            $this->applyOrigenDepartamentoFilter($query, $config, $departamentoOrigen, 'pkg_departamento');
+            $this->excludeTestCompanyPackages($query, $config, 'pkg_departamento');
             $this->excludeCanceledState($query, 'pkg_departamento.' . $config['estado_column'], $this->resolveEstadoIdByName('CANCELADO'));
             $queries[] = $query;
         }
@@ -2216,7 +2267,7 @@ class DashboardController extends Controller
         return $this->resolveRankingUsuarios($queries, 'total_entregados', 1)->first();
     }
 
-    private function buildDepartamentoTransitoSummary(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, array $aliases, ?int $estadoTransitoId): array
+    private function buildDepartamentoTransitoSummary(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, array $aliases, ?int $estadoTransitoId, string $departamentoOrigen = ''): array
     {
         $totales = array_fill_keys(['EMS', 'CONTRATOS', 'CERTIFICADOS', 'ORDINARIOS'], 0);
         if (!$estadoTransitoId) {
@@ -2230,13 +2281,15 @@ class DashboardController extends Controller
 
             $this->applyDateFilter($query, 't.created_at', $from, $to);
             $this->applyOrigenAliasesFilter($query, $config, $aliases, 't');
-            $totales[$config['label']] = (int) $query->count();
+            $this->applyOrigenDepartamentoFilter($query, $config, $departamentoOrigen, 't');
+            $this->excludeTestCompanyPackages($query, $config, 't');
+            $totales[$config['label']] = (int) $query->distinct()->count('t.codigo');
         }
 
         return ['totales' => $totales, 'rows' => [], 'grupos' => []];
     }
 
-    private function buildDepartamentoDeliveredSummary(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, array $aliases): array
+    private function buildDepartamentoDeliveredSummary(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, array $aliases, string $departamentoOrigen = ''): array
     {
         $totales = array_fill_keys(['EMS', 'CONTRATOS', 'CERTIFICADOS', 'ORDINARIOS'], 0);
         $estadoCanceladoId = $this->resolveEstadoIdByName('CANCELADO');
@@ -2251,6 +2304,8 @@ class DashboardController extends Controller
 
             $this->applyDateFilter($query, 'delivered.created_at', $from, $to);
             $this->applyDepartamentoAliasesFilter($query, $config, $aliases, 'package');
+            $this->applyOrigenDepartamentoFilter($query, $config, $departamentoOrigen, 'package');
+            $this->excludeTestCompanyPackages($query, $config, 'package');
             $this->excludeCanceledState($query, 'package.' . $config['estado_column'], $estadoCanceladoId);
             $totales[$config['label']] = (int) ($query->value('total') ?? 0);
         }
@@ -2265,7 +2320,8 @@ class DashboardController extends Controller
         array $aliases,
         ?int $estadoEntregadoId,
         ?int $estadoCanceladoId,
-        ?int $estadoTransitoId
+        ?int $estadoTransitoId,
+        string $departamentoOrigen = ''
     ): array {
         $totales = array_fill_keys(['EMS', 'CONTRATOS', 'CERTIFICADOS', 'ORDINARIOS'], 0);
         $estadoSolicitudId = $this->resolveEstadoIdByName('SOLICITUD');
@@ -2283,6 +2339,8 @@ class DashboardController extends Controller
 
             $this->applyDateFilter($query, 't.created_at', $from, $to);
             $this->applyPendingDepartamentoAliasesFilter($query, $config, $aliases, 't');
+            $this->applyOrigenDepartamentoFilter($query, $config, $departamentoOrigen, 't');
+            $this->excludeTestCompanyPackages($query, $config, 't');
 
             foreach ([$estadoEntregadoId, $estadoCanceladoId, $estadoTransitoId, $estadoSolicitudId] as $excludedState) {
                 if ($excludedState) {
@@ -2292,13 +2350,13 @@ class DashboardController extends Controller
                 }
             }
 
-            $totales[$config['label']] = (int) $query->count();
+            $totales[$config['label']] = (int) $query->distinct()->count('t.codigo');
         }
 
         return ['totales' => $totales, 'rows' => [], 'grupos' => []];
     }
 
-    private function buildDepartamentoDeliveredDetails(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, array $aliases): array
+    private function buildDepartamentoDeliveredDetails(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, array $aliases, string $departamentoOrigen = ''): array
     {
         $totales = [
             'EMS' => 0,
@@ -2327,6 +2385,8 @@ class DashboardController extends Controller
 
             $this->applyDateFilter($query, $eventTable . '.created_at', $from, $to);
             $this->applyDepartamentoAliasesFilter($query, $config, $aliases, 'pkg_departamento');
+            $this->applyOrigenDepartamentoFilter($query, $config, $departamentoOrigen, 'pkg_departamento');
+            $this->excludeTestCompanyPackages($query, $config, 'pkg_departamento');
             $this->excludeCanceledState($query, 'pkg_departamento.' . $config['estado_column'], $this->resolveEstadoIdByName('CANCELADO'));
 
             $moduleRows = $query->orderByDesc(DB::raw('MIN(' . $eventTable . '.created_at)'))->get();
@@ -2349,7 +2409,7 @@ class DashboardController extends Controller
         ];
     }
 
-    private function buildDepartamentoPendingDetails(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, array $aliases, ?int $estadoEntregadoId, ?int $estadoCanceladoId, ?int $estadoTransitoId): array
+    private function buildDepartamentoPendingDetails(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, array $aliases, ?int $estadoEntregadoId, ?int $estadoCanceladoId, ?int $estadoTransitoId, string $departamentoOrigen = ''): array
     {
         $totales = [
             'EMS' => 0,
@@ -2388,6 +2448,8 @@ class DashboardController extends Controller
 
             $this->applyDateFilter($query, 't.created_at', $from, $to);
             $this->applyPendingDepartamentoAliasesFilter($query, $config, $aliases, 't');
+            $this->applyOrigenDepartamentoFilter($query, $config, $departamentoOrigen, 't');
+            $this->excludeTestCompanyPackages($query, $config, 't');
 
             if ($estadoEntregadoId) {
                 $query->where(function (Builder $sub) use ($estadoColumn, $estadoEntregadoId) {
@@ -2417,7 +2479,7 @@ class DashboardController extends Controller
                 });
             }
 
-            $moduleRows = $query->orderByDesc('t.created_at')->get();
+            $moduleRows = $query->whereNotNull('t.codigo')->orderByDesc('t.created_at')->orderByDesc('t.id')->get()->uniqueStrict('codigo')->values();
             $totales[$label] = (int) $moduleRows->count();
             $rows = $rows->concat($moduleRows);
         }
@@ -2479,7 +2541,7 @@ class DashboardController extends Controller
         ];
     }
 
-    private function buildDepartamentoTransitoDetails(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, array $aliases, ?int $estadoTransitoId, string $departamento): array
+    private function buildDepartamentoTransitoDetails(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, array $aliases, ?int $estadoTransitoId, string $departamento, string $departamentoOrigen = ''): array
     {
         $totales = [
             'EMS' => 0,
@@ -2518,8 +2580,10 @@ class DashboardController extends Controller
 
             $this->applyDateFilter($query, 't.created_at', $from, $to);
             $this->applyOrigenAliasesFilter($query, $config, $aliases, 't');
+            $this->applyOrigenDepartamentoFilter($query, $config, $departamentoOrigen, 't');
+            $this->excludeTestCompanyPackages($query, $config, 't');
 
-            $moduleRows = $query->orderByDesc('t.created_at')->get();
+            $moduleRows = $query->whereNotNull('t.codigo')->orderByDesc('t.created_at')->orderByDesc('t.id')->get()->uniqueStrict('codigo')->values();
             $totales[$label] = (int) $moduleRows->count();
             $rows = $rows->concat($moduleRows);
         }
@@ -2666,6 +2730,17 @@ class DashboardController extends Controller
         $query->whereIn(DB::raw('trim(upper(' . $expression . '))'), $aliases);
     }
 
+    private function applyOrigenDepartamentoFilter(Builder $query, array $config, string $departamentoOrigen, string $tableAlias = ''): void
+    {
+        $departamentoOrigen = strtoupper(trim($departamentoOrigen));
+        if ($departamentoOrigen === '') {
+            return;
+        }
+
+        $aliases = $this->departamentoAliasMap()[$departamentoOrigen] ?? [$departamentoOrigen];
+        $this->applyOrigenAliasesFilter($query, $config, $aliases, $tableAlias);
+    }
+
     private function applyPendingDepartamentoAliasesFilter(Builder $query, array $config, array $aliases, string $tableAlias = ''): void
     {
         $aliases = collect($aliases)
@@ -2694,7 +2769,7 @@ class DashboardController extends Controller
 
         $expression = $this->effectiveOrigenExpression($config, $tableAlias);
         if ($expression === '' || empty($aliases)) {
-            // Sin columna origen no se puede atribuir transito al departamento solicitado.
+            // Los módulos sin columna de origen no coinciden cuando se filtra por origen.
             $query->whereRaw('1 = 0');
             return;
         }
@@ -2808,7 +2883,18 @@ class DashboardController extends Controller
         $this->applyDepartamentoFilter($query, $config, $departamento, 'pkg_departamento');
     }
 
-    private function buildRankingRegistradores(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, string $departamento = '')
+    private function applyEventOrigenDepartamentoFilter(Builder $query, array $config, string $departamentoOrigen, string $eventAlias = ''): void
+    {
+        if ($departamentoOrigen === '') {
+            return;
+        }
+
+        $eventCodeColumn = ($eventAlias !== '' ? $eventAlias : $config['event_table']) . '.codigo';
+        $query->join($config['table'] . ' as pkg_origen_departamento', 'pkg_origen_departamento.codigo', '=', $eventCodeColumn);
+        $this->applyOrigenDepartamentoFilter($query, $config, $departamentoOrigen, 'pkg_origen_departamento');
+    }
+
+    private function buildRankingRegistradores(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, string $departamento = '', string $departamentoOrigen = '')
     {
         $queries = [];
 
@@ -2830,6 +2916,8 @@ class DashboardController extends Controller
 
             $this->applyDateFilter($query, $config['event_table'] . '.created_at', $from, $to);
             $this->applyEventDepartamentoFilter($query, $config, $departamento);
+            $this->applyEventOrigenDepartamentoFilter($query, $config, $departamentoOrigen);
+            $this->excludeTestCompanyEvents($query, $config, $config['event_table']);
             $queries[] = $query;
         }
 

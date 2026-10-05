@@ -1,17 +1,17 @@
 <table>
     <tr>
-        <td colspan="9"><strong>REPORTE DASHBOARD CORPORATIVO</strong></td>
+        <td colspan="8"><strong>REPORTE DASHBOARD CORPORATIVO</strong></td>
     </tr>
     <tr>
-        <td colspan="9">Rango: {{ $rangoLabel }}</td>
+        <td colspan="8">Rango: {{ $rangoLabel }}</td>
     </tr>
     <tr>
-        <td colspan="9">Agrupacion: {{ strtoupper($agrupacion) }}</td>
+        <td colspan="8">Agrupacion: {{ strtoupper($agrupacion) }}</td>
     </tr>
     <tr>
-        <td colspan="9">Departamento destino: {{ ($departamento ?? '') !== '' ? $departamento : 'TODOS' }}</td>
+        <td colspan="8">Departamento destino: {{ ($departamento ?? '') !== '' ? $departamento : 'TODOS' }}</td>
     </tr>
-    <tr><td colspan="9"></td></tr>
+    <tr><td colspan="8"></td></tr>
 </table>
 
 <table>
@@ -23,7 +23,6 @@
             <th>Con retraso</th>
             <th>Rezago</th>
             <th>Peso total</th>
-            <th>Ingresos (Bs)</th>
             <th>% Entrega</th>
         </tr>
     </thead>
@@ -35,15 +34,14 @@
             <td>{{ $totales['atrasados'] }}</td>
             <td>{{ $totales['rezago'] }}</td>
             <td>{{ $totales['peso_total'] }}</td>
-            <td>{{ $totales['ingresos'] }}</td>
             <td>{{ $totales['porcentaje_entrega'] }}%</td>
         </tr>
     </tbody>
 </table>
 
 <table>
-    <tr><td colspan="9"></td></tr>
-    <tr><td colspan="9"><strong>RESUMEN POR MODULO</strong></td></tr>
+    <tr><td colspan="8"></td></tr>
+    <tr><td colspan="8"><strong>RESUMEN POR MODULO</strong></td></tr>
 </table>
 <table>
     <thead>
@@ -56,7 +54,6 @@
             <th>Rezago</th>
             <th>Tasa entrega</th>
             <th>Peso total</th>
-            <th>Ingresos (Bs)</th>
         </tr>
     </thead>
     <tbody>
@@ -70,7 +67,6 @@
                 <td>{{ $fila['rezago'] }}</td>
                 <td>{{ $fila['tasa_entrega'] }}%</td>
                 <td>{{ $fila['peso_total'] }}</td>
-                <td>{{ $fila['ingresos'] }}</td>
             </tr>
         @endforeach
     </tbody>

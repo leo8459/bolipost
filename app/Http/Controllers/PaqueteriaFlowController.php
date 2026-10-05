@@ -8,6 +8,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
 
 class PaqueteriaFlowController extends Controller
@@ -27,17 +28,41 @@ class PaqueteriaFlowController extends Controller
         12 => 'Diciembre',
     ];
 
+    private const DEPARTMENTS = [
+        'CHUQUISACA' => 'Chuquisaca',
+        'LA PAZ' => 'La Paz',
+        'COCHABAMBA' => 'Cochabamba',
+        'ORURO' => 'Oruro',
+        'POTOSI' => 'Potosí',
+        'TARIJA' => 'Tarija',
+        'SANTA CRUZ' => 'Santa Cruz',
+        'BENI' => 'Beni',
+        'PANDO' => 'Pando',
+    ];
+
+    private const DEPARTMENT_ALIASES = [
+        'CHUQUISACA' => ['CHUQUISACA', 'SUCRE', 'MONTEAGUDO', 'CAMARGO', 'VILLA SERRANO'],
+        'LA PAZ' => ['LA PAZ', 'EL ALTO', 'VIACHA', 'ACHOCALLA', 'CARANAVI', 'COPACABANA'],
+        'COCHABAMBA' => ['COCHABAMBA', 'QUILLACOLLO', 'SACABA', 'TIQUIPAYA', 'VINTO', 'COLCAPIRHUA', 'CLIZA'],
+        'ORURO' => ['ORURO', 'HUANUNI', 'CHALLAPATA'],
+        'POTOSI' => ['POTOSI', 'POTOSÍ', 'UYUNI', 'VILLAZON', 'VILLAZÓN', 'TUPIZA', 'LLALLAGUA'],
+        'TARIJA' => ['TARIJA', 'YACUIBA', 'BERMEJO', 'VILLA MONTES', 'VILLAMONTES'],
+        'SANTA CRUZ' => ['SANTA CRUZ', 'MONTERO', 'WARNES', 'COTOCA', 'LA GUARDIA', 'EL TORNO', 'YAPACANI', 'CAMIRI', 'VALLEGRANDE'],
+        'BENI' => ['BENI', 'TRINIDAD', 'RIBERALTA', 'RURRENABAQUE', 'MAGDALENA', 'SANTA ANA', 'SAN BORJA', 'GUAYARAMERIN', 'REYES'],
+        'PANDO' => ['PANDO', 'COBIJA', 'PORVENIR', 'PUERTO RICO'],
+    ];
+
     public function index(Request $request)
     {
-        [$year, $selectedMonths] = $this->validatedFilters($request);
+        [$year, $selectedMonths, $selectedDepartments] = $this->validatedFilters($request);
 
-        return view('reportes.flujo-paqueteria', $this->buildReportData($year, $selectedMonths));
+        return view('reportes.flujo-paqueteria', $this->buildReportData($year, $selectedMonths, $selectedDepartments));
     }
 
     public function exportExcel(Request $request)
     {
-        [$year, $selectedMonths] = $this->validatedFilters($request);
-        $data = $this->buildReportData($year, $selectedMonths);
+        [$year, $selectedMonths, $selectedDepartments] = $this->validatedFilters($request);
+        $data = $this->buildReportData($year, $selectedMonths, $selectedDepartments);
 
         return Excel::download(
             new PaqueteriaFlowExport($data),
@@ -47,8 +72,8 @@ class PaqueteriaFlowController extends Controller
 
     public function exportPdf(Request $request)
     {
-        [$year, $selectedMonths] = $this->validatedFilters($request);
-        $data = $this->buildReportData($year, $selectedMonths);
+        [$year, $selectedMonths, $selectedDepartments] = $this->validatedFilters($request);
+        $data = $this->buildReportData($year, $selectedMonths, $selectedDepartments);
         $pdf = Pdf::loadView('reportes.flujo-paqueteria-pdf', $data)
             ->setPaper('A4', 'landscape');
         $filename = 'flujo-paqueteria-'.$year.'.pdf';
@@ -64,6 +89,8 @@ class PaqueteriaFlowController extends Controller
             'anio' => ['nullable', 'integer', 'between:2000,'.now()->year],
             'meses' => ['sometimes', 'array', 'min:1', 'max:12'],
             'meses.*' => ['integer', 'between:1,12', 'distinct'],
+            'departamentos' => ['sometimes', 'array', 'max:'.count(self::DEPARTMENTS)],
+            'departamentos.*' => ['string', Rule::in(array_keys(self::DEPARTMENTS)), 'distinct'],
         ]);
 
         $year = (int) ($validated['anio'] ?? now()->year);
@@ -71,14 +98,29 @@ class PaqueteriaFlowController extends Controller
             ? array_values(array_unique(array_map('intval', $validated['meses'])))
             : [7, 8, 9];
         sort($selectedMonths);
+        $requestedDepartments = array_map(
+            fn ($department) => strtoupper(trim((string) $department)),
+            $validated['departamentos'] ?? []
+        );
+        $selectedDepartments = array_values(array_intersect(array_keys(self::DEPARTMENTS), $requestedDepartments));
 
-        return [$year, $selectedMonths];
+        return [$year, $selectedMonths, $selectedDepartments];
     }
 
-    private function buildReportData(int $year, array $selectedMonths): array
+    private function buildReportData(int $year, array $selectedMonths, array $selectedDepartments = []): array
     {
         $months = [];
         $companiesById = [];
+        $departmentPackageCodes = $selectedDepartments === []
+            ? null
+            : $this->departmentPackageCodesQuery($selectedDepartments);
+        $selectedDepartmentNames = array_map(
+            fn (string $department) => self::DEPARTMENTS[$department],
+            $selectedDepartments
+        );
+        $departmentLabel = $selectedDepartmentNames === []
+            ? 'Todos los departamentos'
+            : implode(', ', $selectedDepartmentNames);
         $excludedTestCompanyIds = DB::table('empresa')
             ->where(function ($query): void {
                 $query->whereRaw("LOWER(TRIM(COALESCE(nombre, ''))) LIKE ?", ['%prueba%'])
@@ -86,6 +128,10 @@ class PaqueteriaFlowController extends Controller
             })
             ->pluck('id')
             ->all();
+        $cancelledStateId = DB::table('estados')
+            ->whereRaw('TRIM(UPPER(nombre_estado)) = ?', ['CANCELADO'])
+            ->value('id');
+        $cancelledStateId = $cancelledStateId !== null ? (int) $cancelledStateId : null;
         $companyIdExpression = 'COALESCE(pc.empresa_id, usuario.empresa_id)';
         // Usa el último registro por CN-33, igual que el listado de bitácoras.
         $latestBitacoraIds = DB::table('bitacoras')
@@ -103,6 +149,8 @@ class PaqueteriaFlowController extends Controller
             $contractQuery = DB::table('paquetes_contrato as pc')
                 ->leftJoin('users as usuario', 'usuario.id', '=', 'pc.user_id')
                 ->whereBetween('pc.created_at', $dateRange);
+            $this->applyDepartmentFilter($contractQuery, 'pc.origen', $selectedDepartments);
+            $this->excludeCancelledState($contractQuery, 'pc.estados_id', $cancelledStateId);
             if ($excludedTestCompanyIds !== []) {
                 $contractQuery->where(function ($query) use ($companyIdExpression, $excludedTestCompanyIds): void {
                     $query->whereRaw($companyIdExpression.' IS NULL')
@@ -111,15 +159,20 @@ class PaqueteriaFlowController extends Controller
             }
             $emsQuery = DB::table('paquetes_ems')
                 ->whereBetween('created_at', $dateRange);
+            $this->applyDepartmentFilter($emsQuery, 'origen', $selectedDepartments);
+            $this->excludeCancelledState($emsQuery, 'estado_id', $cancelledStateId);
 
             $contractGuides = (int) (clone $contractQuery)->distinct('pc.codigo')->count('pc.codigo');
             $contractWeight = (float) (clone $contractQuery)->sum('pc.peso');
             $emsGuides = (int) (clone $emsQuery)->distinct('codigo')->count('codigo');
 
-            $bitacorasCn33 = DB::table('bitacoras as b')
+            $bitacoraQuery = DB::table('bitacoras as b')
                 ->whereIn('b.id', clone $latestBitacoraIds)
-                ->whereBetween('b.created_at', $dateRange)
-                ->get(['b.cod_especial', 'b.transportadora', 'b.peso']);
+                ->whereBetween('b.created_at', $dateRange);
+            if ($departmentPackageCodes !== null) {
+                $this->applyBitacoraDepartmentFilter($bitacoraQuery, $selectedDepartments, $departmentPackageCodes);
+            }
+            $bitacorasCn33 = $bitacoraQuery->get(['b.cod_especial', 'b.transportadora', 'b.peso']);
 
             $transport = [
                 'aereo' => 0.0,
@@ -145,7 +198,11 @@ class PaqueteriaFlowController extends Controller
                 ->leftJoin('empresa as empresa_usuario', 'empresa_usuario.id', '=', 'usuario.empresa_id')
                 ->whereBetween('pc.created_at', $dateRange)
                 ->whereRaw($companyIdExpression.' IS NOT NULL')
+                ->when($selectedDepartments !== [], fn ($query) => $this->applyDepartmentFilter($query, 'pc.origen', $selectedDepartments))
                 ->when($excludedTestCompanyIds !== [], fn ($query) => $query->whereNotIn(DB::raw($companyIdExpression), $excludedTestCompanyIds))
+                ->when($cancelledStateId !== null, function ($query) use ($cancelledStateId): void {
+                    $this->excludeCancelledState($query, 'pc.estados_id', $cancelledStateId);
+                })
                 ->selectRaw($companyIdExpression.' as empresa_id')
                 ->selectRaw($companyNameExpression.' as empresa')
                 ->selectRaw('COUNT(DISTINCT pc.codigo) as guias')
@@ -228,6 +285,9 @@ class PaqueteriaFlowController extends Controller
             'yearOptions' => $yearOptions,
             'monthOptions' => self::MONTHS,
             'selectedMonths' => $selectedMonths,
+            'departmentOptions' => self::DEPARTMENTS,
+            'selectedDepartments' => $selectedDepartments,
+            'departmentLabel' => $departmentLabel,
             'periodLabel' => $periodLabel,
             'months' => $months,
             'totals' => $totals,
@@ -235,6 +295,121 @@ class PaqueteriaFlowController extends Controller
             'topByGuides' => $topByGuides,
             'topByWeight' => $topByWeight,
         ];
+    }
+
+    private function departmentAliases(array $selectedDepartments): array
+    {
+        return collect($selectedDepartments)
+            ->flatMap(fn (string $department) => self::DEPARTMENT_ALIASES[$department] ?? [$department])
+            ->map(fn ($alias) => strtoupper(trim((string) $alias)))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function applyDepartmentFilter($query, string $locationExpression, array $selectedDepartments): void
+    {
+        if ($selectedDepartments === []) {
+            return;
+        }
+
+        $aliases = $this->departmentAliases($selectedDepartments);
+        $normalizedLocation = "TRIM(UPPER(COALESCE({$locationExpression}, '')))";
+
+        $query->where(function ($departmentQuery) use ($aliases, $normalizedLocation): void {
+            $departmentQuery->whereIn(DB::raw($normalizedLocation), $aliases);
+            foreach ($aliases as $alias) {
+                $departmentQuery->orWhereRaw($normalizedLocation.' LIKE ?', ['%'.$alias.'%']);
+            }
+        });
+    }
+
+    private function excludeCancelledState($query, string $stateColumn, ?int $cancelledStateId): void
+    {
+        if (!$cancelledStateId) {
+            return;
+        }
+
+        $query->where(function ($stateQuery) use ($stateColumn, $cancelledStateId): void {
+            $stateQuery->whereNull($stateColumn)
+                ->orWhere($stateColumn, '<>', $cancelledStateId);
+        });
+    }
+
+    private function applyBitacoraDepartmentFilter($query, array $selectedDepartments, $departmentPackageCodes): void
+    {
+        $aliases = $this->departmentAliases($selectedDepartments);
+
+        $query->where(function ($departmentQuery) use ($aliases, $departmentPackageCodes): void {
+            $departmentQuery->whereIn(
+                DB::raw("TRIM(UPPER(COALESCE(b.cod_especial, '')))"),
+                clone $departmentPackageCodes
+            );
+
+            foreach ([
+                ['paquetes_ems as dept_ems', 'b.paquetes_ems_id', 'origen'],
+                ['paquetes_contrato as dept_contrato', 'b.paquetes_contrato_id', 'origen'],
+            ] as [$table, $bitacoraColumn, $originColumn]) {
+                [$tableName, $alias] = explode(' as ', $table, 2);
+                $departmentQuery->orWhereExists(function ($packageQuery) use ($tableName, $alias, $bitacoraColumn, $originColumn, $aliases): void {
+                    $packageQuery->selectRaw('1')
+                        ->from($tableName.' as '.$alias)
+                        ->whereColumn($alias.'.id', $bitacoraColumn)
+                        ->where(function ($locationQuery) use ($aliases, $alias, $originColumn): void {
+                            $this->applyDepartmentAliasFilter($locationQuery, $alias.'.'.$originColumn, $aliases);
+                        });
+                });
+            }
+        });
+    }
+
+    private function departmentPackageCodesQuery(array $selectedDepartments)
+    {
+        $aliases = $this->departmentAliases($selectedDepartments);
+        $queries = [
+            DB::table('paquetes_ems')
+                ->selectRaw("TRIM(UPPER(cod_especial)) as cod_especial")
+                ->whereNotNull('cod_especial')
+                ->whereRaw("TRIM(COALESCE(cod_especial, '')) <> ''")
+                ->where(function ($query) use ($aliases): void {
+                    $this->applyDepartmentAliasFilter($query, 'origen', $aliases);
+                }),
+            DB::table('paquetes_contrato')
+                ->selectRaw("TRIM(UPPER(cod_especial)) as cod_especial")
+                ->whereNotNull('cod_especial')
+                ->whereRaw("TRIM(COALESCE(cod_especial, '')) <> ''")
+                ->where(function ($query) use ($aliases): void {
+                    $this->applyDepartmentAliasFilter($query, 'origen', $aliases);
+                }),
+            DB::table('paquetes_int')
+                ->selectRaw("TRIM(UPPER(cod_especial)) as cod_especial")
+                ->whereNotNull('cod_especial')
+                ->whereRaw("TRIM(COALESCE(cod_especial, '')) <> ''")
+                ->where(function ($query) use ($aliases): void {
+                    $this->applyDepartmentAliasFilter($query, 'origen', $aliases);
+                }),
+        ];
+
+        $union = array_shift($queries);
+        foreach ($queries as $query) {
+            $union->union($query);
+        }
+
+        return DB::query()
+            ->fromSub($union, 'department_cn33_codes')
+            ->select('cod_especial')
+            ->whereNotNull('cod_especial');
+    }
+
+    private function applyDepartmentAliasFilter($query, string $locationExpression, array $aliases): void
+    {
+        $normalizedLocation = "TRIM(UPPER(COALESCE({$locationExpression}, '')))";
+        $query->whereIn(DB::raw($normalizedLocation), $aliases);
+
+        foreach ($aliases as $alias) {
+            $query->orWhereRaw($normalizedLocation.' LIKE ?', ['%'.$alias.'%']);
+        }
     }
 
     private function isAerialCarrier(?string $transportadora): bool

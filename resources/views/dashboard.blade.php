@@ -86,21 +86,26 @@
                                 Departamento destino: {{ $departamento }}
                             </span>
                             @endif
+                            @if(($departamentoOrigen ?? '') !== '')
+                            <span class="badge badge-info ml-2 mb-1">
+                                Departamento origen: {{ $departamentoOrigen }}
+                            </span>
+                            @endif
                         </div>
                     </div>
                 </div>
 
                 <div id="advancedFiltersPanel">
                     <div class="row">
-                        <div class="col-lg-3 mb-3">
+                        <div class="col-lg-2 mb-3">
                             <label for="from" class="font-weight-bold">Desde</label>
                             <input type="date" id="from" name="from" class="form-control" value="{{ $rangoDesde }}">
                         </div>
-                        <div class="col-lg-3 mb-3">
+                        <div class="col-lg-2 mb-3">
                             <label for="to" class="font-weight-bold">Hasta</label>
                             <input type="date" id="to" name="to" class="form-control" value="{{ $rangoHasta }}">
                         </div>
-                        <div class="col-lg-3 mb-3">
+                        <div class="col-lg-2 mb-3">
                             <label for="group" class="font-weight-bold">Agrupar por</label>
                             <select id="group" name="group" class="form-control">
                                 <option value="day" {{ $agrupacion === 'day' ? 'selected' : '' }}>Dia</option>
@@ -118,6 +123,18 @@
                                     </option>
                                 @endforeach
                             </select>
+                        </div>
+                        <div class="col-lg-3 mb-3">
+                            <label for="departamento_origen" class="font-weight-bold">Departamento origen</label>
+                            <select id="departamento_origen" name="departamento_origen" class="form-control">
+                                <option value="">Todos</option>
+                                @foreach(($departamentosOrigenDisponibles ?? []) as $departamentoOrigenDisponible)
+                                    <option value="{{ $departamentoOrigenDisponible }}" {{ ($departamentoOrigen ?? '') === $departamentoOrigenDisponible ? 'selected' : '' }}>
+                                        {{ $departamentoOrigenDisponible }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <small class="form-text text-muted">Disponible para EMS y Contratos, que guardan el origen.</small>
                         </div>
                     </div>
                 </div>
@@ -141,6 +158,9 @@
                             <span class="badge badge-info mr-2 mb-1">Agrupar: {{ strtoupper($agrupacion) }}</span>
                             @if(($departamento ?? '') !== '')
                             <span class="badge badge-primary mr-2 mb-1">Departamento destino: {{ $departamento }}</span>
+                            @endif
+                            @if(($departamentoOrigen ?? '') !== '')
+                            <span class="badge badge-info mr-2 mb-1">Departamento origen: {{ $departamentoOrigen }}</span>
                             @endif
                             <span class="badge badge-secondary mb-1">Modulos: {{ count($modulosSeleccionados) }}</span>
                         </div>
@@ -171,6 +191,11 @@
                         @if(($departamento ?? '') !== '')
                             <span class="badge badge-pill badge-primary mr-2 mb-2">
                                 Departamento destino: {{ $departamento }}
+                            </span>
+                        @endif
+                        @if(($departamentoOrigen ?? '') !== '')
+                            <span class="badge badge-pill badge-info mr-2 mb-2">
+                                Departamento origen: {{ $departamentoOrigen }}
                             </span>
                         @endif
                         @foreach($modulosSeleccionados as $moduloKey)
@@ -286,10 +311,6 @@
                                 <input type="checkbox" class="custom-control-input" id="cfg_col_peso" data-setting-column="peso_total">
                                 <label class="custom-control-label" for="cfg_col_peso">Peso</label>
                             </div>
-                            <div class="custom-control custom-checkbox mr-4 mb-2">
-                                <input type="checkbox" class="custom-control-input" id="cfg_col_ingresos" data-setting-column="ingresos">
-                                <label class="custom-control-label" for="cfg_col_ingresos">Ingresos</label>
-                            </div>
                         </div>
                         <button id="resetDashboardConfig" type="button" class="btn btn-outline-primary btn-sm mt-2">
                             Restablecer configuracion
@@ -301,7 +322,7 @@
     </div>
 
     <div class="row" data-widget="cards_principales">
-        <div class="col-xl-3 col-md-6">
+        <div class="col-xl-4 col-md-6">
             <div class="metric-card metric-navy">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
@@ -312,7 +333,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-xl-3 col-md-6">
+        <div class="col-xl-4 col-md-6">
             <div class="metric-card metric-green">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
@@ -326,7 +347,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-xl-3 col-md-6">
+        <div class="col-xl-4 col-md-6">
             <div class="metric-card metric-orange">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
@@ -337,18 +358,6 @@
                 </div>
                 <div class="metric-progress">
                     <div class="metric-progress-bar" style="width: {{ min(100, max(0, 100 - $totales['porcentaje_entrega'])) }}%;"></div>
-                </div>
-            </div>
-        </div>
-        <div class="col-xl-3 col-md-6">
-            <div class="metric-card metric-blue">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <div class="metric-value">Bs <span class="js-counter" data-counter-target="{{ $totales['ingresos'] }}" data-counter-format="money">{{ \App\Support\BolivianNumber::format($totales['ingresos'], 2) }}</span></div>
-                        <div class="metric-label">Ingresos</div>
-                        <small class="metric-note">Contratos no sumados por tema tarifario.</small>
-                    </div>
-                    <div class="metric-icon"><i class="fas fa-coins"></i></div>
                 </div>
             </div>
         </div>
@@ -1031,7 +1040,6 @@
                                 <th class="text-right" data-col="rezago">Rezago</th>
                                 <th class="text-right" data-col="tasa_entrega">Tasa entrega</th>
                                 <th class="text-right" data-col="peso_total">Peso</th>
-                                <th class="text-right" data-col="ingresos">Ingresos<br><small>Sin contratos por tema tarifario</small></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1053,11 +1061,10 @@
                                         </div>
                                     </td>
                                     <td class="text-right" data-col="peso_total">{{ \App\Support\BolivianNumber::format($fila['peso_total'], 3) }}</td>
-                                    <td class="text-right" data-col="ingresos">Bs {{ \App\Support\BolivianNumber::format($fila['ingresos'], 2) }}</td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="10" class="text-center text-muted py-4">No hay datos para los filtros seleccionados.</td>
+                                    <td colspan="9" class="text-center text-muted py-4">No hay datos para los filtros seleccionados.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -1622,7 +1629,6 @@
                 rezago: true,
                 tasa_entrega: true,
                 peso_total: true,
-                ingresos: true,
             }
         };
 
@@ -1914,13 +1920,6 @@
         };
 
         const formatCounterValue = (value, format) => {
-            if (format === 'money') {
-                return Number(value).toLocaleString('es-BO', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                });
-            }
-
             return Math.round(value).toLocaleString('es-BO');
         };
 
@@ -2159,7 +2158,6 @@
                     rezago: true,
                     tasa_entrega: true,
                     peso_total: false,
-                    ingresos: true,
                 };
             } else if (preset === 'operativa') {
                 config.widgets = {
@@ -2181,7 +2179,6 @@
                     rezago: true,
                     tasa_entrega: true,
                     peso_total: true,
-                    ingresos: true,
                 };
             }
 
