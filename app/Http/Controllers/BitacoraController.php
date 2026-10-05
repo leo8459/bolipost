@@ -682,7 +682,8 @@ class BitacoraController extends Controller
             $request->all(),
             [
                 'cod_especial' => ['required', 'string', 'max:50'],
-                'transportadora' => ['required', 'string', 'max:255'],
+                'tipo_transporte' => ['required', 'in:aereo,terrestre'],
+                'transportadora' => ['required_if:tipo_transporte,terrestre', 'nullable', 'string', 'max:255'],
                 'provincia' => ['nullable', 'string', 'max:255'],
                 'factura' => ['required', 'string', 'max:255'],
                 'precio_total' => ['required', 'numeric', 'min:0'],
@@ -694,6 +695,7 @@ class BitacoraController extends Controller
             ],
             [
                 'cod_especial' => 'cod especial',
+                'tipo_transporte' => 'tipo de transporte',
                 'transportadora' => 'transportadora',
                 'provincia' => 'provincia',
                 'factura' => 'factura',
@@ -751,10 +753,14 @@ class BitacoraController extends Controller
 
         $codEspecial = strtoupper(trim((string) ($data['cod_especial'] ?? '')));
         $totales = $this->obtenerTotalesPorCodEspecial($codEspecial);
+        $tipoTransporte = $data['tipo_transporte'];
 
+        unset($data['tipo_transporte']);
         $data['cod_especial'] = $codEspecial;
         $data['user_id'] = (int) Auth::id();
-        $data['transportadora'] = $this->normalizeUpperOrNull($data['transportadora'] ?? null);
+        $data['transportadora'] = $tipoTransporte === 'aereo'
+            ? 'BOA'
+            : $this->normalizeUpperOrNull($data['transportadora'] ?? null);
         $data['provincia'] = $this->normalizeUpperOrNull($data['provincia'] ?? null);
         $data['factura'] = $this->emptyToNull($data['factura'] ?? null);
         $data['precio_total'] = $data['precio_total'] ?? ($totales['precio_total'] > 0 ? $totales['precio_total'] : null);

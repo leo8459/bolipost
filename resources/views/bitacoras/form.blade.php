@@ -136,7 +136,26 @@
             </div>
 
             <div class="row">
-                <div class="col-md-4">
+                <div class="col-md-3">
+                    <div class="form-group mb-3">
+                        <label for="tipo_transporte">Tipo de transporte <span class="text-danger">*</span></label>
+                        <select
+                            id="tipo_transporte"
+                            name="tipo_transporte"
+                            class="form-control @error('tipo_transporte') is-invalid @enderror"
+                            required
+                        >
+                            <option value="">Selecciona aéreo o terrestre</option>
+                            <option value="aereo" {{ old('tipo_transporte') === 'aereo' ? 'selected' : '' }}>Aéreo</option>
+                            <option value="terrestre" {{ old('tipo_transporte') === 'terrestre' ? 'selected' : '' }}>Terrestre</option>
+                        </select>
+                        @error('tipo_transporte')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                </div>
+
+                <div class="col-md-3">
                     <div class="form-group mb-3">
                         <label for="transportadora">Transportadora <span class="text-danger">*</span></label>
                         <input
@@ -146,15 +165,17 @@
                             value="{{ old('transportadora', $bitacora->transportadora) }}"
                             class="form-control text-uppercase-live @error('transportadora') is-invalid @enderror"
                             style="text-transform: uppercase;"
-                            required
+                            placeholder="Selecciona primero el tipo de transporte"
+                            disabled
                         >
                         @error('transportadora')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
+                        <small class="bitacora-form-helper">Para aéreo se asigna BOA automáticamente. Para terrestre, escribe la transportadora.</small>
                     </div>
                 </div>
 
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <div class="form-group mb-3">
                         <label for="provincia">Provincia <span class="text-muted">(opcional)</span></label>
                         <input
@@ -170,7 +191,7 @@
                     </div>
                 </div>
 
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <div class="form-group mb-3">
                         <label for="factura">Factura <span class="text-danger">*</span></label>
                         <input
@@ -313,6 +334,7 @@
         document.addEventListener('DOMContentLoaded', function () {
             const codeInput = document.getElementById('cod_especial');
             const weightInput = document.getElementById('peso');
+            const transportTypeInput = document.getElementById('tipo_transporte');
             const transportadoraInput = document.getElementById('transportadora');
             const helpBox = document.getElementById('cn33-summary-help');
             const endpoint = @json(route('bitacoras.cn33-summary'));
@@ -341,6 +363,44 @@
                 });
                 transportadoraInput.addEventListener('blur', function () {
                     normalizeUppercaseValue(transportadoraInput);
+                });
+            }
+
+            if (transportTypeInput && transportadoraInput) {
+                let previousTransportType = transportTypeInput.value;
+
+                const syncTransportadora = (clearAutoBoa = false) => {
+                    const isAereo = transportTypeInput.value === 'aereo';
+                    const isTerrestre = transportTypeInput.value === 'terrestre';
+
+                    if (isAereo) {
+                        transportadoraInput.value = 'BOA';
+                        transportadoraInput.readOnly = true;
+                        transportadoraInput.disabled = false;
+                        transportadoraInput.required = true;
+                        transportadoraInput.placeholder = 'BOA';
+                    } else if (isTerrestre) {
+                        if (clearAutoBoa && previousTransportType === 'aereo' && transportadoraInput.value === 'BOA') {
+                            transportadoraInput.value = '';
+                        }
+                        transportadoraInput.readOnly = false;
+                        transportadoraInput.disabled = false;
+                        transportadoraInput.required = true;
+                        transportadoraInput.placeholder = 'Escribe la transportadora';
+                    } else {
+                        transportadoraInput.value = '';
+                        transportadoraInput.readOnly = false;
+                        transportadoraInput.disabled = true;
+                        transportadoraInput.required = false;
+                        transportadoraInput.placeholder = 'Selecciona primero el tipo de transporte';
+                    }
+
+                    previousTransportType = transportTypeInput.value;
+                };
+
+                syncTransportadora();
+                transportTypeInput.addEventListener('change', function () {
+                    syncTransportadora(true);
                 });
             }
 
