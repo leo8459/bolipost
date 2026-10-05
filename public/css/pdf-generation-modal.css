@@ -1,0 +1,88 @@
+.global-pdf-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity .2s ease, visibility .2s ease;
+}
+
+.global-pdf-modal.is-visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+.global-pdf-modal.is-hidden {
+    display: none;
+}
+
+.global-pdf-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(11, 24, 44, .62);
+}
+
+.global-pdf-modal-dialog {
+    position: relative;
+    width: min(100%, 410px);
+    padding: 2rem;
+    border: 1px solid rgba(32, 83, 154, .12);
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 22px 70px rgba(0, 0, 0, .3);
+    color: #172b4d;
+    text-align: center;
+}
+
+.global-pdf-modal-dialog h4 {
+    margin: 0 0 .5rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.global-pdf-modal-dialog p {
+    margin: 0 0 1.25rem;
+    color: #64748b;
+    line-height: 1.5;
+}
+
+.global-pdf-modal-close {
+    padding: .45rem .9rem;
+    border: 1px solid #cbd5e1;
+    border-radius: .4rem;
+    background: #fff;
+    color: #334155;
+    font: inherit;
+    cursor: pointer;
+}
+
+.global-pdf-modal-close:hover {
+    background: #f1f5f9;
+}
+
+.global-pdf-modal-spinner {
+    width: 52px;
+    height: 52px;
+    margin: 0 auto 1rem;
+    border: 5px solid #e5edf8;
+    border-top-color: #20539a;
+    border-radius: 50%;
+    animation: globalPdfSpin .8s linear infinite;
+}
+
+@keyframes globalPdfSpin {
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .global-pdf-modal { transition-duration: .01ms !important; }
+    .global-pdf-modal-spinner { animation-duration: 2s; }
+}
+
+@media print {
+    .global-pdf-modal { display: none !important; }
+}

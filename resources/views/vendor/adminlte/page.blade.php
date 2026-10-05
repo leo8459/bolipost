@@ -4,6 +4,7 @@
 @inject('preloaderHelper', 'JeroenNoten\LaravelAdminLte\Helpers\PreloaderHelper')
 
 @section('adminlte_css')
+    <link rel="stylesheet" href="{{ asset('css/pdf-generation-modal.css') }}">
     @include('partials.system-responsive-assets')
     @include('partials.google-analytics-lazy', ['trackingId' => 'G-H41CHNHCL0'])
     <style>
@@ -194,11 +195,14 @@
         @endif
 
     </div>
+
+    @include('partials.pdf-generation-modal')
 @stop
 
 @section('adminlte_js')
     @stack('js')
     @yield('js')
+    <script src="{{ asset('js/pdf-generation-modal.js') }}"></script>
     @auth
     <script>
         (function () {

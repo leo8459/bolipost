@@ -971,12 +971,65 @@
             background:#fff;
             padding:1rem 1.5rem;
         }
+        .manifest-loading-overlay{
+            position:fixed;
+            inset:0;
+            z-index:20000;
+            align-items:center;
+            justify-content:center;
+            padding:20px;
+            background:rgba(15, 23, 42, .62);
+        }
+        .manifest-loading-dialog{
+            width:min(100%, 420px);
+            padding:30px 28px;
+            border-radius:16px;
+            background:#fff;
+            box-shadow:0 24px 70px rgba(15, 23, 42, .28);
+            text-align:center;
+            color:#18324d;
+        }
+        .manifest-loading-spinner{
+            width:48px;
+            height:48px;
+            margin:0 auto 18px;
+            border:5px solid #e4edf8;
+            border-top-color:#20539A;
+            border-radius:50%;
+            animation:manifest-loading-spin .8s linear infinite;
+        }
+        .manifest-loading-title{
+            display:block;
+            font-size:1.15rem;
+            font-weight:700;
+        }
+        .manifest-loading-message{
+            margin:8px 0 0;
+            color:#64748b;
+        }
+        @keyframes manifest-loading-spin{
+            to{transform:rotate(360deg);}
+        }
         @media (max-width: 767.98px){
             .regional-mismatch-item{
                 grid-template-columns:1fr;
             }
         }
     </style>
+
+    <div
+        class="manifest-loading-overlay"
+        wire:loading.flex
+        wire:target="mandarSeleccionadosRegional,mandarSeleccionadosContratosRegional,confirmarEnvioRegionalConDestinoDiferente"
+        role="status"
+        aria-live="assertive"
+        aria-label="Generando manifiesto">
+        <div class="manifest-loading-dialog">
+            <div class="manifest-loading-spinner" aria-hidden="true"></div>
+            <strong class="manifest-loading-title">Generando manifiesto...</strong>
+            <p class="manifest-loading-message">Por favor, espere mientras se prepara el PDF.</p>
+        </div>
+    </div>
 
     <div class="plantilla-wrap">
         <div class="card card-app">

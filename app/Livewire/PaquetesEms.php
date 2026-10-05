@@ -3283,6 +3283,12 @@ class PaquetesEms extends Component
             $this->dispatch('openRegionalMismatchModal');
             return;
         }
+        if (empty($mismatchItems)) {
+            $this->regionalMismatchItems = [];
+            $this->regionalMismatchObservaciones = [];
+            $this->regionalMismatchDestino = '';
+            $this->regionalMismatchScope = 'general';
+        }
 
         $generatedAt = now();
         $loggedInUserCity = trim((string) optional(Auth::user())->ciudad);
@@ -3681,6 +3687,12 @@ class PaquetesEms extends Component
             $this->dispatch('closeRegionalContratoModal');
             $this->dispatch('openRegionalMismatchModal');
             return;
+        }
+        if (empty($mismatchItems)) {
+            $this->regionalMismatchItems = [];
+            $this->regionalMismatchObservaciones = [];
+            $this->regionalMismatchDestino = '';
+            $this->regionalMismatchScope = 'contratos';
         }
 
         $actorUserId = (int) optional(Auth::user())->id;

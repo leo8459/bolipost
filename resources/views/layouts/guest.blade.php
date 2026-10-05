@@ -11,6 +11,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
         <title>{{ config('app.name', 'Laravel') }}</title>
+        <link rel="stylesheet" href="{{ asset('css/pdf-generation-modal.css') }}">
 
         @include('partials.google-analytics-lazy', ['trackingId' => 'G-H41CHNHCL0'])
 
@@ -42,8 +43,9 @@
                 @endif
                 {{ $slot }}
             </div>
-           
         </div>
+        @include('partials.pdf-generation-modal')
+        <script src="{{ asset('js/pdf-generation-modal.js') }}"></script>
     </body>
 </html>
 

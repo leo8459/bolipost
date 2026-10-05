@@ -20,6 +20,7 @@
     <noscript><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet"></noscript>
     <link rel="stylesheet" href="{{ asset('css/landing-shared.css') }}">
     <link rel="stylesheet" href="{{ asset('css/welcome.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/pdf-generation-modal.css') }}">
 </head>
 
 <body>
@@ -1225,7 +1226,8 @@
             loadCaptcha();
         }
     </script>
- 
+    @include('partials.pdf-generation-modal')
+    <script src="{{ asset('js/pdf-generation-modal.js') }}"></script>
 </body>
 
 </html>

@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Ticket {{ $solicitud->codigo_solicitud }}</title>
+    @unless($isPdf ?? false)
+        <link rel="stylesheet" href="{{ asset('css/pdf-generation-modal.css') }}">
+    @endunless
     <style>
         @page { size: 80mm auto; margin: 4mm; }
 
@@ -470,6 +473,8 @@
             <button type="button" class="secondary" onclick="window.close()">Cerrar</button>
         </div>
 
+        @include('partials.pdf-generation-modal')
+
         <script>
         window.addEventListener('load', function () {
             setTimeout(function () {
@@ -477,6 +482,7 @@
             }, 250);
         });
         </script>
+        <script src="{{ asset('js/pdf-generation-modal.js') }}"></script>
     @endunless
 </body>
 </html>
