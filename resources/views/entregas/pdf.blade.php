@@ -52,7 +52,7 @@
     $totalVentanilla = (int) $carteros->sum('total_ventanilla');
     $totalEntregados = (int) $carteros->sum('total_entregados');
     $totalPendientes = (int) $carteros->sum('pendientes_asignados');
-    $cumplimientoGeneral = \App\Support\DeliveryFulfillment::percentage($totalAsignados, $totalFisica, $totalVentanilla);
+    $cumplimientoGeneral = (float) ($cumplimientoGeneral ?? 0);
     $logoPath = public_path('images/AGBClogo1.png');
     $logoData = file_exists($logoPath) ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath)) : null;
     $moduleLabels = collect($modulosSeleccionados ?? [])
@@ -231,7 +231,7 @@
                 </tr>
             </tbody>
         </table>
-        <div class="dept-subtitle">Entrega física corresponde a las entregas realizadas por cartero. Ventanilla se contabiliza por separado. El promedio diario considera {{ \App\Support\BolivianNumber::format($diasLaborables ?? 0) }} días de lunes a sábado.</div>
+        <div class="dept-subtitle">El cumplimiento incluye las entregas por cartero y ventanilla; los pendientes se suman por cartero para que los excedentes de uno no oculten pendientes de otro. El promedio diario considera {{ \App\Support\BolivianNumber::format($diasLaborables ?? 0) }} días de lunes a sábado.</div>
     </div>
 @endforeach
 

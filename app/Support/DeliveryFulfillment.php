@@ -10,14 +10,25 @@ final class DeliveryFulfillment
         $courierDelivered = max(0, $courierDelivered);
         $counterDelivered = max(0, $counterDelivered);
 
-        // Las entregas directas por ventanilla forman parte tanto del trabajo
-        // considerado como del trabajo completado.
+        $pending = max(0, $assigned - $courierDelivered);
+
+        return self::percentageFromPending($assigned, $pending, $counterDelivered);
+    }
+
+    public static function percentageFromPending(int $assigned, int $pending, int $counterDelivered): float
+    {
+        $assigned = max(0, $assigned);
+        $pending = max(0, $pending);
+        $counterDelivered = max(0, $counterDelivered);
+
+        // Ventanilla adds both workload and completions. Summed pending counts
+        // keep one courier's over-delivery from hiding another courier's gap.
         $base = $assigned + $counterDelivered;
         if ($base === 0) {
             return 0.0;
         }
 
-        $delivered = $courierDelivered + $counterDelivered;
+        $delivered = max(0, $base - $pending);
 
         return min(100.0, round(($delivered * 100) / $base, 1));
     }

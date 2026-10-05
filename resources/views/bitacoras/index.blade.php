@@ -1,4 +1,5 @@
 @extends('adminlte::page')
+@section('plugins.Select2', true)
 @section('title', 'Bitacoras')
 @section('template_title')
     Bitacoras
@@ -120,6 +121,24 @@
         .bitacoras-filters .form-control:focus {
             border-color: var(--bitacora-primary);
             box-shadow: 0 0 0 0.15rem rgba(32, 83, 154, 0.12);
+        }
+
+        .bitacoras-filters .select2-container {
+            width: 100% !important;
+        }
+
+        .bitacoras-filters .select2-container--default .select2-selection--single {
+            height: 44px;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+        }
+
+        .bitacoras-filters .select2-container--default .select2-selection--single .select2-selection__rendered {
+            line-height: 42px;
+        }
+
+        .bitacoras-filters .select2-container--default .select2-selection--single .select2-selection__arrow {
+            height: 42px;
         }
 
         .bitacoras-actions {
@@ -512,7 +531,7 @@
                         <div class="bitacoras-panel">
                             <div class="bitacoras-filters">
                                 <div class="bitacoras-filters-title">Busqueda y filtros</div>
-                                <div class="bitacoras-filters-subtitle">Refina la lista por regional del usuario, usuario, codigo especial, origen CN-33 o provincia.</div>
+                                <div class="bitacoras-filters-subtitle">Refina la lista por regional del usuario, usuario, codigo especial, origen CN-33, provincia o transportadora.</div>
 
                                 <form method="GET" action="{{ route('bitacoras.index') }}">
                                     <div class="row">
@@ -577,6 +596,19 @@
                                                     @foreach($provincias as $provinciaItem)
                                                         <option value="{{ $provinciaItem }}" {{ strtoupper((string) $provincia) === strtoupper((string) $provinciaItem) ? 'selected' : '' }}>
                                                             {{ $provinciaItem }}
+                                                        </option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="form-group">
+                                                <label for="filtro-transportadora">Transportadora</label>
+                                                <select id="filtro-transportadora" name="transportadora" class="form-control">
+                                                    <option value="">Todas</option>
+                                                    @foreach($transportadoras as $transportadoraItem)
+                                                        <option value="{{ $transportadoraItem }}" {{ strtoupper((string) $transportadora) === strtoupper((string) $transportadoraItem) ? 'selected' : '' }}>
+                                                            {{ $transportadoraItem }}
                                                         </option>
                                                     @endforeach
                                                 </select>
@@ -1071,4 +1103,16 @@
             </div>
         </div>
     </section>
+@endsection
+
+@section('js')
+    <script>
+        $(function () {
+            $('#filtro-transportadora').select2({
+                width: '100%',
+                placeholder: 'Buscar transportadora',
+                allowClear: true
+            });
+        });
+    </script>
 @endsection

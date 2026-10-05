@@ -112,14 +112,14 @@
         </tr>
     </table>
 
-    <div class="scope-note"><strong>Alcance:</strong> resumen de guías y kilos recibidos de contratos, paquetes EMS y kilos despachados por vía aérea y terrestre en el periodo elegido.</div>
+    <div class="scope-note"><strong>Alcance:</strong> resumen de guías y kilos recibidos de contratos, paquetes EMS y peso de CN-33 registrado en bitácoras durante el periodo elegido.</div>
 
     <table class="kpis">
         <tr>
             <td><span class="label">Guías procesadas - suma mensual</span><span class="metric-value">{{ $formatCount($totals['guias_total']) }}</span><span class="metric-note">{{ $formatCount($totals['guias_contrato']) }} de contrato | {{ $formatCount($totals['guias_ems']) }} EMS</span></td>
             <td><span class="label">Peso total recibido</span><span class="metric-value">{{ $formatWeight($totals['peso_recibido']) }} kg</span><span class="metric-note">Contratos + EMS del periodo</span></td>
-            <td><span class="label">Carga aérea</span><span class="metric-value">{{ $formatWeight($totals['aereo']) }} kg</span><span class="metric-note">Categoría A</span></td>
-            <td><span class="label">Carga terrestre</span><span class="metric-value">{{ $formatWeight($totals['terrestre']) }} kg</span><span class="metric-note">Superficie y prioritario por superficie</span></td>
+            <td><span class="label">Carga aérea CN-33</span><span class="metric-value">{{ $formatWeight($totals['aereo']) }} kg</span><span class="metric-note">BOA, BOA Cargo o Boliviana de Aviación</span></td>
+            <td><span class="label">Carga terrestre CN-33</span><span class="metric-value">{{ $formatWeight($totals['terrestre']) }} kg</span><span class="metric-note">Las demás transportadoras</span></td>
             <td><span class="label">Paquetes EMS</span><span class="metric-value">{{ $formatCount($totals['paquetes_ems']) }}</span><span class="metric-note">{{ $formatWeight($totals['peso_ems']) }} kg registrados</span></td>
         </tr>
     </table>
@@ -129,7 +129,7 @@
         @if($totals['guias_total'] > 0 || $totals['peso_recibido'] > 0 || $totals['paquetes_ems'] > 0 || $totals['aereo'] > 0 || $totals['terrestre'] > 0)
             <p>En <span class="highlight">{{ $periodLabel }}</span> se procesaron <span class="highlight">{{ $formatCount($totals['guias_total']) }} guías</span> y se recibieron <span class="highlight">{{ $formatWeight($totals['peso_recibido']) }} kg en total</span> entre contratos y EMS.</p>
             <p>Contratos: <span class="highlight">{{ $formatCount($totals['guias_contrato']) }} guías y {{ $formatWeight($totals['peso_contrato']) }} kg</span>. EMS: <span class="highlight">{{ $formatCount($totals['guias_ems']) }} guías, {{ $formatCount($totals['paquetes_ems']) }} paquetes y {{ $formatWeight($totals['peso_ems']) }} kg</span>.</p>
-            <p>Los despachos sumaron <span class="highlight">{{ $formatWeight($totals['aereo']) }} kg por vía aérea</span> y <span class="highlight">{{ $formatWeight($totals['terrestre']) }} kg por vía terrestre</span>. El total de transporte del detalle suma únicamente estas dos categorías.</p>
+            <p>Las bitácoras de CN-33 sumaron <span class="highlight">{{ $formatWeight($totals['aereo']) }} kg por vía aérea</span> y <span class="highlight">{{ $formatWeight($totals['terrestre']) }} kg por vía terrestre</span>, según el nombre de la transportadora registrada.</p>
         @else
             <p>No se encontraron movimientos para los meses seleccionados. Revisa el periodo y los datos registrados antes de emitir conclusiones.</p>
         @endif
@@ -246,11 +246,11 @@
 
     <div class="title-block">
         <h1 class="title">Transporte y empresas</h1>
-        <div class="subtitle">Detalle de kilos despachados y movimiento de empresas contratadas</div>
+        <div class="subtitle">Detalle de kilos CN-33 y movimiento de empresas contratadas</div>
     </div>
 
-    <h2 class="section-title">Kilos despachados por mes - aéreo y terrestre</h2>
-    <p class="section-note">Peso por fecha del evento de envío a Expedición, para despachos que siguen en ese estado. Aéreo = categoría A; terrestre = C y D. La variación compara el peso total con el mes seleccionado anterior.</p>
+    <h2 class="section-title">Kilos de CN-33 registrados por mes - aéreo y terrestre</h2>
+    <p class="section-note">Peso tomado de bitacoras.peso y agrupado por fecha de registro de la bitácora. Se clasifica como aéreo si transportadora es BOA, contiene BOA CARGO o BOLIVIANA DE AVIACIÓN; todas las demás se consideran terrestres. La variación compara el peso total con el mes seleccionado anterior.</p>
     <table class="sheet">
         <thead>
             <tr>

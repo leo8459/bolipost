@@ -29,9 +29,9 @@ class DashboardEntregasResumenExport implements FromArray, ShouldAutoSize, WithC
         $totalEntregados = (int) $carteros->sum('total_entregados');
         $diasLaborables = (int) ($this->reportData['diasLaborables'] ?? 0);
         $totalPendientes = (int) $carteros->sum('pendientes_asignados');
-        $cumplimiento = DeliveryFulfillment::percentage(
+        $cumplimiento = DeliveryFulfillment::percentageFromPending(
             $totalAsignados,
-            $totalCarteroEntregados,
+            $totalPendientes,
             $totalVentanilla
         );
 

@@ -65,12 +65,13 @@ class BitacoraController extends Controller
         $provincia = strtoupper(trim((string) $request->query('provincia', '')));
         $regional = strtoupper(trim((string) $request->query('regional', '')));
         $origenCn33 = strtoupper(trim((string) $request->query('origen_cn33', '')));
+        $transportadora = strtoupper(trim((string) $request->query('transportadora', '')));
 
         $filteredCodEspecialesQuery = Bitacora::query()
             ->selectRaw('trim(upper(cod_especial)) as cod_especial_normalizado')
             ->groupBy(DB::raw('trim(upper(cod_especial))'));
 
-        $this->applyBitacoraFilters($filteredCodEspecialesQuery, $q, $userId, $codEspecial, $provincia, $regional, $origenCn33);
+        $this->applyBitacoraFilters($filteredCodEspecialesQuery, $q, $userId, $codEspecial, $provincia, $regional, $origenCn33, $transportadora);
 
         $latestIdsQuery = Bitacora::query()
             ->selectRaw('max(id) as id')
@@ -139,6 +140,14 @@ class BitacoraController extends Controller
             ->distinct()
             ->orderBy('provincia')
             ->pluck('provincia');
+
+        $transportadoras = Bitacora::query()
+            ->selectRaw('trim(upper(transportadora)) as transportadora')
+            ->whereNotNull('transportadora')
+            ->whereRaw("trim(transportadora) <> ''")
+            ->distinct()
+            ->orderBy('transportadora')
+            ->pluck('transportadora');
 
         $pendingCn33Alert = $paginate
             ? [
@@ -210,12 +219,14 @@ class BitacoraController extends Controller
             'detallesPorCodEspecial',
             'users',
             'provincias',
+            'transportadoras',
             'regionales',
             'origenesCn33',
             'q',
             'userId',
             'codEspecial',
             'provincia',
+            'transportadora',
             'regional',
             'origenCn33',
             'pendingCn33Alert',
@@ -392,6 +403,7 @@ class BitacoraController extends Controller
                 'user' => optional(collect($data['users'] ?? [])->firstWhere('id', (int) ($data['userId'] ?? 0)))->name,
                 'codEspecial' => (string) ($data['codEspecial'] ?? ''),
                 'provincia' => (string) ($data['provincia'] ?? ''),
+                'transportadora' => (string) ($data['transportadora'] ?? ''),
                 'origenCn33' => (string) ($data['origenCn33'] ?? ''),
             ],
             'reportRows' => $data['reportRows'] ?? collect(),
@@ -419,7 +431,7 @@ class BitacoraController extends Controller
             ->get();
     }
 
-    private function applyBitacoraFilters($query, string $q, int $userId, string $codEspecial, string $provincia, string $regional, string $origenCn33): void
+    private function applyBitacoraFilters($query, string $q, int $userId, string $codEspecial, string $provincia, string $regional, string $origenCn33, string $transportadora): void
     {
         $query
             ->when($userId > 0, function ($query) use ($userId) {
@@ -445,6 +457,9 @@ class BitacoraController extends Controller
                             $contratoQuery->whereRaw('trim(upper(COALESCE(origen, \'\'))) = ?', [$origenCn33]);
                         });
                 });
+            })
+            ->when($transportadora !== '', function ($query) use ($transportadora) {
+                $query->whereRaw("trim(upper(COALESCE(transportadora, ''))) = ?", [$transportadora]);
             })
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($sub) use ($q) {
@@ -671,10 +686,12 @@ class BitacoraController extends Controller
                 'provincia' => ['nullable', 'string', 'max:255'],
                 'factura' => ['required', 'string', 'max:255'],
                 'precio_total' => ['required', 'numeric', 'min:0'],
-                'peso' => ['required', 'numeric', 'min:0'],
+                'peso' => ['required', 'numeric', 'min:0', 'max:150'],
                 'imagen_factura' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
             ],
-            [],
+            [
+                'peso.max' => 'El peso no puede ser mayor a 150 kg.',
+            ],
             [
                 'cod_especial' => 'cod especial',
                 'transportadora' => 'transportadora',

@@ -216,6 +216,7 @@
                             type="number"
                             step="0.001"
                             min="0"
+                            max="150"
                             id="peso"
                             name="peso"
                             value="{{ old('peso', $bitacora->peso) }}"
@@ -226,7 +227,7 @@
                         @error('peso')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
-                        <small class="bitacora-form-helper is-info">Si pegas el numero de despacho del CN-33, el peso se cargara automaticamente. Luego puedes cambiarlo manualmente.</small>
+                        <small class="bitacora-form-helper is-info">Peso maximo: 150 kg. Si pegas el numero de despacho del CN-33, el peso se cargara automaticamente; puedes cambiarlo manualmente.</small>
                     </div>
                 </div>
             </div>

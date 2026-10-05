@@ -518,11 +518,7 @@
         $totalCarteroEntregados = (int) $entregadores->sum('total_cartero_entregados');
         $totalVentanilla = (int) $entregadores->sum('total_ventanilla');
         $totalPendientesAsignados = (int) $entregadores->sum('pendientes_asignados');
-        $cumplimientoGeneral = \App\Support\DeliveryFulfillment::percentage(
-            $totalAsignados,
-            $totalCarteroEntregados,
-            $totalVentanilla
-        );
+        $cumplimientoGeneral = (float) ($cumplimientoGeneral ?? 0);
         $totalCarteros = (int) $entregadores->count();
     @endphp
 
@@ -675,7 +671,7 @@
             @empty
                 <div class="text-center text-muted py-4">No hay asignaciones ni entregas para el filtro seleccionado.</div>
             @endforelse
-            <div class="text-muted small mt-2">El promedio diario usa {{ \App\Support\BolivianNumber::format($diasLaborables ?? 0) }} días de lunes a sábado; no cuenta domingos.</div>
+            <div class="text-muted small mt-2">El cumplimiento incluye entregas por cartero y ventanilla; los pendientes se suman por cartero para que los excedentes de uno no oculten pendientes de otro. El promedio diario usa {{ \App\Support\BolivianNumber::format($diasLaborables ?? 0) }} días de lunes a sábado; no cuenta domingos.</div>
         </div>
     </div>
 

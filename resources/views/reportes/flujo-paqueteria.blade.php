@@ -7,7 +7,7 @@
         <div>
             <div class="flow-eyebrow">DIRECCIÓN DE OPERACIONES · COMPARATIVO MENSUAL</div>
             <h1 class="mb-1">Flujo de paquetería</h1>
-            <p class="mb-0 text-muted">Guías, carga despachada, empresas y paquetes EMS para {{ $periodLabel }}.</p>
+            <p class="mb-0 text-muted">Guías, kilos de CN-33 tomados de bitácoras, empresas y paquetes EMS para {{ $periodLabel }}.</p>
         </div>
     </div>
 @stop
@@ -152,16 +152,16 @@
             </div>
             <div class="col-6 col-lg-3 mb-3">
                 <div class="metric-card" style="--metric-color:#25805a">
-                    <div class="metric-label">Carga aérea despachada</div>
+                    <div class="metric-label">Carga aérea CN-33</div>
                     <div class="metric-value">{{ $formatWeight($totals['aereo']) }} <small>kg</small></div>
-                    <div class="metric-note">Despachos enviados a Expedición</div>
+                    <div class="metric-note">Según transportadora en bitácora</div>
                 </div>
             </div>
             <div class="col-6 col-lg-3 mb-3">
                 <div class="metric-card" style="--metric-color:#bd7c27">
-                    <div class="metric-label">Carga terrestre despachada</div>
+                    <div class="metric-label">Carga terrestre CN-33</div>
                     <div class="metric-value">{{ $formatWeight($totals['terrestre']) }} <small>kg</small></div>
-                    <div class="metric-note">Superficie y prioritario por superficie</div>
+                    <div class="metric-note">Todas las demás transportadoras de bitácora</div>
                 </div>
             </div>
             <div class="col-6 col-lg-3 mb-3">
@@ -182,7 +182,7 @@
                 <div class="table-responsive">
                     <table class="table flow-table">
                         <thead>
-                            <tr><th>Mes</th><th class="text-right">Guías contrato</th><th class="text-right">Guías EMS</th><th class="text-right">Total guías</th><th class="text-right">Paquetes EMS</th><th class="text-right">Peso EMS (kg)</th><th class="text-right">Aéreo (kg)</th><th class="text-right">Terrestre (kg)</th><th class="text-right">SAL (kg)</th><th class="text-right">Sin clasificar (kg)</th><th class="text-center">Cambio de guías</th></tr>
+                            <tr><th>Mes</th><th class="text-right">Guías contrato</th><th class="text-right">Guías EMS</th><th class="text-right">Total guías</th><th class="text-right">Paquetes EMS</th><th class="text-right">Peso EMS (kg)</th><th class="text-right">Aéreo CN-33 (kg)</th><th class="text-right">Terrestre CN-33 (kg)</th><th class="text-center">Cambio de guías</th></tr>
                         </thead>
                         <tbody>
                             @php
@@ -201,8 +201,6 @@
                                     <td class="text-right">{{ $formatWeight($month['peso_ems']) }}</td>
                                     <td class="text-right">{{ $formatWeight($month['transporte']['aereo']) }}</td>
                                     <td class="text-right">{{ $formatWeight($month['transporte']['terrestre']) }}</td>
-                                    <td class="text-right">{{ $formatWeight($month['transporte']['sal']) }}</td>
-                                    <td class="text-right">{{ $formatWeight($month['transporte']['sin_clasificar']) }}</td>
                                     <td class="text-center">@if($monthDelta)<span class="delta {{ $monthDelta['class'] }}">{{ $monthDelta['label'] }}</span>@else<span class="text-muted">—</span>@endif</td>
                                 </tr>
                                 @php
@@ -210,13 +208,13 @@
                                 @endphp
                             @endforeach
                         @if(count($months) > 1)
-                            <tr class="total-row"><td>Total del periodo</td><td class="text-right">{{ $formatCount($totals['guias_contrato']) }}</td><td class="text-right">{{ $formatCount($totals['guias_ems']) }}</td><td class="text-right">{{ $formatCount($totals['guias_total']) }}</td><td class="text-right">{{ $formatCount($totals['paquetes_ems']) }}</td><td class="text-right">{{ $formatWeight($totals['peso_ems']) }}</td><td class="text-right">{{ $formatWeight($totals['aereo']) }}</td><td class="text-right">{{ $formatWeight($totals['terrestre']) }}</td><td class="text-right">{{ $formatWeight($totals['sal']) }}</td><td class="text-right">{{ $formatWeight($totals['sin_clasificar']) }}</td><td class="text-center">—</td></tr>
+                            <tr class="total-row"><td>Total del periodo</td><td class="text-right">{{ $formatCount($totals['guias_contrato']) }}</td><td class="text-right">{{ $formatCount($totals['guias_ems']) }}</td><td class="text-right">{{ $formatCount($totals['guias_total']) }}</td><td class="text-right">{{ $formatCount($totals['paquetes_ems']) }}</td><td class="text-right">{{ $formatWeight($totals['peso_ems']) }}</td><td class="text-right">{{ $formatWeight($totals['aereo']) }}</td><td class="text-right">{{ $formatWeight($totals['terrestre']) }}</td><td class="text-center">—</td></tr>
                         @endif
                         </tbody>
                     </table>
                 </div>
                 <div class="card-body border-top py-2">
-                <div class="flow-note">Aéreo = categoría A; terrestre = categorías C y D; SAL = categoría B. El peso se asigna al mes del evento de envío a Expedición y solo incluye despachos que siguen en ese estado.</div>
+                <div class="flow-note">El peso proviene de <strong>bitacoras.peso</strong> por CN-33. Se considera aéreo cuando la transportadora contiene BOA CARGO o BOLIVIANA DE AVIACIÓN, o es BOA; las demás transportadoras se consideran terrestres. El mes corresponde a la fecha de registro de la bitácora.</div>
                 </div>
             </div>
         </div>
@@ -286,7 +284,7 @@
                 <div><div class="flow-kicker">ALCANCE DE LOS DATOS</div><h2>Cómo se calcula</h2></div>
             </div>
             <div class="card flow-card"><div class="card-body flow-note">
-                Las guías son códigos únicos de paquetes EMS y de contrato registrados en cada mes. Los paquetes EMS suman el campo cantidad y su peso registrado. Se excluyen de las cifras de contrato y del ranking la empresa "EMPRESA" y las empresas cuyo nombre contiene "prueba". Los kilos de transporte se asignan al mes del evento de envío a Expedición; las categorías SAL y sin clasificar se informan por separado para conservar su clasificación operativa.
+                Las guías son códigos únicos de paquetes EMS y de contrato registrados en cada mes. Los paquetes EMS suman el campo cantidad y su peso registrado. Se excluyen de las cifras de contrato y del ranking la empresa "EMPRESA" y las empresas cuyo nombre contiene "prueba". Los kilos aéreos y terrestres suman el campo peso de las bitácoras de CN-33 registradas en cada mes y se clasifican por el texto de transportadora.
             </div></div>
         </div>
     </div>

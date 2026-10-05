@@ -32,6 +32,7 @@
         | <strong>Usuario:</strong> {{ ($filters['user'] ?? '') !== '' ? $filters['user'] : 'Todos' }}
         | <strong>Cod especial:</strong> {{ $filters['codEspecial'] !== '' ? $filters['codEspecial'] : 'Todos' }}
         | <strong>Provincia:</strong> {{ $filters['provincia'] !== '' ? $filters['provincia'] : 'Todas' }}
+        | <strong>Transportadora:</strong> {{ $filters['transportadora'] !== '' ? $filters['transportadora'] : 'Todas' }}
         | <strong>Origen CN-33:</strong> {{ $filters['origenCn33'] !== '' ? $filters['origenCn33'] : 'Todos' }}
     </div>
 

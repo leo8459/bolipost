@@ -7,12 +7,11 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
 
 class PaqueteriaFlowController extends Controller
 {
-    private const EVENTO_DESPACHO_ENVIADO = 263;
-
     private const MONTHS = [
         1 => 'Enero',
         2 => 'Febrero',
@@ -88,6 +87,12 @@ class PaqueteriaFlowController extends Controller
             ->pluck('id')
             ->all();
         $companyIdExpression = 'COALESCE(pc.empresa_id, usuario.empresa_id)';
+        // Usa el último registro por CN-33, igual que el listado de bitácoras.
+        $latestBitacoraIds = DB::table('bitacoras')
+            ->selectRaw('MAX(id)')
+            ->whereNotNull('cod_especial')
+            ->whereRaw("TRIM(COALESCE(cod_especial, '')) <> ''")
+            ->groupByRaw('UPPER(TRIM(cod_especial))');
 
         foreach ($selectedMonths as $monthNumber) {
             $monthName = self::MONTHS[$monthNumber];
@@ -111,40 +116,21 @@ class PaqueteriaFlowController extends Controller
             $contractWeight = (float) (clone $contractQuery)->sum('pc.peso');
             $emsGuides = (int) (clone $emsQuery)->distinct('codigo')->count('codigo');
 
-            $sentDispatches = DB::table('eventos_despacho')
-                ->select('codigo')
-                ->selectRaw('MAX(created_at) as enviado_at')
-                ->where('evento_id', self::EVENTO_DESPACHO_ENVIADO)
-                ->groupBy('codigo');
-
-            $transportWeights = DB::table('despacho as d')
-                ->join('estados as e', 'e.id', '=', 'd.fk_estado')
-                ->joinSub($sentDispatches, 'despacho_enviado', function ($join) {
-                    $join->on('despacho_enviado.codigo', '=', 'd.identificador');
-                })
-                ->whereBetween('despacho_enviado.enviado_at', $dateRange)
-                ->whereRaw("UPPER(TRIM(COALESCE(e.nombre_estado, ''))) = 'EXPEDICION'")
-                ->selectRaw("UPPER(TRIM(COALESCE(d.categoria, ''))) as categoria")
-                ->selectRaw('SUM(COALESCE(d.peso, 0)) as peso')
-                ->groupByRaw("UPPER(TRIM(COALESCE(d.categoria, '')))")
-                ->get();
+            $bitacorasCn33 = DB::table('bitacoras as b')
+                ->whereIn('b.id', clone $latestBitacoraIds)
+                ->whereBetween('b.created_at', $dateRange)
+                ->get(['b.cod_especial', 'b.transportadora', 'b.peso']);
 
             $transport = [
                 'aereo' => 0.0,
                 'terrestre' => 0.0,
-                'sal' => 0.0,
-                'sin_clasificar' => 0.0,
             ];
 
-            foreach ($transportWeights as $weightRow) {
-                $category = strtoupper(trim((string) $weightRow->categoria));
-                $key = match ($category) {
-                    'A' => 'aereo',
-                    'C', 'D' => 'terrestre',
-                    'B' => 'sal',
-                    default => 'sin_clasificar',
-                };
-                $transport[$key] += (float) $weightRow->peso;
+            foreach ($bitacorasCn33 as $bitacora) {
+                $key = $this->isAerialCarrier($bitacora->transportadora)
+                    ? 'aereo'
+                    : 'terrestre';
+                $transport[$key] += (float) ($bitacora->peso ?? 0);
             }
 
             $ems = (clone $emsQuery)
@@ -234,8 +220,6 @@ class PaqueteriaFlowController extends Controller
             'peso_ems' => (float) collect($months)->sum('peso_ems'),
             'aereo' => (float) collect($months)->sum(fn (array $row) => $row['transporte']['aereo']),
             'terrestre' => (float) collect($months)->sum(fn (array $row) => $row['transporte']['terrestre']),
-            'sal' => (float) collect($months)->sum(fn (array $row) => $row['transporte']['sal']),
-            'sin_clasificar' => (float) collect($months)->sum(fn (array $row) => $row['transporte']['sin_clasificar']),
         ];
         $totals['peso_recibido'] = $totals['peso_contrato'] + $totals['peso_ems'];
 
@@ -251,5 +235,15 @@ class PaqueteriaFlowController extends Controller
             'topByGuides' => $topByGuides,
             'topByWeight' => $topByWeight,
         ];
+    }
+
+    private function isAerialCarrier(?string $transportadora): bool
+    {
+        $normalized = strtoupper(trim(Str::ascii((string) $transportadora)));
+        $normalized = preg_replace('/\s+/', ' ', $normalized) ?? $normalized;
+
+        return $normalized === 'BOA'
+            || str_contains($normalized, 'BOA CARGO')
+            || str_contains($normalized, 'BOLIVIANA DE AVIACION');
     }
 }

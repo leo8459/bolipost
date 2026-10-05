@@ -508,6 +508,7 @@ class DashboardController extends Controller
                 $totalCarteroEntregados = (int) $carteros->sum('total_cartero_entregados');
                 $totalVentanilla = (int) $carteros->sum('total_ventanilla');
                 $totalEntregadosDepartamento = (int) $carteros->sum('total_entregados');
+                $pendientesDepartamento = (int) $carteros->sum('pendientes_asignados');
 
                 return [
                     'departamento' => $departamento,
@@ -520,10 +521,10 @@ class DashboardController extends Controller
                     'promedio_diario' => $diasLaborables > 0
                         ? $totalEntregadosDepartamento / $diasLaborables
                         : 0,
-                    'pendientes_asignados' => (int) $carteros->sum('pendientes_asignados'),
-                    'cumplimiento' => DeliveryFulfillment::percentage(
+                    'pendientes_asignados' => $pendientesDepartamento,
+                    'cumplimiento' => DeliveryFulfillment::percentageFromPending(
                         $totalAsignados,
-                        $totalCarteroEntregados,
+                        $pendientesDepartamento,
                         $totalVentanilla
                     ),
                 ];
@@ -531,9 +532,19 @@ class DashboardController extends Controller
             ->sortByDesc('total_entregados')
             ->values();
 
+        $totalAsignados = (int) $entregadores->sum('total_asignados');
+        $totalVentanilla = (int) $entregadores->sum('total_ventanilla');
+        $totalPendientes = (int) $entregadores->sum('pendientes_asignados');
+        $cumplimientoGeneral = DeliveryFulfillment::percentageFromPending(
+            $totalAsignados,
+            $totalPendientes,
+            $totalVentanilla
+        );
+
         return [
             'entregadores' => $entregadores,
             'resumenDepartamentos' => $resumenDepartamentos,
+            'cumplimientoGeneral' => $cumplimientoGeneral,
             'diasLaborables' => $diasLaborables,
             'promedioDiarioGeneral' => $diasLaborables > 0 ? $totalEntregados / $diasLaborables : 0,
             'modulosDisponibles' => self::MODULOS,

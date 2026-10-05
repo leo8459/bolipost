@@ -28,10 +28,8 @@ class PaqueteriaFlowExport implements FromArray, ShouldAutoSize, WithHeadings, W
             $rows[] = ['Admisión', $monthName, 'Guías de contratos', $month['guias_contrato'], null, null];
             $rows[] = ['Admisión', $monthName, 'Guías EMS', $month['guias_ems'], null, null];
             $rows[] = ['EMS', $monthName, 'Paquetes EMS', null, $month['paquetes_ems'], $month['peso_ems']];
-            $rows[] = ['Despacho', $monthName, 'Aéreo', null, null, $month['transporte']['aereo']];
-            $rows[] = ['Despacho', $monthName, 'Terrestre / superficie', null, null, $month['transporte']['terrestre']];
-            $rows[] = ['Despacho', $monthName, 'SAL', null, null, $month['transporte']['sal']];
-            $rows[] = ['Despacho', $monthName, 'Sin clasificar', null, null, $month['transporte']['sin_clasificar']];
+            $rows[] = ['CN-33 (bitácora)', $monthName, 'Aéreo: BOA / BOA Cargo / Boliviana de Aviación', null, null, $month['transporte']['aereo']];
+            $rows[] = ['CN-33 (bitácora)', $monthName, 'Terrestre: otras transportadoras', null, null, $month['transporte']['terrestre']];
         }
 
         foreach ($this->reportData['companyRows'] as $company) {

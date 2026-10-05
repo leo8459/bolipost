@@ -11,6 +11,7 @@
                 | Usuario: {{ ($filters['user'] ?? '') !== '' ? $filters['user'] : 'Todos' }}
                 | Cod especial: {{ $filters['codEspecial'] !== '' ? $filters['codEspecial'] : 'Todos' }}
                 | Provincia: {{ $filters['provincia'] !== '' ? $filters['provincia'] : 'Todas' }}
+                | Transportadora: {{ $filters['transportadora'] !== '' ? $filters['transportadora'] : 'Todas' }}
                 | Origen CN-33: {{ $filters['origenCn33'] !== '' ? $filters['origenCn33'] : 'Todos' }}
             </th>
         </tr>
