@@ -185,18 +185,25 @@ class FinancialReportController extends Controller
             excludedCashierNames: self::CASHIER_FLOW_EXCLUDED_CASHIERS,
             enableDepartmentFilter: true,
             cacheReports: true,
-            showReceivablesSeparately: true
+            showReceivablesSeparately: true,
+            includeAnnulledDetails: true
         );
-        $invoiceDetailFilters = $this->cashierFlowInvoiceDetailFilters(
-            collect($data['services'])->concat($data['receivableServices']),
-            $data['selectedMonths'],
-            $data['anio']
-        );
-        $invoiceAudit = $this->loadCashierFlowCancelledInvoices(
-            $invoiceDetailFilters,
-            collect($data['services'])->concat($data['receivableServices']),
-            $data['selectedDepartment']
-        );
+        $auditServices = collect($data['services'])->concat($data['receivableServices']);
+        $hasCompleteOptimizedAudit = collect($data['annulledDetailErrors'] ?? [])->isEmpty();
+        if ($hasCompleteOptimizedAudit) {
+            $invoiceAudit = $this->cashierFlowAuditFromServices(
+                $auditServices,
+                $data['anio'],
+                self::CASHIER_FLOW_EXCLUDED_CASHIERS,
+                $data['selectedDepartment']
+            );
+        } else {
+            $invoiceAudit = $this->loadCashierFlowCancelledInvoices(
+                $this->cashierFlowInvoiceDetailFilters($auditServices, $data['selectedMonths'], $data['anio']),
+                $auditServices,
+                $data['selectedDepartment']
+            );
+        }
         $periodCancelledInvoices = $invoiceAudit['invoices'];
         $summaryCancelledInvoices = $periodCancelledInvoices
             ->reject(fn (array $invoice): bool => $this->isCashierFlowReceivableService((string) $invoice['_servicio']));
@@ -417,6 +424,84 @@ class FinancialReportController extends Controller
             ->values();
     }
 
+    private function cashierFlowAuditFromServices(
+        Collection $services,
+        int $year,
+        array $excludedCashierNames = self::CASHIER_FLOW_EXCLUDED_CASHIERS,
+        string $selectedDepartment = ''
+    ): array {
+        $invoices = $this->cashierFlowCancelledInvoicesFromServices(
+            $services,
+            $year,
+            $excludedCashierNames,
+            $selectedDepartment
+        );
+        $nonCancelledAmounts = collect();
+        $paymentBreakdown = collect();
+        $completeServices = collect();
+
+        foreach ($services as $service) {
+            $serviceName = trim((string) ($service['servicio'] ?? ''));
+            if ($serviceName === '') {
+                continue;
+            }
+
+            $serviceAmount = 0.0;
+            foreach ((array) ($service['_paymentAuditRows'] ?? []) as $auditRow) {
+                $auditRow = (array) $auditRow;
+                $user = [
+                    'id' => $auditRow['usuarioId'] ?? '',
+                    'nombre' => $auditRow['usuarioNombre'] ?? '',
+                    'email' => $auditRow['usuarioEmail'] ?? '',
+                    'alias' => $auditRow['usuarioAlias'] ?? '',
+                ];
+                if ($excludedCashierNames !== [] && $this->isCashierFlowExcludedInvoice(
+                    ['usuario' => $user],
+                    $excludedCashierNames
+                )) {
+                    continue;
+                }
+
+                $rowAmount = (float) ($auditRow['totalMonto'] ?? 0);
+                $serviceAmount += $rowAmount;
+                if ($this->isCashierFlowReceivableService($serviceName)) {
+                    continue;
+                }
+
+                $identity = $this->cashierIdentity(
+                    (string) ($user['id'] ?? ''),
+                    (string) ($user['email'] ?? ''),
+                    (string) ($user['alias'] ?? ''),
+                    (string) ($user['nombre'] ?? '')
+                );
+                $cashierMethods = $paymentBreakdown->get($identity, []);
+                foreach (['qr', 'efectivo', 'otros'] as $method) {
+                    $amount = (float) data_get($auditRow, "porMedioPago.{$method}", 0);
+                    if ($amount === 0.0) {
+                        continue;
+                    }
+
+                    $methodStats = $cashierMethods[$method] ?? ['monto' => 0.0];
+                    $methodStats['monto'] += $amount;
+                    $cashierMethods[$method] = $methodStats;
+                }
+                $paymentBreakdown->put($identity, $cashierMethods);
+            }
+
+            $nonCancelledAmounts->put($serviceName, $serviceAmount);
+            $completeServices->put($serviceName, true);
+        }
+
+        return [
+            'invoices' => $invoices,
+            'errors' => collect(),
+            'nonCancelledAmounts' => $nonCancelledAmounts,
+            'completeServices' => $completeServices,
+            'paymentBreakdown' => $paymentBreakdown,
+            'movementPaymentMethods' => collect(),
+        ];
+    }
+
     private function loadCashierFlowCancelledInvoices(
         array $filters,
         ?Collection $departmentServices = null,
@@ -458,7 +543,14 @@ class FinancialReportController extends Controller
         foreach ($results as $result) {
             $filter = (array) ($result['filter'] ?? []);
             if (($result['error'] ?? null) !== null || ! is_array($result['report'] ?? null)) {
-                $errors->push((string) ($result['error'] ?? 'No se pudo consultar el detalle del servicio.'));
+                $errorMessage = (string) ($result['error'] ?? 'No se pudo consultar el detalle del servicio.');
+                $errors->push($errorMessage);
+                Log::warning('Falló la auditoría detallada de facturación para el flujo de caja.', [
+                    'servicio' => trim((string) ($filter['servicio'] ?? '')),
+                    'mes' => (int) ($filter['mes'] ?? 0),
+                    'anio' => (int) ($filter['anio'] ?? 0),
+                    'error' => $errorMessage,
+                ]);
 
                 continue;
             }
@@ -1400,8 +1492,11 @@ class FinancialReportController extends Controller
         foreach ($selectedMonths as $month) {
             try {
                 $monthlyReport = $loadMonthlyReport((int) $month);
-                if ($includeAnnulledDetails && ! (bool) data_get($monthlyReport, 'meta.detalleAnulacionesIncluido', false)) {
-                    $annulledDetailErrors->push("La API no devolvio el detalle optimizado de anulaciones del mes {$month}; el resumen financiero se conserva.");
+                if ($includeAnnulledDetails && (
+                    ! (bool) data_get($monthlyReport, 'meta.detalleAnulacionesIncluido', false)
+                    || ! (bool) data_get($monthlyReport, 'meta.auditoriaMediosPagoIncluida', false)
+                )) {
+                    $annulledDetailErrors->push("La API no devolvio el detalle de auditoria completo del mes {$month}; el resumen financiero se conserva.");
                 }
                 if ((bool) data_get($monthlyReport, 'meta.conteoVentasUnicas', false)) {
                     $apiUniqueSales += (float) data_get($monthlyReport, 'resumen.cantidadVentas', 0);
@@ -1438,6 +1533,7 @@ class FinancialReportController extends Controller
                         '_porRegionales' => [],
                         '_porPersonas' => [],
                         '_annulledRows' => [],
+                        '_paymentAuditRows' => [],
                     ]);
 
                     foreach (['cantidadVentas', 'cantidadDetalles', 'totalCantidad', 'totalMonto'] as $totalKey) {
@@ -1468,6 +1564,14 @@ class FinancialReportController extends Controller
                     $current['_annulledRows'] = [
                         ...($current['_annulledRows'] ?? []),
                         ...collect($row['rows'] ?? [])->map(fn ($item): array => [
+                            ...(array) $item,
+                            '_servicio' => $name,
+                            '_mes' => (int) $month,
+                        ])->all(),
+                    ];
+                    $current['_paymentAuditRows'] = [
+                        ...($current['_paymentAuditRows'] ?? []),
+                        ...collect($row['auditoriaMediosPago'] ?? [])->map(fn ($item): array => [
                             ...(array) $item,
                             '_servicio' => $name,
                             '_mes' => (int) $month,
