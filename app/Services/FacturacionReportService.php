@@ -292,6 +292,12 @@ class FacturacionReportService
         if (array_key_exists('regionalConteo', $filters)) {
             $normalized['regionalConteo'] = trim((string) $filters['regionalConteo']);
         }
+        if (array_key_exists('incluirDetalleAnuladas', $filters)) {
+            $normalized['incluirDetalleAnuladas'] = (bool) $filters['incluirDetalleAnuladas'];
+        }
+        if (array_key_exists('regionalDetalle', $filters)) {
+            $normalized['regionalDetalle'] = trim((string) $filters['regionalDetalle']);
+        }
 
         return $normalized;
     }
