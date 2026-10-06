@@ -87,11 +87,11 @@ return [
     ],
 
     'facturacion_reports' => [
-        'base_url' => env('FACTURACION_REPORTS_BASE_URL', 'https://safe.correos.gob.bo/api/factura-venta'),
+        'base_url' => env('FACTURACION_BRIDGE_BASE_URL', 'https://safe.correos.gob.bo/api/factura-venta'),
         'token' => env('FACTURACION_BRIDGE_TOKEN'),
         'timeout' => env('FACTURACION_BRIDGE_TIMEOUT', 30),
         'connect_timeout' => env('FACTURACION_BRIDGE_CONNECT_TIMEOUT', 5),
-        'ssl_verify' => env('FACTURACION_REPORTS_SSL_VERIFY', true),
+        'ssl_verify' => env('FACTURACION_REPORTS_SSL_VERIFY', env('FACTURACION_BRIDGE_SSL_VERIFY', true)),
         'cache_active_seconds' => env('FACTURACION_REPORTS_CACHE_ACTIVE_SECONDS', 60),
         'cache_closed_seconds' => env('FACTURACION_REPORTS_CACHE_CLOSED_SECONDS', 900),
     ],

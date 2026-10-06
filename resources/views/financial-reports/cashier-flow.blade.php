@@ -281,6 +281,12 @@
         'filterHelp' => 'Seleccione los servicios y meses que desea consolidar. Contratos y ECA Internacional se muestran aparte; al marcar su cobro, el importe pasa a Total recaudado.',
     ])
 
+    @if(collect($serviceOptions)->count() > count($selectedServices))
+        <div class="alert alert-light border">
+            Está consultando una selección de servicios. Para comparar con el cierre completo, pulse <strong>Seleccionar todos</strong> y luego <strong>Filtrar</strong>.
+        </div>
+    @endif
+
     <div class="alert alert-info border-0 shadow-sm">
         <i class="fas fa-info-circle mr-1"></i>
         <strong>Criterio del reporte:</strong> Contratos y ECA Internacional se muestran por separado. Registra el cobro o la devolución desde cada movimiento de su detalle; los paquetes siguen separados de los totales operativos.
@@ -322,7 +328,7 @@
         $executiveDepartmentScope = $selectedDepartment !== '' ? ' en ' . $selectedDepartment : '';
         $executiveLead = 'Durante el periodo seleccionado se registraron '
             . \App\Support\BolivianNumber::format((float) ($summary['cantidadVentas'] ?? 0))
-            . ' ventas de ventanilla' . $executiveDepartmentScope . '; los ingresos totales, incluidos los cobros aceptados, suman Bs '
+            . (($includedSalesCountFromApi ?? false) ? ' ventas incluidas en el total' : ' operaciones registradas') . $executiveDepartmentScope . '; los ingresos totales, incluidos los cobros aceptados, suman Bs '
             . \App\Support\BolivianNumber::format($executiveFlowIncome, 2) . '.';
         $executiveItems = [
             [
@@ -346,10 +352,19 @@
     @endphp
     @include('financial-reports.partials.executive-summary')
 
+    @if($includedSalesCountFromApi ?? false)
+        <div class="alert alert-light border">
+            <strong>Operaciones registradas:</strong> {{ \App\Support\BolivianNumber::format($summary['cantidadOperacionesRegistradas']) }}.
+            <strong>Incluidas en el total vendido:</strong> {{ \App\Support\BolivianNumber::format($summary['cantidadVentasIncluidasEnTotalVendido']) }}.
+            <strong>Sin aporte al total vendido:</strong> {{ \App\Support\BolivianNumber::format($summary['cantidadVentasNoIncluidasEnTotalVendido']) }}.
+            Las facturas anuladas se muestran por separado. Los desgloses por servicio muestran operaciones; una venta con varios servicios puede aparecer en más de un servicio.
+        </div>
+    @endif
+
     <div class="row">
         @foreach([
             ['Servicios', $summary['cantidadServicios'] ?? 0, 'fa-layer-group', 'primary'],
-            ['Ventas realizadas', $summary['cantidadVentas'] ?? 0, 'fa-file-invoice', 'info'],
+            [($includedSalesCountFromApi ?? false) ? 'Ventas incluidas en el total' : 'Operaciones registradas', $summary['cantidadVentas'] ?? 0, 'fa-file-invoice', 'info'],
             ['Cajeros', $cashierRows->count(), 'fa-users', 'secondary'],
             ['Cantidad de paquetes', $summary['totalCantidad'] ?? 0, 'fa-boxes', 'warning'],
             ['Total vendido de servicios', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['totalSinContratosEca'] ?? $summary['totalMontoVendido'] ?? $summary['totalMonto'] ?? 0), 2), 'fa-coins', 'info'],
@@ -451,7 +466,7 @@
                             <th class="text-center">#</th>
                             <th>Cajero</th>
                             <th>Regional / departamento</th>
-                            <th class="text-right">Ventas realizadas</th>
+                            <th class="text-right">Operaciones</th>
                             <th class="text-right">Detalles</th>
                             <th class="text-right">Cantidad de paquetes</th>
                             <th class="text-right">Paquetes promedio por día</th>
@@ -540,7 +555,7 @@
                             <th>#</th>
                             <th>Servicio agrupado</th>
                             <th>Meses</th>
-                            <th class="text-right">Ventas realizadas</th>
+                            <th class="text-right">Operaciones por servicio</th>
                             <th class="text-right">Detalles</th>
                             <th class="text-right">Cantidad de paquetes</th>
                             <th class="text-right">Total vendido</th>

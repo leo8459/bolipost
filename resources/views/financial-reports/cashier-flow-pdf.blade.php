@@ -108,7 +108,7 @@
         <tr>
             <td><span class="label">Ingresos totales</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format((float) ($totalReportIncome ?? $totalAmount), 2) }}</span></td>
             <td><span class="label">Total vendido sin Contratos ni ECA</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format((float) ($summary['totalSinContratosEca'] ?? $summary['totalMontoVendido'] ?? $summary['totalMonto'] ?? 0), 2) }}</span></td>
-            <td><span class="label">Ventas realizadas</span><span class="metric-value">{{ \App\Support\BolivianNumber::format($totalSales) }}</span></td>
+            <td><span class="label">{{ ($includedSalesCountFromApi ?? false) ? 'Ventas incluidas en el total' : 'Operaciones registradas' }}</span><span class="metric-value">{{ \App\Support\BolivianNumber::format($totalSales) }}</span></td>
             <td><span class="label">Cajeros</span><span class="metric-value">{{ \App\Support\BolivianNumber::format($cashierRows->count()) }}</span></td>
             <td><span class="label">Promedio total de ingresos por día (lun-sáb)</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format((float) ($averageDailyIncome ?? 0), 2) }}</span></td>
         </tr>
@@ -116,6 +116,11 @@
 
     <h2 class="section-title">Resumen ejecutivo</h2>
     <div class="executive-box">
+        @if($includedSalesCountFromApi ?? false)
+            <p>Operaciones registradas (sin facturas anuladas): {{ \App\Support\BolivianNumber::format($summary['cantidadOperacionesRegistradas']) }}.
+                Incluidas en el total vendido: {{ \App\Support\BolivianNumber::format($summary['cantidadVentasIncluidasEnTotalVendido']) }}.
+                Sin aporte al total vendido: {{ \App\Support\BolivianNumber::format($summary['cantidadVentasNoIncluidasEnTotalVendido']) }}.</p>
+        @endif
         @if($totalSales > 0 || ($totalReportIncome ?? 0) > 0)
             <p>En <span class="highlight">{{ $periodLabel }}</span> se registraron <span class="highlight">{{ \App\Support\BolivianNumber::format($totalSales) }} ventas realizadas</span>. Los ingresos totales, incluidos los cobros aceptados, sumaron <span class="highlight">Bs {{ \App\Support\BolivianNumber::format((float) ($totalReportIncome ?? $totalAmount), 2) }}</span>; sin Contratos ni ECA fueron <span class="highlight">Bs {{ \App\Support\BolivianNumber::format((float) ($summary['totalSinContratosEca'] ?? $summary['totalMonto'] ?? 0), 2) }}</span>.</p>
             <p>Fuera del total vendido: Bs {{ \App\Support\BolivianNumber::format((float) ($summary['totalMontoNoIncluidoEnTotalVendido'] ?? 0), 2) }}. Facturas anuladas: Bs {{ \App\Support\BolivianNumber::format((float) ($summary['totalMontoAnulado'] ?? 0), 2) }}; no forman parte de los ingresos.</p>
@@ -136,7 +141,7 @@
         <tr>
             <th style="width: 34%">Departamento</th>
             <th style="width: 11%" class="right">Cajeros</th>
-            <th style="width: 13%" class="right">Ventas</th>
+            <th style="width: 13%" class="right">Operaciones</th>
             <th style="width: 14%" class="right">Paquetes</th>
             <th style="width: 14%" class="right">Promedio diario</th>
             <th style="width: 14%" class="right">Ingresos</th>
@@ -188,7 +193,7 @@
                 <tr>
                     <th style="width: 4%" class="center">Pos.</th>
                     <th style="width: 25%">Cajero</th>
-                    <th style="width: 10%" class="right">Ventas</th>
+                    <th style="width: 10%" class="right">Operaciones</th>
                     <th style="width: 11%" class="right">Paquetes</th>
                     <th style="width: 14%" class="right">Promedio ingresos/día</th>
                     <th style="width: 12%" class="right">QR</th>
@@ -228,7 +233,7 @@
             <tr>
                 <th style="width: 6%">Pos.</th>
                 <th style="width: 39%">Grupo de servicio</th>
-                <th style="width: 15%" class="right">Ventas realizadas</th>
+                <th style="width: 15%" class="right">Operaciones por servicio</th>
                 <th style="width: 18%" class="right">Cantidad de paquetes</th>
                 <th style="width: 22%" class="right">Total vendido</th>
             </tr>
