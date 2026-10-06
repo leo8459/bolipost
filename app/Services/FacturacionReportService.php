@@ -213,6 +213,30 @@ class FacturacionReportService
 
             foreach ($chunk as $index => $filter) {
                 $response = $responses[(string) $index] ?? null;
+                if ($response instanceof Response && $this->isMissingServiceDetailResponse($response)) {
+                    $emptyReport = [
+                        'servicio' => [
+                            'servicio' => trim((string) ($filter['servicio'] ?? '')),
+                            'rows' => [],
+                        ],
+                    ];
+                    if ($useCache) {
+                        $this->storeCachedReport(
+                            $this->detailCacheKey(
+                                (string) ($filter['servicio'] ?? ''),
+                                (int) ($filter['mes'] ?? 0),
+                                (int) ($filter['anio'] ?? 0)
+                            ),
+                            $emptyReport,
+                            (int) ($filter['mes'] ?? 0),
+                            (int) ($filter['anio'] ?? 0)
+                        );
+                    }
+                    $results[$index] = ['filter' => $filter, 'report' => $emptyReport, 'error' => null];
+
+                    continue;
+                }
+
                 if (! $response instanceof Response || ! $response->successful()) {
                     $results[$index] = [
                         'filter' => $filter,
@@ -599,6 +623,21 @@ class FacturacionReportService
         }
 
         return $decoded;
+    }
+
+    private function isMissingServiceDetailResponse(Response $response): bool
+    {
+        if ($response->status() !== 404) {
+            return false;
+        }
+
+        $body = $response->json();
+        $message = is_array($body)
+            ? mb_strtolower(trim((string) ($body['message'] ?? $body['error'] ?? '')), 'UTF-8')
+            : '';
+
+        return str_contains($message, 'no se encontro el servicio solicitado para los filtros enviados')
+            || str_contains($message, 'no se encontró el servicio solicitado para los filtros enviados');
     }
 
     private function reportHttpError(Response $response): string

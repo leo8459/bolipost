@@ -544,11 +544,14 @@ class FinancialReportController extends Controller
             $filter = (array) ($result['filter'] ?? []);
             if (($result['error'] ?? null) !== null || ! is_array($result['report'] ?? null)) {
                 $errorMessage = (string) ($result['error'] ?? 'No se pudo consultar el detalle del servicio.');
-                $errors->push($errorMessage);
+                $serviceName = trim((string) ($filter['servicio'] ?? 'Servicio sin nombre'));
+                $month = (int) ($filter['mes'] ?? 0);
+                $year = (int) ($filter['anio'] ?? 0);
+                $errors->push("{$serviceName} / {$month}-{$year}: {$errorMessage}");
                 Log::warning('Falló la auditoría detallada de facturación para el flujo de caja.', [
-                    'servicio' => trim((string) ($filter['servicio'] ?? '')),
-                    'mes' => (int) ($filter['mes'] ?? 0),
-                    'anio' => (int) ($filter['anio'] ?? 0),
+                    'servicio' => $serviceName,
+                    'mes' => $month,
+                    'anio' => $year,
                     'error' => $errorMessage,
                 ]);
 
