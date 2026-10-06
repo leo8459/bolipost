@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Exports\PaqueteriaFlowExport;
+use App\Support\CarteroEvent;
+use App\Support\EncargadoEvent;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -13,6 +15,13 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class PaqueteriaFlowController extends Controller
 {
+    private const EVENTO_ALMACEN_ID = 295;
+    private const EVENTO_DESPACHO_ID = 240;
+    private const EVENTO_RECIBIDO_TRANSITO_ID = 297;
+    private const EVENTO_ASIGNACION_CARTERO_ID = 184;
+    private const EVENTO_INTENTO_DEVOLUCION_ID = 315;
+    private const EVENTO_ENTREGADO_ID = 316;
+
     private const MONTHS = [
         1 => 'Enero',
         2 => 'Febrero',
@@ -139,6 +148,150 @@ class PaqueteriaFlowController extends Controller
             ->whereNotNull('cod_especial')
             ->whereRaw("TRIM(COALESCE(cod_especial, '')) <> ''")
             ->groupByRaw('UPPER(TRIM(cod_especial))');
+        $deliveredContractEvents = DB::table('eventos_contrato')
+            ->selectRaw('TRIM(UPPER(codigo)) as codigo_normalizado')
+            ->selectRaw('MIN(created_at) as entregado_at')
+            ->where('evento_id', self::EVENTO_ENTREGADO_ID)
+            ->groupByRaw('TRIM(UPPER(codigo))');
+        $deliveredEmsEvents = DB::table('eventos_ems')
+            ->selectRaw('TRIM(UPPER(codigo)) as codigo_normalizado')
+            ->selectRaw('MIN(created_at) as entregado_at')
+            ->where('evento_id', self::EVENTO_ENTREGADO_ID)
+            ->groupByRaw('TRIM(UPPER(codigo))');
+        $returnEventId = DB::table('eventos')
+            ->whereRaw('TRIM(UPPER(nombre_evento)) = ?', ['PAQUETE DEVUELVO'])
+            ->value('id');
+        $returnedContractEvents = DB::table('eventos_contrato')
+            ->selectRaw('TRIM(UPPER(codigo)) as codigo_normalizado')
+            ->selectRaw('MIN(created_at) as devuelto_at')
+            ->when($returnEventId !== null, fn ($query) => $query->where('evento_id', (int) $returnEventId))
+            ->when($returnEventId === null, fn ($query) => $query->whereRaw('1 = 0'))
+            ->groupByRaw('TRIM(UPPER(codigo))');
+        $returnedEmsEvents = DB::table('eventos_ems')
+            ->selectRaw('TRIM(UPPER(codigo)) as codigo_normalizado')
+            ->selectRaw('MIN(created_at) as devuelto_at')
+            ->when($returnEventId !== null, fn ($query) => $query->where('evento_id', (int) $returnEventId))
+            ->when($returnEventId === null, fn ($query) => $query->whereRaw('1 = 0'))
+            ->groupByRaw('TRIM(UPPER(codigo))');
+        $assignmentEventIds = DB::table('eventos')
+            ->where(function ($query): void {
+                $query->whereRaw('TRIM(UPPER(nombre_evento)) IN (?, ?, ?)', [
+                    mb_strtoupper(CarteroEvent::ASIGNADO),
+                    mb_strtoupper(CarteroEvent::CAMBIADO),
+                    mb_strtoupper(EncargadoEvent::CARTERO_CAMBIADO),
+                ])
+                    ->orWhereRaw('UPPER(nombre_evento) LIKE ?', ['%ASIGNADO A CARTERO%'])
+                    ->orWhere('id', self::EVENTO_ASIGNACION_CARTERO_ID);
+            })
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+        $courierReturnEventIds = [self::EVENTO_INTENTO_DEVOLUCION_ID];
+        if ($returnEventId !== null && ! in_array((int) $returnEventId, $courierReturnEventIds, true)) {
+            $courierReturnEventIds[] = (int) $returnEventId;
+        }
+        $assignmentContractEvents = DB::table('eventos_contrato')
+            ->selectRaw('TRIM(UPPER(codigo)) as codigo_normalizado')
+            ->selectRaw('MAX(created_at) as asignado_at')
+            ->whereIn('evento_id', $assignmentEventIds)
+            ->groupByRaw('TRIM(UPPER(codigo))');
+        $assignmentEmsEvents = DB::table('eventos_ems')
+            ->selectRaw('TRIM(UPPER(codigo)) as codigo_normalizado')
+            ->selectRaw('MAX(created_at) as asignado_at')
+            ->whereIn('evento_id', $assignmentEventIds)
+            ->groupByRaw('TRIM(UPPER(codigo))');
+        $courierDeliveredContractEvents = DB::table('eventos_contrato')
+            ->selectRaw('TRIM(UPPER(codigo)) as codigo_normalizado')
+            ->selectRaw('MAX(created_at) as entregado_at')
+            ->where('evento_id', self::EVENTO_ENTREGADO_ID)
+            ->groupByRaw('TRIM(UPPER(codigo))');
+        $courierDeliveredEmsEvents = DB::table('eventos_ems')
+            ->selectRaw('TRIM(UPPER(codigo)) as codigo_normalizado')
+            ->selectRaw('MAX(created_at) as entregado_at')
+            ->where('evento_id', self::EVENTO_ENTREGADO_ID)
+            ->groupByRaw('TRIM(UPPER(codigo))');
+        $courierReturnedContractEvents = DB::table('eventos_contrato')
+            ->selectRaw('TRIM(UPPER(codigo)) as codigo_normalizado')
+            ->selectRaw('MAX(created_at) as devuelto_at')
+            ->whereIn('evento_id', $courierReturnEventIds)
+            ->groupByRaw('TRIM(UPPER(codigo))');
+        $courierReturnedEmsEvents = DB::table('eventos_ems')
+            ->selectRaw('TRIM(UPPER(codigo)) as codigo_normalizado')
+            ->selectRaw('MAX(created_at) as devuelto_at')
+            ->whereIn('evento_id', $courierReturnEventIds)
+            ->groupByRaw('TRIM(UPPER(codigo))');
+        $dispatchEventIds = DB::table('eventos')
+            ->whereRaw('TRIM(UPPER(nombre_evento)) IN (?, ?)', [
+                'SACA INTERNA CREADA (SALIDA).',
+                'DELIVERY EXPRESS ENVIADO EN SACA INTERNA.',
+            ])
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+        if (! in_array(self::EVENTO_DESPACHO_ID, $dispatchEventIds, true)) {
+            $dispatchEventIds[] = self::EVENTO_DESPACHO_ID;
+        }
+        $warehouseContractEvents = DB::table('eventos_contrato')
+            ->selectRaw('TRIM(UPPER(codigo)) as codigo_normalizado')
+            ->selectRaw('MIN(created_at) as almacen_at')
+            ->where('evento_id', self::EVENTO_ALMACEN_ID)
+            ->groupByRaw('TRIM(UPPER(codigo))');
+        $warehouseEmsEvents = DB::table('eventos_ems')
+            ->selectRaw('TRIM(UPPER(codigo)) as codigo_normalizado')
+            ->selectRaw('MIN(created_at) as almacen_at')
+            ->where('evento_id', self::EVENTO_ALMACEN_ID)
+            ->groupByRaw('TRIM(UPPER(codigo))');
+        $dispatchContractEvents = DB::table('eventos_contrato')
+            ->selectRaw('TRIM(UPPER(codigo)) as codigo_normalizado')
+            ->selectRaw('MIN(created_at) as despacho_at')
+            ->whereIn('evento_id', $dispatchEventIds)
+            ->groupByRaw('TRIM(UPPER(codigo))');
+        $dispatchEmsEvents = DB::table('eventos_ems')
+            ->selectRaw('TRIM(UPPER(codigo)) as codigo_normalizado')
+            ->selectRaw('MIN(created_at) as despacho_at')
+            ->whereIn('evento_id', $dispatchEventIds)
+            ->groupByRaw('TRIM(UPPER(codigo))');
+        $transitReceiptContractEvents = DB::table('eventos_contrato')
+            ->selectRaw('TRIM(UPPER(codigo)) as codigo_normalizado')
+            ->selectRaw('created_at as recibido_at')
+            ->where('evento_id', self::EVENTO_RECIBIDO_TRANSITO_ID);
+        $transitReceiptEmsEvents = DB::table('eventos_ems')
+            ->selectRaw('TRIM(UPPER(codigo)) as codigo_normalizado')
+            ->selectRaw('created_at as recibido_at')
+            ->where('evento_id', self::EVENTO_RECIBIDO_TRANSITO_ID);
+        $terminalStateIds = DB::table('estados')
+            ->whereRaw('TRIM(UPPER(nombre_estado)) IN (?, ?, ?)', ['ENTREGADO', 'DEVOLUCION', 'DEVOLUCIÓN'])
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+        $resolutionStats = [
+            'ems' => [
+                'entregados' => ['total_seconds' => 0, 'count' => 0],
+                'devueltos' => ['total_seconds' => 0, 'count' => 0],
+            ],
+            'contrato' => [
+                'entregados' => ['total_seconds' => 0, 'count' => 0],
+                'devueltos' => ['total_seconds' => 0, 'count' => 0],
+            ],
+        ];
+        $dispatchStats = [
+            'ems' => ['total_seconds' => 0, 'count' => 0],
+            'contrato' => ['total_seconds' => 0, 'count' => 0],
+        ];
+        $transitReceiptStats = [
+            'ems' => ['total_seconds' => 0, 'count' => 0],
+            'contrato' => ['total_seconds' => 0, 'count' => 0],
+        ];
+        $courierResolutionStats = [
+            'ems' => [
+                'entregados' => ['total_seconds' => 0, 'count' => 0],
+                'devueltos' => ['total_seconds' => 0, 'count' => 0],
+            ],
+            'contrato' => [
+                'entregados' => ['total_seconds' => 0, 'count' => 0],
+                'devueltos' => ['total_seconds' => 0, 'count' => 0],
+            ],
+        ];
 
         foreach ($selectedMonths as $monthNumber) {
             $monthName = self::MONTHS[$monthNumber];
@@ -150,17 +303,172 @@ class PaqueteriaFlowController extends Controller
                 ->leftJoin('users as usuario', 'usuario.id', '=', 'pc.user_id')
                 ->whereBetween('pc.created_at', $dateRange);
             $this->applyDepartmentFilter($contractQuery, 'pc.origen', $selectedDepartments);
-            $this->excludeCancelledState($contractQuery, 'pc.estados_id', $cancelledStateId);
             if ($excludedTestCompanyIds !== []) {
                 $contractQuery->where(function ($query) use ($companyIdExpression, $excludedTestCompanyIds): void {
                     $query->whereRaw($companyIdExpression.' IS NULL')
                         ->orWhereNotIn(DB::raw($companyIdExpression), $excludedTestCompanyIds);
                 });
             }
+            $contractDispatchQuery = clone $contractQuery;
+            $this->excludeCancelledState($contractQuery, 'pc.estados_id', $cancelledStateId);
             $emsQuery = DB::table('paquetes_ems')
-                ->whereBetween('created_at', $dateRange);
+                ->whereBetween('paquetes_ems.created_at', $dateRange);
             $this->applyDepartmentFilter($emsQuery, 'origen', $selectedDepartments);
-            $this->excludeCancelledState($emsQuery, 'estado_id', $cancelledStateId);
+            $emsDispatchQuery = clone $emsQuery;
+            $this->excludeCancelledState($emsQuery, 'paquetes_ems.estado_id', $cancelledStateId);
+
+            $contractDispatchRows = (clone $contractDispatchQuery)
+                ->leftJoinSub($warehouseContractEvents, 'evento_almacen', function ($join): void {
+                    $join->on('evento_almacen.codigo_normalizado', '=', DB::raw('TRIM(UPPER(pc.codigo))'));
+                })
+                ->leftJoinSub($dispatchContractEvents, 'evento_despacho', function ($join): void {
+                    $join->on('evento_despacho.codigo_normalizado', '=', DB::raw('TRIM(UPPER(pc.codigo))'));
+                })
+                ->where(function ($query): void {
+                    $query->whereNotNull('evento_despacho.despacho_at')
+                        ->orWhereNotNull('pc.envio_cn33');
+                })
+                ->get([
+                    'pc.created_at as created_at',
+                    'pc.envio_cn33 as envio_cn33',
+                    'evento_almacen.almacen_at as almacen_at',
+                    'evento_despacho.despacho_at as despacho_at',
+                ]);
+            $emsDispatchRows = (clone $emsDispatchQuery)
+                ->leftJoinSub($warehouseEmsEvents, 'evento_almacen', function ($join): void {
+                    $join->on('evento_almacen.codigo_normalizado', '=', DB::raw('TRIM(UPPER(paquetes_ems.codigo))'));
+                })
+                ->leftJoinSub($dispatchEmsEvents, 'evento_despacho', function ($join): void {
+                    $join->on('evento_despacho.codigo_normalizado', '=', DB::raw('TRIM(UPPER(paquetes_ems.codigo))'));
+                })
+                ->where(function ($query): void {
+                    $query->whereNotNull('evento_despacho.despacho_at')
+                        ->orWhereNotNull('paquetes_ems.envio_cn33');
+                })
+                ->get([
+                    'paquetes_ems.created_at as created_at',
+                    'paquetes_ems.envio_cn33 as envio_cn33',
+                    'evento_almacen.almacen_at as almacen_at',
+                    'evento_despacho.despacho_at as despacho_at',
+                ]);
+            $this->addDispatchDurations($dispatchStats['contrato'], $contractDispatchRows);
+            $this->addDispatchDurations($dispatchStats['ems'], $emsDispatchRows);
+
+            $contractTransitReceiptRows = (clone $contractDispatchQuery)
+                ->leftJoinSub($dispatchContractEvents, 'evento_despacho', function ($join): void {
+                    $join->on('evento_despacho.codigo_normalizado', '=', DB::raw('TRIM(UPPER(pc.codigo))'));
+                })
+                ->joinSub($transitReceiptContractEvents, 'evento_recibido', function ($join): void {
+                    $join->on('evento_recibido.codigo_normalizado', '=', DB::raw('TRIM(UPPER(pc.codigo))'));
+                })
+                ->whereRaw('evento_recibido.recibido_at >= COALESCE(pc.envio_cn33, evento_despacho.despacho_at)')
+                ->get([
+                    DB::raw('TRIM(UPPER(pc.codigo)) as codigo_normalizado'),
+                    DB::raw('COALESCE(pc.envio_cn33, evento_despacho.despacho_at) as despacho_at'),
+                    'evento_recibido.recibido_at',
+                ]);
+            $emsTransitReceiptRows = (clone $emsDispatchQuery)
+                ->leftJoinSub($dispatchEmsEvents, 'evento_despacho', function ($join): void {
+                    $join->on('evento_despacho.codigo_normalizado', '=', DB::raw('TRIM(UPPER(paquetes_ems.codigo))'));
+                })
+                ->joinSub($transitReceiptEmsEvents, 'evento_recibido', function ($join): void {
+                    $join->on('evento_recibido.codigo_normalizado', '=', DB::raw('TRIM(UPPER(paquetes_ems.codigo))'));
+                })
+                ->whereRaw('evento_recibido.recibido_at >= COALESCE(paquetes_ems.envio_cn33, evento_despacho.despacho_at)')
+                ->get([
+                    DB::raw('TRIM(UPPER(paquetes_ems.codigo)) as codigo_normalizado'),
+                    DB::raw('COALESCE(paquetes_ems.envio_cn33, evento_despacho.despacho_at) as despacho_at'),
+                    'evento_recibido.recibido_at',
+                ]);
+            $this->addTransitReceiptDurations($transitReceiptStats['contrato'], $contractTransitReceiptRows);
+            $this->addTransitReceiptDurations($transitReceiptStats['ems'], $emsTransitReceiptRows);
+
+            if ($terminalStateIds !== []) {
+                $contractResolutionRows = (clone $contractQuery)
+                    ->leftJoin('estados as estado_final', 'estado_final.id', '=', 'pc.estados_id')
+                    ->leftJoinSub($deliveredContractEvents, 'evento_entrega', function ($join): void {
+                        $join->on('evento_entrega.codigo_normalizado', '=', DB::raw('TRIM(UPPER(pc.codigo))'));
+                    })
+                    ->leftJoinSub($returnedContractEvents, 'evento_devolucion', function ($join): void {
+                        $join->on('evento_devolucion.codigo_normalizado', '=', DB::raw('TRIM(UPPER(pc.codigo))'));
+                    })
+                    ->whereIn('pc.estados_id', $terminalStateIds)
+                    ->get([
+                        'pc.created_at as created_at',
+                        'pc.updated_at as updated_at',
+                        'estado_final.nombre_estado as estado_final',
+                        'evento_entrega.entregado_at',
+                        'evento_devolucion.devuelto_at',
+                    ]);
+
+                $emsResolutionRows = (clone $emsQuery)
+                    ->leftJoin('estados as estado_final', 'estado_final.id', '=', 'paquetes_ems.estado_id')
+                    ->leftJoinSub($deliveredEmsEvents, 'evento_entrega', function ($join): void {
+                        $join->on('evento_entrega.codigo_normalizado', '=', DB::raw('TRIM(UPPER(paquetes_ems.codigo))'));
+                    })
+                    ->leftJoinSub($returnedEmsEvents, 'evento_devolucion', function ($join): void {
+                        $join->on('evento_devolucion.codigo_normalizado', '=', DB::raw('TRIM(UPPER(paquetes_ems.codigo))'));
+                    })
+                    ->whereIn('paquetes_ems.estado_id', $terminalStateIds)
+                    ->get([
+                        'paquetes_ems.created_at',
+                        'paquetes_ems.updated_at',
+                        'estado_final.nombre_estado as estado_final',
+                        'evento_entrega.entregado_at',
+                        'evento_devolucion.devuelto_at',
+                    ]);
+
+                $contractCourierResolutionRows = (clone $contractQuery)
+                    ->join('cartero as asignacion_cartero', 'asignacion_cartero.id_paquetes_contrato', '=', 'pc.id')
+                    ->leftJoin('estados as estado_final', 'estado_final.id', '=', 'pc.estados_id')
+                    ->leftJoinSub($assignmentContractEvents, 'evento_asignacion', function ($join): void {
+                        $join->on('evento_asignacion.codigo_normalizado', '=', DB::raw('TRIM(UPPER(pc.codigo))'));
+                    })
+                    ->leftJoinSub($courierDeliveredContractEvents, 'evento_entrega_cartero', function ($join): void {
+                        $join->on('evento_entrega_cartero.codigo_normalizado', '=', DB::raw('TRIM(UPPER(pc.codigo))'));
+                    })
+                    ->leftJoinSub($courierReturnedContractEvents, 'evento_devolucion_cartero', function ($join): void {
+                        $join->on('evento_devolucion_cartero.codigo_normalizado', '=', DB::raw('TRIM(UPPER(pc.codigo))'));
+                    })
+                    ->whereIn('pc.estados_id', $terminalStateIds)
+                    ->get([
+                        DB::raw('TRIM(UPPER(pc.codigo)) as codigo_normalizado'),
+                        'asignacion_cartero.created_at as asignacion_fallback_at',
+                        'asignacion_cartero.updated_at as cierre_fallback_at',
+                        'estado_final.nombre_estado as estado_final',
+                        'evento_asignacion.asignado_at',
+                        'evento_entrega_cartero.entregado_at',
+                        'evento_devolucion_cartero.devuelto_at',
+                    ]);
+
+                $emsCourierResolutionRows = (clone $emsQuery)
+                    ->join('cartero as asignacion_cartero', 'asignacion_cartero.id_paquetes_ems', '=', 'paquetes_ems.id')
+                    ->leftJoin('estados as estado_final', 'estado_final.id', '=', 'paquetes_ems.estado_id')
+                    ->leftJoinSub($assignmentEmsEvents, 'evento_asignacion', function ($join): void {
+                        $join->on('evento_asignacion.codigo_normalizado', '=', DB::raw('TRIM(UPPER(paquetes_ems.codigo))'));
+                    })
+                    ->leftJoinSub($courierDeliveredEmsEvents, 'evento_entrega_cartero', function ($join): void {
+                        $join->on('evento_entrega_cartero.codigo_normalizado', '=', DB::raw('TRIM(UPPER(paquetes_ems.codigo))'));
+                    })
+                    ->leftJoinSub($courierReturnedEmsEvents, 'evento_devolucion_cartero', function ($join): void {
+                        $join->on('evento_devolucion_cartero.codigo_normalizado', '=', DB::raw('TRIM(UPPER(paquetes_ems.codigo))'));
+                    })
+                    ->whereIn('paquetes_ems.estado_id', $terminalStateIds)
+                    ->get([
+                        DB::raw('TRIM(UPPER(paquetes_ems.codigo)) as codigo_normalizado'),
+                        'asignacion_cartero.created_at as asignacion_fallback_at',
+                        'asignacion_cartero.updated_at as cierre_fallback_at',
+                        'estado_final.nombre_estado as estado_final',
+                        'evento_asignacion.asignado_at',
+                        'evento_entrega_cartero.entregado_at',
+                        'evento_devolucion_cartero.devuelto_at',
+                    ]);
+
+                $this->addResolutionDurations($resolutionStats['contrato'], $contractResolutionRows);
+                $this->addResolutionDurations($resolutionStats['ems'], $emsResolutionRows);
+                $this->addCourierResolutionDurations($courierResolutionStats['contrato'], $contractCourierResolutionRows);
+                $this->addCourierResolutionDurations($courierResolutionStats['ems'], $emsCourierResolutionRows);
+            }
 
             $contractGuides = (int) (clone $contractQuery)->distinct('pc.codigo')->count('pc.codigo');
             $contractWeight = (float) (clone $contractQuery)->sum('pc.peso');
@@ -279,6 +587,54 @@ class PaqueteriaFlowController extends Controller
             'terrestre' => (float) collect($months)->sum(fn (array $row) => $row['transporte']['terrestre']),
         ];
         $totals['peso_recibido'] = $totals['peso_contrato'] + $totals['peso_ems'];
+        $combinedResolutionStats = [
+            'entregados' => [
+                'total_seconds' => $resolutionStats['ems']['entregados']['total_seconds'] + $resolutionStats['contrato']['entregados']['total_seconds'],
+                'count' => $resolutionStats['ems']['entregados']['count'] + $resolutionStats['contrato']['entregados']['count'],
+            ],
+            'devueltos' => [
+                'total_seconds' => $resolutionStats['ems']['devueltos']['total_seconds'] + $resolutionStats['contrato']['devueltos']['total_seconds'],
+                'count' => $resolutionStats['ems']['devueltos']['count'] + $resolutionStats['contrato']['devueltos']['count'],
+            ],
+        ];
+        $resolutionTime = [
+            'ems' => $this->summarizeResolutionStats($resolutionStats['ems']),
+            'contrato' => $this->summarizeResolutionStats($resolutionStats['contrato']),
+            'total' => $this->summarizeResolutionStats($combinedResolutionStats),
+        ];
+        $combinedDispatchStats = [
+            'total_seconds' => $dispatchStats['ems']['total_seconds'] + $dispatchStats['contrato']['total_seconds'],
+            'count' => $dispatchStats['ems']['count'] + $dispatchStats['contrato']['count'],
+        ];
+        $dispatchTime = [
+            'ems' => $this->summarizeDispatchStats($dispatchStats['ems']),
+            'contrato' => $this->summarizeDispatchStats($dispatchStats['contrato']),
+            'total' => $this->summarizeDispatchStats($combinedDispatchStats),
+        ];
+        $combinedTransitReceiptStats = [
+            'total_seconds' => $transitReceiptStats['ems']['total_seconds'] + $transitReceiptStats['contrato']['total_seconds'],
+            'count' => $transitReceiptStats['ems']['count'] + $transitReceiptStats['contrato']['count'],
+        ];
+        $transitReceiptTime = [
+            'ems' => $this->summarizeTransitReceiptStats($transitReceiptStats['ems']),
+            'contrato' => $this->summarizeTransitReceiptStats($transitReceiptStats['contrato']),
+            'total' => $this->summarizeTransitReceiptStats($combinedTransitReceiptStats),
+        ];
+        $combinedCourierResolutionStats = [
+            'entregados' => [
+                'total_seconds' => $courierResolutionStats['ems']['entregados']['total_seconds'] + $courierResolutionStats['contrato']['entregados']['total_seconds'],
+                'count' => $courierResolutionStats['ems']['entregados']['count'] + $courierResolutionStats['contrato']['entregados']['count'],
+            ],
+            'devueltos' => [
+                'total_seconds' => $courierResolutionStats['ems']['devueltos']['total_seconds'] + $courierResolutionStats['contrato']['devueltos']['total_seconds'],
+                'count' => $courierResolutionStats['ems']['devueltos']['count'] + $courierResolutionStats['contrato']['devueltos']['count'],
+            ],
+        ];
+        $courierResolutionTime = [
+            'ems' => $this->summarizeResolutionStats($courierResolutionStats['ems']),
+            'contrato' => $this->summarizeResolutionStats($courierResolutionStats['contrato']),
+            'total' => $this->summarizeResolutionStats($combinedCourierResolutionStats),
+        ];
 
         return [
             'anio' => $year,
@@ -291,10 +647,194 @@ class PaqueteriaFlowController extends Controller
             'periodLabel' => $periodLabel,
             'months' => $months,
             'totals' => $totals,
+            'resolutionTime' => $resolutionTime,
+            'dispatchTime' => $dispatchTime,
+            'transitReceiptTime' => $transitReceiptTime,
+            'courierResolutionTime' => $courierResolutionTime,
             'companyRows' => $companyRows->all(),
             'topByGuides' => $topByGuides,
             'topByWeight' => $topByWeight,
         ];
+    }
+
+    private function addResolutionDurations(array &$stats, $rows): void
+    {
+        foreach ($rows as $row) {
+            $createdAt = $row->created_at ? Carbon::parse($row->created_at) : null;
+            $isReturned = Str::ascii(Str::upper(trim((string) $row->estado_final))) === 'DEVOLUCION';
+            $completedAtValue = $isReturned
+                ? ($row->devuelto_at ?: $row->updated_at)
+                : ($row->entregado_at ?: $row->updated_at);
+            $completedAt = $completedAtValue ? Carbon::parse($completedAtValue) : null;
+
+            if (! $createdAt || ! $completedAt) {
+                continue;
+            }
+
+            $elapsedSeconds = $completedAt->getTimestamp() - $createdAt->getTimestamp();
+            if ($elapsedSeconds < 0) {
+                continue;
+            }
+
+            $result = $isReturned ? 'devueltos' : 'entregados';
+            $stats[$result]['total_seconds'] += $elapsedSeconds;
+            $stats[$result]['count']++;
+        }
+    }
+
+    private function addCourierResolutionDurations(array &$stats, $rows): void
+    {
+        foreach ($rows as $row) {
+            $assignedAtValue = $row->asignado_at ?: $row->asignacion_fallback_at;
+            $isReturned = Str::ascii(Str::upper(trim((string) $row->estado_final))) === 'DEVOLUCION';
+            $completedAtValue = $isReturned
+                ? ($row->devuelto_at ?: $row->cierre_fallback_at)
+                : ($row->entregado_at ?: $row->cierre_fallback_at);
+
+            if (! $assignedAtValue || ! $completedAtValue) {
+                continue;
+            }
+
+            $assignedAt = Carbon::parse($assignedAtValue);
+            $completedAt = Carbon::parse($completedAtValue);
+            $elapsedSeconds = $completedAt->getTimestamp() - $assignedAt->getTimestamp();
+            if ($elapsedSeconds < 0) {
+                continue;
+            }
+
+            $result = $isReturned ? 'devueltos' : 'entregados';
+            $stats[$result]['total_seconds'] += $elapsedSeconds;
+            $stats[$result]['count']++;
+        }
+    }
+
+    private function addDispatchDurations(array &$stats, $rows): void
+    {
+        foreach ($rows as $row) {
+            $warehouseAtValue = $row->almacen_at ?: $row->created_at;
+            $dispatchAtValue = $row->envio_cn33 ?: $row->despacho_at;
+            if (! $warehouseAtValue || ! $dispatchAtValue) {
+                continue;
+            }
+
+            $warehouseAt = Carbon::parse($warehouseAtValue);
+            $dispatchAt = Carbon::parse($dispatchAtValue);
+            $elapsedSeconds = $dispatchAt->getTimestamp() - $warehouseAt->getTimestamp();
+            if ($elapsedSeconds < 0) {
+                continue;
+            }
+
+            $stats['total_seconds'] += $elapsedSeconds;
+            $stats['count']++;
+        }
+    }
+
+    private function addTransitReceiptDurations(array &$stats, $rows): void
+    {
+        $firstReceiptByCode = [];
+
+        foreach ($rows as $row) {
+            $code = trim((string) $row->codigo_normalizado);
+            $dispatchAt = $row->despacho_at ? Carbon::parse($row->despacho_at) : null;
+            $receivedAt = $row->recibido_at ? Carbon::parse($row->recibido_at) : null;
+
+            if ($code === '' || ! $dispatchAt || ! $receivedAt) {
+                continue;
+            }
+
+            $elapsedSeconds = $receivedAt->getTimestamp() - $dispatchAt->getTimestamp();
+            if ($elapsedSeconds < 0) {
+                continue;
+            }
+
+            if (! isset($firstReceiptByCode[$code]) || $receivedAt->lt($firstReceiptByCode[$code]['received_at'])) {
+                $firstReceiptByCode[$code] = [
+                    'elapsed_seconds' => $elapsedSeconds,
+                    'received_at' => $receivedAt,
+                ];
+            }
+        }
+
+        foreach ($firstReceiptByCode as $receipt) {
+            $stats['total_seconds'] += $receipt['elapsed_seconds'];
+            $stats['count']++;
+        }
+    }
+
+    private function summarizeResolutionStats(array $stats): array
+    {
+        $delivered = $stats['entregados'];
+        $returned = $stats['devueltos'];
+        $totalSeconds = $delivered['total_seconds'] + $returned['total_seconds'];
+        $totalCount = $delivered['count'] + $returned['count'];
+        $averageDeliveryMinutes = $this->averageDurationMinutes($delivered);
+        $averageReturnMinutes = $this->averageDurationMinutes($returned);
+        $averageTotalMinutes = $this->averageDurationMinutes([
+            'total_seconds' => $totalSeconds,
+            'count' => $totalCount,
+        ]);
+
+        return [
+            'entregados' => $delivered['count'],
+            'promedio_entrega_texto' => $this->formatAverageDuration($averageDeliveryMinutes),
+            'devueltos' => $returned['count'],
+            'promedio_devolucion_texto' => $this->formatAverageDuration($averageReturnMinutes),
+            'finalizados' => $totalCount,
+            'promedio_total_texto' => $this->formatAverageDuration($averageTotalMinutes),
+        ];
+    }
+
+    private function averageDurationMinutes(array $stats): ?int
+    {
+        return $stats['count'] > 0
+            ? (int) round($stats['total_seconds'] / $stats['count'] / 60)
+            : null;
+    }
+
+    private function summarizeDispatchStats(array $stats): array
+    {
+        $averageMinutes = $this->averageDurationMinutes($stats);
+
+        return [
+            'despachados' => $stats['count'],
+            'promedio_minutos' => $averageMinutes,
+            'promedio_texto' => $this->formatAverageDuration($averageMinutes),
+        ];
+    }
+
+    private function summarizeTransitReceiptStats(array $stats): array
+    {
+        $averageMinutes = $this->averageDurationMinutes($stats);
+
+        return [
+            'recibidos' => $stats['count'],
+            'promedio_minutos' => $averageMinutes,
+            'promedio_texto' => $this->formatAverageDuration($averageMinutes),
+        ];
+    }
+
+    private function formatAverageDuration(?int $minutes): string
+    {
+        if ($minutes === null) {
+            return 'Sin datos';
+        }
+
+        $days = intdiv($minutes, 1440);
+        $hours = intdiv($minutes % 1440, 60);
+        $remainingMinutes = $minutes % 60;
+        $parts = [];
+
+        if ($days > 0) {
+            $parts[] = $days.' '.($days === 1 ? 'día' : 'días');
+        }
+        if ($hours > 0) {
+            $parts[] = $hours.' '.($hours === 1 ? 'hora' : 'horas');
+        }
+        if ($remainingMinutes > 0 || $parts === []) {
+            $parts[] = $remainingMinutes.' '.($remainingMinutes === 1 ? 'minuto' : 'minutos');
+        }
+
+        return implode(', ', $parts);
     }
 
     private function departmentAliases(array $selectedDepartments): array

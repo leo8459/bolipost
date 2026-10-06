@@ -21,7 +21,7 @@
         .label { color:#64748b; display:block; font-size:7px; font-weight:bold; margin-bottom:2px; text-transform:uppercase; }
         .scope-note { background:#fff9e6; border:1px solid #efd47b; border-left:4px solid #f5b800; color:#5f5230; margin:0 0 10px; padding:7px 9px; }
         .kpis { border-collapse:separate; border-spacing:4px 0; margin:0 -4px 9px; width:calc(100% + 8px); }
-        .kpis td { border:1px solid #d7e0e9; border-top:3px solid #f5b800; padding:7px 8px; vertical-align:top; width:20%; }
+        .kpis td { border:1px solid #d7e0e9; border-top:3px solid #f5b800; padding:7px 8px; vertical-align:top; width:12.5%; }
         .service-details { border-collapse:collapse; width:100%; }
         .service-panel { vertical-align:top; width:49%; padding:0; }
         .service-gap { width:2%; padding:0; }
@@ -42,6 +42,7 @@
         .sheet th.ranking-banner { background:#e8f0f8; color:#123f73; font-size:8px; text-align:left; }
         .sheet td { border:1px solid #cbd5df; padding:4px; vertical-align:middle; }
         .sheet tbody tr:nth-child(even) td { background:#f7f9fc; }
+        .sheet tbody tr.total-row td { background:#eaf1f8; color:#123f73; font-weight:bold; }
         .sheet tbody tr { page-break-inside:avoid; }
         .sheet tfoot td { background:#eaf1f8; border:1px solid #b9c8d8; color:#123f73; font-weight:bold; padding:5px 4px; }
         .right { text-align:right; }
@@ -124,7 +125,158 @@
             <td><span class="label">Carga aérea CN-33</span><span class="metric-value">{{ $formatWeight($totals['aereo']) }} kg</span><span class="metric-note">BOA, BOA Cargo o Boliviana de Aviación</span></td>
             <td><span class="label">Carga terrestre CN-33</span><span class="metric-value">{{ $formatWeight($totals['terrestre']) }} kg</span><span class="metric-note">Las demás transportadoras</span></td>
             <td><span class="label">Paquetes EMS</span><span class="metric-value">{{ $formatCount($totals['paquetes_ems']) }}</span><span class="metric-note">{{ $formatWeight($totals['peso_ems']) }} kg registrados</span></td>
+            <td><span class="label">Promedio almacén a despacho</span><span class="metric-value">{{ $dispatchTime['total']['promedio_texto'] }}</span><span class="metric-note">{{ $formatCount($dispatchTime['total']['despachados']) }} envíos despachados</span></td>
+            <td><span class="label">Promedio tránsito a recepción</span><span class="metric-value">{{ $transitReceiptTime['total']['promedio_texto'] }}</span><span class="metric-note">{{ $formatCount($transitReceiptTime['total']['recibidos']) }} envíos recibidos</span></td>
+            <td><span class="label">Promedio asignación a cierre</span><span class="metric-value">{{ $courierResolutionTime['total']['promedio_total_texto'] }}</span><span class="metric-note">{{ $formatCount($courierResolutionTime['total']['finalizados']) }} finalizados por cartero</span></td>
         </tr>
+    </table>
+
+    <h2 class="section-title">Entrega promedio</h2>
+    <p class="section-note">Tiempo desde la creación hasta la entrega o devolución de los envíos creados en {{ $periodLabel }} con origen en {{ $departmentLabel }}.</p>
+    <table class="sheet">
+        <thead>
+            <tr>
+                <th style="width:16%">Servicio</th>
+                <th class="right" style="width:12%">Entregados</th>
+                <th class="right" style="width:17%">Promedio hasta entrega</th>
+                <th class="right" style="width:12%">Devueltos</th>
+                <th class="right" style="width:17%">Promedio hasta devolución</th>
+                <th class="right" style="width:12%">Finalizados</th>
+                <th class="right" style="width:14%">Promedio general</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="strong">EMS</td>
+                <td class="right">{{ $formatCount($resolutionTime['ems']['entregados']) }}</td>
+                <td class="right">{{ $resolutionTime['ems']['promedio_entrega_texto'] }}</td>
+                <td class="right">{{ $formatCount($resolutionTime['ems']['devueltos']) }}</td>
+                <td class="right">{{ $resolutionTime['ems']['promedio_devolucion_texto'] }}</td>
+                <td class="right">{{ $formatCount($resolutionTime['ems']['finalizados']) }}</td>
+                <td class="right">{{ $resolutionTime['ems']['promedio_total_texto'] }}</td>
+            </tr>
+            <tr>
+                <td class="strong">Contratos</td>
+                <td class="right">{{ $formatCount($resolutionTime['contrato']['entregados']) }}</td>
+                <td class="right">{{ $resolutionTime['contrato']['promedio_entrega_texto'] }}</td>
+                <td class="right">{{ $formatCount($resolutionTime['contrato']['devueltos']) }}</td>
+                <td class="right">{{ $resolutionTime['contrato']['promedio_devolucion_texto'] }}</td>
+                <td class="right">{{ $formatCount($resolutionTime['contrato']['finalizados']) }}</td>
+                <td class="right">{{ $resolutionTime['contrato']['promedio_total_texto'] }}</td>
+            </tr>
+            <tr class="total-row">
+                <td>Total del periodo</td>
+                <td class="right">{{ $formatCount($resolutionTime['total']['entregados']) }}</td>
+                <td class="right">{{ $resolutionTime['total']['promedio_entrega_texto'] }}</td>
+                <td class="right">{{ $formatCount($resolutionTime['total']['devueltos']) }}</td>
+                <td class="right">{{ $resolutionTime['total']['promedio_devolucion_texto'] }}</td>
+                <td class="right">{{ $formatCount($resolutionTime['total']['finalizados']) }}</td>
+                <td class="right">{{ $resolutionTime['total']['promedio_total_texto'] }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2 class="section-title">De almacén a tránsito (despacho)</h2>
+    <p class="section-note">Tiempo desde el ingreso a almacén hasta el primer despacho a tránsito. Envíos creados en {{ $periodLabel }} con origen en {{ $departmentLabel }}.</p>
+    <table class="sheet">
+        <thead>
+            <tr>
+                <th style="width:35%">Servicio</th>
+                <th class="right" style="width:30%">Despachos registrados</th>
+                <th class="right" style="width:35%">Promedio almacén a tránsito</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="strong">EMS</td>
+                <td class="right">{{ $formatCount($dispatchTime['ems']['despachados']) }}</td>
+                <td class="right">{{ $dispatchTime['ems']['promedio_texto'] }}</td>
+            </tr>
+            <tr>
+                <td class="strong">Contratos</td>
+                <td class="right">{{ $formatCount($dispatchTime['contrato']['despachados']) }}</td>
+                <td class="right">{{ $dispatchTime['contrato']['promedio_texto'] }}</td>
+            </tr>
+            <tr class="total-row">
+                <td>Total del periodo</td>
+                <td class="right">{{ $formatCount($dispatchTime['total']['despachados']) }}</td>
+                <td class="right">{{ $dispatchTime['total']['promedio_texto'] }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2 class="section-title">De tránsito a recepción</h2>
+    <p class="section-note">Tiempo desde el despacho hacia tránsito hasta la primera recepción registrada después de ese despacho. Envíos creados en {{ $periodLabel }} con origen en {{ $departmentLabel }}.</p>
+    <table class="sheet">
+        <thead>
+            <tr>
+                <th style="width:35%">Servicio</th>
+                <th class="right" style="width:30%">Recepciones registradas</th>
+                <th class="right" style="width:35%">Promedio tránsito a recepción</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="strong">EMS</td>
+                <td class="right">{{ $formatCount($transitReceiptTime['ems']['recibidos']) }}</td>
+                <td class="right">{{ $transitReceiptTime['ems']['promedio_texto'] }}</td>
+            </tr>
+            <tr>
+                <td class="strong">Contratos</td>
+                <td class="right">{{ $formatCount($transitReceiptTime['contrato']['recibidos']) }}</td>
+                <td class="right">{{ $transitReceiptTime['contrato']['promedio_texto'] }}</td>
+            </tr>
+            <tr class="total-row">
+                <td>Total del periodo</td>
+                <td class="right">{{ $formatCount($transitReceiptTime['total']['recibidos']) }}</td>
+                <td class="right">{{ $transitReceiptTime['total']['promedio_texto'] }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2 class="section-title">Asignación a cartero hasta entrega o devolución</h2>
+    <p class="section-note">Tiempo desde la última asignación o cambio de cartero hasta la entrega o devolución de los envíos creados en {{ $periodLabel }} con origen en {{ $departmentLabel }}.</p>
+    <table class="sheet">
+        <thead>
+            <tr>
+                <th style="width:16%">Servicio</th>
+                <th class="right" style="width:12%">Entregados</th>
+                <th class="right" style="width:17%">Promedio hasta entrega</th>
+                <th class="right" style="width:12%">Devueltos</th>
+                <th class="right" style="width:17%">Promedio hasta devolución</th>
+                <th class="right" style="width:12%">Finalizados</th>
+                <th class="right" style="width:14%">Promedio general</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="strong">EMS</td>
+                <td class="right">{{ $formatCount($courierResolutionTime['ems']['entregados']) }}</td>
+                <td class="right">{{ $courierResolutionTime['ems']['promedio_entrega_texto'] }}</td>
+                <td class="right">{{ $formatCount($courierResolutionTime['ems']['devueltos']) }}</td>
+                <td class="right">{{ $courierResolutionTime['ems']['promedio_devolucion_texto'] }}</td>
+                <td class="right">{{ $formatCount($courierResolutionTime['ems']['finalizados']) }}</td>
+                <td class="right">{{ $courierResolutionTime['ems']['promedio_total_texto'] }}</td>
+            </tr>
+            <tr>
+                <td class="strong">Contratos</td>
+                <td class="right">{{ $formatCount($courierResolutionTime['contrato']['entregados']) }}</td>
+                <td class="right">{{ $courierResolutionTime['contrato']['promedio_entrega_texto'] }}</td>
+                <td class="right">{{ $formatCount($courierResolutionTime['contrato']['devueltos']) }}</td>
+                <td class="right">{{ $courierResolutionTime['contrato']['promedio_devolucion_texto'] }}</td>
+                <td class="right">{{ $formatCount($courierResolutionTime['contrato']['finalizados']) }}</td>
+                <td class="right">{{ $courierResolutionTime['contrato']['promedio_total_texto'] }}</td>
+            </tr>
+            <tr class="total-row">
+                <td>Total del periodo</td>
+                <td class="right">{{ $formatCount($courierResolutionTime['total']['entregados']) }}</td>
+                <td class="right">{{ $courierResolutionTime['total']['promedio_entrega_texto'] }}</td>
+                <td class="right">{{ $formatCount($courierResolutionTime['total']['devueltos']) }}</td>
+                <td class="right">{{ $courierResolutionTime['total']['promedio_devolucion_texto'] }}</td>
+                <td class="right">{{ $formatCount($courierResolutionTime['total']['finalizados']) }}</td>
+                <td class="right">{{ $courierResolutionTime['total']['promedio_total_texto'] }}</td>
+            </tr>
+        </tbody>
     </table>
 
     <h2 class="section-title">Resumen ejecutivo</h2>
@@ -133,6 +285,20 @@
             <p>En <span class="highlight">{{ $periodLabel }}</span> con origen en <span class="highlight">{{ $departmentLabel }}</span> se procesaron <span class="highlight">{{ $formatCount($totals['guias_total']) }} guías</span> y se recibieron <span class="highlight">{{ $formatWeight($totals['peso_recibido']) }} kg en total</span> entre contratos y EMS.</p>
             <p>Contratos: <span class="highlight">{{ $formatCount($totals['guias_contrato']) }} guías y {{ $formatWeight($totals['peso_contrato']) }} kg</span>. EMS: <span class="highlight">{{ $formatCount($totals['guias_ems']) }} guías, {{ $formatCount($totals['paquetes_ems']) }} paquetes y {{ $formatWeight($totals['peso_ems']) }} kg</span>.</p>
             <p>Las bitácoras de CN-33 sumaron <span class="highlight">{{ $formatWeight($totals['aereo']) }} kg por vía aérea</span> y <span class="highlight">{{ $formatWeight($totals['terrestre']) }} kg por vía terrestre</span>, según el nombre de la transportadora registrada.</p>
+            @if($resolutionTime['total']['finalizados'] > 0)
+                <p>Los paquetes EMS y contratos finalizados tardaron en promedio <span class="highlight">{{ $resolutionTime['total']['promedio_total_texto'] }}</span> desde su creación hasta la entrega o devolución ({{ $formatCount($resolutionTime['total']['finalizados']) }} envíos).</p>
+            @else
+                <p>No hay paquetes EMS ni contratos entregados o devueltos en el periodo seleccionado para calcular el tiempo promedio.</p>
+            @endif
+            @if($dispatchTime['total']['despachados'] > 0)
+                <p>El promedio desde almacén hasta el despacho a tránsito fue de <span class="highlight">{{ $dispatchTime['total']['promedio_texto'] }}</span> ({{ $formatCount($dispatchTime['total']['despachados']) }} envíos).</p>
+            @endif
+            @if($transitReceiptTime['total']['recibidos'] > 0)
+                <p>Desde el despacho en tránsito hasta la recepción, el promedio fue de <span class="highlight">{{ $transitReceiptTime['total']['promedio_texto'] }}</span> ({{ $formatCount($transitReceiptTime['total']['recibidos']) }} envíos).</p>
+            @endif
+            @if($courierResolutionTime['total']['finalizados'] > 0)
+                <p>Desde la asignación vigente al cartero hasta la entrega o devolución, el promedio fue de <span class="highlight">{{ $courierResolutionTime['total']['promedio_total_texto'] }}</span> ({{ $formatCount($courierResolutionTime['total']['finalizados']) }} envíos).</p>
+            @endif
         @else
             <p>No se encontraron movimientos para los meses seleccionados. Revisa el periodo y los datos registrados antes de emitir conclusiones.</p>
         @endif
@@ -229,7 +395,7 @@
         </table>
 
         <div class="method-note">
-            <strong>Cómo leer el detalle:</strong> las guías son códigos únicos por mes; un mismo código puede contarse en meses distintos. Contratos y EMS se filtran por la columna created_at de su tabla, y los conteos y pesos de esos paquetes excluyen el estado actual CANCELADO. El peso recibido suma sus kilos y los paquetes EMS suman el campo cantidad. Los kilos CN-33 son un cálculo aparte: usan bitacoras.created_at de la última bitácora por código y no filtran por estado individual del paquete. Cada variación compara las guías del servicio con el mes seleccionado anterior. En contratos también se excluyen la empresa "EMPRESA" y las empresas cuyo nombre contiene "prueba".
+            <strong>Cómo leer el detalle:</strong> las guías son códigos únicos por mes; un mismo código puede contarse en meses distintos. Contratos y EMS se filtran por la columna created_at de su tabla, y los conteos y pesos de esos paquetes excluyen el estado actual CANCELADO. El promedio de entrega incluye los envíos creados en los meses seleccionados que actualmente figuran como ENTREGADO o DEVOLUCION. El promedio de almacén a tránsito incluye los envíos que registraron despacho. El promedio de tránsito a recepción compara el primer despacho registrado con la primera recepción posterior. El promedio de cartero toma la última asignación o cambio registrada y la fecha de cierre; para asignaciones antiguas sin evento usa created_at del registro cartero. El peso recibido suma sus kilos y los paquetes EMS suman el campo cantidad. Los kilos CN-33 son un cálculo aparte: usan bitacoras.created_at de la última bitácora por código y no filtran por estado individual del paquete. Cada variación compara las guías del servicio con el mes seleccionado anterior. En contratos también se excluyen la empresa "EMPRESA" y las empresas cuyo nombre contiene "prueba".
         </div>
     </div>
 
