@@ -11,19 +11,23 @@ use Illuminate\Support\Facades\Log;
 
 class FacturacionReportService
 {
-    public function services(int $month, int $year, int $limit = 200, bool $useCache = false, bool $refresh = false): array
+    public function services(
+        int $month,
+        int $year,
+        int $limit = 200,
+        bool $useCache = false,
+        bool $refresh = false,
+        array $reportFilters = []
+    ): array
     {
-        $query = ['mes' => $month, 'anio' => $year, 'limite' => $limit];
+        $query = $this->serviceQuery($month, $year, $limit, $reportFilters);
         if (! $useCache) {
-            return $this->get('/ventas/reportes/servicios', $query);
+            return $this->getAllServicePages($query);
         }
 
-        $key = $this->summaryCacheKey($month, $year, $limit);
+        $key = $this->summaryCacheKey($month, $year, $limit, $reportFilters);
 
-        return $this->cachedReport($key, $month, $year, $refresh, fn (): array => $this->get(
-            '/ventas/reportes/servicios',
-            $query
-        ));
+        return $this->cachedReport($key, $month, $year, $refresh, fn (): array => $this->getAllServicePages($query));
     }
 
     public function serviceDetail(string $service, int $month, int $year, bool $useCache = false, bool $refresh = false): array
@@ -53,7 +57,7 @@ class FacturacionReportService
         $token = trim((string) config('services.facturacion_reports.token'));
 
         if ($baseUrl === '') {
-            throw new \RuntimeException('No se configuró FACTURACION_REPORTS_BASE_URL.');
+            throw new \RuntimeException('No se configuró FACTURACION_BRIDGE_BASE_URL.');
         }
         if ($token === '') {
             throw new \RuntimeException('No se configuró FACTURACION_BRIDGE_TOKEN.');
@@ -65,7 +69,8 @@ class FacturacionReportService
             $cached = $refresh ? null : $this->readCachedReport($this->summaryCacheKey(
                 (int) ($filter['mes'] ?? 0),
                 (int) ($filter['anio'] ?? 0),
-                (int) ($filter['limite'] ?? 0)
+                (int) ($filter['limite'] ?? 0),
+                $filter
             ));
             if ($cached !== null) {
                 $results[$index] = ['filter' => $filter, 'report' => $cached, 'error' => null];
@@ -77,16 +82,21 @@ class FacturacionReportService
         // Reportes pesados: consultar mes por mes evita saturar la memoria de la API remota.
         foreach ($uncached as $index => $filter) {
             try {
-                $response = Http::withToken($token)
+                $query = $this->serviceQuery(
+                    (int) ($filter['mes'] ?? 0),
+                    (int) ($filter['anio'] ?? 0),
+                    (int) ($filter['limite'] ?? 0),
+                    $filter
+                );
+                $client = Http::withToken($token)
                     ->acceptJson()
                     ->timeout((int) config('services.facturacion_reports.timeout', 30))
                     ->connectTimeout((int) config('services.facturacion_reports.connect_timeout', 5))
-                    ->withOptions(['verify' => (bool) config('services.facturacion_reports.ssl_verify', true)])
-                    ->get($baseUrl.'/ventas/reportes/servicios', [
-                        'mes' => (int) ($filter['mes'] ?? 0),
-                        'anio' => (int) ($filter['anio'] ?? 0),
-                        'limite' => (int) ($filter['limite'] ?? 0),
-                    ]);
+                    ->withOptions(['verify' => (bool) config('services.facturacion_reports.ssl_verify', true)]);
+                $serviceReportUrl = $baseUrl.'/ventas/reportes/servicios';
+                $response = ! empty($query['servicios'])
+                    ? $client->post($serviceReportUrl, $query)
+                    : $client->get($serviceReportUrl, $query);
             } catch (\Throwable $exception) {
                 $results[$index] = ['filter' => $filter, 'report' => null, 'error' => $exception->getMessage()];
                 continue;
@@ -104,11 +114,18 @@ class FacturacionReportService
             $body = preg_replace('/^\xEF\xBB\xBF/', '', $response->body()) ?? $response->body();
             $decoded = json_decode($body, true);
             if (is_array($decoded)) {
+                try {
+                    $decoded = $this->completeServicePages($decoded, $query);
+                } catch (\Throwable $exception) {
+                    $results[$index] = ['filter' => $filter, 'report' => null, 'error' => $exception->getMessage()];
+                    continue;
+                }
                 $this->storeCachedReport(
                     $this->summaryCacheKey(
                         (int) ($filter['mes'] ?? 0),
                         (int) ($filter['anio'] ?? 0),
-                        (int) ($filter['limite'] ?? 0)
+                        (int) ($filter['limite'] ?? 0),
+                        $filter
                     ),
                     $decoded,
                     (int) ($filter['mes'] ?? 0),
@@ -139,7 +156,7 @@ class FacturacionReportService
         $token = trim((string) config('services.facturacion_reports.token'));
 
         if ($baseUrl === '') {
-            throw new \RuntimeException('No se configuró FACTURACION_REPORTS_BASE_URL.');
+            throw new \RuntimeException('No se configuró FACTURACION_BRIDGE_BASE_URL.');
         }
 
         if ($token === '') {
@@ -240,9 +257,129 @@ class FacturacionReportService
         return 'facturacion:reportes:detalle:v3:'.$this->cacheNamespace().':'.sha1($service.'|'.$year.'|'.$month);
     }
 
-    private function summaryCacheKey(int $month, int $year, int $limit): string
+    private function summaryCacheKey(int $month, int $year, int $limit, array $filters = []): string
     {
-        return 'facturacion:reportes:servicios:v2:'.$this->cacheNamespace().':'.$year.':'.$month.':'.$limit;
+        $filterHash = sha1(json_encode($this->normalizedServiceFilters($filters), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '');
+
+        return 'facturacion:reportes:servicios:v3:'.$this->cacheNamespace().':'.$year.':'.$month.':'.$limit.':'.$filterHash;
+    }
+
+    private function serviceQuery(int $month, int $year, int $limit, array $filters = []): array
+    {
+        return array_merge([
+            'mes' => $month,
+            'anio' => $year,
+            'limite' => $limit,
+            'pagina' => 1,
+        ], $this->normalizedServiceFilters($filters));
+    }
+
+    private function normalizedServiceFilters(array $filters): array
+    {
+        $normalized = [];
+        foreach (['servicios', 'excluirGruposConteo', 'incluirGruposConteo', 'excluirUsuariosConteo'] as $field) {
+            if (! array_key_exists($field, $filters) || ! is_array($filters[$field])) {
+                continue;
+            }
+            $normalized[$field] = collect($filters[$field])
+                ->map(fn ($value): string => trim((string) $value))
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values()
+                ->all();
+        }
+        if (array_key_exists('regionalConteo', $filters)) {
+            $normalized['regionalConteo'] = trim((string) $filters['regionalConteo']);
+        }
+
+        return $normalized;
+    }
+
+    private function getAllServicePages(array $query): array
+    {
+        $query['pagina'] = 1;
+
+        return $this->completeServicePages($this->getServiceReportPage($query), $query);
+    }
+
+    private function completeServicePages(array $report, array $query): array
+    {
+        $pagination = (array) data_get($report, 'meta.paginacionServicios', []);
+        $totalPages = max(1, (int) ($pagination['totalPaginas'] ?? 1));
+        if ($totalPages === 1) {
+            return $report;
+        }
+
+        $services = collect($report['servicios'] ?? []);
+        $seenNames = $services
+            ->map(fn (array $service): string => mb_strtoupper(trim((string) ($service['servicio'] ?? ''))))
+            ->filter()
+            ->flip();
+        for ($page = 2; $page <= $totalPages; $page++) {
+            $pageReport = $this->getServiceReportPage(array_merge($query, ['pagina' => $page]));
+            $reportedPage = (int) data_get($pageReport, 'meta.paginacionServicios.pagina', 0);
+            if ($reportedPage !== $page) {
+                throw new \RuntimeException('La API de reportes devolvió una página distinta a la solicitada.');
+            }
+            foreach ((array) ($pageReport['servicios'] ?? []) as $service) {
+                $name = mb_strtoupper(trim((string) ($service['servicio'] ?? '')));
+                if ($name === '' || $seenNames->has($name)) {
+                    throw new \RuntimeException('La paginación de servicios repitió un servicio y no se consolidó para evitar duplicar montos.');
+                }
+                $seenNames->put($name, true);
+                $services->push($service);
+            }
+        }
+        $expectedTotal = (int) ($pagination['total'] ?? $seenNames->count());
+        if ($seenNames->count() !== $expectedTotal) {
+            throw new \RuntimeException('La paginación de servicios no devolvió todos los registros informados por la API.');
+        }
+
+        $report['servicios'] = $services->values()->all();
+        $report['meta']['paginacionServicios']['pagina'] = 1;
+        $report['meta']['paginacionServicios']['totalPaginas'] = $totalPages;
+
+        return $report;
+    }
+
+    private function getServiceReportPage(array $query): array
+    {
+        if (empty($query['servicios'])) {
+            return $this->get('/ventas/reportes/servicios', $query);
+        }
+
+        $baseUrl = rtrim((string) config('services.facturacion_reports.base_url'), '/');
+        $token = trim((string) config('services.facturacion_reports.token'));
+        if ($baseUrl === '') {
+            throw new \RuntimeException('No se configuró FACTURACION_BRIDGE_BASE_URL.');
+        }
+        if ($token === '') {
+            throw new \RuntimeException('No se configuró FACTURACION_BRIDGE_TOKEN.');
+        }
+
+        try {
+            $response = Http::withToken($token)
+                ->acceptJson()
+                ->timeout((int) config('services.facturacion_reports.timeout', 30))
+                ->connectTimeout((int) config('services.facturacion_reports.connect_timeout', 5))
+                ->withOptions(['verify' => (bool) config('services.facturacion_reports.ssl_verify', true)])
+                ->post($baseUrl.'/ventas/reportes/servicios', $query);
+        } catch (ConnectionException $exception) {
+            throw new \RuntimeException('No se pudo conectar con el servicio de reportes de facturación.', 0, $exception);
+        }
+
+        if (! $response->successful()) {
+            throw new \RuntimeException($this->reportHttpError($response));
+        }
+
+        $body = preg_replace('/^\xEF\xBB\xBF/', '', $response->body()) ?? $response->body();
+        $decoded = json_decode($body, true);
+        if (! is_array($decoded)) {
+            throw new \RuntimeException('El servicio de reportes devolvió una respuesta inválida.');
+        }
+
+        return $decoded;
     }
 
     private function cacheNamespace(): string
@@ -424,7 +561,7 @@ class FacturacionReportService
         $token = trim((string) config('services.facturacion_reports.token'));
 
         if ($baseUrl === '') {
-            throw new \RuntimeException('No se configuró FACTURACION_REPORTS_BASE_URL.');
+            throw new \RuntimeException('No se configuró FACTURACION_BRIDGE_BASE_URL.');
         }
 
         if ($token === '') {

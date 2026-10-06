@@ -84,7 +84,7 @@ class FinancialReportController extends Controller
             forceOnlyContracts: false,
             reconcileContracts: false,
             excludeContracts: true,
-            excludedCashierNames: [],
+            excludedCashierNames: self::CASHIER_FLOW_EXCLUDED_CASHIERS,
             enableDepartmentFilter: true,
             cacheReports: true,
             showReceivablesSeparately: true
@@ -109,7 +109,7 @@ class FinancialReportController extends Controller
             ),
             $cancellationServices,
             $data['selectedDepartment'],
-            [],
+            self::CASHIER_FLOW_EXCLUDED_CASHIERS,
             $request->boolean('actualizar')
         );
         $cancelledMovementKeys = $invoiceAudit['invoices']->pluck('_movementKey')->filter()->flip();
@@ -220,7 +220,28 @@ class FinancialReportController extends Controller
             return $service;
         })->values();
         $data['summary']['totalMonto'] = (float) $data['services']->sum('totalMonto');
-        $data['summary']['cantidadVentas'] = (float) $data['services']->sum('cantidadVentas');
+        // El conteo financiero ya excluye facturas y pagos anulados.
+        if (($data['uniqueSalesCountFromApi'] ?? false) && ! ($data['includedSalesCountFromApi'] ?? false)) {
+            $cancelledPaidSaleIds = $summaryCancelledInvoices
+                ->filter(function (array $invoice): bool {
+                    $fiscalStatus = $this->normalizePersonName((string) ($invoice['estadoFiscal'] ?? ''));
+                    $paymentStatus = $this->normalizePersonName((string) ($invoice['estadoPago'] ?? ''));
+                    $isFiscalAnnulled = in_array($fiscalStatus, ['ANULADA', 'ANULADO'], true);
+                    $isPaymentCancelled = in_array($paymentStatus, ['ANULADA', 'ANULADO', 'CANCELADA', 'CANCELADO'], true);
+
+                    return ! $isFiscalAnnulled && $isPaymentCancelled;
+                })
+                ->pluck('_ventaId')
+                ->filter()
+                ->unique()
+                ->count();
+            $data['summary']['cantidadVentas'] = max(
+                0,
+                (float) $data['summary']['cantidadVentas'] - $cancelledPaidSaleIds
+            );
+        } elseif (! ($data['uniqueSalesCountFromApi'] ?? false)) {
+            $data['summary']['cantidadVentas'] = (float) $data['services']->sum('cantidadVentas');
+        }
         $data['summary']['cantidadDetalles'] = (float) $data['services']->sum('cantidadDetalles');
         $data['summary']['totalCantidad'] = (float) $data['services']->sum('totalCantidad');
         $data['summary']['totalMontoVendido'] = (float) $data['services']->sum('totalMontoVendido');
@@ -1163,7 +1184,7 @@ class FinancialReportController extends Controller
             $field => $services
                 ->map(fn (string $service): string => trim($service))
                 ->filter()
-                ->unique()
+                ->unique(fn (string $service): string => mb_strtoupper($service, 'UTF-8'))
                 ->values()
                 ->all(),
         ]);
@@ -1212,8 +1233,36 @@ class FinancialReportController extends Controller
             ->values();
         $hasServiceFilter = array_key_exists('servicios', $validated) || $legacyService !== '';
         $aggregated = collect();
-        $serviceOptions = $requestedServices->keyBy(fn ($service) => $service);
+        $serviceOptions = $requestedServices->keyBy(fn ($service) => mb_strtoupper($service, 'UTF-8'));
         $errors = collect();
+        $apiUniqueSales = 0.0;
+        $apiIncludedSales = 0.0;
+        $apiExcludedSales = 0.0;
+        $hasCompleteApiIncludedSales = true;
+        $hasCompleteApiUniqueSales = true;
+        $reportFilters = [];
+        if ($hasServiceFilter) {
+            $reportFilters['servicios'] = $requestedServices->all();
+        }
+        $excludedCountGroups = [];
+        if ($excludeContracts) {
+            $excludedCountGroups[] = 'contratos';
+        }
+        if ($showReceivablesSeparately) {
+            $excludedCountGroups[] = 'eca_internacional';
+        }
+        if ($excludedCountGroups !== []) {
+            $reportFilters['excluirGruposConteo'] = array_values(array_unique($excludedCountGroups));
+        }
+        if ($onlyContracts) {
+            $reportFilters['incluirGruposConteo'] = ['contratos'];
+        }
+        if ($enableDepartmentFilter && filled($validated['departamento'] ?? null)) {
+            $reportFilters['regionalConteo'] = $this->canonicalDepartmentName((string) $validated['departamento']);
+        }
+        if ($excludedCashierNames !== []) {
+            $reportFilters['excluirUsuariosConteo'] = array_values($excludedCashierNames);
+        }
         $batchReports = null;
         if ($cacheReports && $selectedMonths->count() > 1) {
             try {
@@ -1221,6 +1270,7 @@ class FinancialReportController extends Controller
                     'mes' => $month,
                     'anio' => $year,
                     'limite' => $limit,
+                    ...$reportFilters,
                 ])->all();
                 $batchReports = collect($this->reports->servicesBatch($filters, $refresh))
                     ->keyBy(fn (array $result): int => (int) ($result['filter']['mes'] ?? 0));
@@ -1238,7 +1288,18 @@ class FinancialReportController extends Controller
                     }
                     $monthlyReport = (array) ($result['report'] ?? []);
                 } else {
-                    $monthlyReport = $this->reports->services($month, $year, $limit, $cacheReports, $refresh);
+                    $monthlyReport = $this->reports->services($month, $year, $limit, $cacheReports, $refresh, $reportFilters);
+                }
+                if ((bool) data_get($monthlyReport, 'meta.conteoVentasUnicas', false)) {
+                    $apiUniqueSales += (float) data_get($monthlyReport, 'resumen.cantidadVentas', 0);
+                    if (isset($monthlyReport['resumen']['cantidadVentasIncluidasEnTotalVendido'], $monthlyReport['resumen']['cantidadVentasNoIncluidasEnTotalVendido'])) {
+                        $apiIncludedSales += (float) $monthlyReport['resumen']['cantidadVentasIncluidasEnTotalVendido'];
+                        $apiExcludedSales += (float) $monthlyReport['resumen']['cantidadVentasNoIncluidasEnTotalVendido'];
+                    } else {
+                        $hasCompleteApiIncludedSales = false;
+                    }
+                } else {
+                    $hasCompleteApiUniqueSales = false;
                 }
 
                 foreach ((array) ($monthlyReport['servicios'] ?? []) as $row) {
@@ -1247,8 +1308,9 @@ class FinancialReportController extends Controller
                         continue;
                     }
 
-                    $serviceOptions->put($name, $name);
-                    $current = $aggregated->get($name, [
+                    $serviceKey = mb_strtoupper($name, 'UTF-8');
+                    $serviceOptions->put($serviceKey, $name);
+                    $current = $aggregated->get($serviceKey, [
                         'servicio' => $name,
                         'cantidadVentas' => 0,
                         'cantidadDetalles' => 0,
@@ -1291,11 +1353,31 @@ class FinancialReportController extends Controller
                     ];
                     $current['_meses'][] = $month;
                     $current['_meses'] = array_values(array_unique($current['_meses']));
-                    $aggregated->put($name, $current);
+                    $aggregated->put($serviceKey, $current);
                 }
             } catch (\Throwable $exception) {
+                $hasCompleteApiUniqueSales = false;
                 $errors->push("No se pudo cargar el resumen del mes {$month}: {$exception->getMessage()}");
                 $this->logDetailError($exception, null, $month, $year);
+            }
+        }
+
+        // Las opciones deben incluir servicios ausentes de la selección actual.
+        // La consulta filtrada sigue siendo la fuente de los importes y conteos.
+        if ($hasServiceFilter) {
+            foreach ($selectedMonths as $month) {
+                try {
+                    $catalog = $this->reports->services($month, $year, 200, true, $refresh);
+                    foreach ($catalog['servicios'] ?? [] as $catalogRow) {
+                        $name = trim((string) ($catalogRow['servicio'] ?? ''));
+                        if ($name !== '') {
+                            $serviceOptions->put(mb_strtoupper($name, 'UTF-8'), $name);
+                        }
+                    }
+                } catch (\Throwable $exception) {
+                    $errors->push("No se pudo completar la lista de servicios del mes {$month}. Actualice el reporte antes de seleccionar todos.");
+                    $this->logDetailError($exception, null, $month, $year);
+                }
             }
         }
 
@@ -1335,13 +1417,17 @@ class FinancialReportController extends Controller
 
         $contractServices = $aggregated
             ->filter(fn (array $service) => $this->serviceGroupName((string) ($service['servicio'] ?? '')) === 'Servicio Contratos')
-            ->keys()
+            ->pluck('servicio')
             ->values();
         $selectedServices = $onlyContracts
             ? $contractServices
             : ($hasServiceFilter ? $requestedServices : $serviceOptions->sortKeys()->values());
+        $selectedServices = $selectedServices
+            ->map(fn (string $name): string => $serviceOptions->get(mb_strtoupper($name, 'UTF-8'), $name))
+            ->unique(fn (string $name): string => mb_strtoupper($name, 'UTF-8'))
+            ->values();
         $services = $aggregated
-            ->only($selectedServices->all())
+            ->only($selectedServices->map(fn (string $name): string => mb_strtoupper($name, 'UTF-8'))->all())
             ->values()
             ->sortByDesc('totalMontoVendido')
             ->values();
@@ -1422,6 +1508,17 @@ class FinancialReportController extends Controller
             'contratosPorCobrarVentas' => $contractReceivables['receivable_sales'],
             'contratosPorCobrarMonto' => $contractReceivables['receivable_amount'],
         ];
+        if ($hasCompleteApiUniqueSales && $errors->isEmpty()) {
+            $summary['cantidadVentas'] = $apiUniqueSales;
+            $summary['cantidadOperacionesRegistradas'] = $apiUniqueSales;
+            if ($hasCompleteApiIncludedSales) {
+                $summary['cantidadVentasIncluidasEnTotalVendido'] = $apiIncludedSales;
+                $summary['cantidadVentasNoIncluidasEnTotalVendido'] = $apiExcludedSales;
+                if ($showReceivablesSeparately) {
+                    $summary['cantidadVentas'] = $apiIncludedSales;
+                }
+            }
+        }
         $serviceGroups = $this->buildServiceGroups($services);
         $summary['cantidadServicios'] = $serviceGroups->count();
 
@@ -1440,6 +1537,8 @@ class FinancialReportController extends Controller
                 ? $contractServices
                 : $serviceOptions->sortKeys()->values(),
             'summary' => $summary,
+            'uniqueSalesCountFromApi' => $hasCompleteApiUniqueSales && $errors->isEmpty(),
+            'includedSalesCountFromApi' => $showReceivablesSeparately && $hasCompleteApiUniqueSales && $hasCompleteApiIncludedSales && $errors->isEmpty(),
             'services' => $services,
             'receivableServices' => $receivableServices,
             'serviceGroups' => $serviceGroups,
@@ -1527,9 +1626,13 @@ class FinancialReportController extends Controller
         $isModal = true;
         $refresh = (bool) ($validated['actualizar'] ?? false);
         $showCollectedOnly = (bool) ($validated['solo_cobrados'] ?? false);
-        $serviceOptions = $selectedServices->keyBy(fn ($service) => $service);
+        $serviceOptions = $selectedServices->keyBy(fn ($service) => mb_strtoupper($service, 'UTF-8'));
         $errors = collect();
 
+        $selectedServices = $selectedServices
+            ->map(fn (string $name): string => $serviceOptions->get(mb_strtoupper($name, 'UTF-8'), $name))
+            ->unique(fn (string $name): string => mb_strtoupper($name, 'UTF-8'))
+            ->values();
         $rows = collect();
         $service = [
             'servicio' => $selectedServices->count() === 1 ? $selectedServices->first() : $selectedServices->count().' servicios seleccionados',
