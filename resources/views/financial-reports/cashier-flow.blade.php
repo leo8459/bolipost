@@ -20,9 +20,6 @@
                data-loading-message="Espere por favor, estamos preparando el PDF ejecutivo.">
                 <i class="fas fa-file-pdf mr-1"></i> Descargar reporte ejecutivo
             </a>
-            <a href="{{ route('dashboard.financiera.ventas-servicios', ['servicios' => $selectedServices, 'meses' => $selectedMonths, 'anio' => $anio, 'limite' => $limite]) }}" class="btn btn-outline-primary btn-sm mr-1">
-                <i class="fas fa-layer-group mr-1"></i> Ventas por servicio
-            </a>
             <a href="{{ route('dashboard') }}" class="btn btn-outline-secondary btn-sm">
                 <i class="fas fa-arrow-left mr-1"></i> Dashboard
             </a>

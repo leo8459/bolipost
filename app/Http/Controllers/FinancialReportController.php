@@ -77,11 +77,6 @@ class FinancialReportController extends Controller
 
     public function __construct(private readonly FacturacionReportService $reports) {}
 
-    public function services(Request $request)
-    {
-        return view('financial-reports.services', $this->buildServicesReportData($request, false));
-    }
-
     public function cashierFlow(Request $request)
     {
         $data = $this->buildServicesReportData(
@@ -1149,36 +1144,7 @@ class FinancialReportController extends Controller
                 ->keyBy('factura_venta_id')
             : collect();
 
-        return view('financial-reports.services', $data);
-    }
-
-    public function executiveReport(Request $request)
-    {
-        $data = $this->buildServicesReportData($request);
-        $groups = $data['serviceGroups'];
-        $totalAmount = (float) ($data['summary']['totalMontoVendido'] ?? $data['summary']['totalMonto'] ?? 0);
-        $totalSales = (float) ($data['summary']['cantidadVentas'] ?? 0);
-        $topGroup = $groups->first();
-        $monthNames = [
-            1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril',
-            5 => 'Mayo', 6 => 'Junio', 7 => 'Julio', 8 => 'Agosto',
-            9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre',
-        ];
-
-        $data['generatedAt'] = now();
-        $data['periodLabel'] = collect($data['selectedMonths'])
-            ->map(fn (int $month) => $monthNames[$month] ?? (string) $month)
-            ->implode(', ').' de '.$data['anio'];
-        $data['averageTicket'] = $totalSales > 0 ? $totalAmount / $totalSales : 0;
-        $data['topGroup'] = $topGroup;
-        $data['topGroupShare'] = $totalAmount > 0
-            ? ((float) ($topGroup['totalMontoVendido'] ?? $topGroup['totalMonto'] ?? 0) / $totalAmount) * 100
-            : 0;
-
-        $pdf = Pdf::loadView('financial-reports.executive-report-pdf', $data)
-            ->setPaper('A4', 'portrait');
-
-        return $pdf->download('reporte-ejecutivo-ventas-servicios-'.$data['anio'].'-'.now()->format('Ymd_His').'.pdf');
+        return view('financial-reports.invoiced-contracts', $data);
     }
 
     private function normalizeServiceFilterInput(Request $request, string $field): void
@@ -1528,6 +1494,8 @@ class FinancialReportController extends Controller
 
     public function serviceDetail(Request $request)
     {
+        abort_unless($request->boolean('modal'), 404);
+
         $this->normalizeServiceFilterInput($request, 'servicios');
 
         $validated = $request->validate([
@@ -1556,28 +1524,11 @@ class FinancialReportController extends Controller
             ->filter()
             ->unique()
             ->values();
-        $isModal = $request->boolean('modal');
+        $isModal = true;
         $refresh = (bool) ($validated['actualizar'] ?? false);
         $showCollectedOnly = (bool) ($validated['solo_cobrados'] ?? false);
         $serviceOptions = $selectedServices->keyBy(fn ($service) => $service);
         $errors = collect();
-
-        if (! $isModal) {
-            foreach ($selectedMonths as $month) {
-                try {
-                    $monthlyReport = $this->reports->services($month, $year, 200);
-                    foreach ((array) ($monthlyReport['servicios'] ?? []) as $serviceRow) {
-                        $name = trim((string) ($serviceRow['servicio'] ?? ''));
-                        if ($name !== '') {
-                            $serviceOptions->put($name, $name);
-                        }
-                    }
-                } catch (\Throwable $exception) {
-                    $errors->push("No se pudo obtener la lista de servicios del mes {$month}: {$exception->getMessage()}");
-                    $this->logDetailError($exception, null, $month, $year);
-                }
-            }
-        }
 
         $rows = collect();
         $service = [
@@ -1751,13 +1702,9 @@ class FinancialReportController extends Controller
             'showCollectedOnly' => $showCollectedOnly && $canManageReceivables,
         ];
 
-        if ($isModal) {
-            return response()
-                ->view('financial-reports.partials.service-detail-modal-content', $viewData)
-                ->header('X-Flow-Detail-Fragment', '1');
-        }
-
-        return view('financial-reports.service-detail', $viewData);
+        return response()
+            ->view('financial-reports.partials.service-detail-modal-content', $viewData)
+            ->header('X-Flow-Detail-Fragment', '1');
     }
 
     private function logDetailError(\Throwable $exception, ?string $service, int $month, int $year): void

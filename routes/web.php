@@ -196,24 +196,6 @@ Route::get('/dashboard/export/excel', [DashboardController::class, 'exportExcel'
 Route::get('/dashboard/export/pdf', [DashboardController::class, 'exportPdf'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.export.pdf');
-Route::get('/dir-operaciones/global-ingreso', [ReportesController::class, 'globalIngreso'])
-    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
-    ->name('dashboard.global-ingreso');
-Route::get('/dir-operaciones/global-ingreso/export/excel', [ReportesController::class, 'exportGlobalIngresoExcel'])
-    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
-    ->name('dashboard.global-ingreso.excel');
-Route::get('/dir-operaciones/global-ingreso/export/pdf', [ReportesController::class, 'exportGlobalIngresoPdf'])
-    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
-    ->name('dashboard.global-ingreso.pdf');
-Route::get('/dir-operaciones/global-por-servicio', [ReportesController::class, 'globalPorServicio'])
-    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
-    ->name('dashboard.global-por-servicio');
-Route::get('/dir-operaciones/global-por-servicio/export/excel', [ReportesController::class, 'exportGlobalPorServicioExcel'])
-    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
-    ->name('dashboard.global-por-servicio.excel');
-Route::get('/dir-operaciones/global-por-servicio/export/pdf', [ReportesController::class, 'exportGlobalPorServicioPdf'])
-    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
-    ->name('dashboard.global-por-servicio.pdf');
 Route::get('/dir-operaciones/flujo-paqueteria', [PaqueteriaFlowController::class, 'index'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.flujo-paqueteria');
@@ -247,9 +229,6 @@ Route::get('/dir-comercial/rendimiento-servicios/export/excel', [ReportesControl
 Route::get('/dir-comercial/rendimiento-servicios/export/pdf', [ReportesController::class, 'exportCommercialPerformancePdf'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.comercial.rendimiento-servicios.pdf');
-Route::get('/dir-financiera/ventas-servicios', [FinancialReportController::class, 'services'])
-    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
-    ->name('dashboard.financiera.ventas-servicios');
 Route::get('/dir-financiera/flujo-cajero', [FinancialReportController::class, 'cashierFlow'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.financiera.flujo-cajero');
@@ -285,9 +264,6 @@ Route::prefix('conciliacion/conciliaciones')
         Route::post('/{conciliacion}/confirmacion-pago', 'confirmarPago')->name('.confirmacion-pago');
         Route::get('/documento/{conciliacion}', 'descargarDocumento')->name('.descargar');
     });
-Route::get('/dir-financiera/ventas-servicios/reporte-ejecutivo.pdf', [FinancialReportController::class, 'executiveReport'])
-    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
-    ->name('dashboard.financiera.ventas-servicios.pdf');
 Route::get('/dir-financiera/ventas-servicios/detalle', [FinancialReportController::class, 'serviceDetail'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.financiera.ventas-servicios.detalle');
@@ -300,9 +276,6 @@ Route::get('/entregas/export/excel', [DashboardController::class, 'exportEntrega
 Route::get('/entregas/export/pdf', [DashboardController::class, 'exportEntregasPdf'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('entregas.export.pdf');
-Route::get('/reportes', [ReportesController::class, 'index'])
-    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
-    ->name('reportes.index');
 Route::get('/reportes/movimiento-toda-la-vida', [ReportesController::class, 'lifetimeMovements'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('reportes.lifetime-movements');
@@ -315,24 +288,6 @@ Route::get('/performance/export/excel', [PerformanceController::class, 'exportEx
 Route::get('/performance/export/pdf', [PerformanceController::class, 'exportPdf'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('performance.export.pdf');
-Route::get('/reportes/{scope}', [ReportesController::class, 'show'])
-    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
-    ->where('scope', 'general|contrato|ems|certi|ordi')
-    ->name('reportes.scope');
-Route::get('/reportes/{scope}/export/excel', [ReportesController::class, 'exportExcel'])
-    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
-    ->where('scope', 'general|contrato|ems|certi|ordi')
-    ->name('reportes.export.excel');
-Route::get('/reportes/{scope}/export/pdf', [ReportesController::class, 'exportPdf'])
-    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
-    ->where('scope', 'general|contrato|ems|certi|ordi')
-    ->name('reportes.export.pdf');
-Route::get('/reportes/ems/resumen-administrativo', [ReportesController::class, 'administrativeSummary'])
-    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
-    ->name('reportes.resumen-administrativo');
-Route::get('/reportes/ems/resumen-administrativo/pdf', [ReportesController::class, 'exportAdministrativePdf'])
-    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
-    ->name('reportes.resumen-administrativo.pdf');
 Route::get('/mis-ventas', [MisVentasController::class, 'index'])
     ->middleware(['auth', 'internal.only', 'verified'])
     ->name('mis-ventas.index');

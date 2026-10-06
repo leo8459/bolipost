@@ -444,20 +444,19 @@ $config = [
             ],
         ],
         [
-            'text' => 'Reportes Ejecutivos',
-            'icon' => 'fas fa-chart-pie',
-            'can' => [
-                'dashboard.dir-comercial',
-                'dashboard.dir-financiera',
-                'dashboard.dir-operaciones',
-            ],
+            'text' => 'Reportes',
+            'icon' => 'fas fa-file-pdf',
             'submenu' => [
                 [
-                    'text' => 'Detalle por Servicio',
-                    'can' => 'dashboard.financiera.ventas-servicios.detalle',
-                    'required_parent_can' => 'dashboard.dir-financiera',
-                    'url' => '/dir-financiera/ventas-servicios/detalle',
-                    'icon' => 'fas fa-table',
+                    'text' => 'Dashboard',
+                    'url' => '/dashboard',
+                    'icon' => 'fas fa-tachometer-alt',
+                ],
+                [
+                    'text' => 'Flujo de paquetería',
+                    'url' => '/dir-operaciones/flujo-paqueteria',
+                    'icon' => 'fas fa-box-open',
+                    'can' => 'dashboard.flujo-paqueteria',
                 ],
                 [
                     'text' => 'Entregas',
@@ -472,59 +471,17 @@ $config = [
                     'icon' => 'fas fa-stamp',
                 ],
                 [
-                    'text' => 'Flujo de cajero',
-                    'can' => 'dashboard.financiera.flujo-cajero',
-                    'required_parent_can' => 'dashboard.dir-financiera',
-                    'url' => '/dir-financiera/flujo-cajero',
-                    'icon' => 'fas fa-cash-register',
-                ],
-                [
-                    'text' => 'Global Nivel Nacional (Ingreso)',
-                    'required_parent_can' => 'dashboard.dir-operaciones',
-                    'url' => '/dir-operaciones/global-ingreso',
-                    'icon' => 'fas fa-globe-americas',
-                ],
-                [
-                    'text' => 'Global por servicio',
-                    'required_parent_can' => 'dashboard.dir-operaciones',
-                    'url' => '/dir-operaciones/global-por-servicio',
-                    'icon' => 'fas fa-stream',
-                ],
-                [
-                    'text' => 'Rendimiento Servicios',
-                    'required_parent_can' => 'dashboard.dir-comercial',
-                    'url' => '/dir-comercial/rendimiento-servicios',
-                    'icon' => 'fas fa-chart-pie',
-                ],
-                [
-                    'text' => 'Ventas por Servicio',
-                    'can' => 'dashboard.financiera.ventas-servicios',
-                    'required_parent_can' => 'dashboard.dir-financiera',
-                    'url' => '/dir-financiera/ventas-servicios',
-                    'icon' => 'fas fa-file-invoice-dollar',
-                ],
-            ],
-        ],
-        [
-            'text' => 'Reportes',
-            'icon' => 'fas fa-file-pdf',
-            'submenu' => [
-                [
-                    'text' => 'Dashboard',
-                    'url' => '/dashboard',
-                    'icon' => 'fas fa-tachometer-alt',
-                ],
-                [
                     'text' => 'Movimiento de toda la vida',
                     'url' => '/reportes/movimiento-toda-la-vida',
                     'icon' => 'fas fa-history',
                     'can' => 'reportes.scope',
                 ],
                 [
-                    'text' => 'Flujo de paquetería',
-                    'url' => '/dir-operaciones/flujo-paqueteria',
-                    'icon' => 'fas fa-box-open',
-                    'can' => 'dashboard.flujo-paqueteria',
+                    'text' => 'Flujo de cajero',
+                    'can' => 'dashboard.financiera.flujo-cajero',
+                    'required_parent_can' => 'dashboard.dir-financiera',
+                    'url' => '/dir-financiera/flujo-cajero',
+                    'icon' => 'fas fa-cash-register',
                 ],
                 [
                     'text' => 'Mis ventas',
@@ -539,33 +496,9 @@ $config = [
                     'can' => 'feature.dashboard.facturacion',
                 ],
                 [
-                    'text' => 'Reporte General',
-                    'url' => '/reportes/general',
-                    'icon' => 'fas fa-layer-group',
-                ],
-                [
-                    'text' => 'Reporte Contratos',
-                    'url' => '/reportes/contrato',
-                    'icon' => 'fas fa-file-contract',
-                ],
-                [
-                    'text' => 'Reporte EMS',
-                    'url' => '/reportes/ems',
-                    'icon' => 'fas fa-box',
-                ],
-                [
-                    'text' => 'Reporte Certificados',
-                    'url' => '/reportes/certi',
-                    'icon' => 'fas fa-certificate',
-                ],
-                [
-                    'text' => 'Reporte Ordinarios',
-                    'url' => '/reportes/ordi',
-                    'icon' => 'fas fa-box-open',
-                ],
-                [
-                    'text' => 'Resumen Ejecutivo',
-                    'url' => '/reportes/ems/resumen-administrativo',
+                    'text' => 'Rendimiento Servicios',
+                    'required_parent_can' => 'dashboard.dir-comercial',
+                    'url' => '/dir-comercial/rendimiento-servicios',
                     'icon' => 'fas fa-chart-pie',
                 ],
             ],
@@ -1519,10 +1452,10 @@ $config = [
     'livewire' => false,
 ];
 
-// Keep the system sidebar alphabetized and place executive reports and indicators under Reports.
+// Ordena el menú del sistema y agrupa Indicadores dentro de Reportes.
 $reportesIndex = null;
 $reportesAgrupados = [];
-$elementosMover = ['Reportes Ejecutivos', 'INDICADORES'];
+$elementosMover = ['INDICADORES'];
 
 foreach ($config['menu'] as $index => $item) {
     $texto = (string) ($item['text'] ?? '');

@@ -48,10 +48,7 @@
         if (/reimprimir-cn33|cn\s*-?\s*33|cn33/.test(source)) return 'CN-33';
         if (/generacion-cn/.test(source)) return 'documento de generación CN';
         if (/marbete/.test(source)) return 'marbetes';
-        if (/global-ingreso/.test(source)) return 'reporte global de ingresos';
-        if (/global-por-servicio/.test(source)) return 'reporte global por servicio';
         if (/flujo-paqueteria/.test(source)) return 'reporte de flujo de paquetería';
-        if (/resumen-administrativo/.test(source)) return 'resumen administrativo';
         if (/rendimiento-servicios/.test(source)) return 'reporte de rendimiento comercial';
         if (/flujo-cajero/.test(source)) return 'reporte de flujo de caja';
         if (/hacer-envio-desde-casa|preregistro/.test(source)) return 'ticket de preenvío';
@@ -69,7 +66,7 @@
         if (/alertas-empresa/.test(source)) return 'documento adjunto de la alerta';
         if (/empresa/.test(source)) return 'reporte de empresas';
         if (/performance|rendimiento/.test(source)) return 'reporte de rendimiento';
-        if (/financiera|flujo-cajero|ventas-servicios/.test(source)) return 'reporte financiero';
+        if (/financiera|flujo-cajero/.test(source)) return 'reporte financiero';
         if (/despacho|expedicion/.test(source)) return 'documento del despacho';
         if (/tarifario|tarifa/.test(source)) return 'tarifario';
         if (/maintenance-incentive/.test(source)) return 'reporte de incentivos de mantenimiento';

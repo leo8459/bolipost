@@ -610,13 +610,6 @@ class DashboardController extends Controller
         return $workingDays;
     }
 
-    public function reportes(Request $request)
-    {
-        $data = $this->buildDashboardData($request);
-
-        return view('reportes.index', $data);
-    }
-
     public function exportExcel(Request $request)
     {
         $data = $this->buildDashboardData($request);

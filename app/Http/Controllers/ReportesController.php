@@ -2,16 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Exports\ReportesExport;
 use App\Models\Estado;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ReportesController extends Controller
@@ -26,7 +23,6 @@ class ReportesController extends Controller
     private const DESTINOS_LARGA_DISTANCIA = ['SANTA CRUZ', 'TRINIDAD', 'TARIJA'];
     private const DESTINOS_BASE = ['LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI', 'TARIJA', 'SUCRE', 'TRINIDAD', 'COBIJA'];
     private const DESTINOS_CAPITALES = ['LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI', 'TARIJA', 'SUCRE', 'TRINIDAD', 'COBIJA'];
-    private const SCOPES = ['general', 'contrato', 'ems', 'certi', 'ordi'];
     private const COMMERCIAL_LINES = [
         'PAQUETES EMS',
         'PAQUETES CONTRATOS',
@@ -41,19 +37,6 @@ class ReportesController extends Controller
         'certi' => ['label' => 'CERTIFICADOS', 'table' => 'paquetes_certi', 'state_col' => 'fk_estado', 'origen_col' => null, 'destino_col' => 'cuidad'],
         'ordi' => ['label' => 'ORDINARIOS', 'table' => 'paquetes_ordi', 'state_col' => 'fk_estado', 'origen_col' => null, 'destino_col' => 'ciudad'],
     ];
-
-    public function index(Request $request)
-    {
-        return redirect()->route('reportes.scope', array_merge(['scope' => 'general'], $request->query()));
-    }
-
-    public function show(Request $request, string $scope)
-    {
-        $scope = $this->normalizeScope($scope);
-        $data = $this->buildReportData($request, $scope, false);
-
-        return view('reportes.index', $data);
-    }
 
     public function lifetimeMovements(Request $request)
     {
@@ -108,45 +91,6 @@ class ReportesController extends Controller
             'from' => $from,
             'to' => $to,
         ]);
-    }
-
-    public function exportExcel(Request $request, string $scope)
-    {
-        $scope = $this->normalizeScope($scope);
-        $data = $this->buildReportData($request, $scope, true);
-        $filename = 'reportes-' . $scope . '-' . now()->format('Ymd-His') . '.xlsx';
-
-        return Excel::download(new ReportesExport($data), $filename);
-    }
-
-    public function exportPdf(Request $request, string $scope)
-    {
-        $scope = $this->normalizeScope($scope);
-        $data = $this->buildReportData($request, $scope, true);
-        $pdf = Pdf::loadView('reportes.report-pdf', $data)->setPaper('A4', 'landscape');
-        $filename = 'reportes-' . $scope . '-' . now()->format('Ymd-His') . '.pdf';
-
-        return response()->streamDownload(function () use ($pdf) {
-            echo $pdf->output();
-        }, $filename);
-    }
-
-    public function globalIngreso(Request $request)
-    {
-        $request->query->set('limit', 'all');
-
-        $data = $this->buildReportData($request, 'general', false);
-        $data['scopeLabel'] = 'Global Nivel Nacional (Ingreso)';
-        $data['globalIngresoMode'] = true;
-
-        return view('reportes.global-ingreso', $data);
-    }
-
-    public function globalPorServicio(Request $request)
-    {
-        $data = $this->buildGlobalPorServicioData($request);
-
-        return view('reportes.global-por-servicio', $data);
     }
 
     public function enviosOficiales(Request $request)
@@ -245,31 +189,6 @@ class ReportesController extends Controller
         ]);
     }
 
-    public function exportGlobalPorServicioExcel(Request $request)
-    {
-        @set_time_limit(300);
-
-        $data = $this->buildGlobalPorServicioData($request);
-        $filename = 'global-por-servicio-' . now()->format('Ymd-His') . '.xlsx';
-
-        return Excel::download(new \App\Exports\GlobalPorServicioExport($data), $filename);
-    }
-
-    public function exportGlobalPorServicioPdf(Request $request)
-    {
-        @set_time_limit(300);
-        @ini_set('max_execution_time', '300');
-        @ini_set('memory_limit', '1024M');
-
-        $data = $this->buildGlobalPorServicioData($request);
-        $pdf = Pdf::loadView('reportes.global-por-servicio-pdf', $data)->setPaper('A4', 'landscape');
-        $filename = 'global-por-servicio-' . now()->format('Ymd-His') . '.pdf';
-
-        return response()->streamDownload(function () use ($pdf) {
-            echo $pdf->output();
-        }, $filename);
-    }
-
     public function commercialPerformance(Request $request)
     {
         $data = $this->buildCommercialPerformanceData($request);
@@ -302,95 +221,15 @@ class ReportesController extends Controller
         }, $filename);
     }
 
-    public function exportGlobalIngresoExcel(Request $request)
+    private function buildCommercialBaseRows(Request $request): array
     {
-        @set_time_limit(300);
-        $request->query->set('limit', 'all');
-
-        $data = $this->buildReportData($request, 'general', true);
-        $data['scopeLabel'] = 'Global Nivel Nacional (Ingreso)';
-        $data['globalIngresoMode'] = true;
-        $filename = 'global-nivel-nacional-ingreso-' . now()->format('Ymd-His') . '.xlsx';
-
-        return Excel::download(new ReportesExport($data), $filename);
-    }
-
-    public function exportGlobalIngresoPdf(Request $request)
-    {
-        @set_time_limit(300);
-        @ini_set('max_execution_time', '300');
-        @ini_set('memory_limit', '1024M');
-        $request->query->set('limit', 'all');
-
-        $data = $this->buildReportData($request, 'general', true);
-        $data['scopeLabel'] = 'Global Nivel Nacional (Ingreso)';
-        $data['globalIngresoMode'] = true;
-        $allRows = collect($data['rows'] ?? []);
-        $data['pdfTotalRows'] = $allRows->count();
-        $data['pdfStatistics'] = $this->buildGlobalIngresoPdfStatistics($allRows);
-        unset($data['rows']);
-        $pdf = Pdf::loadView('reportes.global-ingreso-pdf', $data)
-            ->setPaper('A4', 'landscape')
-            ->setOptions([
-                'dpi' => 72,
-                'defaultFont' => 'DejaVu Sans',
-                'isRemoteEnabled' => false,
-                'isHtml5ParserEnabled' => false,
-            ]);
-        $filename = 'global-nivel-nacional-ingreso-' . now()->format('Ymd-His') . '.pdf';
-
-        return response()->streamDownload(function () use ($pdf) {
-            echo $pdf->output();
-        }, $filename);
-    }
-
-    public function administrativeSummary(Request $request)
-    {
-        $request->merge(['limit' => 'all']);
-
-        $data = $this->buildReportData($request, 'general', true);
-        $data['scopeLabel'] = 'Resumen Ejecutivo';
-        $data['administrativeSummary'] = $this->buildAdministrativeSummary(collect($data['rows']), $data['departamentoOrigen'] ?? '');
-        $data['administrativeSummary']['malencaminados'] = $this->buildAdministrativeMalencaminadosSummary(
-            $request,
-            $data['departamentoOrigen'] ?? '',
-            $data['departamentoDestino'] ?? ''
-        );
-
-        return view('reportes.resumen-administrativo', $data);
-    }
-
-    public function exportAdministrativePdf(Request $request)
-    {
-        $request->merge(['limit' => 'all']);
-
-        $data = $this->buildReportData($request, 'general', true);
-        $data['scopeLabel'] = 'Resumen Ejecutivo';
-        $data['administrativeSummary'] = $this->buildAdministrativeSummary(collect($data['rows']), $data['departamentoOrigen'] ?? '');
-        $data['administrativeSummary']['malencaminados'] = $this->buildAdministrativeMalencaminadosSummary(
-            $request,
-            $data['departamentoOrigen'] ?? '',
-            $data['departamentoDestino'] ?? ''
-        );
-
-        $pdf = Pdf::loadView('reportes.resumen-administrativo-pdf', $data)->setPaper('A4', 'landscape');
-        $filename = 'resumen-ejecutivo-paquetes-' . now()->format('Ymd-His') . '.pdf';
-
-        return response()->streamDownload(function () use ($pdf) {
-            echo $pdf->output();
-        }, $filename);
-    }
-
-    private function buildReportData(Request $request, string $scope, bool $forExport): array
-    {
-        $selectedModules = $this->resolveSelectedModules($scope, $request);
-        [$from, $to, $range] = $this->resolveDateRange($request);
+        $selectedModules = $this->resolveSelectedModules('general', $request);
+        [$from, $to] = $this->resolveDateRange($request);
         $selectedMonths = $this->resolveSelectedMonthFilters($request);
         $monthDateRanges = $this->buildMonthDateRanges($selectedMonths);
         if (!empty($monthDateRanges)) {
             $from = null;
             $to = null;
-            $range = 'months';
         }
         $search = trim((string) $request->query('q', ''));
         $departamentoOrigen = $this->resolveDepartamentoFiltro($request, 'departamento_origen');
@@ -400,9 +239,7 @@ class ReportesController extends Controller
         }
         $statuses = $this->resolveStatusFilters($request);
         $selectedServices = $this->resolveServiceFilters($request);
-        $estadoIds = [];
         $limit = $this->resolveLimit($request);
-        $perPage = $this->resolvePerPage($request);
         $estadoEntregadoId = $this->resolveEstadoEntregadoId();
         $estadoCanceladoId = $this->resolveEstadoCanceladoId();
 
@@ -426,54 +263,18 @@ class ReportesController extends Controller
 
         $rows = $this->filterRowsWithoutCanceled($rows);
         $rows = $this->filterRowsByDepartamentoOrigen($rows, $departamentoOrigen);
-        $registradosTotal = $rows->count();
         $rows = $this->filterRowsByState($rows, $statuses);
-        $serviceOptions = $this->serviceOptionsFromRows($rows);
         $rows = $this->filterRowsByService($rows, $selectedServices);
-        $filteredTotal = $rows->count();
-        $summary = $this->buildSummary($rows);
-        $summary['registrados'] = $registradosTotal;
-        $summary['total_filtrado'] = $filteredTotal;
 
         $rows = $rows->sortByDesc(fn ($row) => $row['created_at_ts'] ?? 0)->values();
         if ($limit !== null) {
             $rows = $rows->take($limit)->values();
         }
 
-        $moduleSummary = $this->buildModuleSummary($rows, $selectedModules);
-        $serviceSummary = $this->buildServiceSummary($rows);
-        $totals = $this->buildTotals($rows);
-        $rowsView = $forExport ? $rows : $this->paginateCollection($rows, $perPage, $request);
-
         return [
-            'scope' => $scope,
-            'scopeLabel' => $this->scopeLabel($scope),
-            'moduleLabels' => array_map(fn ($m) => self::MODULES[$m]['label'], $selectedModules),
-            'selectedModules' => $selectedModules,
-            'states' => Estado::query()->orderBy('nombre_estado')->get(['id', 'nombre_estado']),
-            'selectedEstadoIds' => $estadoIds,
-            'search' => $search,
-            'statuses' => $statuses,
-            'selectedServices' => $selectedServices,
-            'serviceOptions' => $serviceOptions,
-            'departamento' => $departamentoDestino,
-            'departamentoOrigen' => $departamentoOrigen,
-            'departamentoDestino' => $departamentoDestino,
-            'departamentosDisponibles' => array_keys($this->departamentoAliasMap()),
-            'monthOptions' => $this->monthFilterOptions(),
-            'selectedMonths' => $selectedMonths,
-            'selectedMonthLabels' => array_map(fn ($month) => $this->monthFilterLabel($month), $selectedMonths),
             'from' => $from?->toDateString(),
             'to' => $to?->toDateString(),
-            'range' => $range,
-            'limit' => $limit === null ? 'all' : (string) $limit,
-            'perPage' => $perPage,
-            'rows' => $rowsView,
-            'summary' => $summary,
-            'moduleSummary' => $moduleSummary,
-            'serviceSummary' => $serviceSummary,
-            'totals' => $totals,
-            'isExport' => $forExport,
+            'rows' => $rows,
         ];
     }
 
@@ -868,73 +669,6 @@ class ReportesController extends Controller
         };
     }
 
-    private function buildSummary(Collection $rows): array
-    {
-        return [
-            'total' => $rows->count(),
-            'entregados' => $rows->where('is_entregado', true)->count(),
-            'no_entregados' => $rows
-                ->where('is_entregado', false)
-                ->where('is_cancelado', false)
-                ->count(),
-            'correcto' => $rows->where('situacion_bucket', 'correcto')->count(),
-            'retraso' => $rows->where('situacion_bucket', 'retraso')->count(),
-            'rezago' => $rows->where('situacion_bucket', 'rezago')->count(),
-        ];
-    }
-
-    private function buildModuleSummary(Collection $rows, array $selectedModules): array
-    {
-        $result = [];
-        foreach ($selectedModules as $moduleKey) {
-            $label = self::MODULES[$moduleKey]['label'] ?? strtoupper($moduleKey);
-            $moduleRows = $rows->where('modulo_key', $moduleKey)->values();
-
-            $result[] = [
-                'key' => $moduleKey,
-                'label' => $label,
-                'total' => $moduleRows->count(),
-                'entregados' => $moduleRows->where('is_entregado', true)->count(),
-                'no_entregados' => $moduleRows
-                    ->where('is_entregado', false)
-                    ->where('is_cancelado', false)
-                    ->count(),
-                'correcto' => $moduleRows->where('situacion_bucket', 'correcto')->count(),
-                'retraso' => $moduleRows->where('situacion_bucket', 'retraso')->count(),
-                'rezago' => $moduleRows->where('situacion_bucket', 'rezago')->count(),
-                'peso' => round((float) $moduleRows->sum('peso'), 3),
-                'precio' => round((float) $moduleRows->sum('precio'), 2),
-            ];
-        }
-
-        return $result;
-    }
-
-    private function buildServiceSummary(Collection $rows): array
-    {
-        return $rows
-            ->groupBy(fn (array $row) => $this->normalizeServiceName((string) ($row['servicio'] ?? 'SIN SERVICIO')))
-            ->map(function (Collection $items, string $service) {
-                return [
-                    'servicio' => $service,
-                    'cantidad' => $items->count(),
-                    'peso' => round((float) $items->sum('peso'), 3),
-                    'precio' => round((float) $items->sum('precio'), 2),
-                ];
-            })
-            ->sortByDesc('precio')
-            ->values()
-            ->all();
-    }
-
-    private function buildTotals(Collection $rows): array
-    {
-        return [
-            'peso_total' => round((float) $rows->sum('peso'), 3),
-            'precio_total' => round((float) $rows->sum('precio'), 2),
-        ];
-    }
-
     private function lifetimeMovementQuery(
         string $label,
         string $eventsTable,
@@ -981,375 +715,6 @@ class ReportesController extends Controller
         return $query;
     }
 
-    private function buildGlobalIngresoPdfStatistics(Collection $rows): array
-    {
-        $total = $rows->count();
-        $percentage = static fn (int $value): float => $total > 0
-            ? round(($value / $total) * 100, 1)
-            : 0.0;
-        $normalizeLabel = static function (mixed $value, string $fallback): string {
-            $label = mb_strtoupper(trim((string) $value));
-
-            return $label === '' || $label === '-' ? $fallback : $label;
-        };
-
-        $statusDefinitions = [
-            ['key' => 'entregado', 'label' => 'Entregados'],
-            ['key' => 'correcto', 'label' => 'En plazo'],
-            ['key' => 'retraso', 'label' => 'Con retraso'],
-            ['key' => 'rezago', 'label' => 'En rezago'],
-            ['key' => 'sin_datos', 'label' => 'Sin datos de plazo'],
-        ];
-        $statusDistribution = collect($statusDefinitions)
-            ->map(function (array $definition) use ($rows, $percentage) {
-                $count = $rows->where('situacion_bucket', $definition['key'])->count();
-
-                return [
-                    'label' => $definition['label'],
-                    'cantidad' => $count,
-                    'porcentaje' => $percentage($count),
-                ];
-            })
-            ->values()
-            ->all();
-
-        $moduleStatistics = $rows
-            ->groupBy('modulo_key')
-            ->map(function (Collection $items) use ($percentage) {
-                $delivered = $items->where('is_entregado', true)->count();
-
-                return [
-                    'label' => (string) ($items->first()['modulo_label'] ?? 'SIN MODULO'),
-                    'cantidad' => $items->count(),
-                    'participacion' => $percentage($items->count()),
-                    'entregados' => $delivered,
-                    'pendientes' => $items->count() - $delivered,
-                    'peso' => round((float) $items->sum('peso'), 3),
-                ];
-            })
-            ->sortByDesc('cantidad')
-            ->values()
-            ->all();
-
-        $serviceGroups = $rows->groupBy(
-            fn (array $row) => $normalizeLabel($row['servicio'] ?? null, 'SIN SERVICIO')
-        );
-        $serviceStatistics = $serviceGroups
-            ->map(function (Collection $items, string $label) use ($percentage) {
-                return [
-                    'label' => $label,
-                    'cantidad' => $items->count(),
-                    'participacion' => $percentage($items->count()),
-                    'peso' => round((float) $items->sum('peso'), 3),
-                ];
-            })
-            ->sortByDesc('cantidad')
-            ->take(15)
-            ->values()
-            ->all();
-
-        $destinationGroups = $rows->groupBy(
-            fn (array $row) => $normalizeLabel($row['destino'] ?? null, 'SIN DESTINO')
-        );
-        $destinationStatistics = $destinationGroups
-            ->map(function (Collection $items, string $label) use ($percentage) {
-                return [
-                    'label' => $label,
-                    'cantidad' => $items->count(),
-                    'participacion' => $percentage($items->count()),
-                ];
-            })
-            ->sortByDesc('cantidad')
-            ->take(10)
-            ->values()
-            ->all();
-
-        $monthlyGroups = $rows
-            ->filter(fn (array $row) => (int) ($row['created_at_ts'] ?? 0) > 0)
-            ->groupBy(fn (array $row) => date('Y-m', (int) $row['created_at_ts']));
-        $monthlyStatistics = $monthlyGroups
-            ->map(function (Collection $items, string $period) {
-                $delivered = $items->where('is_entregado', true)->count();
-
-                return [
-                    'periodo' => $period,
-                    'cantidad' => $items->count(),
-                    'entregados' => $delivered,
-                    'pendientes' => $items->count() - $delivered,
-                    'peso' => round((float) $items->sum('peso'), 3),
-                ];
-            })
-            ->sortKeys()
-            ->take(-24)
-            ->values()
-            ->all();
-
-        $weights = $rows->pluck('peso')->map(fn ($weight) => (float) $weight);
-        $delivered = $rows->where('is_entregado', true)->count();
-
-        return [
-            'tasa_entrega' => $percentage($delivered),
-            'peso_promedio' => $total > 0 ? round((float) $weights->avg(), 3) : 0.0,
-            'peso_mediano' => $total > 0 ? round((float) $weights->median(), 3) : 0.0,
-            'peso_maximo' => $total > 0 ? round((float) $weights->max(), 3) : 0.0,
-            'situaciones' => $statusDistribution,
-            'modulos' => $moduleStatistics,
-            'servicios' => $serviceStatistics,
-            'servicios_total' => $serviceGroups->count(),
-            'destinos' => $destinationStatistics,
-            'destinos_total' => $destinationGroups->count(),
-            'meses' => $monthlyStatistics,
-            'meses_total' => $monthlyGroups->count(),
-        ];
-    }
-
-    private function buildAdministrativeSummary(Collection $rows, string $departamentoOrigen = ''): array
-    {
-        $rows = $rows
-            ->filter(fn (array $row) => $this->hasValidAdministrativeUser($row))
-            ->filter(fn (array $row) => $this->empresaReplacementMatchesOrigin($row, $departamentoOrigen))
-            ->values();
-        $total = max(0, $rows->count());
-        $pesoTotal = round((float) $rows->sum('peso'), 3);
-        $costoTotal = round((float) $rows->sum('precio'), 2);
-        $ranking = $rows
-            ->groupBy(fn (array $row) => trim((string) ($row['usuario'] ?? '-')) ?: 'Sin usuario')
-            ->map(function (Collection $items, string $usuario) {
-                $firstTs = (int) $items->min('created_at_ts');
-                $lastTs = (int) $items->max('created_at_ts');
-                $regionales = $items
-                    ->pluck('regional')
-                    ->flatMap(fn ($value) => explode(',', (string) $value))
-                    ->map(fn ($value) => strtoupper(trim($value)))
-                    ->filter(fn ($value) => $value !== '' && $value !== '-')
-                    ->unique()
-                    ->values();
-                $servicios = $items
-                    ->map(fn (array $row) => trim((string) ($row['servicio'] ?? '')))
-                    ->filter(fn ($value) => $value !== '' && $value !== '-')
-                    ->countBy()
-                    ->sortDesc();
-                $serviciosDetalle = $servicios
-                    ->map(fn ($cantidad, $servicio) => [
-                        'nombre' => (string) $servicio,
-                        'cantidad' => (int) $cantidad,
-                    ])
-                    ->values()
-                    ->all();
-                $serviciosTexto = $servicios->isNotEmpty()
-                    ? $servicios->map(fn ($cantidad, $servicio) => $servicio . ' ' . number_format((int) $cantidad))->values()->implode(' / ')
-                    : 'EMS 0';
-                $origenes = $items
-                    ->pluck('origen_registro')
-                    ->map(fn ($value) => strtoupper(trim((string) $value)))
-                    ->filter(fn ($value) => $value !== '' && $value !== '-')
-                    ->unique()
-                    ->values();
-                $destinos = $items
-                    ->map(fn (array $row) => strtoupper(trim((string) ($row['destino'] ?? ''))))
-                    ->filter(fn ($value) => $value !== '' && $value !== '-')
-                    ->countBy()
-                    ->sortDesc();
-                $destinosDetalle = $destinos
-                    ->map(fn ($cantidad, $destino) => [
-                        'nombre' => (string) $destino,
-                        'cantidad' => (int) $cantidad,
-                    ])
-                    ->values()
-                    ->all();
-                $destinosTexto = $destinos->isNotEmpty()
-                    ? $destinos->map(fn ($cantidad, $destino) => $destino . ' ' . number_format((int) $cantidad))->values()->implode(' / ')
-                    : 'SIN DESTINO 0';
-                $entregadores = $items
-                    ->map(fn (array $row) => trim((string) ($row['entregado_por'] ?? '')))
-                    ->filter(fn ($value) => $value !== '')
-                    ->countBy()
-                    ->sortDesc();
-                $entregadoresDetalle = $entregadores
-                    ->map(fn ($cantidad, $usuario) => [
-                        'nombre' => (string) $usuario,
-                        'cantidad' => (int) $cantidad,
-                    ])
-                    ->values()
-                    ->all();
-                $entregadoresTexto = $entregadores->isNotEmpty()
-                    ? $entregadores->map(fn ($cantidad, $usuario) => $usuario . ' ' . number_format((int) $cantidad))->values()->implode(' / ')
-                    : 'Sin entrega registrada 0';
-
-                return [
-                    'usuario' => $usuario,
-                    'regional' => $regionales->isNotEmpty() ? $regionales->implode(', ') : 'SIN REGIONAL',
-                    'servicio' => $serviciosTexto,
-                    'servicios' => $serviciosDetalle,
-                    'origen' => $origenes->isNotEmpty() ? $origenes->implode(', ') : 'SIN ORIGEN',
-                    'destino' => $destinosTexto,
-                    'destinos' => $destinosDetalle,
-                    'entregado_por' => $entregadoresTexto,
-                    'entregadores' => $entregadoresDetalle,
-                    'total' => $items->count(),
-                    'peso' => round((float) $items->sum('peso'), 3),
-                    'precio' => round((float) $items->sum('precio'), 2),
-                    'primera_admision' => $firstTs > 0 ? Carbon::createFromTimestamp($firstTs)->format('d/m/Y H:i') : '-',
-                    'ultima_admision' => $lastTs > 0 ? Carbon::createFromTimestamp($lastTs)->format('d/m/Y H:i') : '-',
-                ];
-            })
-            ->sortByDesc('total')
-            ->values();
-
-        $rankingOrigenes = $this->buildAdministrativeLocationRanking($rows, 'origen_registro', 'SIN ORIGEN');
-        $rankingDestinos = $this->buildAdministrativeLocationRanking($rows, 'destino', 'SIN DESTINO');
-        $pesoPorModulo = $this->buildAdministrativeModuleWeightSummary($rows);
-        $ventanillaPorModulo = $this->buildAdministrativeVentanillaSummary($rows);
-        $entregasTop = $this->buildDeliveryTopSummary($rows);
-
-        return [
-            'total_admisiones' => $total,
-            'usuarios_activos' => $ranking->count(),
-            'peso_total' => $pesoTotal,
-            'costo_total' => $costoTotal,
-            'peso_por_modulo' => $pesoPorModulo,
-            'ventanilla_por_modulo' => $ventanillaPorModulo,
-            'top_ventanilla' => $ventanillaPorModulo->sortByDesc('total')->first() ?? ['servicio' => 'SIN DATOS', 'total' => 0, 'peso' => 0],
-            'entregas_ventanilla_top' => $entregasTop['ventanilla'],
-            'entregas_cartero_top' => $entregasTop['cartero'],
-            'top_origen' => $rankingOrigenes->first() ?? ['nombre' => 'SIN ORIGEN', 'total' => 0],
-            'top_destino' => $rankingDestinos->first() ?? ['nombre' => 'SIN DESTINO', 'total' => 0],
-            'ranking_origenes' => $rankingOrigenes,
-            'ranking_destinos' => $rankingDestinos,
-            'eficiencia_servicios' => $this->buildServiceEfficiencySummary($rows),
-            'ranking' => $ranking,
-        ];
-    }
-
-    private function buildGlobalPorServicioData(Request $request): array
-    {
-        @set_time_limit(300);
-        $request->query->set('limit', 'all');
-
-        $baseRequest = $request->duplicate();
-        $baseRequest->query->remove('servicios');
-        $baseRequest->query->remove('canales');
-        $baseRequest->query->set('limit', 'all');
-
-        $data = $this->buildReportData($baseRequest, 'general', true);
-        $selectedServices = $this->resolveServiceFilters($request);
-        $selectedReceptionChannels = collect($request->query('canales', []))
-            ->map(fn ($value) => $this->normalizeReceptionChannel((string) $value))
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
-        $rows = collect($data['rows'] ?? []);
-
-        if (!empty($selectedServices)) {
-            $selectedServiceMap = array_fill_keys($selectedServices, true);
-            $rows = $rows
-                ->filter(fn (array $row) => isset($selectedServiceMap[$this->normalizeServiceName((string) ($row['servicio'] ?? ''))]))
-                ->values();
-        }
-
-        if (!empty($selectedReceptionChannels)) {
-            $selectedChannelMap = array_fill_keys($selectedReceptionChannels, true);
-            $rows = $rows
-                ->filter(fn (array $row) => isset($selectedChannelMap[(string) ($row['canal_recepcion'] ?? '')]))
-                ->values();
-        }
-
-        $serviceOptionMatrix = collect($data['serviceOptions'] ?? [])
-            ->map(function (string $service) use ($data) {
-                $modules = collect($data['rows'] ?? [])
-                    ->filter(fn (array $row) => $this->normalizeServiceName((string) ($row['servicio'] ?? '')) === $service)
-                    ->map(fn (array $row) => (string) ($row['modulo_key'] ?? ''))
-                    ->filter()
-                    ->unique()
-                    ->values()
-                    ->all();
-
-                return [
-                    'service' => $service,
-                    'modules' => $modules,
-                ];
-            })
-            ->values()
-            ->all();
-
-        $receptionOptionMatrix = collect(['Empresa', 'Admisión', 'Registro interno'])
-            ->map(function (string $channel) use ($data) {
-                $modules = collect($data['rows'] ?? [])
-                    ->filter(fn (array $row) => (string) ($row['canal_recepcion'] ?? '') === $channel)
-                    ->map(fn (array $row) => (string) ($row['modulo_key'] ?? ''))
-                    ->filter()
-                    ->unique()
-                    ->values()
-                    ->all();
-
-                return [
-                    'channel' => $channel,
-                    'modules' => $modules,
-                ];
-            })
-            ->filter(fn (array $item) => !empty($item['modules']))
-            ->values()
-            ->all();
-
-        $serviceRows = $rows
-            ->groupBy(fn (array $row) => trim((string) ($row['servicio'] ?? '')) ?: 'SIN SERVICIO')
-            ->map(function (Collection $items, string $service) {
-                $ordered = $items->sortByDesc(fn (array $row) => $row['created_at_ts'] ?? 0)->values();
-                $modules = $items
-                    ->map(fn (array $row) => (string) ($row['modulo_label'] ?? '-'))
-                    ->filter()
-                    ->unique()
-                    ->values();
-                $canales = $items
-                    ->map(fn (array $row) => trim((string) ($row['canal_recepcion'] ?? 'Sin clasificar')) ?: 'Sin clasificar')
-                    ->countBy()
-                    ->sortDesc();
-
-                return [
-                    'servicio' => $service,
-                    'cantidad' => $items->count(),
-                    'entregados' => $items->where('is_entregado', true)->count(),
-                    'no_entregados' => $items->where('is_entregado', false)->where('is_cancelado', false)->count(),
-                    'peso' => round((float) $items->sum('peso'), 3),
-                    'precio' => round((float) $items->sum('precio'), 2),
-                    'modulos' => $modules->all(),
-                    'modulos_texto' => $modules->implode(', '),
-                    'canales' => $canales->all(),
-                    'canales_texto' => $canales->map(fn ($cantidad, $canal) => $canal . ': ' . number_format((int) $cantidad))->values()->implode(' / '),
-                    'empresa_count' => (int) ($canales['Empresa'] ?? 0),
-                    'admision_count' => (int) ($canales['Admisión'] ?? 0),
-                    'interno_count' => (int) ($canales['Registro interno'] ?? 0),
-                    'ultimo_registro' => (string) ($ordered->first()['created_at'] ?? '-'),
-                ];
-            })
-            ->sortByDesc('precio')
-            ->values();
-
-        $data['scopeLabel'] = 'Global por servicio';
-        $data['globalPorServicioMode'] = true;
-        $data['serviceRows'] = $serviceRows;
-        $data['serviceOptions'] = array_column($serviceOptionMatrix, 'service');
-        $data['serviceOptionMatrix'] = $serviceOptionMatrix;
-        $data['selectedServices'] = $selectedServices;
-        $data['receptionChannelOptions'] = array_column($receptionOptionMatrix, 'channel');
-        $data['receptionOptionMatrix'] = $receptionOptionMatrix;
-        $data['selectedReceptionChannels'] = $selectedReceptionChannels;
-        $data['serviceTotals'] = [
-            'servicios' => $serviceRows->count(),
-            'registros' => $rows->count(),
-            'entregados' => $rows->where('is_entregado', true)->count(),
-            'no_entregados' => $rows->where('is_entregado', false)->where('is_cancelado', false)->count(),
-            'empresa_count' => $rows->where('canal_recepcion', 'Empresa')->count(),
-            'admision_count' => $rows->where('canal_recepcion', 'Admisión')->count(),
-            'interno_count' => $rows->where('canal_recepcion', 'Registro interno')->count(),
-            'peso_total' => round((float) $rows->sum('peso'), 3),
-            'precio_total' => round((float) $rows->sum('precio'), 2),
-        ];
-
-        return $data;
-    }
-
     private function buildCommercialPerformanceData(Request $request): array
     {
         @set_time_limit(300);
@@ -1360,7 +725,7 @@ class ReportesController extends Controller
         $baseRequest->query->remove('lineas');
         $baseRequest->query->set('limit', 'all');
 
-        $data = $this->buildReportData($baseRequest, 'general', true);
+        $data = $this->buildCommercialBaseRows($baseRequest);
         $selectedLines = collect((array) $request->query('lineas', []))
             ->map(fn ($value) => strtoupper(trim((string) $value)))
             ->filter()
@@ -1731,267 +1096,6 @@ class ReportesController extends Controller
         return in_array($normalized, ['', '-', '.', 'SIN DESTINO', 'SIN ORIGEN'], true) ? '' : $normalized;
     }
 
-    private function normalizeReceptionChannel(string $value): string
-    {
-        $value = strtolower(trim($value));
-
-        return match ($value) {
-            'empresa' => 'Empresa',
-            'admision', 'admisión' => 'Admisión',
-            'registro interno' => 'Registro interno',
-            default => '',
-        };
-    }
-
-    private function buildAdministrativeModuleWeightSummary(Collection $rows): Collection
-    {
-        return collect(self::MODULES)
-            ->map(function (array $module, string $moduleKey) use ($rows) {
-                $moduleRows = $rows->where('modulo_key', $moduleKey);
-
-                return [
-                    'key' => $moduleKey,
-                    'servicio' => $module['label'],
-                    'total' => $moduleRows->count(),
-                    'peso' => round((float) $moduleRows->sum('peso'), 3),
-                ];
-            })
-            ->values();
-    }
-
-    private function buildAdministrativeVentanillaSummary(Collection $rows): Collection
-    {
-        $ventanillaRows = $rows
-            ->filter(fn (array $row) => $this->isAdministrativeVentanillaRow($row))
-            ->values();
-
-        return collect(self::MODULES)
-            ->map(function (array $module, string $moduleKey) use ($ventanillaRows) {
-                $moduleRows = $ventanillaRows->where('modulo_key', $moduleKey);
-
-                return [
-                    'key' => $moduleKey,
-                    'servicio' => $module['label'],
-                    'total' => $moduleRows->count(),
-                    'peso' => round((float) $moduleRows->sum('peso'), 3),
-                ];
-            })
-            ->values();
-    }
-
-    private function isAdministrativeVentanillaRow(array $row): bool
-    {
-        $estado = $this->normalizeDestino((string) ($row['estado'] ?? ''));
-        $moduleKey = (string) ($row['modulo_key'] ?? '');
-
-        if (str_contains($estado, 'VENTANILLA')) {
-            return true;
-        }
-
-        return $moduleKey === 'ordi' && $estado === 'RECIBIDO';
-    }
-
-    private function buildDeliveryTopSummary(Collection $rows): array
-    {
-        $deliveredRows = $rows
-            ->filter(fn (array $row) => (bool) ($row['is_entregado'] ?? false))
-            ->filter(fn (array $row) => (int) ($row['entregado_por_id'] ?? 0) > 0)
-            ->filter(fn (array $row) => trim((string) ($row['entregado_por'] ?? '')) !== '')
-            ->filter(fn (array $row) => trim((string) ($row['entregado_por'] ?? '')) !== 'Sin entrega registrada')
-            ->values();
-
-        return [
-            'ventanilla' => $this->buildDeliveryTopForChannel(
-                $deliveredRows->reject(fn (array $row) => $this->isCarteroRoleNames((string) ($row['entregado_por_roles'] ?? '')))->values()
-            ),
-            'cartero' => $this->buildDeliveryTopForChannel(
-                $deliveredRows->filter(fn (array $row) => $this->isCarteroRoleNames((string) ($row['entregado_por_roles'] ?? '')))->values()
-            ),
-        ];
-    }
-
-    private function buildDeliveryTopForChannel(Collection $rows): Collection
-    {
-        return $rows
-            ->groupBy(fn (array $row) => trim((string) ($row['entregado_por'] ?? 'SIN DATO')) ?: 'SIN DATO')
-            ->map(function (Collection $items, string $usuario) {
-                $servicios = $items
-                    ->map(fn (array $row) => trim((string) ($row['servicio'] ?? '')))
-                    ->filter(fn ($value) => $value !== '' && $value !== '-')
-                    ->countBy()
-                    ->sortDesc();
-
-                return [
-                    'usuario' => $usuario,
-                    'total' => $items->count(),
-                    'peso' => round((float) $items->sum('peso'), 3),
-                    'servicio' => $servicios->isNotEmpty()
-                        ? $servicios->map(fn ($cantidad, $servicio) => $servicio . ' ' . number_format((int) $cantidad))->values()->implode(' / ')
-                        : 'SIN SERVICIO 0',
-                ];
-            })
-            ->sortByDesc('total')
-            ->values();
-    }
-
-    private function isCarteroRoleNames(string $roleNames): bool
-    {
-        return str_contains(mb_strtolower(trim($roleNames)), 'cartero');
-    }
-
-    private function buildAdministrativeMalencaminadosSummary(Request $request, string $departamentoOrigen = '', string $departamentoDestino = ''): array
-    {
-        [$from, $to] = $this->resolveDateRange($request);
-        $monthDateRanges = $this->buildMonthDateRanges($this->resolveSelectedMonthFilters($request));
-        if (!empty($monthDateRanges)) {
-            $from = null;
-            $to = null;
-        }
-
-        $search = trim((string) $request->query('q', ''));
-        $departamentoExpr = "coalesce(
-            nullif(trim(upper(m.departamento_origen)), ''),
-            nullif(trim(upper(pe.origen)), ''),
-            nullif(trim(upper(pc.origen)), ''),
-            'SIN ORIGEN'
-        )";
-        $tipoExpr = "case
-            when m.paquetes_ems_id is not null then 'ems'
-            when m.paquetes_contrato_id is not null then 'contrato'
-            when m.paquetes_certi_id is not null then 'certi'
-            when m.paquetes_ordi_id is not null then 'ordi'
-            else '-'
-        end";
-
-        $query = DB::table('malencaminados as m')
-            ->leftJoin('paquetes_ems as pe', 'pe.id', '=', 'm.paquetes_ems_id')
-            ->leftJoin('paquetes_contrato as pc', 'pc.id', '=', 'm.paquetes_contrato_id')
-            ->leftJoin('paquetes_certi as pce', 'pce.id', '=', 'm.paquetes_certi_id')
-            ->leftJoin('paquetes_ordi as po', 'po.id', '=', 'm.paquetes_ordi_id')
-            ->selectRaw("
-                m.id,
-                m.codigo,
-                {$departamentoExpr} as departamento_origen,
-                coalesce(nullif(trim(upper(m.destino_anterior)), ''), '-') as destino_anterior,
-                coalesce(nullif(trim(upper(m.destino_nuevo)), ''), '-') as destino_nuevo,
-                coalesce(m.malencaminamiento, 1) as malencaminamiento,
-                coalesce(m.observacion, '') as observacion,
-                m.created_at,
-                {$tipoExpr} as modulo_key
-            ");
-
-        $this->applyDateFilter($query, 'm.created_at', $from, $to, $monthDateRanges);
-
-        if ($search !== '') {
-            $like = '%' . mb_strtolower($search) . '%';
-            $query->where(function (Builder $sub) use ($like) {
-                $sub->whereRaw("LOWER(COALESCE(CAST(m.codigo AS TEXT), '')) LIKE ?", [$like])
-                    ->orWhereRaw("LOWER(COALESCE(CAST(m.destino_anterior AS TEXT), '')) LIKE ?", [$like])
-                    ->orWhereRaw("LOWER(COALESCE(CAST(m.destino_nuevo AS TEXT), '')) LIKE ?", [$like])
-                    ->orWhereRaw("LOWER(COALESCE(CAST(m.observacion AS TEXT), '')) LIKE ?", [$like]);
-            });
-        }
-
-        $rows = $query
-            ->orderByDesc('m.created_at')
-            ->orderByDesc('m.id')
-            ->get()
-            ->map(function (object $row) {
-                $createdAt = $this->safeCarbon($row->created_at ?? null);
-
-                return [
-                    'id' => (int) ($row->id ?? 0),
-                    'codigo' => (string) ($row->codigo ?? '-'),
-                    'modulo_key' => (string) ($row->modulo_key ?? '-'),
-                    'servicio' => self::MODULES[$row->modulo_key ?? '']['label'] ?? strtoupper((string) ($row->modulo_key ?? '-')),
-                    'departamento_origen' => (string) ($row->departamento_origen ?? 'SIN ORIGEN'),
-                    'destino_anterior' => (string) ($row->destino_anterior ?? '-'),
-                    'destino_nuevo' => (string) ($row->destino_nuevo ?? '-'),
-                    'malencaminamiento' => (int) ($row->malencaminamiento ?? 1),
-                    'observacion' => (string) ($row->observacion ?? ''),
-                    'created_at' => $createdAt?->format('d/m/Y H:i') ?? '-',
-                    'created_at_ts' => $createdAt?->timestamp ?? 0,
-                ];
-            })
-            ->filter(fn (array $row) => $this->matchesDepartamentoValue((string) ($row['departamento_origen'] ?? ''), $departamentoOrigen))
-            ->filter(fn (array $row) => $this->matchesDepartamentoValue((string) ($row['destino_nuevo'] ?? ''), $departamentoDestino))
-            ->values();
-
-        $porModulo = collect(self::MODULES)
-            ->map(function (array $module, string $moduleKey) use ($rows) {
-                $moduleRows = $rows->where('modulo_key', $moduleKey);
-
-                return [
-                    'key' => $moduleKey,
-                    'servicio' => $module['label'],
-                    'total' => $moduleRows->count(),
-                    'malencaminamientos' => (int) $moduleRows->sum('malencaminamiento'),
-                ];
-            })
-            ->values();
-
-        return [
-            'total' => $rows->count(),
-            'total_malencaminamientos' => (int) $rows->sum('malencaminamiento'),
-            'por_modulo' => $porModulo,
-            'ultimos' => $rows->take(10)->values(),
-        ];
-    }
-
-    private function matchesDepartamentoValue(string $value, string $departamento): bool
-    {
-        if ($departamento === '') {
-            return true;
-        }
-
-        $canonical = $this->canonicalDepartamentoName($value);
-        if ($canonical === '') {
-            return false;
-        }
-
-        return $canonical === $departamento;
-    }
-
-    private function hasValidAdministrativeUser(array $row): bool
-    {
-        $usuarioId = (int) ($row['usuario_id'] ?? 0);
-        $usuario = trim((string) ($row['usuario'] ?? ''));
-
-        if ($usuarioId <= 0 || $usuario === '' || $usuario === '-') {
-            return false;
-        }
-
-        if (! (bool) ($row['usuario_activo'] ?? false)) {
-            return false;
-        }
-
-        return ! $this->isEmpresaRoleNames((string) ($row['usuario_roles'] ?? ''));
-    }
-
-    private function empresaReplacementMatchesOrigin(array $row, string $departamentoOrigen = ''): bool
-    {
-        if (! (bool) ($row['usuario_empresa_gestora'] ?? false)) {
-            return true;
-        }
-
-        $origen = $departamentoOrigen !== ''
-            ? $departamentoOrigen
-            : (string) ($row['origen_registro'] ?? $row['origen'] ?? '');
-        $origenCanonico = $this->canonicalDepartamentoName($origen);
-
-        if ($origenCanonico === '') {
-            return true;
-        }
-
-        $regionales = collect(explode(',', (string) ($row['regional'] ?? '')))
-            ->map(fn ($regional) => $this->canonicalDepartamentoName($regional))
-            ->filter(fn ($regional) => $regional !== '')
-            ->unique()
-            ->values();
-
-        return $regionales->contains($origenCanonico);
-    }
-
     private function deliveredEventSubquery(string $eventTable): Builder
     {
         return $this->eventUserSubquery($eventTable, self::EVENTO_ENTREGADO_ID);
@@ -2004,39 +1108,6 @@ class ReportesController extends Controller
             ->where('evento_id', $eventId)
             ->whereNotNull('user_id')
             ->groupBy('codigo');
-    }
-
-    private function buildServiceEfficiencySummary(Collection $rows): Collection
-    {
-        return $rows
-            ->filter(fn (array $row) => (bool) ($row['is_entregado'] ?? false))
-            ->filter(fn (array $row) => (float) ($row['delivery_hours'] ?? 0) > 0)
-            ->groupBy(fn (array $row) => trim((string) ($row['servicio'] ?? '-')) ?: 'SIN SERVICIO')
-            ->map(function (Collection $items, string $servicio) {
-                $avgHours = round((float) $items->avg('delivery_hours'), 2);
-                $minHours = round((float) $items->min('delivery_hours'), 2);
-                $maxHours = round((float) $items->max('delivery_hours'), 2);
-
-                return [
-                    'servicio' => $servicio,
-                    'total' => $items->count(),
-                    'promedio_horas' => $avgHours,
-                    'promedio' => $this->formatDurationHours($avgHours),
-                    'mejor_tiempo' => $this->formatDurationHours($minHours),
-                    'mayor_tiempo' => $this->formatDurationHours($maxHours),
-                    'peso' => round((float) $items->sum('peso'), 3),
-                    'costo' => round((float) $items->sum('precio'), 2),
-                ];
-            })
-            ->sort(function (array $a, array $b) {
-                $avgCompare = ($a['promedio_horas'] ?? 0) <=> ($b['promedio_horas'] ?? 0);
-                if ($avgCompare !== 0) {
-                    return $avgCompare;
-                }
-
-                return ($b['total'] ?? 0) <=> ($a['total'] ?? 0);
-            })
-            ->values();
     }
 
     private function formatDurationHours(float $hours): string
@@ -2073,57 +1144,6 @@ class ReportesController extends Controller
         return DB::connection()->getDriverName() === 'pgsql'
             ? "coalesce({$alias}.regionales::text, '')"
             : "coalesce({$alias}.regionales, '')";
-    }
-
-    private function buildAdministrativeLocationSummary(Collection $rows, string $key, string $fallback): ?array
-    {
-        $ranking = $rows
-            ->map(fn (array $row) => strtoupper(trim((string) ($row[$key] ?? ''))))
-            ->filter(fn ($value) => $value !== '' && $value !== '-')
-            ->countBy()
-            ->sortDesc();
-
-        if ($ranking->isEmpty()) {
-            return [
-                'nombre' => $fallback,
-                'total' => 0,
-            ];
-        }
-
-        return [
-            'nombre' => (string) $ranking->keys()->first(),
-            'total' => (int) $ranking->first(),
-        ];
-    }
-
-    private function buildAdministrativeLocationRanking(Collection $rows, string $key, string $fallback, bool $splitComma = false): Collection
-    {
-        $values = $rows->flatMap(function (array $row) use ($key, $splitComma) {
-            $value = (string) ($row[$key] ?? '');
-            $items = $splitComma ? explode(',', $value) : [$value];
-
-            return collect($items)
-                ->map(fn ($item) => $this->canonicalDepartamentoName((string) $item))
-                ->filter(fn ($item) => $item !== '' && $item !== '-');
-        });
-
-        $ranking = $values
-            ->countBy()
-            ->sortDesc()
-            ->map(fn ($cantidad, $nombre) => [
-                'nombre' => (string) $nombre,
-                'total' => (int) $cantidad,
-            ])
-            ->values();
-
-        if ($ranking->isEmpty()) {
-            return collect([[
-                'nombre' => $fallback,
-                'total' => 0,
-            ]]);
-        }
-
-        return $ranking;
     }
 
     private function canonicalDepartamentoName(string $value): string
@@ -2244,27 +1264,6 @@ class ReportesController extends Controller
             ->first() ?? '';
     }
 
-    private function isAdmissionRoleNames(string $roleNames): bool
-    {
-        $normalized = mb_strtolower(trim($roleNames));
-        if ($normalized === '') {
-            return false;
-        }
-
-        foreach (['admision', 'admisiones'] as $admissionRole) {
-            if (str_contains($normalized, $admissionRole)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private function isEmpresaRoleNames(string $roleNames): bool
-    {
-        return str_contains(mb_strtolower(trim($roleNames)), 'empresa');
-    }
-
     private function resolveRegionalText(mixed $ciudad, mixed $regionales): string
     {
         $items = [];
@@ -2289,20 +1288,6 @@ class ReportesController extends Controller
             ->values();
 
         return $items->isNotEmpty() ? $items->implode(', ') : 'SIN REGIONAL';
-    }
-
-    private function paginateCollection(Collection $rows, int $perPage, Request $request): LengthAwarePaginator
-    {
-        $page = max(1, (int) $request->query('page', 1));
-        $items = $rows->forPage($page, $perPage)->values();
-
-        return new LengthAwarePaginator(
-            $items,
-            $rows->count(),
-            $perPage,
-            $page,
-            ['path' => url()->current(), 'query' => $request->query()]
-        );
     }
 
     private function resolveSelectedModules(string $scope, Request $request): array
@@ -2472,42 +1457,6 @@ class ReportesController extends Controller
             ->all();
     }
 
-    private function monthFilterOptions(): array
-    {
-        $year = now()->year;
-
-        return collect(range(1, 12))
-            ->map(fn (int $month) => [
-                'value' => sprintf('%04d-%02d', $year, $month),
-                'label' => $this->monthFilterLabel(sprintf('%04d-%02d', $year, $month)),
-            ])
-            ->all();
-    }
-
-    private function monthFilterLabel(string $month): string
-    {
-        $labels = [
-            1 => 'Enero',
-            2 => 'Febrero',
-            3 => 'Marzo',
-            4 => 'Abril',
-            5 => 'Mayo',
-            6 => 'Junio',
-            7 => 'Julio',
-            8 => 'Agosto',
-            9 => 'Septiembre',
-            10 => 'Octubre',
-            11 => 'Noviembre',
-            12 => 'Diciembre',
-        ];
-
-        if (!preg_match('/^(\d{4})-(0[1-9]|1[0-2])$/', $month, $matches)) {
-            return $month;
-        }
-
-        return ($labels[(int) $matches[2]] ?? $month) . ' ' . $matches[1];
-    }
-
     private function resolveStatusFilters(Request $request): array
     {
         $requested = $request->query('statuses');
@@ -2554,17 +1503,6 @@ class ReportesController extends Controller
             ->all();
     }
 
-    private function serviceOptionsFromRows(Collection $rows): array
-    {
-        return $rows
-            ->map(fn (array $row) => $this->normalizeServiceName((string) ($row['servicio'] ?? '')))
-            ->filter()
-            ->unique()
-            ->sort()
-            ->values()
-            ->all();
-    }
-
     private function filterRowsByService(Collection $rows, array $selectedServices): Collection
     {
         if (empty($selectedServices)) {
@@ -2597,13 +1535,6 @@ class ReportesController extends Controller
         return $value;
     }
 
-    private function resolveEstadoIds(Request $request): array
-    {
-        $ids = $request->query('estado_ids', []);
-        $ids = is_array($ids) ? $ids : [$ids];
-        return array_values(array_filter(array_map('intval', $ids), fn ($v) => $v > 0));
-    }
-
     private function resolveLimit(Request $request): ?int
     {
         $value = strtolower((string) $request->query('limit', '200'));
@@ -2613,13 +1544,6 @@ class ReportesController extends Controller
         $allowed = [50, 100, 200, 500, 1000];
         $intValue = (int) $value;
         return in_array($intValue, $allowed, true) ? $intValue : 200;
-    }
-
-    private function resolvePerPage(Request $request): int
-    {
-        $allowed = [25, 50, 100];
-        $value = (int) $request->query('per_page', 50);
-        return in_array($value, $allowed, true) ? $value : 50;
     }
 
     private function applyStatusFilter(Builder $query, string $stateColumn, string $status, ?int $estadoEntregadoId): void
@@ -2919,23 +1843,6 @@ class ReportesController extends Controller
     {
         $value = strtoupper(trim($value));
         return preg_replace('/\s+/', ' ', $value) ?? $value;
-    }
-
-    private function normalizeScope(string $scope): string
-    {
-        $scope = strtolower(trim($scope));
-        return in_array($scope, self::SCOPES, true) ? $scope : 'general';
-    }
-
-    private function scopeLabel(string $scope): string
-    {
-        return match ($scope) {
-            'contrato' => 'Reporte Contratos',
-            'ems' => 'Reporte EMS',
-            'certi' => 'Reporte Certificados',
-            'ordi' => 'Reporte Ordinarios',
-            default => 'Reporte General',
-        };
     }
 
     private function safeCarbon(?string $value): ?Carbon
