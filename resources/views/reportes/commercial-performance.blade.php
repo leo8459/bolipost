@@ -3,10 +3,22 @@
 @section('title', 'Rendimiento comercial')
 
 @section('content_header')
+    @php
+        $headingPeriodFiltered = !empty($from) || !empty($to);
+        $headingPeriodLabel = $headingPeriodFiltered
+            ? (($from ? date('d/m/Y', strtotime($from)) : 'Inicio') . ' – ' . ($to ? date('d/m/Y', strtotime($to)) : 'Hoy'))
+            : 'Todo el historial';
+    @endphp
     <div class="report-heading d-flex flex-column flex-md-row justify-content-between align-items-md-center">
         <div>
             <div class="report-eyebrow">DIRECCIÓN COMERCIAL · INDICADORES OPERATIVOS</div>
-            <h1 class="mb-1">Rendimiento de servicios y productos</h1>
+            <div class="d-flex flex-wrap align-items-center">
+                <h1 class="mb-1 mr-3">Rendimiento de servicios y productos</h1>
+                <span class="report-period-badge {{ $headingPeriodFiltered ? 'report-period-badge--filtered' : '' }}">
+                    <i class="far fa-calendar-alt mr-1"></i>
+                    {{ $headingPeriodFiltered ? 'Periodo filtrado: ' : 'Periodo: ' }}{{ $headingPeriodLabel }}
+                </span>
+            </div>
             <p class="mb-0 text-muted">Actividad, entregas y tiempos de servicio en el periodo seleccionado.</p>
         </div>
         <a href="{{ route('dashboard') }}" class="btn btn-outline-secondary mt-3 mt-md-0">
@@ -21,6 +33,8 @@
         .report-heading { padding: 4px 0 12px; }
         .report-heading h1 { color: #17324d; font-size: 1.65rem; font-weight: 700; letter-spacing: -.02em; }
         .report-heading p { font-size: .92rem; }
+        .report-period-badge { background: #e9f1fb; border: 1px solid #cbdcf0; border-radius: 16px; color: #315a7e; display: inline-block; font-size: .76rem; font-weight: 700; margin-bottom: 4px; padding: 5px 10px; }
+        .report-period-badge--filtered { background: #e8f5ef; border-color: #c8e7d6; color: #24734f; }
         .report-eyebrow, .report-section-kicker { color: #56728d; font-size: .69rem; font-weight: 700; letter-spacing: .09em; }
         #commercial-performance { --report-ink: #17324d; --report-muted: #718096; --report-line: #e5ebf1; --report-blue: #2364aa; }
         #commercial-performance .report-card { border: 1px solid var(--report-line); border-radius: 10px; box-shadow: 0 3px 12px rgba(25, 48, 74, .045); }

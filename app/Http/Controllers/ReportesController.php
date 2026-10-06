@@ -320,6 +320,7 @@ class ReportesController extends Controller
         $regionalesUserExpression = $this->regionalesValueExpression('u');
         $regionalesPickupExpression = $this->regionalesValueExpression('up');
         $empresaUserCondition = "(coalesce(ur.role_names, '') like '%empresa%' or u.empresa_id is not null)";
+        $companyIdExpression = 'COALESCE(t.empresa_id, u.empresa_id)';
 
         return DB::table('paquetes_contrato as t')
             ->leftJoin('estados as e', 'e.id', '=', 't.estados_id')
@@ -342,6 +343,17 @@ class ReportesController extends Controller
             ->leftJoin('users as ud', 'ud.id', '=', 'ev_d.user_id')
             ->leftJoinSub($rolesSub, 'udr', function ($join) {
                 $join->on('udr.model_id', '=', 'ud.id');
+            })
+            ->where(function ($companyQuery) use ($companyIdExpression): void {
+                $companyQuery->whereRaw($companyIdExpression.' IS NULL')
+                    ->orWhereNotIn(DB::raw($companyIdExpression), function ($excludedCompanies): void {
+                        $excludedCompanies->select('id')
+                            ->from('empresa')
+                            ->where(function ($query): void {
+                                $query->whereRaw("LOWER(TRIM(COALESCE(nombre, ''))) LIKE ?", ['%prueba%'])
+                                    ->orWhereRaw("UPPER(TRIM(COALESCE(nombre, ''))) = ?", ['EMPRESA']);
+                            });
+                    });
             })
             ->select([
                 DB::raw("'contrato' as modulo_key"),
@@ -562,8 +574,10 @@ class ReportesController extends Controller
     private function decorateRow(string $moduleKey, object $row, ?int $estadoEntregadoId, ?int $estadoCanceladoId): array
     {
         $estadoId = (int) ($row->estado_id ?? 0);
+        $estadoNombre = trim((string) ($row->estado_nombre ?? ''));
         $isEntregado = $estadoEntregadoId && $estadoId === $estadoEntregadoId;
-        $isCancelado = $estadoCanceladoId && $estadoId === $estadoCanceladoId;
+        $isCancelado = ($estadoCanceladoId && $estadoId === $estadoCanceladoId)
+            || strtoupper($estadoNombre) === 'CANCELADO';
         $bucket = 'sin_datos';
         $situacion = 'Sin datos';
 
@@ -651,6 +665,7 @@ class ReportesController extends Controller
             'created_at' => $createdAt?->format('d/m/Y H:i') ?? '-',
             'updated_at' => $updatedAt?->format('d/m/Y H:i') ?? '-',
             'delivered_at' => $deliveredAt?->format('d/m/Y H:i') ?? '-',
+            'created_at_month' => $createdAt?->format('Y-m') ?? '',
             'created_at_ts' => $createdAt?->timestamp ?? 0,
             'delivered_at_ts' => $deliveredAt?->timestamp ?? 0,
             'delivery_hours' => $deliveryHours,
@@ -752,6 +767,10 @@ class ReportesController extends Controller
                 ->filter(fn (array $row) => isset($selectedLineMap[(string) ($row['linea_negocio'] ?? '')]))
                 ->values();
         }
+
+        $rows = $this->deduplicateCommercialGuidesByMonth(
+            $rows->sortByDesc(fn (array $row) => $row['created_at_ts'] ?? 0)->values()
+        );
 
         $lineRows = $rows
             ->groupBy(fn (array $row) => (string) ($row['linea_negocio'] ?? 'OTRAS LINEAS'))
@@ -923,6 +942,33 @@ class ReportesController extends Controller
         return $query
             ->get()
             ->map(fn ($row) => $this->decorateRow('tiktoker', $row, $this->resolveEstadoEntregadoId(), $this->resolveEstadoCanceladoId()));
+    }
+
+    private function deduplicateCommercialGuidesByMonth(Collection $rows): Collection
+    {
+        $seen = [];
+
+        return $rows->filter(function (array $row) use (&$seen): bool {
+            $code = strtoupper(trim((string) ($row['codigo'] ?? '')));
+            $month = trim((string) ($row['created_at_month'] ?? ''));
+            if ($code === '' || $code === '-' || $month === '') {
+                return true;
+            }
+
+            // Delivery Express may have legitimate records without a guide code.
+            if (($row['modulo_key'] ?? '') === 'tiktoker' && $code === 'SIN CODIGO') {
+                return true;
+            }
+
+            $key = strtolower(trim((string) ($row['modulo_key'] ?? ''))) . '|' . $month . '|' . $code;
+            if (isset($seen[$key])) {
+                return false;
+            }
+
+            $seen[$key] = true;
+
+            return true;
+        })->values();
     }
 
     private function buildCommercialEffectivenessSummary(Collection $rows): array
@@ -1373,10 +1419,6 @@ class ReportesController extends Controller
     private function resolveDateRange(Request $request): array
     {
         $range = strtolower(trim((string) $request->query('range', 'all')));
-        if ($range === 'all') {
-            return [null, null, 'all'];
-        }
-
         $from = $this->safeCarbon((string) $request->query('from', ''))?->startOfDay();
         $to = $this->safeCarbon((string) $request->query('to', ''))?->endOfDay();
 
@@ -1392,6 +1434,10 @@ class ReportesController extends Controller
 
         if ($from || $to) {
             return [$from, $to, 'custom'];
+        }
+
+        if ($range === 'all') {
+            return [null, null, 'all'];
         }
 
         $now = now();
