@@ -87,7 +87,8 @@ class FinancialReportController extends Controller
             excludedCashierNames: self::CASHIER_FLOW_EXCLUDED_CASHIERS,
             enableDepartmentFilter: true,
             cacheReports: true,
-            showReceivablesSeparately: true
+            showReceivablesSeparately: true,
+            includeAnnulledDetails: true
         );
         $receivableRows = collect($data['receivableServices']);
         $invoicePeriodMovements = collect();
@@ -101,36 +102,31 @@ class FinancialReportController extends Controller
             $invoicePeriodMovements = $this->enrichCashierFlowCollectedMovements($invoicePeriodMovements);
         }
         $cancellationServices = collect($data['services'])->concat($data['receivableServices']);
-        $invoiceAudit = $this->loadCashierFlowCancelledInvoices(
-            $this->cashierFlowInvoiceDetailFilters(
-                $cancellationServices,
-                $data['selectedMonths'],
-                $data['anio']
-            ),
+        $cancelledInvoices = $this->cashierFlowCancelledInvoicesFromServices(
             $cancellationServices,
-            $data['selectedDepartment'],
+            $data['anio'],
             self::CASHIER_FLOW_EXCLUDED_CASHIERS,
-            $request->boolean('actualizar')
+            $data['selectedDepartment']
         );
-        $cancelledMovementKeys = $invoiceAudit['invoices']->pluck('_movementKey')->filter()->flip();
+        $cancelledMovementKeys = $cancelledInvoices->pluck('_movementKey')->filter()->flip();
         if ($cancelledMovementKeys->isNotEmpty()) {
             $invoicePeriodMovements = $invoicePeriodMovements
                 ->reject(fn (CashierFlowReceivableMovement $movement): bool => $cancelledMovementKeys->has($movement->movement_key))
                 ->values();
         }
-        $data['cashierFlowCancelledInvoices'] = $invoiceAudit['invoices']
+        $data['cashierFlowCancelledInvoices'] = $cancelledInvoices
             ->unique(fn (array $invoice): string => filled($invoice['_movementKey'] ?? null)
                 ? (string) $invoice['_movementKey']
                 : (string) $invoice['_dedupeKey'])
             ->sortByDesc('fecha')
             ->values();
-        $data['summary']['totalMontoAnulado'] = (float) $invoiceAudit['invoices']
+        $data['summary']['totalMontoAnulado'] = (float) $cancelledInvoices
             ->reject(fn (array $invoice): bool => $this->isCashierFlowReceivableService((string) ($invoice['_servicio'] ?? '')))
             ->sum('monto');
-        $data['cashierFlowCancellationLookupErrors'] = $invoiceAudit['errors']
+        $data['cashierFlowCancellationLookupErrors'] = collect($data['annulledDetailErrors'] ?? [])
             ->unique()
             ->values();
-        $cancelledByService = $invoiceAudit['invoices']
+        $cancelledByService = $cancelledInvoices
             ->reject(fn (array $invoice): bool => $this->isCashierFlowReceivableService((string) ($invoice['_servicio'] ?? '')))
             ->groupBy('_servicio')
             ->map(fn (Collection $invoices): float => (float) $invoices->sum('monto'));
@@ -347,6 +343,78 @@ class FinancialReportController extends Controller
             ->unique(fn (array $filter): string => $filter['servicio'].'|'.$filter['mes'].'|'.$filter['anio'])
             ->values()
             ->all();
+    }
+
+    private function cashierFlowCancelledInvoicesFromServices(
+        Collection $services,
+        int $year,
+        array $excludedCashierNames = self::CASHIER_FLOW_EXCLUDED_CASHIERS,
+        string $selectedDepartment = ''
+    ): Collection {
+        $rows = $services
+            ->flatMap(function (array $service): Collection {
+                $serviceName = trim((string) ($service['servicio'] ?? ''));
+
+                return collect($service['_annulledRows'] ?? [])->map(fn ($row): array => [
+                    ...(array) $row,
+                    '_servicio' => $serviceName,
+                    '_mes' => (int) ($row['_mes'] ?? 0),
+                ]);
+            })
+            ->values();
+
+        return $this->attachCashierFlowMovementKeys($rows, $year)
+            ->filter(function (array $row) use ($excludedCashierNames, $selectedDepartment, $services): bool {
+                if (! $this->isCancelledCashierFlowInvoice($row)) {
+                    return false;
+                }
+                if ($excludedCashierNames !== [] && $this->isCashierFlowExcludedInvoice($row, $excludedCashierNames)) {
+                    return false;
+                }
+
+                return $selectedDepartment === '' || $this->cashierFlowDetailRowMatchesDepartment(
+                    $row,
+                    (string) ($row['_servicio'] ?? ''),
+                    $services,
+                    $selectedDepartment
+                );
+            })
+            ->map(function (array $row) use ($year): array {
+                $invoiceUser = (array) ($row['usuario'] ?? []);
+                $userId = trim((string) ($invoiceUser['id'] ?? $row['usuarioId'] ?? ''));
+                $userName = trim((string) ($invoiceUser['nombre'] ?? $invoiceUser['name'] ?? $row['usuarioNombre'] ?? ''));
+                $userEmail = trim((string) ($invoiceUser['email'] ?? $row['usuarioEmail'] ?? ''));
+                $userAlias = trim((string) ($invoiceUser['alias'] ?? $row['usuarioAlias'] ?? ''));
+                $saleId = trim((string) ($row['ventaId'] ?? ''));
+                $detailId = trim((string) ($row['detalleId'] ?? ''));
+                $amount = round((float) ($row['totalLinea'] ?? $row['monto'] ?? 0), 2);
+                $serviceName = (string) ($row['_servicio'] ?? '');
+                $month = (int) ($row['_mes'] ?? 0);
+
+                return [
+                    '_servicio' => $serviceName,
+                    '_movementKey' => trim((string) ($row['_movementKey'] ?? '')),
+                    '_dedupeKey' => hash('sha256', implode('|', [$serviceName, $month, $year, $saleId, $detailId, $amount])),
+                    '_cashierIdentity' => $this->cashierIdentity($userId, $userEmail, $userAlias, $userName),
+                    '_usuarioId' => $userId,
+                    '_usuarioEmail' => $userEmail,
+                    '_usuarioAlias' => $userAlias,
+                    '_departamento' => $this->firstReportTextValue($row['regional'] ?? null),
+                    '_ventaId' => $saleId,
+                    '_detalleId' => $detailId,
+                    '_cantidad' => round((float) ($row['cantidad'] ?? 0), 2),
+                    'servicio' => $serviceName,
+                    'fecha' => trim((string) ($row['fecha'] ?? '')),
+                    'venta' => $saleId !== '' ? $saleId : '-',
+                    'detalle' => $detailId !== '' ? $detailId : '-',
+                    'facturadoPor' => $userName !== '' ? $userName : ($userAlias !== '' ? $userAlias : ($userId !== '' ? $userId : 'Sin dato')),
+                    'medioPago' => trim((string) ($row['medioPago'] ?? $row['medio_pago'] ?? '')),
+                    'estadoFiscal' => trim((string) ($row['estadoFiscal'] ?? $row['estado_fiscal'] ?? '')),
+                    'estadoPago' => trim((string) ($row['estadoPago'] ?? $row['estado_pago'] ?? '')),
+                    'monto' => $amount,
+                ];
+            })
+            ->values();
     }
 
     private function loadCashierFlowCancelledInvoices(
@@ -1198,7 +1266,8 @@ class FinancialReportController extends Controller
         array $excludedCashierNames = [],
         bool $enableDepartmentFilter = false,
         bool $cacheReports = false,
-        bool $showReceivablesSeparately = false
+        bool $showReceivablesSeparately = false,
+        bool $includeAnnulledDetails = false
     ): array {
         $this->normalizeServiceFilterInput($request, 'servicios');
 
@@ -1235,6 +1304,7 @@ class FinancialReportController extends Controller
         $aggregated = collect();
         $serviceOptions = $requestedServices->keyBy(fn ($service) => mb_strtoupper($service, 'UTF-8'));
         $errors = collect();
+        $annulledDetailErrors = collect();
         $apiUniqueSales = 0.0;
         $apiIncludedSales = 0.0;
         $apiExcludedSales = 0.0;
@@ -1260,9 +1330,17 @@ class FinancialReportController extends Controller
         if ($enableDepartmentFilter && filled($validated['departamento'] ?? null)) {
             $reportFilters['regionalConteo'] = $this->canonicalDepartmentName((string) $validated['departamento']);
         }
+        if ($includeAnnulledDetails) {
+            $reportFilters['incluirDetalleAnuladas'] = true;
+            if ($enableDepartmentFilter && filled($validated['departamento'] ?? null)) {
+                $reportFilters['regionalDetalle'] = $this->canonicalDepartmentName((string) $validated['departamento']);
+            }
+        }
         if ($excludedCashierNames !== []) {
             $reportFilters['excluirUsuariosConteo'] = array_values($excludedCashierNames);
         }
+        $summaryReportFilters = $reportFilters;
+        unset($summaryReportFilters['incluirDetalleAnuladas'], $summaryReportFilters['regionalDetalle']);
         $batchReports = null;
         if ($cacheReports && $selectedMonths->count() > 1) {
             try {
@@ -1279,16 +1357,51 @@ class FinancialReportController extends Controller
             }
         }
 
+        $loadMonthlyReport = function (int $month) use (
+            $batchReports,
+            $includeAnnulledDetails,
+            $annulledDetailErrors,
+            $reportFilters,
+            $summaryReportFilters,
+            $year,
+            $limit,
+            $cacheReports,
+            $refresh
+        ): array {
+            $detailError = null;
+
+            if ($batchReports !== null) {
+                $result = $batchReports->get($month);
+                if ($result !== null && ($result['error'] ?? null) === null) {
+                    return (array) ($result['report'] ?? []);
+                }
+
+                $detailError = (string) ($result['error'] ?? 'No se recibio el resumen del mes.');
+                if (! $includeAnnulledDetails) {
+                    throw new \RuntimeException($detailError);
+                }
+            } else {
+                try {
+                    return $this->reports->services($month, $year, $limit, $cacheReports, $refresh, $reportFilters);
+                } catch (\Throwable $exception) {
+                    if (! $includeAnnulledDetails) {
+                        throw $exception;
+                    }
+                    $detailError = $exception->getMessage();
+                }
+            }
+
+            $annulledDetailErrors->push("No se pudo obtener el detalle optimizado de anulaciones del mes {$month}: {$detailError}. Se conserva el resumen financiero.");
+            $this->logDetailError(new \RuntimeException((string) $detailError), null, $month, $year);
+
+            return $this->reports->services($month, $year, $limit, $cacheReports, $refresh, $summaryReportFilters);
+        };
+
         foreach ($selectedMonths as $month) {
             try {
-                if ($batchReports !== null) {
-                    $result = $batchReports->get($month);
-                    if ($result === null || ($result['error'] ?? null) !== null) {
-                        throw new \RuntimeException((string) ($result['error'] ?? 'No se recibió el resumen del mes.'));
-                    }
-                    $monthlyReport = (array) ($result['report'] ?? []);
-                } else {
-                    $monthlyReport = $this->reports->services($month, $year, $limit, $cacheReports, $refresh, $reportFilters);
+                $monthlyReport = $loadMonthlyReport((int) $month);
+                if ($includeAnnulledDetails && ! (bool) data_get($monthlyReport, 'meta.detalleAnulacionesIncluido', false)) {
+                    $annulledDetailErrors->push("La API no devolvio el detalle optimizado de anulaciones del mes {$month}; el resumen financiero se conserva.");
                 }
                 if ((bool) data_get($monthlyReport, 'meta.conteoVentasUnicas', false)) {
                     $apiUniqueSales += (float) data_get($monthlyReport, 'resumen.cantidadVentas', 0);
@@ -1324,6 +1437,7 @@ class FinancialReportController extends Controller
                         '_meses' => [],
                         '_porRegionales' => [],
                         '_porPersonas' => [],
+                        '_annulledRows' => [],
                     ]);
 
                     foreach (['cantidadVentas', 'cantidadDetalles', 'totalCantidad', 'totalMonto'] as $totalKey) {
@@ -1350,6 +1464,14 @@ class FinancialReportController extends Controller
                     $current['_porPersonas'] = [
                         ...($current['_porPersonas'] ?? []),
                         ...collect($row['porPersonas'] ?? [])->map(fn ($item) => (array) $item)->all(),
+                    ];
+                    $current['_annulledRows'] = [
+                        ...($current['_annulledRows'] ?? []),
+                        ...collect($row['rows'] ?? [])->map(fn ($item): array => [
+                            ...(array) $item,
+                            '_servicio' => $name,
+                            '_mes' => (int) $month,
+                        ])->all(),
                     ];
                     $current['_meses'][] = $month;
                     $current['_meses'] = array_values(array_unique($current['_meses']));
@@ -1544,6 +1666,7 @@ class FinancialReportController extends Controller
             'serviceGroups' => $serviceGroups,
             'meta' => [],
             'errors' => $errors,
+            'annulledDetailErrors' => $annulledDetailErrors,
             'error' => $errors->first(),
         ];
     }
