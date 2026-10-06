@@ -54,7 +54,7 @@
     @php
         $logoPath = public_path('images/AGBClogo2.png');
         $logoData = is_file($logoPath) ? base64_encode(file_get_contents($logoPath)) : null;
-        $totalAmount = (float) ($summary['totalMonto'] ?? 0);
+        $totalAmount = (float) ($summary['totalMontoVendido'] ?? $summary['totalMonto'] ?? 0);
     @endphp
 
     <div class="footer">
@@ -91,7 +91,7 @@
 
     <table class="metrics">
         <tr>
-            <td><span class="label">Monto total</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format($totalAmount, 2) }}</span></td>
+            <td><span class="label">Total vendido</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format($totalAmount, 2) }}</span></td>
             <td><span class="label">Ventas registradas</span><span class="metric-value">{{ \App\Support\BolivianNumber::format((int) ($summary['cantidadVentas'] ?? 0)) }}</span></td>
             <td><span class="label">Cantidad total</span><span class="metric-value">{{ \App\Support\BolivianNumber::format((float) ($summary['totalCantidad'] ?? 0), 2) }}</span></td>
             <td><span class="label">Ticket promedio</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format($averageTicket, 2) }}</span></td>
@@ -101,8 +101,9 @@
     <h2 class="section-title">Resumen ejecutivo</h2>
     <div class="executive-box">
         @if($topGroup)
-            <p>Durante <span class="highlight">{{ $periodLabel }}</span> se registraron <span class="highlight">{{ \App\Support\BolivianNumber::format((int) ($summary['cantidadVentas'] ?? 0)) }} ventas</span>, por un monto consolidado de <span class="highlight">Bs {{ \App\Support\BolivianNumber::format($totalAmount, 2) }}</span>.</p>
-            <p>El grupo con mayor aporte fue <span class="highlight">{{ $topGroup['servicio'] }}</span>, con <span class="highlight">Bs {{ \App\Support\BolivianNumber::format((float) $topGroup['totalMonto'], 2) }}</span>, equivalente al <span class="highlight">{{ \App\Support\BolivianNumber::format($topGroupShare, 1) }}%</span> del monto total analizado.</p>
+            <p>Durante <span class="highlight">{{ $periodLabel }}</span> se registraron <span class="highlight">{{ \App\Support\BolivianNumber::format((int) ($summary['cantidadVentas'] ?? 0)) }} ventas</span>, con un total vendido de <span class="highlight">Bs {{ \App\Support\BolivianNumber::format($totalAmount, 2) }}</span>.</p>
+            <p>El grupo con mayor aporte fue <span class="highlight">{{ $topGroup['servicio'] }}</span>, con <span class="highlight">Bs {{ \App\Support\BolivianNumber::format((float) ($topGroup['totalMontoVendido'] ?? $topGroup['totalMonto']), 2) }}</span>, equivalente al <span class="highlight">{{ \App\Support\BolivianNumber::format($topGroupShare, 1) }}%</span> del total vendido.</p>
+            <p>Quedaron Bs {{ \App\Support\BolivianNumber::format((float) ($summary['totalMontoNoIncluidoEnTotalVendido'] ?? 0), 2) }} fuera del total vendido y Bs {{ \App\Support\BolivianNumber::format((float) ($summary['totalMontoAnulado'] ?? 0), 2) }} corresponden a facturas anuladas.</p>
             <p>La operacion comprende <span class="highlight">{{ \App\Support\BolivianNumber::format($serviceGroups->count()) }} grupos</span> y <span class="highlight">{{ \App\Support\BolivianNumber::format($services->count()) }} subservicios</span>. El ingreso promedio por venta fue de <span class="highlight">Bs {{ \App\Support\BolivianNumber::format($averageTicket, 2) }}</span>.</p>
         @else
             <p>No se encontraron operaciones para los criterios seleccionados. Se recomienda verificar el periodo y los servicios incluidos en el filtro.</p>
@@ -118,20 +119,20 @@
                 <th style="width: 11%" class="right">Ventas</th>
                 <th style="width: 13%" class="right">Detalles</th>
                 <th style="width: 13%" class="right">Cantidad</th>
-                <th style="width: 17%" class="right">Monto</th>
+                <th style="width: 17%" class="right">Total vendido</th>
                 <th style="width: 10%" class="right">Part.</th>
             </tr>
         </thead>
         <tbody>
             @forelse($serviceGroups as $group)
-                @php($share = $totalAmount > 0 ? ((float) $group['totalMonto'] / $totalAmount) * 100 : 0)
+                @php($share = $totalAmount > 0 ? ((float) ($group['totalMontoVendido'] ?? $group['totalMonto']) / $totalAmount) * 100 : 0)
                 <tr>
                     <td class="center strong">{{ $loop->iteration }}</td>
                     <td class="strong">{{ $group['servicio'] }}</td>
                     <td class="right">{{ \App\Support\BolivianNumber::format((int) $group['cantidadVentas']) }}</td>
                     <td class="right">{{ \App\Support\BolivianNumber::format((int) $group['cantidadDetalles']) }}</td>
                     <td class="right">{{ \App\Support\BolivianNumber::format((float) $group['totalCantidad'], 2) }}</td>
-                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) $group['totalMonto'], 2) }}</td>
+                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($group['totalMontoVendido'] ?? $group['totalMonto']), 2) }}</td>
                     <td class="right">{{ \App\Support\BolivianNumber::format($share, 1) }}%</td>
                 </tr>
             @empty
@@ -148,7 +149,7 @@
             <div class="group-block">
                 <div class="group-heading">
                     {{ $group['servicio'] }}
-                    <span>Subtotal: Bs {{ \App\Support\BolivianNumber::format((float) $group['totalMonto'], 2) }}</span>
+                    <span>Subtotal vendido: Bs {{ \App\Support\BolivianNumber::format((float) ($group['totalMontoVendido'] ?? $group['totalMonto']), 2) }}</span>
                 </div>
                 <table class="sheet detail-table">
                     <thead>
@@ -157,19 +158,19 @@
                             <th style="width: 12%" class="right">Ventas</th>
                             <th style="width: 13%" class="right">Detalles</th>
                             <th style="width: 13%" class="right">Cantidad</th>
-                            <th style="width: 16%" class="right">Monto</th>
+                            <th style="width: 16%" class="right">Total vendido</th>
                             <th style="width: 10%" class="right">Part.</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach($group['_children'] ?? [] as $child)
-                            @php($childShare = $totalAmount > 0 ? ((float) $child['totalMonto'] / $totalAmount) * 100 : 0)
+                            @php($childShare = $totalAmount > 0 ? ((float) ($child['totalMontoVendido'] ?? $child['totalMonto']) / $totalAmount) * 100 : 0)
                             <tr>
                                 <td>{{ $child['servicio'] }}</td>
                                 <td class="right">{{ \App\Support\BolivianNumber::format((int) $child['cantidadVentas']) }}</td>
                                 <td class="right">{{ \App\Support\BolivianNumber::format((int) $child['cantidadDetalles']) }}</td>
                                 <td class="right">{{ \App\Support\BolivianNumber::format((float) $child['totalCantidad'], 2) }}</td>
-                                <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) $child['totalMonto'], 2) }}</td>
+                                <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($child['totalMontoVendido'] ?? $child['totalMonto']), 2) }}</td>
                                 <td class="right">{{ \App\Support\BolivianNumber::format($childShare, 1) }}%</td>
                             </tr>
                         @endforeach

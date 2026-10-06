@@ -39,7 +39,7 @@
         <i class="fas fa-chevron-down report-filter-chevron" aria-hidden="true"></i>
     </summary>
 
-    <form method="GET" action="{{ $action }}" class="report-filter-form">
+    <form method="GET" action="{{ $action }}" class="report-filter-form" data-max-services="{{ $maxSelectedServices ?? 200 }}">
         @if($soloContratos ?? false)
             <input type="hidden" name="solo_contratos" value="1">
         @endif
@@ -137,6 +137,9 @@
                         </button>
                         <div class="selection-warning text-danger small mt-2 d-none" data-selection-warning>
                             <i class="fas fa-info-circle mr-1"></i> Seleccione al menos un servicio y un mes.
+                        </div>
+                        <div class="selection-warning text-danger small mt-2 d-none" data-service-limit-warning aria-live="polite">
+                            <i class="fas fa-info-circle mr-1"></i> Puede seleccionar hasta {{ $maxSelectedServices ?? 200 }} servicios por consulta.
                         </div>
                     </div>
                 </div>
@@ -261,6 +264,8 @@
                     var noResults = form.querySelector('.service-no-results');
                     var loadingModal = document.querySelector('[data-report-loading-modal]');
                     var submitButton = form.querySelector('.report-submit');
+                    var maxServices = parseInt(form.dataset.maxServices || '200', 10);
+                    var serviceLimitWarning = form.querySelector('[data-service-limit-warning]');
 
                     form.querySelectorAll('.service-option, .month-option').forEach(function (option) {
                         option.addEventListener('click', function (event) {
@@ -284,8 +289,10 @@
                         serviceInputs.forEach(function (input) {
                             input.closest('.service-option').classList.toggle('is-selected', input.checked);
                         });
-                        form.querySelector('[data-service-count]').textContent = serviceInputs.filter(function (input) { return input.checked; }).length + ' seleccionados';
+                        var selectedServiceCount = serviceInputs.filter(function (input) { return input.checked; }).length;
+                        form.querySelector('[data-service-count]').textContent = selectedServiceCount + ' seleccionados';
                         form.querySelector('[data-month-count]').textContent = monthInputs.filter(function (input) { return input.checked; }).length + ' seleccionados';
+                        serviceLimitWarning.classList.toggle('d-none', selectedServiceCount <= maxServices);
                     }
 
                     form.addEventListener('change', refresh);
@@ -319,6 +326,13 @@
                         search.focus();
                     });
                     form.addEventListener('submit', function (event) {
+                        var selectedServiceCount = serviceInputs.filter(function (input) { return input.checked; }).length;
+                        if (selectedServiceCount > maxServices) {
+                            serviceLimitWarning.classList.remove('d-none');
+                            event.preventDefault();
+                            return;
+                        }
+
                         var valid = serviceInputs.some(function (input) { return input.checked; }) && monthInputs.some(function (input) { return input.checked; });
                         form.querySelector('[data-selection-warning]').classList.toggle('d-none', valid);
                         if (!valid) {

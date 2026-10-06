@@ -119,14 +119,14 @@
 
     @php
         $executiveTopService = $serviceGroups->first();
-        $executiveTotalIncome = (float) ($summary['totalMonto'] ?? 0);
-        $executiveTopIncome = (float) ($executiveTopService['totalMonto'] ?? 0);
+        $executiveTotalIncome = (float) ($summary['totalMontoVendido'] ?? $summary['totalMonto'] ?? 0);
+        $executiveTopIncome = (float) ($executiveTopService['totalMontoVendido'] ?? $executiveTopService['totalMonto'] ?? 0);
         $executiveTopShare = $executiveTotalIncome > 0 ? ($executiveTopIncome / $executiveTotalIncome) * 100 : 0;
         $executiveLead = 'En el periodo seleccionado se registraron '
             . \App\Support\BolivianNumber::format((float) ($summary['cantidadVentas'] ?? 0))
             . ' ventas y una cantidad total de paquetería de '
             . \App\Support\BolivianNumber::format((float) ($summary['totalCantidad'] ?? 0), 2)
-            . ', generando ingresos de ventanilla por Bs '
+            . ', con un total vendido de Bs '
             . \App\Support\BolivianNumber::format($executiveTotalIncome, 2) . '.';
         $executiveItems = [
             [
@@ -137,9 +137,9 @@
                 'color' => 'info',
             ],
             [
-                'label' => 'Ingresos de ventanilla',
+                'label' => 'Total vendido',
                 'value' => 'Bs ' . \App\Support\BolivianNumber::format($executiveTotalIncome, 2),
-                'detail' => 'Ingreso total del periodo y servicios seleccionados.',
+                'detail' => 'Importe incluido en el total financiero del periodo.',
                 'icon' => 'fa-money-bill-wave',
                 'color' => 'success',
             ],
@@ -165,7 +165,9 @@
             ['Servicios', $summary['cantidadServicios'] ?? 0, 'fa-layer-group', 'primary'],
             ['Ventas registradas', $summary['cantidadVentas'] ?? 0, 'fa-file-invoice', 'info'],
             ['Cantidad total de paquetería', $summary['totalCantidad'] ?? 0, 'fa-boxes', 'warning'],
-            ['Ingresos de ventanilla', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['totalMonto'] ?? 0), 2), 'fa-money-bill-wave', 'success'],
+            ['Total vendido', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['totalMontoVendido'] ?? $summary['totalMonto'] ?? 0), 2), 'fa-money-bill-wave', 'success'],
+            ['No incluido en total vendido', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['totalMontoNoIncluidoEnTotalVendido'] ?? 0), 2), 'fa-exclamation-circle', 'warning'],
+            ['Facturas anuladas', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['totalMontoAnulado'] ?? 0), 2), 'fa-ban', 'danger'],
             ['Cuentas por cobrar', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['contratosPorCobrarMonto'] ?? 0), 2), 'fa-hand-holding-usd', 'warning', \App\Support\BolivianNumber::format((float) ($summary['contratosPorCobrarVentas'] ?? 0)) . ' factura(s) pendiente(s)'],
             ['Contratos validados', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['contratosValidadosMonto'] ?? 0), 2), 'fa-clipboard-check', 'success', \App\Support\BolivianNumber::format((float) ($summary['contratosValidadosVentas'] ?? 0)) . ' factura(s) asociada(s)'],
         ] as $metric)
@@ -222,7 +224,9 @@
                             <th class="text-right">Ventas</th>
                             <th class="text-right">Detalles</th>
                             <th class="text-right">Cantidad</th>
-                            <th class="text-right">Monto</th>
+                            <th class="text-right">Total vendido</th>
+                            <th class="text-right">No incluido</th>
+                            <th class="text-right">Anulado</th>
                             <th>Última fecha</th>
                             <th class="text-center">Acción</th>
                         </tr>
@@ -248,7 +252,9 @@
                                 <td class="text-right font-weight-bold">{{ \App\Support\BolivianNumber::format((int) ($group['cantidadVentas'] ?? 0)) }}</td>
                                 <td class="text-right">{{ \App\Support\BolivianNumber::format((int) ($group['cantidadDetalles'] ?? 0)) }}</td>
                                 <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($group['totalCantidad'] ?? 0), 2) }}</td>
-                                <td class="text-right font-weight-bold text-success">Bs {{ \App\Support\BolivianNumber::format((float) ($group['totalMonto'] ?? 0), 2) }}</td>
+                                <td class="text-right font-weight-bold text-success">Bs {{ \App\Support\BolivianNumber::format((float) ($group['totalMontoVendido'] ?? $group['totalMonto'] ?? 0), 2) }}</td>
+                                <td class="text-right text-warning">Bs {{ \App\Support\BolivianNumber::format((float) ($group['totalMontoNoIncluidoEnTotalVendido'] ?? 0), 2) }}</td>
+                                <td class="text-right text-danger">Bs {{ \App\Support\BolivianNumber::format((float) ($group['totalMontoAnulado'] ?? 0), 2) }}</td>
                                 <td class="text-nowrap">{{ $group['ultimaFecha'] ?? '-' }}</td>
                                 <td class="text-center">
                                     <a class="btn btn-sm btn-primary" href="{{ route('dashboard.financiera.ventas-servicios.detalle', ['servicios' => collect($group['_children'] ?? [])->pluck('servicio')->all(), 'meses' => $selectedMonths, 'anio' => $anio]) }}" onclick="event.stopPropagation()">
@@ -272,7 +278,9 @@
                                     <td class="text-right">{{ \App\Support\BolivianNumber::format((int) ($child['cantidadVentas'] ?? 0)) }}</td>
                                     <td class="text-right">{{ \App\Support\BolivianNumber::format((int) ($child['cantidadDetalles'] ?? 0)) }}</td>
                                     <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($child['totalCantidad'] ?? 0), 2) }}</td>
-                                    <td class="text-right font-weight-bold">Bs {{ \App\Support\BolivianNumber::format((float) ($child['totalMonto'] ?? 0), 2) }}</td>
+                                    <td class="text-right font-weight-bold">Bs {{ \App\Support\BolivianNumber::format((float) ($child['totalMontoVendido'] ?? $child['totalMonto'] ?? 0), 2) }}</td>
+                                    <td class="text-right text-warning">Bs {{ \App\Support\BolivianNumber::format((float) ($child['totalMontoNoIncluidoEnTotalVendido'] ?? 0), 2) }}</td>
+                                    <td class="text-right text-danger">Bs {{ \App\Support\BolivianNumber::format((float) ($child['totalMontoAnulado'] ?? 0), 2) }}</td>
                                     <td class="text-nowrap">{{ $child['ultimaFecha'] ?? '-' }}</td>
                                     <td class="text-center">
                                         <a class="btn btn-sm btn-outline-primary" href="{{ route('dashboard.financiera.ventas-servicios.detalle', ['servicios' => [$child['servicio'] ?? ''], 'meses' => $selectedMonths, 'anio' => $anio]) }}">
@@ -282,7 +290,7 @@
                                 </tr>
                             @endforeach
                         @empty
-                            <tr><td colspan="10" class="text-center text-muted py-4">No se encontraron servicios para la selección realizada.</td></tr>
+                            <tr><td colspan="12" class="text-center text-muted py-4">No se encontraron servicios para la selección realizada.</td></tr>
                         @endforelse
                     </tbody>
                     @if($serviceGroups->isNotEmpty())
@@ -292,7 +300,9 @@
                                 <td class="text-right">{{ \App\Support\BolivianNumber::format((int) ($summary['cantidadVentas'] ?? 0)) }}</td>
                                 <td class="text-right">{{ \App\Support\BolivianNumber::format((int) ($summary['cantidadDetalles'] ?? 0)) }}</td>
                                 <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($summary['totalCantidad'] ?? 0), 2) }}</td>
-                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) ($summary['totalMonto'] ?? 0), 2) }}</td>
+                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) ($summary['totalMontoVendido'] ?? $summary['totalMonto'] ?? 0), 2) }}</td>
+                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) ($summary['totalMontoNoIncluidoEnTotalVendido'] ?? 0), 2) }}</td>
+                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) ($summary['totalMontoAnulado'] ?? 0), 2) }}</td>
                                 <td colspan="2"></td>
                             </tr>
                         </tfoot>

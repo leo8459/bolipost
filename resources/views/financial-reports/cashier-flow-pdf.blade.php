@@ -59,7 +59,7 @@
     @php
         $logoPath = public_path('images/AGBClogo2.png');
         $logoData = is_file($logoPath) ? base64_encode(file_get_contents($logoPath)) : null;
-        $totalAmount = (float) ($summary['totalMonto'] ?? 0);
+        $totalAmount = (float) ($summary['totalMontoVendido'] ?? $summary['totalMonto'] ?? 0);
         $totalSales = (float) ($summary['cantidadVentas'] ?? 0);
     @endphp
 
@@ -107,7 +107,7 @@
     <table class="metrics">
         <tr>
             <td><span class="label">Ingresos totales</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format((float) ($totalReportIncome ?? $totalAmount), 2) }}</span></td>
-            <td><span class="label">Ingresos sin Contratos ni ECA</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format((float) ($summary['totalSinContratosEca'] ?? $summary['totalMonto'] ?? 0), 2) }}</span></td>
+            <td><span class="label">Total vendido sin Contratos ni ECA</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format((float) ($summary['totalSinContratosEca'] ?? $summary['totalMontoVendido'] ?? $summary['totalMonto'] ?? 0), 2) }}</span></td>
             <td><span class="label">Ventas realizadas</span><span class="metric-value">{{ \App\Support\BolivianNumber::format($totalSales) }}</span></td>
             <td><span class="label">Cajeros</span><span class="metric-value">{{ \App\Support\BolivianNumber::format($cashierRows->count()) }}</span></td>
             <td><span class="label">Promedio total de ingresos por día (lun-sáb)</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format((float) ($averageDailyIncome ?? 0), 2) }}</span></td>
@@ -118,11 +118,12 @@
     <div class="executive-box">
         @if($totalSales > 0 || ($totalReportIncome ?? 0) > 0)
             <p>En <span class="highlight">{{ $periodLabel }}</span> se registraron <span class="highlight">{{ \App\Support\BolivianNumber::format($totalSales) }} ventas realizadas</span>. Los ingresos totales, incluidos los cobros aceptados, sumaron <span class="highlight">Bs {{ \App\Support\BolivianNumber::format((float) ($totalReportIncome ?? $totalAmount), 2) }}</span>; sin Contratos ni ECA fueron <span class="highlight">Bs {{ \App\Support\BolivianNumber::format((float) ($summary['totalSinContratosEca'] ?? $summary['totalMonto'] ?? 0), 2) }}</span>.</p>
+            <p>Fuera del total vendido: Bs {{ \App\Support\BolivianNumber::format((float) ($summary['totalMontoNoIncluidoEnTotalVendido'] ?? 0), 2) }}. Facturas anuladas: Bs {{ \App\Support\BolivianNumber::format((float) ($summary['totalMontoAnulado'] ?? 0), 2) }}; no forman parte de los ingresos.</p>
             @if($topCashier)
                 <p>El cajero con mayor ingreso registrado fue <span class="highlight">{{ $topCashier['usuarioNombre'] }}</span>, con <span class="highlight">Bs {{ \App\Support\BolivianNumber::format((float) ($topCashier['totalIngresos'] ?? $topCashier['totalMonto']), 2) }}</span>.</p>
             @endif
             @if($topService)
-                <p>El grupo de servicio de mayor aporte fue <span class="highlight">{{ $topService['servicio'] }}</span>, con <span class="highlight">Bs {{ \App\Support\BolivianNumber::format((float) $topService['totalMonto'], 2) }}</span>.</p>
+                <p>El grupo de servicio de mayor aporte fue <span class="highlight">{{ $topService['servicio'] }}</span>, con <span class="highlight">Bs {{ \App\Support\BolivianNumber::format((float) ($topService['totalMontoVendido'] ?? $topService['totalMonto']), 2) }}</span>.</p>
             @endif
         @else
             <p>No se encontraron ingresos para los criterios seleccionados.</p>
@@ -229,7 +230,7 @@
                 <th style="width: 39%">Grupo de servicio</th>
                 <th style="width: 15%" class="right">Ventas realizadas</th>
                 <th style="width: 18%" class="right">Cantidad de paquetes</th>
-                <th style="width: 22%" class="right">Ingresos</th>
+                <th style="width: 22%" class="right">Total vendido</th>
             </tr>
         </thead>
         <tbody>
@@ -239,7 +240,7 @@
                     <td class="strong">{{ $group['servicio'] }}</td>
                     <td class="right">{{ \App\Support\BolivianNumber::format((float) $group['cantidadVentas']) }}</td>
                     <td class="right">{{ \App\Support\BolivianNumber::format((float) $group['totalCantidad'], 2) }}</td>
-                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) $group['totalMonto'], 2) }}</td>
+                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($group['totalMontoVendido'] ?? $group['totalMonto']), 2) }}</td>
                 </tr>
             @empty
                 <tr><td colspan="5" class="center muted">Sin información por servicio.</td></tr>

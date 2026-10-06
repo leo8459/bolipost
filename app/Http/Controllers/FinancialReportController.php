@@ -20,6 +20,8 @@ use Illuminate\Support\Str;
 
 class FinancialReportController extends Controller
 {
+    private const MAX_SERVICE_FILTER_ITEMS = 200;
+
     private const CASHIER_FLOW_EXCLUDED_CASHIERS = [
         'EDGAR JAVIER GIRONDA CHIRI',
     ];
@@ -127,9 +129,23 @@ class FinancialReportController extends Controller
                 : (string) $invoice['_dedupeKey'])
             ->sortByDesc('fecha')
             ->values();
+        $data['summary']['totalMontoAnulado'] = (float) $invoiceAudit['invoices']
+            ->reject(fn (array $invoice): bool => $this->isCashierFlowReceivableService((string) ($invoice['_servicio'] ?? '')))
+            ->sum('monto');
         $data['cashierFlowCancellationLookupErrors'] = $invoiceAudit['errors']
             ->unique()
             ->values();
+        $cancelledByService = $invoiceAudit['invoices']
+            ->reject(fn (array $invoice): bool => $this->isCashierFlowReceivableService((string) ($invoice['_servicio'] ?? '')))
+            ->groupBy('_servicio')
+            ->map(fn (Collection $invoices): float => (float) $invoices->sum('monto'));
+        $data['services'] = collect($data['services'])->map(function (array $service) use ($cancelledByService): array {
+            $service['totalMontoAnulado'] = (float) $cancelledByService->get((string) ($service['servicio'] ?? ''), 0);
+
+            return $service;
+        })->values();
+        $data['summary']['totalMontoNoIncluidoEnTotalVendido'] = (float) collect($data['services'])->sum('totalMontoNoIncluidoEnTotalVendido');
+        $data['summary']['totalMontoAnulado'] = (float) $cancelledByService->sum();
         $invoiceCollections = $invoicePeriodMovements->groupBy('servicio');
         $data['receivableServices'] = $receivableRows
             ->map(function (array $service) use ($invoiceCollections): array {
@@ -147,9 +163,9 @@ class FinancialReportController extends Controller
         );
         $data['summary']['cantidadServicios'] = $data['serviceGroups']->count();
         $data['cashierFlowCollectedAmount'] = (float) $invoicePeriodMovements->sum('monto');
-        $data['summary']['totalRecaudado'] = (float) ($data['summary']['totalMonto'] ?? 0)
+        $data['summary']['totalRecaudado'] = (float) ($data['summary']['totalMontoVendido'] ?? $data['summary']['totalMonto'] ?? 0)
             + $data['cashierFlowCollectedAmount'];
-        $data['summary']['totalSinContratosEca'] = (float) ($data['summary']['totalMonto'] ?? 0);
+        $data['summary']['totalSinContratosEca'] = (float) ($data['summary']['totalMontoVendido'] ?? $data['summary']['totalMonto'] ?? 0);
         $data['cashierRows'] = $this->addCashierReceivableIncome(
             $this->buildCashierBreakdown($data['services']),
             $invoicePeriodMovements
@@ -199,10 +215,22 @@ class FinancialReportController extends Controller
             $invoiceAudit['nonCancelledAmounts'],
             $invoiceAudit['completeServices']
         );
+        $data['summary']['totalMontoAnulado'] = (float) $summaryCancelledInvoices->sum('monto');
+        $cancelledByService = $summaryCancelledInvoices
+            ->groupBy('_servicio')
+            ->map(fn (Collection $invoices): float => (float) $invoices->sum('monto'));
+        $data['services'] = collect($data['services'])->map(function (array $service) use ($cancelledByService): array {
+            $service['totalMontoAnulado'] = (float) $cancelledByService->get((string) ($service['servicio'] ?? ''), 0);
+
+            return $service;
+        })->values();
         $data['summary']['totalMonto'] = (float) $data['services']->sum('totalMonto');
         $data['summary']['cantidadVentas'] = (float) $data['services']->sum('cantidadVentas');
         $data['summary']['cantidadDetalles'] = (float) $data['services']->sum('cantidadDetalles');
         $data['summary']['totalCantidad'] = (float) $data['services']->sum('totalCantidad');
+        $data['summary']['totalMontoVendido'] = (float) $data['services']->sum('totalMontoVendido');
+        $data['summary']['totalMontoNoIncluidoEnTotalVendido'] = (float) $data['services']->sum('totalMontoNoIncluidoEnTotalVendido');
+        $data['summary']['totalMontoAnulado'] = (float) $data['services']->sum('totalMontoAnulado');
         $collectedMovements = Schema::hasTable('cashier_flow_receivable_movements') && $data['selectedDepartment'] === ''
             ? $this->cashierFlowCollectedMovementsForPeriod($data['selectedMonths'], $data['anio'])
             : collect();
@@ -235,9 +263,9 @@ class FinancialReportController extends Controller
         $data['summary']['cantidadServicios'] = $data['serviceGroups']->count();
         $data['cashierFlowCollectedMovements'] = $collectedMovements;
         $data['cashierFlowCollectedAmount'] = (float) $collectedMovements->sum('monto');
-        $data['summary']['totalRecaudado'] = (float) ($data['summary']['totalMonto'] ?? 0)
+        $data['summary']['totalRecaudado'] = (float) ($data['summary']['totalMontoVendido'] ?? $data['summary']['totalMonto'] ?? 0)
             + $data['cashierFlowCollectedAmount'];
-        $data['summary']['totalSinContratosEca'] = (float) ($data['summary']['totalMonto'] ?? 0);
+        $data['summary']['totalSinContratosEca'] = (float) ($data['summary']['totalMontoVendido'] ?? $data['summary']['totalMonto'] ?? 0);
         $data['totalReportIncome'] = $data['summary']['totalRecaudado'];
         $data['cashierFlowCollectionsOmittedByDepartment'] = $data['selectedDepartment'] !== '';
         $data['cashierRows'] = $this->addCashierReceivableIncome(
@@ -793,7 +821,7 @@ class FinancialReportController extends Controller
             'anio' => ['required', 'integer', 'between:2000,'.(now()->year + 3)],
             'limite' => ['nullable', 'integer', 'between:1,200'],
             'departamento' => ['nullable', 'string', 'max:120'],
-            'filtro_servicios' => ['nullable', 'array', 'max:50'],
+            'filtro_servicios' => ['nullable', 'array', 'max:'.self::MAX_SERVICE_FILTER_ITEMS],
             'filtro_servicios.*' => ['string', 'distinct', 'max:180'],
         ]);
 
@@ -908,7 +936,7 @@ class FinancialReportController extends Controller
             'anio' => ['required', 'integer', 'between:2000,'.(now()->year + 3)],
             'limite' => ['nullable', 'integer', 'between:1,200'],
             'departamento' => ['nullable', 'string', 'max:120'],
-            'filtro_servicios' => ['nullable', 'array', 'max:50'],
+            'filtro_servicios' => ['nullable', 'array', 'max:'.self::MAX_SERVICE_FILTER_ITEMS],
             'filtro_servicios.*' => ['string', 'distinct', 'max:180'],
         ]);
 
@@ -976,7 +1004,7 @@ class FinancialReportController extends Controller
             'filtro_anio' => ['nullable', 'integer', 'between:2000,'.(now()->year + 3)],
             'filtro_limite' => ['nullable', 'integer', 'between:1,200'],
             'filtro_departamento' => ['nullable', 'string', 'max:120'],
-            'filtro_servicios' => ['nullable', 'array', 'max:50'],
+            'filtro_servicios' => ['nullable', 'array', 'max:'.self::MAX_SERVICE_FILTER_ITEMS],
             'filtro_servicios.*' => ['string', 'distinct', 'max:180'],
         ]);
 
@@ -1128,7 +1156,7 @@ class FinancialReportController extends Controller
     {
         $data = $this->buildServicesReportData($request);
         $groups = $data['serviceGroups'];
-        $totalAmount = (float) ($data['summary']['totalMonto'] ?? 0);
+        $totalAmount = (float) ($data['summary']['totalMontoVendido'] ?? $data['summary']['totalMonto'] ?? 0);
         $totalSales = (float) ($data['summary']['cantidadVentas'] ?? 0);
         $topGroup = $groups->first();
         $monthNames = [
@@ -1144,13 +1172,35 @@ class FinancialReportController extends Controller
         $data['averageTicket'] = $totalSales > 0 ? $totalAmount / $totalSales : 0;
         $data['topGroup'] = $topGroup;
         $data['topGroupShare'] = $totalAmount > 0
-            ? ((float) ($topGroup['totalMonto'] ?? 0) / $totalAmount) * 100
+            ? ((float) ($topGroup['totalMontoVendido'] ?? $topGroup['totalMonto'] ?? 0) / $totalAmount) * 100
             : 0;
 
         $pdf = Pdf::loadView('financial-reports.executive-report-pdf', $data)
             ->setPaper('A4', 'portrait');
 
         return $pdf->download('reporte-ejecutivo-ventas-servicios-'.$data['anio'].'-'.now()->format('Ymd_His').'.pdf');
+    }
+
+    private function normalizeServiceFilterInput(Request $request, string $field): void
+    {
+        $services = $request->input($field);
+        if (! is_array($services)) {
+            return;
+        }
+
+        $services = collect($services);
+        if (! $services->every(fn ($service): bool => is_string($service))) {
+            return;
+        }
+
+        $request->merge([
+            $field => $services
+                ->map(fn (string $service): string => trim($service))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all(),
+        ]);
     }
 
     private function buildServicesReportData(
@@ -1163,9 +1213,11 @@ class FinancialReportController extends Controller
         bool $cacheReports = false,
         bool $showReceivablesSeparately = false
     ): array {
+        $this->normalizeServiceFilterInput($request, 'servicios');
+
         $validated = $request->validate([
             'servicio' => ['nullable', 'string', 'max:180'],
-            'servicios' => ['nullable', 'array', 'max:50'],
+            'servicios' => ['nullable', 'array', 'max:'.self::MAX_SERVICE_FILTER_ITEMS],
             'servicios.*' => ['string', 'distinct', 'max:180'],
             'mes' => ['nullable', 'integer', 'between:1,12'],
             'meses' => ['nullable', 'array', 'min:1', 'max:12'],
@@ -1236,6 +1288,9 @@ class FinancialReportController extends Controller
                         'cantidadDetalles' => 0,
                         'totalCantidad' => 0,
                         'totalMonto' => 0,
+                        'totalMontoVendido' => 0,
+                        'totalMontoNoIncluidoEnTotalVendido' => 0,
+                        'totalMontoAnulado' => 0,
                         'ultimaFecha' => null,
                         'descripcionMuestra' => null,
                         '_meses' => [],
@@ -1246,6 +1301,12 @@ class FinancialReportController extends Controller
                     foreach (['cantidadVentas', 'cantidadDetalles', 'totalCantidad', 'totalMonto'] as $totalKey) {
                         $current[$totalKey] += (float) ($row[$totalKey] ?? 0);
                     }
+                    $rowTotalMonto = (float) ($row['totalMonto'] ?? 0);
+                    $current['totalMontoVendido'] += array_key_exists('totalMontoVendido', $row)
+                        ? (float) $row['totalMontoVendido']
+                        : $rowTotalMonto;
+                    $current['totalMontoNoIncluidoEnTotalVendido'] += (float) ($row['totalMontoNoIncluidoEnTotalVendido'] ?? 0);
+                    $current['totalMontoAnulado'] += (float) ($row['totalMontoAnulado'] ?? 0);
 
                     $date = trim((string) ($row['ultimaFecha'] ?? ''));
                     if ($date !== '' && ($current['ultimaFecha'] === null || $date > $current['ultimaFecha'])) {
@@ -1316,7 +1377,7 @@ class FinancialReportController extends Controller
         $services = $aggregated
             ->only($selectedServices->all())
             ->values()
-            ->sortByDesc('totalMonto')
+            ->sortByDesc('totalMontoVendido')
             ->values();
         $selectedDepartment = $enableDepartmentFilter
             ? $this->canonicalDepartmentName((string) ($validated['departamento'] ?? ''))
@@ -1344,11 +1405,13 @@ class FinancialReportController extends Controller
 
                 $service['cantidadVentas'] = $validatedSales;
                 $service['totalMonto'] = $validatedAmount;
+                $service['totalMontoVendido'] = $validatedAmount;
+                $service['totalMontoNoIncluidoEnTotalVendido'] = 0.0;
                 $validatedSales = 0;
                 $validatedAmount = 0;
 
                 return $service;
-            })->sortByDesc('totalMonto')->values();
+            })->sortByDesc('totalMontoVendido')->values();
         }
         if ($enableDepartmentFilter && $selectedDepartment !== '') {
             $services = $this->filterServicesByDepartment($services, $selectedDepartment);
@@ -1382,6 +1445,10 @@ class FinancialReportController extends Controller
             'cantidadDetalles' => $services->sum('cantidadDetalles'),
             'totalCantidad' => $services->sum('totalCantidad'),
             'totalMonto' => $services->sum('totalMonto'),
+            'totalMontoVendido' => $services->sum('totalMontoVendido'),
+            'totalMontoNoIncluidoEnTotalVendido' => $services->sum('totalMontoNoIncluidoEnTotalVendido'),
+            'totalMontoAnulado' => $services->sum('totalMontoAnulado'),
+            'totalMontoBruto' => $services->sum('totalMonto') + $services->sum('totalMontoAnulado'),
             'contratosFacturadosVentas' => $contractReceivables['invoiced_sales'],
             'contratosFacturadosMonto' => $contractReceivables['invoiced_amount'],
             'contratosValidadosVentas' => $contractReceivables['validated_sales'],
@@ -1398,6 +1465,7 @@ class FinancialReportController extends Controller
             'limite' => $limit,
             'soloContratos' => $onlyContracts,
             'contractsExcluded' => $excludeContracts,
+            'maxSelectedServices' => self::MAX_SERVICE_FILTER_ITEMS,
             'selectedDepartment' => $selectedDepartment,
             'departmentOptions' => $departmentOptions,
             'selectedMonths' => $selectedMonths->all(),
@@ -1460,9 +1528,11 @@ class FinancialReportController extends Controller
 
     public function serviceDetail(Request $request)
     {
+        $this->normalizeServiceFilterInput($request, 'servicios');
+
         $validated = $request->validate([
             'servicio' => ['nullable', 'string', 'max:180'],
-            'servicios' => ['nullable', 'array', 'max:50'],
+            'servicios' => ['nullable', 'array', 'max:'.self::MAX_SERVICE_FILTER_ITEMS],
             'servicios.*' => ['string', 'distinct', 'max:180'],
             'mes' => ['nullable', 'integer', 'between:1,12'],
             'meses' => ['nullable', 'array', 'min:1', 'max:12'],
@@ -1516,6 +1586,9 @@ class FinancialReportController extends Controller
             'cantidadDetalles' => 0,
             'totalCantidad' => 0,
             'totalMonto' => 0,
+            'totalMontoVendido' => 0,
+            'totalMontoNoIncluidoEnTotalVendido' => 0,
+            'totalMontoAnulado' => 0,
         ];
 
         $detailFilters = $selectedServices->flatMap(fn (string $serviceName) => $selectedMonths->map(
@@ -1560,6 +1633,11 @@ class FinancialReportController extends Controller
             foreach (['cantidadVentas', 'cantidadDetalles', 'totalCantidad', 'totalMonto'] as $totalKey) {
                 $service[$totalKey] += (float) ($detail[$totalKey] ?? 0);
             }
+            $service['totalMontoVendido'] += array_key_exists('totalMontoVendido', $detail)
+                ? (float) $detail['totalMontoVendido']
+                : (float) ($detail['totalMonto'] ?? 0);
+            $service['totalMontoNoIncluidoEnTotalVendido'] += (float) ($detail['totalMontoNoIncluidoEnTotalVendido'] ?? 0);
+            $service['totalMontoAnulado'] += (float) ($detail['totalMontoAnulado'] ?? 0);
             $rows->push(...collect($detail['rows'] ?? [])->map(fn ($row) => [
                 ...(array) $row,
                 '_servicio' => $serviceName,
@@ -1620,7 +1698,7 @@ class FinancialReportController extends Controller
         $rows = $rows->sortByDesc('fecha')->values();
         $reportDays = $this->countReportDaysExcludingSundays($selectedMonths->all(), $year);
         $service['promedioDiario'] = $reportDays > 0
-            ? (float) $service['totalMonto'] / $reportDays
+            ? (float) $service['totalMontoVendido'] / $reportDays
             : 0;
 
         $searchTerm = trim((string) ($validated['buscar'] ?? ''));
@@ -1760,13 +1838,16 @@ class FinancialReportController extends Controller
                     'cantidadDetalles' => $children->sum('cantidadDetalles'),
                     'totalCantidad' => $children->sum('totalCantidad'),
                     'totalMonto' => $children->sum('totalMonto'),
+                    'totalMontoVendido' => $children->sum(fn (array $service) => $service['totalMontoVendido'] ?? $service['totalMonto'] ?? 0),
+                    'totalMontoNoIncluidoEnTotalVendido' => $children->sum('totalMontoNoIncluidoEnTotalVendido'),
+                    'totalMontoAnulado' => $children->sum('totalMontoAnulado'),
                     'ultimaFecha' => $children->pluck('ultimaFecha')->filter()->max(),
                     '_ultimaFechaEsCobro' => $children->contains(fn (array $service): bool => (bool) ($service['_esCobroReceivable'] ?? false)),
                     '_meses' => $children->pluck('_meses')->flatten()->unique()->sort()->values()->all(),
-                    '_children' => $children->sortByDesc('totalMonto')->values(),
+                    '_children' => $children->sortByDesc('totalMontoVendido')->values(),
                 ];
             })
-            ->sortByDesc('totalMonto')
+            ->sortByDesc('totalMontoVendido')
             ->values();
     }
 
@@ -1789,6 +1870,7 @@ class FinancialReportController extends Controller
                     'cantidadDetalles' => (float) ($row['cantidadDetalles'] ?? 0),
                     'totalCantidad' => (float) ($row['totalCantidad'] ?? 0),
                     'totalMonto' => (float) ($row['totalMonto'] ?? 0),
+                    'totalMontoVendido' => (float) ($row['totalMontoVendido'] ?? $row['totalMonto'] ?? 0),
                 ];
             })
             ->groupBy('regional')
@@ -1800,9 +1882,11 @@ class FinancialReportController extends Controller
                     'cantidadDetalles' => $rows->sum('cantidadDetalles'),
                     'totalCantidad' => $rows->sum('totalCantidad'),
                     'totalMonto' => $rows->sum('totalMonto'),
+                    'totalMontoVendido' => $rows->sum('totalMontoVendido'),
+                    'totalMontoNoIncluidoEnTotalVendido' => max(0, $rows->sum('totalMonto') - $rows->sum('totalMontoVendido')),
                 ];
             })
-            ->sortByDesc('totalMonto')
+            ->sortByDesc('totalMontoVendido')
             ->values();
     }
 
@@ -1834,6 +1918,8 @@ class FinancialReportController extends Controller
                     'cantidadDetalles' => (float) ($row['cantidadDetalles'] ?? 0),
                     'totalCantidad' => (float) ($row['totalCantidad'] ?? 0),
                     'totalMonto' => (float) ($row['totalMonto'] ?? 0),
+                    'totalMontoVendido' => (float) ($row['totalMontoVendido'] ?? $row['totalMonto'] ?? 0),
+                    'totalMontoNoIncluidoEnTotalVendido' => max(0, (float) ($row['totalMonto'] ?? 0) - (float) ($row['totalMontoVendido'] ?? $row['totalMonto'] ?? 0)),
                 ];
             })
             ->groupBy('_identity')
@@ -1861,9 +1947,11 @@ class FinancialReportController extends Controller
                     'cantidadDetalles' => $rows->sum('cantidadDetalles'),
                     'totalCantidad' => $rows->sum('totalCantidad'),
                     'totalMonto' => $rows->sum('totalMonto'),
+                    'totalMontoVendido' => $rows->sum('totalMontoVendido'),
+                    'totalMontoNoIncluidoEnTotalVendido' => $rows->sum('totalMontoNoIncluidoEnTotalVendido'),
                 ];
             })
-            ->sortByDesc('totalMonto')
+            ->sortByDesc('totalMontoVendido')
             ->values();
     }
 
@@ -1914,7 +2002,7 @@ class FinancialReportController extends Controller
     {
         $rows = $cashierRows
             ->map(function (array $cashier): array {
-                $cashier['totalMontoVentanilla'] = (float) ($cashier['totalMonto'] ?? 0);
+                $cashier['totalMontoVentanilla'] = (float) ($cashier['totalMontoVendido'] ?? $cashier['totalMonto'] ?? 0);
                 $cashier['totalMontoCobrado'] = (float) ($cashier['totalMontoCobrado'] ?? 0);
                 $cashier['totalIngresos'] = $cashier['totalMontoVentanilla'] + $cashier['totalMontoCobrado'];
 
@@ -2223,7 +2311,7 @@ class FinancialReportController extends Controller
                 });
 
                 $service['_porPersonas'] = $people->diffKeys($excludedPeople)->values()->all();
-                foreach (['cantidadVentas', 'cantidadDetalles', 'totalCantidad', 'totalMonto'] as $totalKey) {
+                foreach (['cantidadVentas', 'cantidadDetalles', 'totalCantidad', 'totalMonto', 'totalMontoVendido', 'totalMontoNoIncluidoEnTotalVendido'] as $totalKey) {
                     $service[$totalKey] = max(
                         0,
                         (float) ($service[$totalKey] ?? 0) - (float) $excludedPeople->sum($totalKey)
@@ -2232,7 +2320,7 @@ class FinancialReportController extends Controller
 
                 return $service;
             })
-            ->sortByDesc('totalMonto')
+            ->sortByDesc('totalMontoVendido')
             ->values();
     }
 
@@ -2292,11 +2380,15 @@ class FinancialReportController extends Controller
                 foreach (['cantidadVentas', 'cantidadDetalles', 'totalCantidad', 'totalMonto'] as $totalKey) {
                     $service[$totalKey] = (float) $regionalRows->sum($totalKey);
                 }
+                $service['totalMontoVendido'] = (float) $regionalRows->sum(fn (array $row) => $row['totalMontoVendido'] ?? $row['totalMonto'] ?? 0);
+                $service['totalMontoNoIncluidoEnTotalVendido'] = max(0, $service['totalMonto'] - $service['totalMontoVendido']);
+                // La API aún no expone anuladas dentro de la dimensión regional.
+                $service['totalMontoAnulado'] = null;
 
                 return $service;
             })
             ->filter(fn (array $service): bool => collect($service['_porRegionales'] ?? [])->isNotEmpty())
-            ->sortByDesc('totalMonto')
+            ->sortByDesc('totalMontoVendido')
             ->values();
     }
 

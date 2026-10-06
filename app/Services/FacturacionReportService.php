@@ -237,12 +237,12 @@ class FacturacionReportService
 
     private function detailCacheKey(string $service, int $month, int $year): string
     {
-        return 'facturacion:reportes:detalle:v2:'.$this->cacheNamespace().':'.sha1($service.'|'.$year.'|'.$month);
+        return 'facturacion:reportes:detalle:v3:'.$this->cacheNamespace().':'.sha1($service.'|'.$year.'|'.$month);
     }
 
     private function summaryCacheKey(int $month, int $year, int $limit): string
     {
-        return 'facturacion:reportes:servicios:v1:'.$this->cacheNamespace().':'.$year.':'.$month.':'.$limit;
+        return 'facturacion:reportes:servicios:v2:'.$this->cacheNamespace().':'.$year.':'.$month.':'.$limit;
     }
 
     private function cacheNamespace(): string

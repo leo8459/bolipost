@@ -321,7 +321,7 @@
     @php
         $executiveTopCashier = $cashierRows->first();
         $executiveTopService = $serviceGroups->first();
-        $executiveFlowIncome = (float) ($summary['totalRecaudado'] ?? $summary['totalMonto'] ?? 0);
+        $executiveFlowIncome = (float) ($summary['totalRecaudado'] ?? $summary['totalMontoVendido'] ?? $summary['totalMonto'] ?? 0);
         $executiveDepartmentScope = $selectedDepartment !== '' ? ' en ' . $selectedDepartment : '';
         $executiveLead = 'Durante el periodo seleccionado se registraron '
             . \App\Support\BolivianNumber::format((float) ($summary['cantidadVentas'] ?? 0))
@@ -344,7 +344,7 @@
             ],
         ];
         $executiveNote = $executiveTopService
-            ? 'El servicio con mayor ingreso es ' . $executiveTopService['servicio'] . ', con Bs ' . \App\Support\BolivianNumber::format((float) $executiveTopService['totalMonto'], 2) . '.'
+            ? 'El servicio con mayor total vendido es ' . $executiveTopService['servicio'] . ', con Bs ' . \App\Support\BolivianNumber::format((float) ($executiveTopService['totalMontoVendido'] ?? $executiveTopService['totalMonto']), 2) . '.'
             : 'No existen ventas para elaborar una conclusión del periodo seleccionado.';
     @endphp
     @include('financial-reports.partials.executive-summary')
@@ -355,7 +355,9 @@
             ['Ventas realizadas', $summary['cantidadVentas'] ?? 0, 'fa-file-invoice', 'info'],
             ['Cajeros', $cashierRows->count(), 'fa-users', 'secondary'],
             ['Cantidad de paquetes', $summary['totalCantidad'] ?? 0, 'fa-boxes', 'warning'],
-            ['Ingresos sin Contratos ni ECA', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['totalSinContratosEca'] ?? $summary['totalMonto'] ?? 0), 2), 'fa-coins', 'info'],
+            ['Total vendido de servicios', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['totalSinContratosEca'] ?? $summary['totalMontoVendido'] ?? $summary['totalMonto'] ?? 0), 2), 'fa-coins', 'info'],
+            ['No incluido en total vendido', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['totalMontoNoIncluidoEnTotalVendido'] ?? 0), 2), 'fa-exclamation-circle', 'warning'],
+            ['Facturas anuladas', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['totalMontoAnulado'] ?? 0), 2), 'fa-ban', 'danger'],
             ['Ingresos totales (incluye Contratos y ECA cobrados)', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['totalRecaudado'] ?? $summary['totalMonto'] ?? 0), 2), 'fa-cash-register', 'primary'],
         ] as $metric)
             @php([$label, $value, $icon, $color] = $metric)
@@ -544,7 +546,9 @@
                             <th class="text-right">Ventas realizadas</th>
                             <th class="text-right">Detalles</th>
                             <th class="text-right">Cantidad de paquetes</th>
-                            <th class="text-right">Ingresos totales</th>
+                            <th class="text-right">Total vendido</th>
+                            <th class="text-right">No incluido</th>
+                            <th class="text-right">Anulado</th>
                             <th>Última fecha</th>
                             <th class="text-center">Movimientos</th>
                         </tr>
@@ -567,7 +571,9 @@
                                 <td class="text-right font-weight-bold">{{ \App\Support\BolivianNumber::format((float) ($group['cantidadVentas'] ?? 0)) }}</td>
                                 <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($group['cantidadDetalles'] ?? 0)) }}</td>
                                 <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($group['totalCantidad'] ?? 0), 2) }}</td>
-                                <td class="text-right font-weight-bold text-success">Bs {{ \App\Support\BolivianNumber::format((float) ($group['totalMonto'] ?? 0), 2) }}</td>
+                                    <td class="text-right font-weight-bold text-success">Bs {{ \App\Support\BolivianNumber::format((float) ($group['totalMontoVendido'] ?? $group['totalMonto'] ?? 0), 2) }}</td>
+                                    <td class="text-right text-warning">Bs {{ \App\Support\BolivianNumber::format((float) ($group['totalMontoNoIncluidoEnTotalVendido'] ?? 0), 2) }}</td>
+                                    <td class="text-right text-danger">Bs {{ \App\Support\BolivianNumber::format((float) ($group['totalMontoAnulado'] ?? 0), 2) }}</td>
                                 <td class="text-nowrap">
                                     {{ $group['ultimaFecha'] ?? '-' }}
                                     @if($group['_ultimaFechaEsCobro'] ?? false)<small class="d-block text-muted">Fecha del Ãºltimo cobro</small>@endif
@@ -586,7 +592,9 @@
                                     <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($child['cantidadVentas'] ?? 0)) }}</td>
                                     <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($child['cantidadDetalles'] ?? 0)) }}</td>
                                     <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($child['totalCantidad'] ?? 0), 2) }}</td>
-                                    <td class="text-right font-weight-bold">Bs {{ \App\Support\BolivianNumber::format((float) ($child['totalMonto'] ?? 0), 2) }}</td>
+                                    <td class="text-right font-weight-bold">Bs {{ \App\Support\BolivianNumber::format((float) ($child['totalMontoVendido'] ?? $child['totalMonto'] ?? 0), 2) }}</td>
+                                    <td class="text-right text-warning">Bs {{ \App\Support\BolivianNumber::format((float) ($child['totalMontoNoIncluidoEnTotalVendido'] ?? 0), 2) }}</td>
+                                    <td class="text-right text-danger">Bs {{ \App\Support\BolivianNumber::format((float) ($child['totalMontoAnulado'] ?? 0), 2) }}</td>
                                     <td class="text-nowrap">
                                         {{ $child['ultimaFecha'] ?? '-' }}
                                         @if($child['_esCobroReceivable'] ?? false)<small class="d-block text-muted">Fecha de cobro</small>@endif
@@ -599,7 +607,7 @@
                                 </tr>
                             @endforeach
                         @empty
-                            <tr><td colspan="9" class="text-center text-muted py-4">No se encontraron servicios para la selección realizada.</td></tr>
+                            <tr><td colspan="11" class="text-center text-muted py-4">No se encontraron servicios para la selección realizada.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

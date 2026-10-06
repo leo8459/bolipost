@@ -34,14 +34,14 @@
     @endif
 
     @php
-        $executiveDetailIncome = (float) ($service['totalMonto'] ?? 0);
+        $executiveDetailIncome = (float) ($service['totalMontoVendido'] ?? $service['totalMonto'] ?? 0);
         $executiveLead = 'El detalle seleccionado reúne '
             . \App\Support\BolivianNumber::format((float) ($service['cantidadVentas'] ?? 0))
             . ' ventas registradas, '
             . \App\Support\BolivianNumber::format((float) ($service['cantidadDetalles'] ?? 0))
             . ' líneas de detalle y Bs '
             . \App\Support\BolivianNumber::format($executiveDetailIncome, 2)
-            . ' en ingresos de ventanilla.';
+            . ' en total vendido.';
         $executiveItems = [
             [
                 'label' => 'Servicios consultados',
@@ -58,7 +58,7 @@
                 'color' => 'info',
             ],
             [
-                'label' => 'Ingresos de ventanilla',
+                'label' => 'Total vendido',
                 'value' => 'Bs ' . \App\Support\BolivianNumber::format($executiveDetailIncome, 2),
                 'detail' => \App\Support\BolivianNumber::format((float) ($service['totalCantidad'] ?? 0), 2) . ' de cantidad total de paquetería.',
                 'icon' => 'fa-money-bill-wave',
@@ -74,7 +74,9 @@
             ['Ventas registradas', $service['cantidadVentas'] ?? 0, 'fa-file-invoice', 'primary'],
             ['Detalles', $service['cantidadDetalles'] ?? 0, 'fa-list', 'info'],
             ['Cantidad total de paquetería', $service['totalCantidad'] ?? 0, 'fa-boxes', 'warning'],
-            ['Ingresos de ventanilla', 'Bs ' . \App\Support\BolivianNumber::format((float) ($service['totalMonto'] ?? 0), 2), 'fa-money-bill-wave', 'success'],
+            ['Total vendido', 'Bs ' . \App\Support\BolivianNumber::format((float) ($service['totalMontoVendido'] ?? $service['totalMonto'] ?? 0), 2), 'fa-money-bill-wave', 'success'],
+            ['No incluido', 'Bs ' . \App\Support\BolivianNumber::format((float) ($service['totalMontoNoIncluidoEnTotalVendido'] ?? 0), 2), 'fa-exclamation-circle', 'warning'],
+            ['Anulado', 'Bs ' . \App\Support\BolivianNumber::format((float) ($service['totalMontoAnulado'] ?? 0), 2), 'fa-ban', 'danger'],
             ['Promedio diario facturado', 'Bs ' . \App\Support\BolivianNumber::format((float) ($service['promedioDiario'] ?? 0), 2), 'fa-chart-line', 'primary'],
         ] as [$label, $value, $icon, $color])
             <div class="col-sm-6 col-xl mb-3">
