@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Mail\PaqueteEmsRecibidoMail;
 use App\Mail\PaqueteEmsRecibidoDestinoMail;
 use App\Mail\PaqueteEmsSalidaRegionalMail;
+use App\Models\AppSetting;
 use App\Models\Cartero;
 use App\Models\CodigoEmpresa;
 use App\Models\Destino;
@@ -23,6 +24,7 @@ use App\Models\Servicio;
 use App\Models\SolicitudCliente;
 use App\Models\TarifaContrato;
 use App\Models\Tarifario;
+use App\Models\TarifarioPadre;
 use App\Models\TarifarioTiktoker;
 use App\Support\TiktokerTariffPriceCalculator;
 use App\Support\TiktokerEvent;
@@ -100,8 +102,14 @@ class PaquetesEms extends Component
     private const ALMACEN_EMS_REPRINT_CN33_PERMISSION = 'feature.paquetes-ems.almacen.reprintcn33';
     private const EN_TRANSITO_EMS_REPRINT_CN33_PERMISSION = 'feature.paquetes-ems.en-transito.reprintcn33';
     private const ALMACEN_ADMISIONES_ROUTE_PERMISSION = 'paquetes-ems.almacen-admisiones';
+    private const TARIFARIO_PADRE_SETTING = 'ems.tarifario_padre_id';
 
+    #[\Livewire\Attributes\Locked]
     public $mode = 'admision';
+
+    public $tarifarioPadreSeleccionado = '';
+    public bool $mostrarConfiguracionTarifario = false;
+
     public $search = '';
     public $searchQuery = '';
     public $editingId = null;
@@ -276,7 +284,7 @@ class PaquetesEms extends Component
         }
         $this->setOrigenFromUser();
         if ($this->isAdmision || $this->isAlmacenEms || $this->isCreateEms) {
-            $this->servicios = Servicio::orderBy('nombre_servicio')->get();
+            $this->servicios = $this->serviciosDisponiblesQuery()->orderBy('nombre_servicio')->get();
             $this->loadDestinos();
             $this->setUserOrigenId();
 }
@@ -289,6 +297,62 @@ class PaquetesEms extends Component
         }
 
         $this->resetRegionalIntRows();
+    }
+
+    public function getPuedeConfigurarTarifarioProperty(): bool
+    {
+        $user = Auth::user();
+
+        return $user && ($user->isSuperAdmin() || $user->role === 'admin');
+    }
+
+    public function abrirConfiguracionTarifario(): void
+    {
+        abort_unless($this->isCreateEms && $this->puedeConfigurarTarifario, 403);
+        $this->tarifarioPadreSeleccionado = AppSetting::getValue(self::TARIFARIO_PADRE_SETTING, '');
+        $this->mostrarConfiguracionTarifario = true;
+    }
+
+    public function guardarConfiguracionTarifario(): void
+    {
+        abort_unless($this->isCreateEms && $this->puedeConfigurarTarifario, 403);
+        $this->validate([
+            'tarifarioPadreSeleccionado' => ['required', 'integer', 'exists:tarifario_padre,id'],
+        ], [], ['tarifarioPadreSeleccionado' => 'tarifario padre']);
+
+        AppSetting::setValue(self::TARIFARIO_PADRE_SETTING, (string) $this->tarifarioPadreSeleccionado);
+        $this->servicios = $this->serviciosDisponiblesQuery()->orderBy('nombre_servicio')->get();
+        $this->servicio_id = '';
+        $this->tarifario_id = '';
+        $this->precio = '';
+        $this->precio_confirm = null;
+        $this->codigo = '';
+        $this->is_ems = false;
+        $this->closePaqueteConfirmModal();
+        $this->mostrarConfiguracionTarifario = false;
+        session()->flash('success', 'Tarifario padre actualizado para todos los usuarios del registro EMS.');
+    }
+
+    protected function serviciosDisponiblesQuery(): Builder
+    {
+        $query = Servicio::query();
+        if ($this->isCreateEms) {
+            $padreId = AppSetting::getValue(self::TARIFARIO_PADRE_SETTING);
+            if ($padreId !== null && $padreId !== '') {
+                $query->where('tarifario_padre_id', (int) $padreId);
+            }
+        }
+
+        return $query;
+    }
+
+    protected function validarServicioDisponible(): void
+    {
+        if ($this->isCreateEms && ! $this->serviciosDisponiblesQuery()->whereKey($this->servicio_id)->exists()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'servicio_id' => 'Selecciona un servicio del tarifario padre vigente. Si cambió la configuración, actualiza la página.',
+            ]);
+        }
     }
 
     public function getIsAdmisionProperty()
@@ -2729,6 +2793,7 @@ class PaquetesEms extends Component
             : $this->modeFeaturePermission('create');
 
         $this->authorizePermission($permission);
+        $this->validarServicioDisponible();
 
         $user = Auth::user();
         if (!$user) {
@@ -2781,6 +2846,7 @@ class PaquetesEms extends Component
             : $this->modeFeaturePermission('create');
 
         $this->authorizePermission($permission);
+        $this->validarServicioDisponible();
 
         $user = Auth::user();
         if (!$user) {
@@ -2816,6 +2882,13 @@ class PaquetesEms extends Component
             }
             $paquete = null;
             DB::transaction(function () use ($user, &$paquete) {
+                if ($this->isCreateEms) {
+                    // Recalcular al confirmar evita reutilizar la vista previa de otro registro.
+                    if (DB::getDriverName() === 'pgsql') {
+                        DB::select("SELECT pg_advisory_xact_lock(hashtext('ems_create_codigo'))");
+                    }
+                    $this->codigo = $this->generateCodigo();
+                }
                 $paquete = PaqueteEms::create($this->payload($user->id));
                 $this->syncFormularioData($paquete);
                 $this->saveRemitenteData();
@@ -5887,7 +5960,9 @@ class PaquetesEms extends Component
         $destinosTransito = [];
 
         if ($this->isCreateEms) {
+            $this->servicios = $this->serviciosDisponiblesQuery()->orderBy('nombre_servicio')->get();
             return view('livewire.paquetes-ems', [
+                'tarifariosPadre' => $this->puedeConfigurarTarifario ? TarifarioPadre::orderBy('nombre')->get() : collect(),
                 'paquetes' => collect(),
                 'almacenRows' => $almacenRows,
                 'contratosAlmacen' => $contratosAlmacen,
@@ -8606,6 +8681,10 @@ class PaquetesEms extends Component
 
         if ($this->isAlmacenEms) {
             return 'AG';
+        }
+
+        if ($this->isCreateEms && $this->servicio_id) {
+            return 'EN';
         }
 
         if (!$this->servicio_id) {

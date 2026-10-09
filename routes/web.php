@@ -62,6 +62,7 @@ use App\Http\Controllers\ServicioExtraController;
 use App\Http\Controllers\SucursalController;
 use App\Http\Controllers\TarifaContratoController;
 use App\Http\Controllers\TarifarioController;
+use App\Http\Controllers\TarifarioPadreController;
 use App\Http\Controllers\TarifarioTiktokerController;
 use App\Http\Controllers\TodosPaquetesController;
 use App\Http\Controllers\TrackingLocalEventRuleController;
@@ -492,6 +493,8 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::post('/paquetes-ems/registro-rapido-contrato', [PaquetesEmsController::class, 'storeRegistroRapidoContrato'])->name('paquetes-ems.contrato-rapido.store');
     Route::get('/paquetes-ems/{paquete}/boleta', [PaquetesEmsBoletaController::class, 'show'])->name('paquetes-ems.boleta');
     Route::get('/servicios', [ServicioController::class, 'index'])->name('servicios.index');
+    Route::resource('tarifario-padre', TarifarioPadreController::class)
+        ->parameters(['tarifario-padre' => 'tarifarioPadre'])->except('show');
     Route::get('/servicios/create', [ServicioController::class, 'create'])->name('servicios.create');
     Route::post('/servicios', [ServicioController::class, 'store'])->name('servicios.store');
     Route::get('/servicios/{servicio}/edit', [ServicioController::class, 'edit'])->name('servicios.edit');

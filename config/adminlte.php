@@ -1115,6 +1115,11 @@ $config = [
                     'icon' => 'fas fa-tags',
                     'submenu' => [
                         [
+                            'text' => 'Tarifarios padre',
+                            'url' => 'tarifario-padre',
+                            'icon' => 'fas fa-layer-group',
+                        ],
+                        [
                             'text' => 'Servicios',
                             'url' => 'servicios',
                             'icon' => 'fas fa-concierge-bell',

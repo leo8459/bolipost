@@ -355,6 +355,7 @@ class AclPermissionRegistry
         'empresas.historial.index' => ['search', 'view-pdf'],
         'alertas-empresa.index' => ['view', 'create', 'approve', 'readers', 'delete', 'export', 'manage'],
         'servicios.index' => ['create', 'edit', 'delete'],
+        'tarifario-padre.index' => ['create', 'edit', 'delete'],
         'conceptos-facturacion.index' => ['create', 'edit', 'delete'],
         'sucursales.index' => ['create', 'edit', 'delete'],
         'sacas.index' => ['create', 'edit', 'delete', 'assign', 'confirm'],

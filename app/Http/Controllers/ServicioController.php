@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Servicio;
+use App\Models\TarifarioPadre;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -14,6 +15,7 @@ class ServicioController extends Controller
         $q = trim((string) $request->query('q', ''));
 
         $servicios = Servicio::query()
+            ->with('tarifarioPadre')
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($search) use ($q) {
                     $search->where('nombre_servicio', 'ILIKE', "%{$q}%")
@@ -37,7 +39,8 @@ class ServicioController extends Controller
     public function create()
     {
         return view('servicio.create', [
-            'servicio' => new Servicio(),
+            'servicio' => new Servicio,
+            'tarifariosPadre' => TarifarioPadre::orderBy('nombre')->get(),
         ]);
     }
 
@@ -54,6 +57,7 @@ class ServicioController extends Controller
     {
         return view('servicio.edit', [
             'servicio' => $servicio,
+            'tarifariosPadre' => TarifarioPadre::orderBy('nombre')->get(),
         ]);
     }
 
@@ -84,6 +88,7 @@ class ServicioController extends Controller
     private function validateData(Request $request, ?Servicio $servicio = null): array
     {
         return $request->validate([
+            'tarifario_padre_id' => ['nullable', 'integer', 'exists:tarifario_padre,id'],
             'nombre_servicio' => [
                 'required',
                 'string',

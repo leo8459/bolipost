@@ -3,6 +3,21 @@
         <div class="row">
             <div class="col-md-6">
                 <div class="form-group mb-3">
+                    <label for="tarifario_padre_id">Tarifario padre</label>
+                    <select id="tarifario_padre_id" name="tarifario_padre_id" class="form-control @error('tarifario_padre_id') is-invalid @enderror">
+                        <option value="">Sin asignar</option>
+                        @foreach ($tarifariosPadre as $padre)
+                            <option value="{{ $padre->id }}" @selected((string) old('tarifario_padre_id', $servicio->tarifario_padre_id) === (string) $padre->id)>{{ $padre->nombre }}</option>
+                        @endforeach
+                    </select>
+                    @error('tarifario_padre_id')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                    <small class="form-text text-muted">Selecciona el tarifario padre al que pertenece este servicio.</small>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-group mb-3">
                     <label for="nombre_servicio">Nombre del servicio</label>
                     <input
                         type="text"

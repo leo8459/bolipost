@@ -1309,6 +1309,31 @@
 
             <div class="card-body">
                 @if ($this->isCreateEms)
+                    @if ($this->puedeConfigurarTarifario)
+                        <div class="mb-3">
+                            <button type="button" class="btn btn-outline-primary" wire:click="abrirConfiguracionTarifario">
+                                <i class="fas fa-cog mr-1"></i> Configurar tarifario padre
+                            </button>
+                            @if ($mostrarConfiguracionTarifario)
+                                <div class="border rounded p-3 mt-2">
+                                    <label for="ems-tarifario-padre">Tarifario padre para el registro EMS</label>
+                                    <select id="ems-tarifario-padre" wire:model="tarifarioPadreSeleccionado" class="form-control @error('tarifarioPadreSeleccionado') is-invalid @enderror">
+                                        <option value="">Seleccione un tarifario padre...</option>
+                                        @foreach ($tarifariosPadre as $padre)
+                                            <option value="{{ $padre->id }}">{{ $padre->nombre }}</option>
+                                        @endforeach
+                                    </select>
+                                    @error('tarifarioPadreSeleccionado') <small class="text-danger">{{ $message }}</small> @enderror
+                                    <p class="text-muted mt-2 mb-2">Todos los usuarios verán únicamente los servicios asociados al tarifario seleccionado. Los envíos EMS continuarán con el correlativo EN existente.</p>
+                                    <button type="button" class="btn btn-primary" wire:click="guardarConfiguracionTarifario" wire:loading.attr="disabled">Aplicar tarifario</button>
+                                    <button type="button" class="btn btn-secondary" wire:click="$set('mostrarConfiguracionTarifario', false)">Cancelar</button>
+                                </div>
+                            @endif
+                        </div>
+                    @endif
+                    @if ($servicios->isEmpty())
+                        <div class="alert alert-warning">No hay servicios asociados al tarifario padre vigente. Solicita al administrador que asocie servicios o seleccione otro tarifario.</div>
+                    @endif
                     <form wire:submit.prevent="save">
                         <div class="required-note">
                             Campos con <span class="required-star">*</span> son obligatorios.

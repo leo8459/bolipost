@@ -61,6 +61,7 @@
                                 <thead class="thead">
                                     <tr>
                                         <th>Nombre</th>
+                                        <th>Tarifario padre</th>
                                         <th>Act. Economica</th>
                                         <th>Codigo SIN</th>
                                         <th>Codigo</th>
@@ -73,6 +74,7 @@
                                     @forelse ($servicios as $servicio)
                                         <tr>
                                             <td>{{ $servicio->nombre_servicio }}</td>
+                                            <td>{{ $servicio->tarifarioPadre?->nombre ?? 'Sin asignar' }}</td>
                                             <td>{{ $servicio->actividadEconomica ?: '-' }}</td>
                                             <td>{{ $servicio->codigoSin ?: '-' }}</td>
                                             <td>{{ $servicio->codigo ?: '-' }}</td>
@@ -105,7 +107,7 @@
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="7" class="text-center py-4">No hay registros</td>
+                                            <td colspan="8" class="text-center py-4">No hay registros</td>
                                         </tr>
                                     @endforelse
                                 </tbody>

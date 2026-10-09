@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Servicio extends Model
 {
@@ -12,6 +13,7 @@ class Servicio extends Model
     protected $table = 'servicio';
 
     protected $fillable = [
+        'tarifario_padre_id',
         'nombre_servicio',
         'actividadEconomica',
         'codigoSin',
@@ -19,4 +21,9 @@ class Servicio extends Model
         'descripcion',
         'unidadMedida',
     ];
+
+    public function tarifarioPadre(): BelongsTo
+    {
+        return $this->belongsTo(TarifarioPadre::class, 'tarifario_padre_id');
+    }
 }
