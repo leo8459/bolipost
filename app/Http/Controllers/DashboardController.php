@@ -155,6 +155,44 @@ class DashboardController extends Controller
         return view('dashboard', $data);
     }
 
+    public function rankingDepartmentDetails(Request $request)
+    {
+        @set_time_limit(self::DASHBOARD_MAX_EXECUTION_SECONDS);
+        @ini_set('max_execution_time', (string) self::DASHBOARD_MAX_EXECUTION_SECONDS);
+
+        $departmentInput = $request->query('ranking_department', '');
+        abort_unless(is_string($departmentInput), 404);
+        $department = strtoupper(trim($departmentInput));
+        $departmentAliases = $this->departamentoAliasMap();
+        abort_unless(array_key_exists($department, $departmentAliases), 404);
+
+        $positionInput = $request->query('ranking_position');
+        abort_unless(is_scalar($positionInput), 404);
+        $position = filter_var($positionInput, FILTER_VALIDATE_INT, [
+            'options' => ['min_range' => 1, 'max_range' => count($departmentAliases)],
+        ]);
+        abort_if($position === false, 404);
+
+        [$from, $to, $rangeLabel] = $this->resolveRangoFechas($request);
+        $ranking = $this->buildRankingDepartamentos(
+            $this->resolveDashboardModulosSeleccionados($request),
+            $from,
+            $to,
+            true,
+            $this->resolveDepartamentoOrigenFiltro($request),
+            $department
+        );
+
+        $item = $ranking->first();
+        abort_unless($item, 404);
+        $item->puesto = $position;
+
+        return view('dashboard.partials.department-modals', [
+            'rankingDepartamentos' => collect([$item]),
+            'rangoLabel' => $rangeLabel,
+        ]);
+    }
+
     public function chartVolumeData(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -2330,14 +2368,20 @@ class DashboardController extends Controller
         ?Carbon $from,
         ?Carbon $to,
         bool $includeDetails = true,
-        string $departamentoOrigen = ''
+        string $departamentoOrigen = '',
+        ?string $onlyDepartment = null
     )
     {
         $estadoEntregadoId = $this->resolveEstadoIdByName('ENTREGADO');
         $estadoCanceladoId = $this->resolveEstadoIdByName('CANCELADO');
         $estadoTransitoId = $this->resolveEstadoIdByName('TRANSITO');
 
-        $rows = collect($this->departamentoAliasMap())
+        $aliasesByDepartment = collect($this->departamentoAliasMap());
+        if ($onlyDepartment !== null) {
+            $aliasesByDepartment = $aliasesByDepartment->only($onlyDepartment);
+        }
+
+        $rows = $aliasesByDepartment
             ->map(function (array $aliases, string $departamento) use ($modulosSeleccionados, $from, $to, $estadoEntregadoId, $estadoCanceladoId, $estadoTransitoId, $includeDetails, $departamentoOrigen) {
                 $total = 0;
                 $entregados = 0;
@@ -2739,7 +2783,7 @@ class DashboardController extends Controller
                 ->select([
                     DB::raw("'" . $label . "' as modulo"),
                     't.codigo as codigo',
-                    DB::raw("coalesce(nullif(trim(coalesce(t.cod_especial::text, '')), ''), 'SIN CODIGO ESPECIAL') as cod_especial"),
+                    DB::raw("coalesce(nullif(trim(coalesce(CAST(t.cod_especial AS TEXT), '')), ''), 'SIN CODIGO ESPECIAL') as cod_especial"),
                     DB::raw("coalesce(e.nombre_estado, 'SIN ESTADO') as estado"),
                     DB::raw($identityColumns['origen'] . ' as origen'),
                     DB::raw($identityColumns['destino'] . ' as destino'),

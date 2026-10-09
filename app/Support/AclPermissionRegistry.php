@@ -529,6 +529,7 @@ class AclPermissionRegistry
     private const ROUTE_ACCESS_PERMISSION_OVERRIDES = [
         'dashboard.alerts.department-details' => ['dashboard'],
         'dashboard.chart-volume-data' => ['dashboard'],
+        'dashboard.ranking-department-details' => ['dashboard'],
         'reportes.lifetime-movements' => ['reportes.scope'],
         'bastiones.reporte.imagen' => ['bastiones.reporte'],
         'bastiones.reporte.excel' => ['bastiones.reporte'],

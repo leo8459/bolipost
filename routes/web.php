@@ -190,6 +190,9 @@ Route::get('/dashboard/volumen-datos', [DashboardController::class, 'chartVolume
 Route::get('/dashboard/alert-department-details', [DashboardController::class, 'departmentAlertDetails'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.alerts.department-details');
+Route::get('/dashboard/ranking-department-details', [DashboardController::class, 'rankingDepartmentDetails'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.ranking-department-details');
 Route::get('/inicio', [DashboardController::class, 'welcome'])
     ->middleware(['auth', 'internal.only', 'verified'])
     ->name('home.welcome');
