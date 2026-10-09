@@ -2354,6 +2354,7 @@ class PaquetesEms extends Component
                 'peso',
                 'nombre_remitente',
                 'user_id',
+                'envio_cn33',
                 'created_at',
                 'updated_at',
             ]));
@@ -2373,6 +2374,7 @@ class PaquetesEms extends Component
                 'nombre_r',
                 'user_id',
                 'observacion',
+                'envio_cn33',
                 'created_at',
                 'updated_at',
             ]);
@@ -2391,6 +2393,7 @@ class PaquetesEms extends Component
                 'peso',
                 'nombre_remitente',
                 'observacion',
+                'envio_cn33',
                 'created_at',
                 'updated_at',
             ]);
@@ -2405,6 +2408,7 @@ class PaquetesEms extends Component
                 'origen',
                 'peso',
                 'destino',
+                'envio_cn33',
                 'created_at',
                 'updated_at',
             ]);
@@ -2462,7 +2466,11 @@ class PaquetesEms extends Component
             })->all())
             ->values();
 
-        $generatedAt = collect([$paquetes->max('updated_at'), $contratos->max('updated_at'), $solicitudes->max('updated_at'), $paquetesInt->max('updated_at')])
+        $generatedAt = collect([$paquetes->max('envio_cn33'), $contratos->max('envio_cn33'), $solicitudes->max('envio_cn33'), $paquetesInt->max('envio_cn33')])
+            ->filter()
+            ->sortDesc()
+            ->first()
+            ?: collect([$paquetes->max('updated_at'), $contratos->max('updated_at'), $solicitudes->max('updated_at'), $paquetesInt->max('updated_at')])
             ->filter()
             ->sortDesc()
             ->first() ?: now();

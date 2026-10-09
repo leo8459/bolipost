@@ -1909,7 +1909,9 @@ class PaquetesEmsController extends Controller
         $data = $request->validate([
             'empresa_id' => ['nullable', 'integer', 'exists:empresa,id'],
             'origen' => ['required', 'string', Rule::in(self::CIUDADES_BOLIVIA)],
+            'provincia_origen' => ['nullable', 'string', 'max:255'],
             'destino' => ['required', 'string', Rule::in(self::CIUDADES_BOLIVIA)],
+            'provincia_destino' => ['nullable', 'string', 'max:255'],
             'direccion_r' => ['required', 'string', 'max:255'],
             'direccion_d' => ['required', 'string', 'max:255'],
             'peso' => ['required', 'numeric', 'min:0.001'],
@@ -1920,7 +1922,9 @@ class PaquetesEmsController extends Controller
         ], [], [
             'empresa_id' => 'empresa',
             'origen' => 'origen',
+            'provincia_origen' => 'provincia de origen',
             'destino' => 'destino',
+            'provincia_destino' => 'provincia de destino',
             'direccion_r' => 'origen direccion',
             'direccion_d' => 'destino direccion',
             'peso' => 'peso',
@@ -1999,6 +2003,7 @@ class PaquetesEmsController extends Controller
                 'cod_especial' => null,
                 'estados_id' => $estadoDestinoId,
                 'origen' => strtoupper(trim((string) $data['origen'])),
+                'provincia_origen' => $this->nullableUpperTrim($data['provincia_origen'] ?? null),
                 'destino' => strtoupper(trim((string) $data['destino'])),
                 'nombre_r' => strtoupper(trim((string) ($empresa->nombre ?: 'SIN REMITENTE'))),
                 'telefono_r' => '-',
@@ -2008,7 +2013,7 @@ class PaquetesEmsController extends Controller
                 'telefono_d' => null,
                 'direccion_d' => strtoupper(trim((string) $data['direccion_d'])),
                 'mapa' => null,
-                'provincia' => null,
+                'provincia' => $this->nullableUpperTrim($data['provincia_destino'] ?? null),
                 'peso' => (float) $data['peso'],
                 'precio' => null,
                 'tarifa_contrato_id' => null,
@@ -2736,6 +2741,13 @@ class PaquetesEmsController extends Controller
         $text = trim((string) $value);
 
         return $text === '' ? null : $text;
+    }
+
+    private function nullableUpperTrim(?string $value): ?string
+    {
+        $text = trim((string) $value);
+
+        return $text === '' ? null : mb_strtoupper($text, 'UTF-8');
     }
 
     private function isPuertaAVentanillaService(?ServicioExtra $servicioExtra): bool

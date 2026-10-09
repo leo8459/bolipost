@@ -15,10 +15,12 @@ use App\Support\DeliveryFulfillment;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
 
 class DashboardController extends Controller
@@ -41,6 +43,7 @@ class DashboardController extends Controller
     private const DASHBOARD_HEAVY_ALERT_CACHE_SECONDS = 300;
     private const DASHBOARD_MAX_EXECUTION_SECONDS = 180;
     private const DASHBOARD_INLINE_DEPARTMENT_MAX_ROWS = 100000;
+    private const DASHBOARD_MODULE_KEYS = ['ems', 'contrato'];
     private const ENTREGAS_EXCLUDED_COURIER_NAMES = [
         'pasante',
         'leonardo doria medina ochoa',
@@ -71,6 +74,12 @@ class DashboardController extends Controller
         'SUCRE',
         'TRINIDAD',
         'COBIJA',
+    ];
+    private const CHART_ORIGIN_ALIASES = [
+        'CHUQUISACA' => 'SUCRE',
+        'BENI' => 'TRINIDAD',
+        'PANDO' => 'COBIJA',
+        'SANTA CRUZ DE LA SIERRA' => 'SANTA CRUZ',
     ];
 
     private const MODULOS = [
@@ -133,17 +142,127 @@ class DashboardController extends Controller
         @set_time_limit(self::DASHBOARD_MAX_EXECUTION_SECONDS);
         @ini_set('max_execution_time', (string) self::DASHBOARD_MAX_EXECUTION_SECONDS);
 
-        $data = Cache::remember(
+        $data = Cache::flexible(
             $this->dashboardCacheKey($request),
-            now()->addSeconds(self::DASHBOARD_CACHE_SECONDS),
-            fn () => $this->buildDashboardData($request, false, true)
+            [self::DASHBOARD_CACHE_SECONDS, self::DASHBOARD_CACHE_SECONDS * 3],
+            fn () => $this->buildDashboardData($request, false, false)
         );
 
-        // Las metricas pesadas usan cache, pero las alertas tienen una ventana
-        // mucho menor para no ocultar solicitudes operativas nuevas.
-        $data = array_replace($data, $this->cachedDashboardAlerts(Auth::user()));
+        // El resumen puede servirse unos minutos mientras se actualiza en segundo
+        // plano. Las alertas operativas conservan su cache corto independiente.
+        $data = array_replace($data, $this->cachedDashboardAlerts(Auth::user(), self::DASHBOARD_MODULE_KEYS));
 
         return view('dashboard', $data);
+    }
+
+    public function chartVolumeData(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'anio' => ['required', 'integer', 'between:2000,'.(now()->year + 3)],
+            'meses' => ['required', 'array', 'min:1', 'max:12'],
+            'meses.*' => ['required', 'integer', 'distinct', 'between:1,12'],
+            'departamentos' => ['required', 'array', 'min:1', 'max:9'],
+            'departamentos.*' => ['required', 'string', 'distinct', Rule::in(self::DESTINOS_BASE)],
+        ]);
+
+        $year = (int) $validated['anio'];
+        $months = collect($validated['meses'])->map(fn ($month): int => (int) $month)->sort()->values()->all();
+        $departments = collect($validated['departamentos'])->sort()->values()->all();
+        $filterDepartments = count($departments) < count(self::DESTINOS_BASE);
+        $deliveredId = $this->resolveEstadoIdByName('ENTREGADO');
+        $cancelledId = $this->resolveEstadoIdByName('CANCELADO');
+        $byDepartment = array_fill_keys($departments, [
+            'registrados' => 0,
+            'peso' => 0.0,
+            'entregas' => 0,
+        ]);
+        $aliases = collect($departments)
+            ->flatMap(fn (string $department): array => [
+                $department,
+                ...array_keys(self::CHART_ORIGIN_ALIASES, $department, true),
+            ])
+            ->all();
+
+        foreach (self::DASHBOARD_MODULE_KEYS as $moduleKey) {
+            $config = self::MODULOS[$moduleKey];
+            $query = DB::table($config['table']);
+            $this->applyChartMonthsFilter($query, $year, $months);
+            if ($filterDepartments) {
+                $this->applyOrigenAliasesFilter($query, $config, $aliases);
+            }
+            $this->excludeTestCompanyPackages($query, $config);
+
+            $originExpression = 'trim(upper('.$this->effectiveOrigenExpression($config).'))';
+            $stateColumn = $config['estado_column'];
+            $notCancelled = $cancelledId
+                ? "{$stateColumn} IS NULL OR {$stateColumn} <> ".(int) $cancelledId
+                : 'TRUE';
+            $delivered = $deliveredId ? "{$stateColumn} = ".(int) $deliveredId : 'FALSE';
+            $aggregates = $query
+                ->selectRaw("{$originExpression} as origen")
+                ->selectRaw("COUNT(DISTINCT CASE WHEN ({$notCancelled}) THEN codigo END) as total")
+                ->selectRaw("COUNT(DISTINCT CASE WHEN ({$notCancelled}) AND ({$delivered}) THEN codigo END) as entregados")
+                ->selectRaw("COALESCE(SUM(CASE WHEN ({$notCancelled}) THEN COALESCE({$config['peso_column']}, 0) ELSE 0 END), 0) as peso_total")
+                ->groupByRaw($originExpression)
+                ->get();
+
+            foreach ($aggregates as $aggregate) {
+                $origin = (string) $aggregate->origen;
+                $department = self::CHART_ORIGIN_ALIASES[$origin] ?? $origin;
+                if (! in_array($department, self::DESTINOS_BASE, true)) {
+                    if ($filterDepartments) {
+                        continue;
+                    }
+                    $department = 'SIN ORIGEN ASIGNADO';
+                }
+                $byDepartment[$department] ??= ['registrados' => 0, 'peso' => 0.0, 'entregas' => 0];
+                $byDepartment[$department]['registrados'] += (int) $aggregate->total;
+                $byDepartment[$department]['peso'] += (float) $aggregate->peso_total;
+                $byDepartment[$department]['entregas'] += (int) $aggregate->entregados;
+            }
+        }
+
+        $labels = array_keys($byDepartment);
+        $registered = array_column($byDepartment, 'registrados');
+        $weights = array_map(fn (array $values): float => round($values['peso'], 3), array_values($byDepartment));
+        $deliveries = array_column($byDepartment, 'entregas');
+
+        return response()->json([
+            'labels' => $labels,
+            'registrados' => $registered,
+            'peso' => $weights,
+            'entregas' => $deliveries,
+            'totales' => [
+                'registrados' => array_sum($registered),
+                'peso' => round(array_sum($weights), 3),
+                'entregas' => array_sum($deliveries),
+            ],
+            'meses' => $months,
+            'anio' => $year,
+            'departamentos' => $departments,
+        ]);
+    }
+
+    private function applyChartMonthsFilter(Builder $query, int $year, array $months): void
+    {
+        $periods = [];
+        $first = $previous = $months[0];
+        foreach (array_slice($months, 1) as $month) {
+            if ($month !== $previous + 1) {
+                $periods[] = [$first, $previous];
+                $first = $month;
+            }
+            $previous = $month;
+        }
+        $periods[] = [$first, $previous];
+
+        $query->where(function (Builder $selectedMonths) use ($year, $periods): void {
+            foreach ($periods as [$firstMonth, $lastMonth]) {
+                $start = Carbon::create($year, $firstMonth, 1)->startOfDay();
+                $end = Carbon::create($year, $lastMonth, 1)->endOfMonth()->endOfDay();
+                $selectedMonths->orWhereBetween('created_at', [$start, $end]);
+            }
+        });
     }
 
     public function departmentAlertDetails(Request $request)
@@ -180,7 +299,14 @@ class DashboardController extends Controller
 
         $result = $type === 'pickup'
             ? $this->buildPickupDepartmentAlertPage($department, $page, $perPage)
-            : $this->buildPendingDepartmentAlertPage($department, $userCity, $hasGlobalDepartmentAccess, $page, $perPage);
+            : $this->buildPendingDepartmentAlertPage(
+                $department,
+                $userCity,
+                $hasGlobalDepartmentAccess,
+                $page,
+                $perPage,
+                $request->query('scope') === 'dashboard' ? self::DASHBOARD_MODULE_KEYS : null
+            );
 
         return response()->json([
             'type' => $type,
@@ -207,7 +333,7 @@ class DashboardController extends Controller
     private function dashboardCacheKey(Request $request): string
     {
         $filters = [
-            'modules' => $this->resolveModulosSeleccionados($request),
+            'modules' => $this->resolveDashboardModulosSeleccionados($request),
             'range' => strtolower(trim((string) $request->query('range', 'all'))),
             'from' => trim((string) $request->query('from', '')),
             'to' => trim((string) $request->query('to', '')),
@@ -218,10 +344,10 @@ class DashboardController extends Controller
             'date' => now()->toDateString(),
         ];
 
-        return 'dashboard:v10:' . sha1(json_encode($filters, JSON_UNESCAPED_UNICODE));
+        return 'dashboard:v14:' . sha1(json_encode($filters, JSON_UNESCAPED_UNICODE));
     }
 
-    private function cachedDashboardAlerts($authUser): array
+    private function cachedDashboardAlerts($authUser, ?array $moduleKeys = null): array
     {
         if (!$authUser) {
             return [];
@@ -236,6 +362,7 @@ class DashboardController extends Controller
             'roles' => method_exists($authUser, 'getRoleNames')
                 ? $authUser->getRoleNames()->sort()->values()->all()
                 : [],
+            'modules' => $moduleKeys,
         ];
 
         $key = 'dashboard-alerts:v3:' . sha1(json_encode($scope, JSON_UNESCAPED_UNICODE));
@@ -243,11 +370,11 @@ class DashboardController extends Controller
         return Cache::remember(
             $key,
             now()->addSeconds(self::DASHBOARD_ALERT_CACHE_SECONDS),
-            fn () => $this->buildDashboardAlerts($authUser)
+            fn () => $this->buildDashboardAlerts($authUser, $moduleKeys)
         );
     }
 
-    private function buildDashboardAlerts($authUser): array
+    private function buildDashboardAlerts($authUser, ?array $moduleKeys = null): array
     {
         $hasGlobalDepartmentAccess = (bool) ($authUser?->hasGlobalDepartmentAccess() ?? false);
         $userCity = strtoupper(trim((string) optional($authUser)->ciudad));
@@ -295,24 +422,26 @@ class DashboardController extends Controller
         $regionalAlertKey = 'dashboard-alert-part:v1:regional:' . sha1(json_encode([
             $hasGlobalDepartmentAccess,
             $userCity,
+            $moduleKeys,
         ]));
         $regionalPendingAlert = Cache::remember(
             $regionalAlertKey,
             now()->addSeconds(self::DASHBOARD_HEAVY_ALERT_CACHE_SECONDS),
-            fn () => $this->buildRegionalPendingAlert($userCity, $hasGlobalDepartmentAccess)
+            fn () => $this->buildRegionalPendingAlert($userCity, $hasGlobalDepartmentAccess, $moduleKeys)
         );
 
-        $carteroAlertKey = 'dashboard-alert-part:v3:cartero:' . (int) $authUser->id;
+        $carteroAlertKey = 'dashboard-alert-part:v4:cartero:' . (int) $authUser->id . ':' . sha1(json_encode($moduleKeys));
         $carteroAlerts = Cache::remember(
             $carteroAlertKey,
             now()->addSeconds(self::DASHBOARD_HEAVY_ALERT_CACHE_SECONDS),
             fn () => [
-                'alert' => $this->buildCarteroPendingAlert($authUser, $userRoles),
+                'alert' => $this->buildCarteroPendingAlert($authUser, $userRoles, $moduleKeys),
                 'summary' => $this->buildCarteroPendingSummary(
                     $authUser,
                     $userRoles,
                     $hasGlobalDepartmentAccess,
-                    $userCity
+                    $userCity,
+                    $moduleKeys
                 ),
             ]
         );
@@ -680,7 +809,7 @@ class DashboardController extends Controller
         bool $includeDepartmentDetails = true
     ): array
     {
-        $modulosSeleccionados = $this->resolveModulosSeleccionados($request);
+        $modulosSeleccionados = $this->resolveDashboardModulosSeleccionados($request);
         [$desde, $hasta, $rangoLabel, $rangoKey] = $this->resolveRangoFechas($request);
         $agrupacion = $this->resolveAgrupacion($request);
         $departamento = $this->resolveDepartamentoFiltro($request);
@@ -795,10 +924,10 @@ class DashboardController extends Controller
             $rankingDepartamentos
         );
 
-        $alertData = $includeAlerts ? $this->buildDashboardAlerts($authUser) : [];
+        $alertData = $includeAlerts ? $this->buildDashboardAlerts($authUser, self::DASHBOARD_MODULE_KEYS) : [];
 
         return [
-            'modulosDisponibles' => self::MODULOS,
+            'modulosDisponibles' => array_intersect_key(self::MODULOS, array_flip(self::DASHBOARD_MODULE_KEYS)),
             'modulosSeleccionados' => $modulosSeleccionados,
             'estadoEntregadoDisponible' => (bool) $estadoEntregadoId,
             'estadoRezagoDisponible' => (bool) $estadoRezagoId,
@@ -816,6 +945,17 @@ class DashboardController extends Controller
             'chartVersus' => [
                 'labels' => ['Entregados', 'Pendientes'],
                 'totales' => [(int) $totales['entregados'], (int) $totales['pendientes']],
+            ],
+            'chartVolumen' => [
+                'labels' => array_column($resumenPorModulo, 'label'),
+                'registrados' => array_column($resumenPorModulo, 'total'),
+                'peso' => array_column($resumenPorModulo, 'peso_total'),
+                'entregas' => array_column($resumenPorModulo, 'entregados'),
+                'totales' => [
+                    'registrados' => $totales['paquetes'],
+                    'peso' => $totales['peso_total'],
+                    'entregas' => $totales['entregados'],
+                ],
             ],
             'trendLabels' => $trendLabels,
             'trendSeries' => $trendSeries,
@@ -857,7 +997,7 @@ class DashboardController extends Controller
             && $user->hasRole($role);
     }
 
-    private function buildRegionalPendingAlert(string $userCity, bool $hasGlobalDepartmentAccess = false): array
+    private function buildRegionalPendingAlert(string $userCity, bool $hasGlobalDepartmentAccess = false, ?array $moduleKeys = null): array
     {
         $regional = strtoupper(trim($userCity));
         if (!$hasGlobalDepartmentAccess && $regional === '') {
@@ -875,7 +1015,8 @@ class DashboardController extends Controller
         $pendingCount = 0;
         $pendingByDepartment = [];
 
-        foreach (self::MODULOS as $moduloKey => $config) {
+        foreach ($moduleKeys ?? array_keys(self::MODULOS) as $moduloKey) {
+            $config = self::MODULOS[$moduloKey];
             $query = DB::table($config['table'] . ' as t');
             if (!$hasGlobalDepartmentAccess) {
                 $this->applyDepartamentoFilter($query, $config, $regional, 't');
@@ -981,7 +1122,8 @@ class DashboardController extends Controller
         string $userCity,
         bool $hasGlobalDepartmentAccess,
         int $page,
-        int $perPage
+        int $perPage,
+        ?array $moduleKeys = null
     ): array {
         $estadoEntregadoId = $this->resolveEstadoIdByName('ENTREGADO');
         $estadoCanceladoId = $this->resolveEstadoIdByName('CANCELADO');
@@ -995,7 +1137,8 @@ class DashboardController extends Controller
         $eligibleHours = [];
         $minimumStart = now()->subHours(72)->startOfHour();
 
-        foreach (self::MODULOS as $moduloKey => $config) {
+        foreach ($moduleKeys ?? array_keys(self::MODULOS) as $moduloKey) {
+            $config = self::MODULOS[$moduloKey];
             $stateColumn = 't.' . $config['estado_column'];
             $startExpression = $moduloKey === 'contrato'
                 ? 'coalesce(t.fecha_recojo, t.created_at)'
@@ -1207,7 +1350,7 @@ class DashboardController extends Controller
         };
     }
 
-    private function buildCarteroPendingAlert($authUser, array $userRoles): array
+    private function buildCarteroPendingAlert($authUser, array $userRoles, ?array $moduleKeys = null): array
     {
         $isCartero = collect($userRoles)->contains(fn ($role) => str_contains((string) $role, 'cartero'));
         if (!$authUser || !$isCartero) {
@@ -1229,7 +1372,7 @@ class DashboardController extends Controller
             ->where('id_user', $authUser->id)
             ->where('id_estados', $estadoCarteroId);
 
-        $this->constrainActiveCarteroAssignments($query, $estadoCarteroId);
+        $this->constrainActiveCarteroAssignments($query, $estadoCarteroId, $moduleKeys);
 
         $count = (int) $query->count();
 
@@ -1239,7 +1382,7 @@ class DashboardController extends Controller
         ];
     }
 
-    private function buildCarteroPendingSummary($authUser, array $userRoles, bool $hasGlobalDepartmentAccess, string $userCity): array
+    private function buildCarteroPendingSummary($authUser, array $userRoles, bool $hasGlobalDepartmentAccess, string $userCity, ?array $moduleKeys = null): array
     {
         $isCartero = collect($userRoles)->contains(fn ($role) => str_contains((string) $role, 'cartero'));
         $isEncargadoEms = collect($userRoles)->contains(fn ($role) => (string) $role === 'encargado_ems');
@@ -1273,7 +1416,7 @@ class DashboardController extends Controller
             ->orderByDesc('pendientes')
             ->orderBy('users.name');
 
-        $this->constrainActiveCarteroAssignments($query, $estadoCarteroId);
+        $this->constrainActiveCarteroAssignments($query, $estadoCarteroId, $moduleKeys);
 
         if (!$hasGlobalDepartmentAccess) {
             if ($userCity === '') {
@@ -1296,7 +1439,7 @@ class DashboardController extends Controller
             return $row;
         })->values();
 
-        $details = $this->buildCarteroPendingDetails($rows->pluck('id')->all(), $estadoCarteroId);
+        $details = $this->buildCarteroPendingDetails($rows->pluck('id')->all(), $estadoCarteroId, $moduleKeys);
         foreach ($rows as $row) {
             $row->detalle = $details->get($row->id, collect());
         }
@@ -1311,7 +1454,7 @@ class DashboardController extends Controller
         ];
     }
 
-    private function buildCarteroPendingDetails(array $userIds, int $estadoCarteroId)
+    private function buildCarteroPendingDetails(array $userIds, int $estadoCarteroId, ?array $moduleKeys = null)
     {
         $details = collect();
         if ($userIds === []) {
@@ -1327,6 +1470,9 @@ class DashboardController extends Controller
         ];
         $now = now();
         foreach ($types as [$type, $foreignKey, $table, $state, $code, $destination, $events, $startEvents]) {
+            if ($moduleKeys !== null && !in_array($type, $moduleKeys, true)) {
+                continue;
+            }
             $packageCodeSql = $type === 'solicitud'
                 ? "COALESCE(NULLIF(TRIM(p.codigo_solicitud), ''), NULLIF(TRIM(p.barcode), ''))"
                 : 'p.'.$code;
@@ -1380,15 +1526,19 @@ class DashboardController extends Controller
      * Excluye asignaciones huerfanas o cuyo paquete ya dejo el estado CARTERO.
      * La tabla cartero puede conservar historial, pero no debe inflar pendientes.
      */
-    private function constrainActiveCarteroAssignments($query, int $estadoCarteroId): void
+    private function constrainActiveCarteroAssignments($query, int $estadoCarteroId, ?array $moduleKeys = null): void
     {
         $packageTypes = [
-            ['assignment' => 'id_paquetes_ems', 'table' => 'paquetes_ems', 'state' => 'estado_id'],
-            ['assignment' => 'id_paquetes_certi', 'table' => 'paquetes_certi', 'state' => 'fk_estado'],
-            ['assignment' => 'id_paquetes_ordi', 'table' => 'paquetes_ordi', 'state' => 'fk_estado'],
-            ['assignment' => 'id_paquetes_contrato', 'table' => 'paquetes_contrato', 'state' => 'estados_id'],
-            ['assignment' => 'id_solicitud_cliente', 'table' => 'solicitud_clientes', 'state' => 'estado_id'],
+            'ems' => ['assignment' => 'id_paquetes_ems', 'table' => 'paquetes_ems', 'state' => 'estado_id'],
+            'certi' => ['assignment' => 'id_paquetes_certi', 'table' => 'paquetes_certi', 'state' => 'fk_estado'],
+            'ordi' => ['assignment' => 'id_paquetes_ordi', 'table' => 'paquetes_ordi', 'state' => 'fk_estado'],
+            'contrato' => ['assignment' => 'id_paquetes_contrato', 'table' => 'paquetes_contrato', 'state' => 'estados_id'],
+            'solicitud' => ['assignment' => 'id_solicitud_cliente', 'table' => 'solicitud_clientes', 'state' => 'estado_id'],
         ];
+
+        if ($moduleKeys !== null) {
+            $packageTypes = array_intersect_key($packageTypes, array_flip($moduleKeys));
+        }
 
         $query->where(function ($assignments) use ($packageTypes, $estadoCarteroId) {
             foreach ($packageTypes as $type) {
@@ -1455,6 +1605,16 @@ class DashboardController extends Controller
         ));
 
         return empty($selected) ? $allKeys : $selected;
+    }
+
+    private function resolveDashboardModulosSeleccionados(Request $request): array
+    {
+        $selected = array_values(array_intersect(
+            self::DASHBOARD_MODULE_KEYS,
+            $this->resolveModulosSeleccionados($request)
+        ));
+
+        return $selected ?: self::DASHBOARD_MODULE_KEYS;
     }
 
     private function resolveAgrupacion(Request $request): string
@@ -1679,15 +1839,32 @@ class DashboardController extends Controller
         string $departamento = '',
         string $departamentoOrigen = ''
     ): array {
-        $startSub = DB::table($config['event_table'])
-            ->select('codigo', DB::raw('MIN(created_at) as start_at'))
-            ->whereIn('evento_id', $config['operational_start_events'])
-            ->groupBy('codigo');
+        $useIndexedEventLookup = DB::connection()->getDriverName() === 'pgsql'
+            && (($from && $to && $from->diffInDays($to) <= 366)
+                || $departamento !== ''
+                || $departamentoOrigen !== '');
 
-        $query = DB::table($config['table'] . ' as t')
-            ->leftJoinSub($startSub, 'operational_start', function ($join) {
-                $join->on('operational_start.codigo', '=', 't.codigo');
-            });
+        if ($useIndexedEventLookup) {
+            // Con filtros selectivos, busca el evento inicial por cada paquete
+            // usando el indice codigo/evento/fecha, sin agrupar todo el historico.
+            $startSub = DB::table($config['event_table'] . ' as start_event')
+                ->selectRaw('MIN(start_event.created_at) as start_at')
+                ->whereColumn('start_event.codigo', 't.codigo')
+                ->whereIn('start_event.evento_id', $config['operational_start_events']);
+
+            $query = DB::table($config['table'] . ' as t')
+                ->leftJoinLateral($startSub, 'operational_start');
+        } else {
+            $startSub = DB::table($config['event_table'])
+                ->select('codigo', DB::raw('MIN(created_at) as start_at'))
+                ->whereIn('evento_id', $config['operational_start_events'])
+                ->groupBy('codigo');
+
+            $query = DB::table($config['table'] . ' as t')
+                ->leftJoinSub($startSub, 'operational_start', function ($join) {
+                    $join->on('operational_start.codigo', '=', 't.codigo');
+                });
+        }
 
         $this->applyNoEntregadoScope($query, 't.' . $config['estado_column'], $estadoEntregadoId);
         $this->applyDateFilter($query, 't.created_at', $from, $to);

@@ -184,6 +184,9 @@ Route::middleware(['auth', 'internal.only'])->group(function () {
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard');
+Route::get('/dashboard/volumen-datos', [DashboardController::class, 'chartVolumeData'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.chart-volume-data');
 Route::get('/dashboard/alert-department-details', [DashboardController::class, 'departmentAlertDetails'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.alerts.department-details');
@@ -232,6 +235,9 @@ Route::get('/dir-comercial/rendimiento-servicios/export/pdf', [ReportesControlle
 Route::get('/dir-financiera/flujo-cajero', [FinancialReportController::class, 'cashierFlow'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.financiera.flujo-cajero');
+Route::get('/dashboard/flujo-cajero-importes', [FinancialReportController::class, 'cashierFlowDashboardAmounts'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.financiera.flujo-cajero.dashboard-amounts');
 Route::post('/dir-financiera/flujo-cajero/movimiento/cobro-realizado', [FinancialReportController::class, 'markCashierFlowMovementCollected'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.financiera.flujo-cajero.movimiento.cobro-realizado');

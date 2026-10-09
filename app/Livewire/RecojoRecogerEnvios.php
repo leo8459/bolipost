@@ -3,9 +3,13 @@
 namespace App\Livewire;
 
 use App\Models\Estado;
+use App\Models\Evento as EventoModel;
 use App\Models\Recojo as RecojoModel;
 use App\Services\ContratoPickupService;
+use App\Support\EncargadoEvent;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Livewire\Component;
 use Livewire\WithPagination;
 use RuntimeException;
@@ -23,6 +27,14 @@ class RecojoRecogerEnvios extends Component
     public $estadoSolicitudId = null;
 
     public $estadoAlmacenId = null;
+
+    public $rejectionRecojoId = null;
+
+    public $rejectionCode = '';
+
+    public $motivoRechazo = '';
+
+    public $detalleRechazo = '';
 
     public $selectedRecojos = [];
 
@@ -200,6 +212,129 @@ class RecojoRecogerEnvios extends Component
         session()->flash('success', $actualizados.' envio(s) enviado(s) a ALMACEN.');
     }
 
+    public function abrirModalRechazo(int $id): void
+    {
+        $this->authorizePermission('feature.paquetes-contrato.recoger-envios.assign');
+
+        $recojo = $this->solicitudesAccesiblesQuery()->whereKey($id)->first(['id', 'codigo']);
+
+        if (! $recojo) {
+            session()->flash('error', 'El envio ya no esta disponible para rechazar.');
+
+            return;
+        }
+
+        $this->resetValidation();
+        $this->rejectionRecojoId = (int) $recojo->id;
+        $this->rejectionCode = (string) $recojo->codigo;
+        $this->motivoRechazo = '';
+        $this->detalleRechazo = '';
+
+        $this->dispatch('openRejectModal');
+    }
+
+    public function rechazarEnvio(): void
+    {
+        $this->authorizePermission('feature.paquetes-contrato.recoger-envios.assign');
+
+        $validated = $this->validate([
+            'rejectionRecojoId' => ['required', 'integer', 'min:1'],
+            'motivoRechazo' => ['required', 'in:MAL EMBALAJE,DIRECCION INCOMPLETA O INCORRECTA,GUIA DUPLICADA,OTRO'],
+            'detalleRechazo' => ['required_if:motivoRechazo,OTRO', 'nullable', 'string', 'max:1000'],
+        ], [
+            'motivoRechazo.required' => 'Selecciona un motivo de rechazo.',
+            'motivoRechazo.in' => 'Selecciona un motivo de rechazo valido.',
+            'detalleRechazo.required_if' => 'Escribe el motivo del rechazo.',
+            'detalleRechazo.max' => 'El motivo no puede superar los 1000 caracteres.',
+        ]);
+
+        $estadoCanceladoId = (int) (Estado::query()
+            ->whereRaw('trim(upper(nombre_estado)) = ?', ['CANCELADO'])
+            ->value('id') ?? 0);
+
+        if ($estadoCanceladoId <= 0) {
+            session()->flash('error', 'No existe el estado CANCELADO en la tabla estados.');
+
+            return;
+        }
+
+        $eventoCancelacionId = (int) (EventoModel::query()
+            ->whereRaw('trim(upper(nombre_evento)) = ?', [mb_strtoupper(EncargadoEvent::CANCELADO)])
+            ->value('id') ?? 0);
+
+        if ($eventoCancelacionId <= 0) {
+            session()->flash('error', 'No existe el evento de cancelacion para registrar el rastreo.');
+
+            return;
+        }
+
+        $actor = Auth::user();
+        if (! $actor) {
+            session()->flash('error', 'Usuario no autenticado para registrar el evento de cancelacion.');
+
+            return;
+        }
+
+        $motivo = $validated['motivoRechazo'] === 'OTRO'
+            ? 'OTRO: '.trim((string) $validated['detalleRechazo'])
+            : $validated['motivoRechazo'];
+        $actorName = trim((string) $actor->name) ?: 'USUARIO DEL SISTEMA';
+        $detalleEvento = 'Envio cancelado desde recoger envios por '.$actorName.'. Motivo de rechazo: '.$motivo.'.';
+
+        $cancelado = DB::transaction(function () use (
+            $validated,
+            $estadoCanceladoId,
+            $eventoCancelacionId,
+            $actor,
+            $motivo,
+            $detalleEvento
+        ): bool {
+            $recojo = $this->solicitudesAccesiblesQuery()
+                ->whereKey((int) $validated['rejectionRecojoId'])
+                ->lockForUpdate()
+                ->first();
+
+            if (! $recojo) {
+                return false;
+            }
+
+            $observacionAnterior = trim((string) $recojo->observacion);
+            $recojo->estados_id = $estadoCanceladoId;
+            $recojo->observacion = trim($observacionAnterior."\nRECHAZO: {$motivo}");
+            $recojo->save();
+
+            $evento = [
+                'codigo' => (string) $recojo->codigo,
+                'evento_id' => $eventoCancelacionId,
+                'user_id' => (int) $actor->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+
+            if (Schema::hasColumn('eventos_contrato', 'detalle_evento')) {
+                $evento['detalle_evento'] = $detalleEvento;
+            }
+
+            DB::table('eventos_contrato')->insert($evento);
+
+            return true;
+        });
+
+        if (! $cancelado) {
+            session()->flash('error', 'El envio ya no esta disponible para rechazar.');
+
+            return;
+        }
+
+        $this->selectedRecojos = collect($this->selectedRecojos)
+            ->reject(fn ($id) => (int) $id === (int) $validated['rejectionRecojoId'])
+            ->values()
+            ->all();
+        $this->reset(['rejectionRecojoId', 'rejectionCode', 'motivoRechazo', 'detalleRechazo']);
+        $this->dispatch('closeRejectModal');
+        session()->flash('success', 'Envio rechazado y CANCELADO. Se registro el usuario responsable en el rastreo.');
+    }
+
     public function searchRecojos($seleccionarPorCodigo = false)
     {
         $this->searchQuery = $this->search;
@@ -371,5 +506,20 @@ class RecojoRecogerEnvios extends Component
         if (! $this->userCan($permission)) {
             abort(403, 'No tienes permiso para realizar esta accion.');
         }
+    }
+
+    private function solicitudesAccesiblesQuery()
+    {
+        $hasGlobalDepartmentAccess = (bool) optional(Auth::user())->hasGlobalDepartmentAccess();
+
+        return RecojoModel::query()
+            ->when(! $hasGlobalDepartmentAccess && $this->userCity !== '', function ($query) {
+                $query->whereRaw('trim(upper(origen)) = ?', [$this->userCity]);
+            }, function ($query) use ($hasGlobalDepartmentAccess) {
+                if (! $hasGlobalDepartmentAccess) {
+                    $query->whereRaw('1 = 0');
+                }
+            })
+            ->where('estados_id', (int) $this->estadoSolicitudId);
     }
 }

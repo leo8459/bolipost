@@ -611,7 +611,7 @@
                 <tr>
                     <td>{{ $item->name }}</td>
                     <td class="num">{{ \App\Support\BolivianNumber::format((int) $item->total_entregados) }}</td>
-                    <td>EMS: {{ (int) $item->ems }} | Contratos: {{ (int) $item->contrato }} | Certificados: {{ (int) $item->certi }} | Ordinarios: {{ (int) $item->ordi }}</td>
+                    <td>EMS: {{ (int) $item->ems }} | Contratos: {{ (int) $item->contrato }}</td>
                 </tr>
             @empty
                 <tr><td colspan="3" class="muted">Sin datos.</td></tr>
@@ -633,7 +633,7 @@
                 <tr>
                     <td>{{ $item->name }}</td>
                     <td class="num">{{ \App\Support\BolivianNumber::format((int) $item->total_registrados) }}</td>
-                    <td>EMS: {{ (int) $item->ems }} | Contratos: {{ (int) $item->contrato }} | Certificados: {{ (int) $item->certi }} | Ordinarios: {{ (int) $item->ordi }}</td>
+                    <td>EMS: {{ (int) $item->ems }} | Contratos: {{ (int) $item->contrato }}</td>
                 </tr>
             @empty
                 <tr><td colspan="3" class="muted">Sin datos.</td></tr>

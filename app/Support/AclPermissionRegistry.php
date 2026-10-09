@@ -528,6 +528,7 @@ class AclPermissionRegistry
      */
     private const ROUTE_ACCESS_PERMISSION_OVERRIDES = [
         'dashboard.alerts.department-details' => ['dashboard'],
+        'dashboard.chart-volume-data' => ['dashboard'],
         'reportes.lifetime-movements' => ['reportes.scope'],
         'bastiones.reporte.imagen' => ['bastiones.reporte'],
         'bastiones.reporte.excel' => ['bastiones.reporte'],
@@ -569,6 +570,9 @@ class AclPermissionRegistry
         ],
         'dashboard.financiera.flujo-cajero.movimiento.cobro-realizado' => [
             'dashboard.financiera.flujo-cajero',
+        ],
+        'dashboard.financiera.flujo-cajero.dashboard-amounts' => [
+            'dashboard',
         ],
         'dashboard.financiera.flujo-cajero.movimiento.devolver-por-cobrar' => [
             'dashboard.financiera.flujo-cajero',

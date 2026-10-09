@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\FacturacionReportService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\QueryException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
@@ -17,6 +18,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class FinancialReportController extends Controller
 {
@@ -44,6 +46,11 @@ class FinancialReportController extends Controller
         'PANDO' => 'COBIJA',
         'BENI' => 'TRINIDAD',
         'COCHABMABA' => 'COCHABAMBA',
+    ];
+
+    private const DASHBOARD_DEPARTMENTS = [
+        'LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI',
+        'TARIJA', 'SUCRE', 'TRINIDAD', 'COBIJA',
     ];
 
     private const SERVICE_GROUPS = [
@@ -78,6 +85,11 @@ class FinancialReportController extends Controller
     public function __construct(private readonly FacturacionReportService $reports) {}
 
     public function cashierFlow(Request $request)
+    {
+        return view('financial-reports.cashier-flow', $this->buildCashierFlowData($request));
+    }
+
+    private function buildCashierFlowData(Request $request, bool $includeCashierBreakdown = true): array
     {
         $data = $this->buildServicesReportData(
             $request,
@@ -157,18 +169,126 @@ class FinancialReportController extends Controller
         $data['summary']['totalRecaudado'] = (float) ($data['summary']['totalMontoVendido'] ?? $data['summary']['totalMonto'] ?? 0)
             + $data['cashierFlowCollectedAmount'];
         $data['summary']['totalSinContratosEca'] = (float) ($data['summary']['totalMontoVendido'] ?? $data['summary']['totalMonto'] ?? 0);
-        $data['cashierRows'] = $this->addCashierReceivableIncome(
-            $this->buildCashierBreakdown($data['services']),
-            $invoicePeriodMovements
-        );
-        $data['cashierRows'] = $this->addCashierPeriodAverages(
-            $data['cashierRows'],
-            $data['selectedMonths'],
-            $data['anio']
-        );
-        $data['cashierDepartmentGroups'] = $this->buildCashierDepartmentGroups($data['cashierRows']);
+        if ($includeCashierBreakdown) {
+            $data['cashierRows'] = $this->addCashierReceivableIncome(
+                $this->buildCashierBreakdown($data['services']),
+                $invoicePeriodMovements
+            );
+            $data['cashierRows'] = $this->addCashierPeriodAverages(
+                $data['cashierRows'],
+                $data['selectedMonths'],
+                $data['anio']
+            );
+            $data['cashierDepartmentGroups'] = $this->buildCashierDepartmentGroups($data['cashierRows']);
+        }
 
-        return view('financial-reports.cashier-flow', $data);
+        return $data;
+    }
+
+    public function cashierFlowDashboardAmounts(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'mes' => ['required_without:meses', 'nullable', 'integer', 'between:1,12'],
+            'meses' => ['required_without:mes', 'nullable', 'array', 'min:1', 'max:12'],
+            'meses.*' => ['required', 'integer', 'distinct', 'between:1,12'],
+            'anio' => ['required', 'integer', 'between:2000,'.(now()->year + 3)],
+            'departamentos' => ['nullable', 'array', 'min:1', 'max:9'],
+            'departamentos.*' => ['required', 'string', 'distinct', Rule::in(self::DASHBOARD_DEPARTMENTS)],
+        ]);
+
+        $months = collect($validated['meses'] ?? [$validated['mes']])->map(fn ($month): int => (int) $month)->sort()->values()->all();
+        $departments = collect($validated['departamentos'] ?? self::DASHBOARD_DEPARTMENTS)->sort()->values()->all();
+        $allDepartments = count($departments) === count(self::DASHBOARD_DEPARTMENTS);
+        $groupAmounts = collect();
+        $departmentAmounts = collect($departments)->mapWithKeys(fn (string $department): array => [$department => 0.0]);
+        $total = 0.0;
+
+        foreach ($allDepartments ? [''] : $departments as $department) {
+            $reportRequest = $request->duplicate([
+                'meses' => $months,
+                'anio' => (int) $validated['anio'],
+                'departamento' => $department,
+            ]);
+            $data = $this->buildCashierFlowData($reportRequest, false);
+            if (collect($data['errors'] ?? [])->isNotEmpty()) {
+                return response()->json(['message' => 'No se pudo consultar el importe ingresado para los filtros elegidos.'], 503);
+            }
+
+            $reportAmount = (float) ($data['summary']['totalRecaudado'] ?? 0);
+            $total += $reportAmount;
+            if ($allDepartments) {
+                foreach ($data['services'] as $service) {
+                    foreach ($service['_porRegionales'] ?? [] as $regionalRow) {
+                        $regionalRow = (array) $regionalRow;
+                        $regionalDepartment = $this->departmentNameFromRegionalRow($regionalRow);
+                        if ($departmentAmounts->has($regionalDepartment)) {
+                            $departmentAmounts->put(
+                                $regionalDepartment,
+                                (float) $departmentAmounts->get($regionalDepartment)
+                                    + (float) ($regionalRow['totalMontoVendido'] ?? $regionalRow['totalMonto'] ?? 0)
+                            );
+                        }
+                    }
+                }
+            } else {
+                $departmentAmounts->put($department, $reportAmount);
+            }
+            foreach ($data['serviceGroups'] as $group) {
+                $name = (string) $group['servicio'];
+                $groupAmounts->put($name,
+                    (float) $groupAmounts->get($name, 0)
+                    + (float) ($group['totalMontoVendido'] ?? $group['totalMonto'] ?? 0)
+                );
+            }
+        }
+
+        if ($allDepartments) {
+            $unassignedAmount = round($total - (float) $departmentAmounts->sum(), 2);
+            if ($unassignedAmount < -0.01) {
+                foreach ($departments as $department) {
+                    $regionalRequest = $request->duplicate([
+                        'meses' => $months,
+                        'anio' => (int) $validated['anio'],
+                        'departamento' => $department,
+                    ]);
+                    $regionalData = $this->buildCashierFlowData($regionalRequest, false);
+                    if (collect($regionalData['errors'] ?? [])->isNotEmpty()) {
+                        return response()->json(['message' => 'No se pudo consultar el desglose regional del importe.'], 503);
+                    }
+                    $departmentAmounts->put($department, (float) ($regionalData['summary']['totalRecaudado'] ?? 0));
+                }
+                $unassignedAmount = round($total - (float) $departmentAmounts->sum(), 2);
+                if ($unassignedAmount < -0.01) {
+                    return response()->json(['message' => 'El desglose regional no concilia con el total del reporte financiero.'], 503);
+                }
+            }
+            if ($unassignedAmount > 0) {
+                $departmentAmounts->put('SIN REGIONAL ASIGNADA', $unassignedAmount);
+            }
+        }
+
+        return response()->json([
+            'meses' => $months,
+            'anio' => (int) $validated['anio'],
+            'departamentos' => $departments,
+            'importe_total' => round($total, 2),
+            'desglose_departamentos' => $departmentAmounts
+                ->map(fn (float $amount, string $department): array => [
+                    'departamento' => $department,
+                    'importe' => round($amount, 2),
+                ])
+                ->values()
+                ->all(),
+            'grupos' => $groupAmounts
+                ->map(fn (float $amount, string $name): array => [
+                    'servicio' => $name,
+                    'importe' => round($amount, 2),
+                ])
+                ->filter(fn (array $group): bool => $group['importe'] > 0)
+                ->sortByDesc('importe')
+                ->values()
+                ->all(),
+        ]);
     }
 
     public function cashierFlowReport(Request $request)

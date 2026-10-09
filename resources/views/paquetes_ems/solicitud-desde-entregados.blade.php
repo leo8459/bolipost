@@ -9,7 +9,8 @@
         <div class="card ems-solicitud-card">
             <div class="card-header ems-header-bar">
                 <div>
-                    <div class="ems-solicitud-title">Crear solicitud desde EMS entregados</div>
+                    <div class="ems-solicitud-title">Registrar una solicitud EMS</div>
+                    <p class="ems-solicitud-intro">Completa la ruta y los datos del paquete. Los campos marcados como opcionales pueden quedar vacíos.</p>
                 </div>
                 <a href="{{ route('paquetes-ems.entregados', array_filter(['q' => $returnQuery])) }}" class="ems-back-btn">
                     Volver
@@ -20,94 +21,169 @@
                     <div class="alert alert-danger">{{ session('error') }}</div>
                 @endif
 
+                @if ($errors->any())
+                    <div class="alert alert-danger ems-error-summary" role="alert">
+                        <strong>Revisa estos datos antes de continuar:</strong>
+                        <ul>
+                            @foreach ($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+
                 <form method="POST" action="{{ route('paquetes-ems.entregados.solicitud.store') }}" class="row g-3 ems-form-grid" id="ems-solicitud-form">
                     @csrf
                     <input type="hidden" name="return_query" value="{{ $returnQuery }}">
                     <input type="hidden" name="ubicacion_paquete" id="ubicacion_paquete" value="{{ old('ubicacion_paquete') }}">
                     @error('ubicacion_paquete') <div class="col-12"><small class="text-danger">{{ $message }}</small></div> @enderror
 
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label fw-bold">Copiar codigo madre</label>
-                        <input
-                            type="text"
-                            name="codigo_madre"
-                            class="form-control"
-                            value="{{ old('codigo_madre', $codigoMadreSugerido ?? '') }}"
-                            placeholder="Codigo madre original"
-                        >
-                        @error('codigo_madre') <small class="text-danger">{{ $message }}</small> @enderror
-                    </div>
-
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label fw-bold">Empresa</label>
-                        <select name="empresa_id" id="empresa_id" class="form-control" required>
-                            <option value="">Selecciona una empresa</option>
-                            @foreach ($empresas as $empresa)
-                                <option
-                                    value="{{ $empresa->id }}"
-                                    data-codigo-cliente="{{ preg_replace('/\s+/', '', strtoupper(trim((string) $empresa->codigo_cliente))) }}"
-                                    @selected((int) old('empresa_id') === (int) $empresa->id)
+                    <section class="col-12 ems-form-section" aria-labelledby="ems-reference-heading">
+                        <div class="ems-section-heading">
+                            <span class="ems-section-number">1</span>
+                            <div>
+                                <h2 id="ems-reference-heading">Referencia y empresa</h2>
+                                <p>Vincula esta solicitud con su guía madre o selecciona la empresa.</p>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="codigo_madre" class="form-label">Código de la guía madre <span class="ems-optional">Opcional</span></label>
+                                <input
+                                    type="text"
+                                    id="codigo_madre"
+                                    name="codigo_madre"
+                                    class="form-control @error('codigo_madre') is-invalid @enderror"
+                                    value="{{ old('codigo_madre', $codigoMadreSugerido ?? '') }}"
+                                    placeholder="Ej.: código de la guía original"
+                                    aria-describedby="codigo_madre_help"
                                 >
-                                    {{ $empresa->nombre }}@if(!empty($empresa->sigla)) ({{ $empresa->sigla }})@endif - {{ $empresa->codigo_cliente }}
-                                </option>
-                            @endforeach
-                        </select>
-                        <small class="ems-company-hint" id="empresa_auto_hint"></small>
-                        @error('empresa_id') <small class="text-danger">{{ $message }}</small> @enderror
-                    </div>
+                                <small id="codigo_madre_help" class="ems-field-help">Si el código coincide, la empresa se seleccionará automáticamente.</small>
+                                @error('codigo_madre') <small class="text-danger d-block">{{ $message }}</small> @enderror
+                            </div>
 
-                    <div class="col-md-3 mb-3">
-                        <label class="form-label fw-bold">Origen</label>
-                        <select name="origen" class="form-control" required>
-                            <option value="">Selecciona origen</option>
-                            @foreach ($ciudades as $ciudad)
-                                <option value="{{ $ciudad }}" @selected(old('origen') === $ciudad)>{{ $ciudad }}</option>
-                            @endforeach
-                        </select>
-                        @error('origen') <small class="text-danger">{{ $message }}</small> @enderror
-                    </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="empresa_id" class="form-label">Empresa</label>
+                                <select name="empresa_id" id="empresa_id" class="form-control @error('empresa_id') is-invalid @enderror" required>
+                                    <option value="">Selecciona una empresa</option>
+                                    @foreach ($empresas as $empresa)
+                                        <option
+                                            value="{{ $empresa->id }}"
+                                            data-codigo-cliente="{{ preg_replace('/\s+/', '', strtoupper(trim((string) $empresa->codigo_cliente))) }}"
+                                            @selected((int) old('empresa_id') === (int) $empresa->id)
+                                        >
+                                            {{ $empresa->nombre }}@if(!empty($empresa->sigla)) ({{ $empresa->sigla }})@endif - {{ $empresa->codigo_cliente }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <small class="ems-company-hint" id="empresa_auto_hint"></small>
+                                @error('empresa_id') <small class="text-danger d-block">{{ $message }}</small> @enderror
+                            </div>
+                        </div>
+                    </section>
 
-                    <div class="col-md-3 mb-3">
-                        <label class="form-label fw-bold">Destino</label>
-                        <select name="destino" class="form-control" required>
-                            <option value="">Selecciona destino</option>
-                            @foreach ($ciudades as $ciudad)
-                                <option value="{{ $ciudad }}" @selected(old('destino') === $ciudad)>{{ $ciudad }}</option>
-                            @endforeach
-                        </select>
-                        @error('destino') <small class="text-danger">{{ $message }}</small> @enderror
-                    </div>
+                    <section class="col-12 ems-form-section" aria-labelledby="ems-route-heading">
+                        <div class="ems-section-heading">
+                            <span class="ems-section-number">2</span>
+                            <div>
+                                <h2 id="ems-route-heading">Ruta del paquete</h2>
+                                <p>Indica la ciudad y la provincia donde inicia y termina el envío.</p>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-lg-6 mb-3">
+                                <div class="ems-route-card ems-route-origin">
+                                    <h3>Sale desde</h3>
+                                    <div class="form-group">
+                                        <label for="origen" class="form-label">Ciudad de origen</label>
+                                        <select id="origen" name="origen" class="form-control @error('origen') is-invalid @enderror" required>
+                                            <option value="">Selecciona la ciudad de origen</option>
+                                            @foreach ($ciudades as $ciudad)
+                                                <option value="{{ $ciudad }}" @selected(old('origen') === $ciudad)>{{ $ciudad }}</option>
+                                            @endforeach
+                                        </select>
+                                        @error('origen') <small class="text-danger d-block">{{ $message }}</small> @enderror
+                                    </div>
+                                    <div class="form-group mb-0">
+                                        <label for="provincia_origen" class="form-label">Provincia de origen <span class="ems-optional">Opcional</span></label>
+                                        <input type="text" id="provincia_origen" name="provincia_origen" class="form-control @error('provincia_origen') is-invalid @enderror" value="{{ old('provincia_origen') }}" placeholder="Escribe la provincia" maxlength="255">
+                                        @error('provincia_origen') <small class="text-danger d-block">{{ $message }}</small> @enderror
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6 mb-3">
+                                <div class="ems-route-card ems-route-destination">
+                                    <h3>Llega a</h3>
+                                    <div class="form-group">
+                                        <label for="destino" class="form-label">Ciudad de destino</label>
+                                        <select id="destino" name="destino" class="form-control @error('destino') is-invalid @enderror" required>
+                                            <option value="">Selecciona la ciudad de destino</option>
+                                            @foreach ($ciudades as $ciudad)
+                                                <option value="{{ $ciudad }}" @selected(old('destino') === $ciudad)>{{ $ciudad }}</option>
+                                            @endforeach
+                                        </select>
+                                        @error('destino') <small class="text-danger d-block">{{ $message }}</small> @enderror
+                                    </div>
+                                    <div class="form-group mb-0">
+                                        <label for="provincia_destino" class="form-label">Provincia de destino <span class="ems-optional">Opcional</span></label>
+                                        <input type="text" id="provincia_destino" name="provincia_destino" class="form-control @error('provincia_destino') is-invalid @enderror" value="{{ old('provincia_destino') }}" placeholder="Escribe la provincia" maxlength="255">
+                                        @error('provincia_destino') <small class="text-danger d-block">{{ $message }}</small> @enderror
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
 
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label fw-bold">Origen direccion</label>
-                        <input type="text" name="direccion_r" class="form-control" value="{{ old('direccion_r') }}" required>
-                        @error('direccion_r') <small class="text-danger">{{ $message }}</small> @enderror
-                    </div>
+                    <section class="col-12 ems-form-section" aria-labelledby="ems-address-heading">
+                        <div class="ems-section-heading">
+                            <span class="ems-section-number">3</span>
+                            <div>
+                                <h2 id="ems-address-heading">Direcciones</h2>
+                                <p>Escribe referencias que ayuden a ubicar el punto de salida y de entrega.</p>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="direccion_r" class="form-label">Dirección de origen</label>
+                                <input type="text" id="direccion_r" name="direccion_r" class="form-control @error('direccion_r') is-invalid @enderror" value="{{ old('direccion_r') }}" placeholder="Calle, número o referencia" required maxlength="255">
+                                @error('direccion_r') <small class="text-danger d-block">{{ $message }}</small> @enderror
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="direccion_d" class="form-label">Dirección de destino</label>
+                                <input type="text" id="direccion_d" name="direccion_d" class="form-control @error('direccion_d') is-invalid @enderror" value="{{ old('direccion_d') }}" placeholder="Calle, número o referencia" required maxlength="255">
+                                @error('direccion_d') <small class="text-danger d-block">{{ $message }}</small> @enderror
+                            </div>
+                        </div>
+                    </section>
 
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label fw-bold">Destino direccion</label>
-                        <input type="text" name="direccion_d" class="form-control" value="{{ old('direccion_d') }}" required>
-                        @error('direccion_d') <small class="text-danger">{{ $message }}</small> @enderror
-                    </div>
-
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label fw-bold">Peso</label>
-                        <input type="number" step="0.001" min="0.001" name="peso" class="form-control" value="{{ old('peso') }}" required>
-                        @error('peso') <small class="text-danger">{{ $message }}</small> @enderror
-                    </div>
-
-                    <div class="col-md-8 mb-3">
-                        <label class="form-label fw-bold">Observacion</label>
-                        <textarea name="observacion" rows="4" class="form-control" placeholder="Escribe una observacion opcional...">{{ old('observacion') }}</textarea>
-                        @error('observacion') <small class="text-danger">{{ $message }}</small> @enderror
-                    </div>
+                    <section class="col-12 ems-form-section" aria-labelledby="ems-package-heading">
+                        <div class="ems-section-heading">
+                            <span class="ems-section-number">4</span>
+                            <div>
+                                <h2 id="ems-package-heading">Datos del paquete</h2>
+                                <p>Registra el peso en kilogramos y agrega observaciones si hacen falta.</p>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="peso" class="form-label">Peso (kg)</label>
+                                <input type="number" id="peso" step="0.001" min="0.001" name="peso" class="form-control @error('peso') is-invalid @enderror" value="{{ old('peso') }}" placeholder="Ej.: 1.250" required>
+                                @error('peso') <small class="text-danger d-block">{{ $message }}</small> @enderror
+                            </div>
+                            <div class="col-md-8 mb-3">
+                                <label for="observacion" class="form-label">Observaciones <span class="ems-optional">Opcional</span></label>
+                                <textarea id="observacion" name="observacion" rows="3" class="form-control @error('observacion') is-invalid @enderror" placeholder="Escribe un detalle útil sobre el paquete">{{ old('observacion') }}</textarea>
+                                @error('observacion') <small class="text-danger d-block">{{ $message }}</small> @enderror
+                            </div>
+                        </div>
+                    </section>
 
                     <div class="col-12 ems-form-actions">
                         <a href="{{ route('paquetes-ems.entregados', array_filter(['q' => $returnQuery])) }}" class="ems-cancel-btn">
                             Cancelar
                         </a>
                         <button type="submit" class="ems-submit-btn">
-                            Crear solicitud
+                            Continuar y registrar
                         </button>
                     </div>
                 </form>
@@ -174,13 +250,20 @@
             align-items: flex-start;
             gap: 16px;
             width: 100%;
-            flex-wrap: nowrap;
+            flex-wrap: wrap;
         }
 
         .ems-solicitud-title {
             font-size: 1.05rem;
             font-weight: 800;
             line-height: 1.2;
+        }
+
+        .ems-solicitud-intro {
+            margin: 5px 0 0;
+            color: rgba(255, 255, 255, 0.88);
+            font-size: 0.9rem;
+            line-height: 1.4;
         }
 
         .ems-back-btn {
@@ -229,6 +312,86 @@
             align-items: flex-start;
         }
 
+        .ems-error-summary ul {
+            margin: 6px 0 0;
+            padding-left: 1.25rem;
+        }
+
+        .ems-form-section {
+            padding: 1.25rem;
+            border: 1px solid #e1e8f2;
+            border-radius: 12px;
+            background: #fff;
+        }
+
+        .ems-section-heading {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 1rem;
+        }
+
+        .ems-section-number {
+            display: inline-flex;
+            flex: 0 0 30px;
+            width: 30px;
+            height: 30px;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: #e9f0fb;
+            color: #20539A;
+            font-size: 0.9rem;
+            font-weight: 900;
+        }
+
+        .ems-section-heading h2 {
+            margin: 1px 0 3px;
+            color: #14233a;
+            font-size: 1rem;
+            font-weight: 900;
+        }
+
+        .ems-section-heading p {
+            margin: 0;
+            color: #64748b;
+            font-size: 0.86rem;
+            line-height: 1.4;
+        }
+
+        .ems-optional {
+            margin-left: 4px;
+            color: #64748b;
+            font-size: 0.76rem;
+            font-weight: 600;
+        }
+
+        .ems-field-help {
+            display: block;
+            margin-top: 5px;
+            color: #64748b;
+            line-height: 1.4;
+        }
+
+        .ems-route-card {
+            height: 100%;
+            padding: 1rem;
+            border: 1px solid #dbe4f0;
+            border-radius: 10px;
+            background: #f8faff;
+        }
+
+        .ems-route-card h3 {
+            margin: 0 0 1rem;
+            color: #20539A;
+            font-size: 0.92rem;
+            font-weight: 900;
+        }
+
+        .ems-route-destination h3 {
+            color: #826000;
+        }
+
         .ems-form-actions {
             display: flex;
             justify-content: flex-end;
@@ -263,13 +426,13 @@
 
         .ems-submit-btn {
             background: #FECC36;
-            color: #fff;
+            color: #172b4d;
             border: 0;
         }
 
         .ems-submit-btn:hover {
             background: #f4c21d;
-            color: #fff;
+            color: #172b4d;
         }
 
         .ems-company-hint {
@@ -372,6 +535,22 @@
         }
 
         @media (max-width: 575.98px) {
+            .ems-solicitud-wrap {
+                padding: 8px;
+            }
+
+            .ems-solicitud-card .card-body {
+                padding: 1rem;
+            }
+
+            .ems-form-section {
+                padding: 1rem;
+            }
+
+            .ems-back-btn {
+                margin-left: 0;
+            }
+
             .ems-location-actions {
                 grid-template-columns: 1fr;
             }

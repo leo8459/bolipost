@@ -263,6 +263,10 @@
                                 <label class="custom-control-label" for="cfg_chart_versus">Grafico versus (entregados vs pendientes)</label>
                             </div>
                             <div class="custom-control custom-checkbox mr-4 mb-2">
+                                <input type="checkbox" class="custom-control-input" id="cfg_chart_volumen" data-setting-widget="chart_volumen">
+                                <label class="custom-control-label" for="cfg_chart_volumen">Grafico de volumen por modulo</label>
+                            </div>
+                            <div class="custom-control custom-checkbox mr-4 mb-2">
                                 <input type="checkbox" class="custom-control-input" id="cfg_tabla_resumen" data-setting-widget="tabla_resumen">
                                 <label class="custom-control-label" for="cfg_tabla_resumen">Tabla resumen</label>
                             </div>
@@ -429,6 +433,74 @@
         </div>
     </div>
 
+    <div class="card chart-card" data-widget="chart_volumen" id="cardChartVolumen">
+        <div class="card-header chart-header-flex">
+            <div>
+                <strong id="chartVolumenTitle">Registrados por departamento de origen</strong>
+                <div id="chartVolumenSubtitle" class="text-muted small">EMS y Contratos segun el origen de cada paquete</div>
+                <div class="chart-helper">Cada porcion representa un departamento. Elige una medida para comparar sus totales.</div>
+                <span id="chartVolumenTotal" class="badge badge-primary mt-1" aria-live="polite"></span>
+            </div>
+            <div class="chart-type-wrap">
+                <button type="button" class="btn btn-sm btn-outline-secondary chart-action-btn" data-chart-download="chartVolumen" title="Descargar PNG">
+                    <i class="fas fa-download"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary chart-action-btn" data-chart-fullscreen="cardChartVolumen" title="Pantalla completa">
+                    <i class="fas fa-expand"></i>
+                </button>
+                <label for="chartVolumenMetric" class="chart-type-label mb-0">Medida</label>
+                <select id="chartVolumenMetric" class="form-control form-control-sm chart-type-select">
+                    <option value="registrados">Registrados</option>
+                    <option value="peso">Peso (kg)</option>
+                    <option value="entregas">Entregas</option>
+                    <option value="dinero">Importe ingresado (Bs)</option>
+                </select>
+                <label for="chartVolumenType" class="chart-type-label mb-0">Tipo</label>
+                <select id="chartVolumenType" class="form-control form-control-sm chart-type-select">
+                    <option value="doughnut">Donut</option>
+                    <option value="pie">Torta</option>
+                    <option value="bar">Barras</option>
+                    <option value="bar_h">Barras horizontales</option>
+                    <option value="line">Linea</option>
+                    <option value="area">Area</option>
+                    <option value="radar">Radar</option>
+                    <option value="polarArea">Area polar</option>
+                </select>
+            </div>
+        </div>
+        <div id="chartVolumenFilters" class="card-header chart-money-filters">
+            <label for="chartVolumenYear" class="chart-type-label mb-0">Año</label>
+            <input type="number" id="chartVolumenYear" class="form-control form-control-sm chart-money-year" min="2000" max="{{ now()->year + 3 }}" value="{{ now()->year }}">
+            <details class="chart-filter-details" id="chartVolumenMonths">
+                <summary id="chartVolumenMonthsSummary">Meses: {{ now()->translatedFormat('F') }}</summary>
+                <div class="chart-filter-options">
+                    <div class="chart-filter-actions"><button type="button" data-chart-select="months">Todos</button><button type="button" data-chart-clear="months">Limpiar</button></div>
+                    @foreach([1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril', 5 => 'Mayo', 6 => 'Junio', 7 => 'Julio', 8 => 'Agosto', 9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre'] as $monthNumber => $monthName)
+                        <label><input type="checkbox" data-chart-month value="{{ $monthNumber }}" {{ now()->month === $monthNumber ? 'checked' : '' }}> {{ $monthName }}</label>
+                    @endforeach
+                </div>
+            </details>
+            <details class="chart-filter-details" id="chartVolumenDepartments">
+                <summary id="chartVolumenDepartmentsSummary">Departamentos: Todos (9)</summary>
+                <div class="chart-filter-options">
+                    <div class="chart-filter-actions"><button type="button" data-chart-select="departments">Todos</button><button type="button" data-chart-clear="departments">Limpiar</button></div>
+                    @foreach(['LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI', 'TARIJA', 'SUCRE', 'TRINIDAD', 'COBIJA'] as $departmentName)
+                        <label><input type="checkbox" data-chart-department value="{{ $departmentName }}" checked> {{ $departmentName }}</label>
+                    @endforeach
+                </div>
+            </details>
+            <button type="button" id="chartVolumenApply" class="btn btn-sm btn-primary">Aplicar filtros</button>
+        </div>
+        <div class="card-body chart-canvas-body chart-canvas-body-sm" id="chartVolumenBody">
+            <canvas id="chartVolumen" height="100" role="img" aria-label="Distribucion por departamento de origen"></canvas>
+            <div id="chartVolumenEmpty" class="text-center text-muted small d-none">Sin datos para esta medida y los filtros actuales.</div>
+        </div>
+        <div id="chartVolumenBreakdown" class="card-footer chart-department-grid d-none" aria-live="polite"></div>
+        <div id="chartVolumenMoneyNote" class="card-footer small text-muted d-none">
+            El importe por departamento proviene de las regionales de <a id="chartVolumenFlowLink" href="{{ route('dashboard.financiera.flujo-cajero') }}">el reporte financiero</a>. Los cobros y ventas sin regional identificada aparecen como "Sin regional asignada" al elegir los nueve departamentos. Con una seleccion parcial, el reporte excluye los cobros que no puede asignar a una regional.
+        </div>
+    </div>
+
     <div class="card mb-3" data-widget="ranking_departamentos">
         <div class="card-header">
             <div class="d-flex justify-content-between align-items-center flex-wrap">
@@ -571,7 +643,7 @@
                     </div>
                     <div class="modal-body">
                         <div class="row">
-                            @foreach(['EMS', 'CONTRATOS', 'CERTIFICADOS', 'ORDINARIOS'] as $moduloDetalle)
+                            @foreach(['EMS', 'CONTRATOS'] as $moduloDetalle)
                                 <div class="col-6 col-md-3 mb-3">
                                     <div class="border rounded p-3 h-100">
                                         <div class="text-muted small">{{ $moduloDetalle }}</div>
@@ -606,7 +678,7 @@
                                     <label class="small text-muted mb-1">Servicio o categoria</label>
                                     <select class="form-control form-control-sm" data-transit-filter-module>
                                         <option value="">Todos</option>
-                                        @foreach(['EMS', 'CONTRATOS', 'CERTIFICADOS', 'ORDINARIOS'] as $moduloDetalle)
+                                        @foreach(['EMS', 'CONTRATOS'] as $moduloDetalle)
                                             <option value="{{ $moduloDetalle }}">{{ $moduloDetalle }}</option>
                                         @endforeach
                                     </select>
@@ -764,7 +836,7 @@
                     </div>
                     <div class="modal-body">
                         <div class="row">
-                            @foreach(['EMS', 'CONTRATOS', 'CERTIFICADOS', 'ORDINARIOS'] as $moduloDetalle)
+                            @foreach(['EMS', 'CONTRATOS'] as $moduloDetalle)
                                 <div class="col-6 col-md-3 mb-3">
                                     <div class="border rounded p-3 h-100">
                                         <div class="text-muted small">{{ $moduloDetalle }}</div>
@@ -801,7 +873,7 @@
                                     <label class="small text-muted mb-1">Servicio o categoria</label>
                                     <select class="form-control form-control-sm" data-pending-filter-module>
                                         <option value="">Todos</option>
-                                        @foreach(['EMS', 'CONTRATOS', 'CERTIFICADOS', 'ORDINARIOS'] as $moduloDetalle)
+                                        @foreach(['EMS', 'CONTRATOS'] as $moduloDetalle)
                                             <option value="{{ $moduloDetalle }}">{{ $moduloDetalle }}</option>
                                         @endforeach
                                     </select>
@@ -957,7 +1029,7 @@
                     </div>
                     <div class="modal-body">
                         <div class="row">
-                            @foreach(['EMS', 'CONTRATOS', 'CERTIFICADOS', 'ORDINARIOS'] as $moduloDetalle)
+                            @foreach(['EMS', 'CONTRATOS'] as $moduloDetalle)
                                 <div class="col-6 col-md-3 mb-3">
                                     <div class="border rounded p-3 h-100">
                                         <div class="text-muted small">{{ $moduloDetalle }}</div>
@@ -1095,7 +1167,7 @@
                                     <td>
                                         <strong>{{ $item->name }}</strong><br>
                                         <small class="text-muted">
-                                            E:{{ (int) $item->ems }} C:{{ (int) $item->contrato }} Ce:{{ (int) $item->certi }} O:{{ (int) $item->ordi }}
+                                            E:{{ (int) $item->ems }} C:{{ (int) $item->contrato }}
                                         </small>
                                     </td>
                                     <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $item->total_entregados) }}</td>
@@ -1128,7 +1200,7 @@
                                     <td>
                                         <strong>{{ $item->name }}</strong><br>
                                         <small class="text-muted">
-                                            E:{{ (int) $item->ems }} C:{{ (int) $item->contrato }} Ce:{{ (int) $item->certi }} O:{{ (int) $item->ordi }}
+                                            E:{{ (int) $item->ems }} C:{{ (int) $item->contrato }}
                                         </small>
                                     </td>
                                     <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $item->total_registrados) }}</td>
@@ -1454,6 +1526,7 @@
             display: flex;
             align-items: center;
             gap: 6px;
+            flex-wrap: wrap;
         }
         .chart-type-label {
             font-size: .78rem;
@@ -1465,6 +1538,44 @@
         .chart-type-select {
             min-width: 130px;
         }
+        .chart-money-filters {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .chart-money-year { width: 95px; }
+        .chart-filter-details { position: relative; }
+        .chart-filter-details summary {
+            cursor: pointer;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            background: #fff;
+            padding: 5px 10px;
+            min-width: 155px;
+            font-size: .85rem;
+        }
+        .chart-filter-options {
+            position: absolute;
+            z-index: 20;
+            top: calc(100% + 4px);
+            left: 0;
+            min-width: 220px;
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 8px;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            background: #fff;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, .15);
+        }
+        .chart-filter-options label { display: block; margin: 0; padding: 5px; cursor: pointer; }
+        .chart-filter-options label:hover { background: #f0f5fa; }
+        .chart-filter-actions { display: flex; gap: 8px; border-bottom: 1px solid #e2e8ee; margin-bottom: 4px; padding-bottom: 5px; }
+        .chart-filter-actions button { border: 0; background: transparent; color: #20539a; font-size: .8rem; font-weight: 600; cursor: pointer; }
+        .chart-department-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 7px; }
+        .chart-department-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 8px; background: #f7f9fc; border-radius: 5px; font-size: .83rem; }
+        .chart-department-item strong { white-space: nowrap; }
         .chart-action-btn {
             border-radius: 8px;
             width: 30px;
@@ -1483,6 +1594,9 @@
         }
         .chart-canvas-body-sm {
             height: 230px;
+        }
+        .chart-canvas-body-sm.chart-canvas-body-money {
+            height: 350px;
         }
         .chart-canvas-body-md {
             height: 320px;
@@ -1567,13 +1681,33 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script>
         const chartVersusData = @json($chartVersus);
+        const chartVolumeEndpoint = @json(route('dashboard.chart-volume-data'));
+        const cashierAmountEndpoint = @json(route('dashboard.financiera.flujo-cajero.dashboard-amounts'));
+        const cashierFlowUrl = @json(route('dashboard.financiera.flujo-cajero'));
         const trendLabels = @json($trendLabels);
         const trendSeries = @json($trendSeries);
 
         let chartVersus = null;
+        let chartVolumen = null;
         let chartTendencia = null;
+        let cashierAmountPeriod = null;
+        let cashierAmountLoading = false;
+        let cashierAmountError = '';
+        let cashierAmountRequest = 0;
+        let cashierDepartmentAmounts = [];
+        let cashierAmountTotal = 0;
+        let chartVolumenData = null;
+        let chartVolumePeriod = null;
+        let chartVolumeLoading = false;
+        let chartVolumeError = '';
+        let chartVolumeRequest = 0;
 
         const selectVersus = document.getElementById('chartVersusType');
+        const selectVolumenMetric = document.getElementById('chartVolumenMetric');
+        const selectVolumenType = document.getElementById('chartVolumenType');
+        const selectVolumenYear = document.getElementById('chartVolumenYear');
+        const chartMonthChecks = [...document.querySelectorAll('[data-chart-month]')];
+        const chartDepartmentChecks = [...document.querySelectorAll('[data-chart-department]')];
         const selectTendencia = document.getElementById('chartTendenciaType');
         const settingsWidgetChecks = document.querySelectorAll('[data-setting-widget]');
         const settingsColumnChecks = document.querySelectorAll('[data-setting-column]');
@@ -1615,6 +1749,7 @@
                 cards_principales: true,
                 chart_tendencia: true,
                 chart_versus: true,
+                chart_volumen: true,
                 tabla_resumen: true,
                 ranking_entregadores: true,
                 ranking_registradores: true,
@@ -1791,7 +1926,7 @@
             executeFilterSubmission(message);
         };
 
-        const getRenderedCharts = () => [chartVersus, chartTendencia].filter(Boolean);
+        const getRenderedCharts = () => [chartVersus, chartVolumen, chartTendencia].filter(Boolean);
 
         const resizeAllCharts = () => {
             getRenderedCharts().forEach((chart) => {
@@ -2144,6 +2279,7 @@
                     cards_principales: true,
                     chart_tendencia: false,
                     chart_versus: true,
+                    chart_volumen: true,
                     tabla_resumen: true,
                     ranking_entregadores: false,
                     ranking_registradores: false,
@@ -2165,6 +2301,7 @@
                     cards_principales: true,
                     chart_tendencia: true,
                     chart_versus: true,
+                    chart_volumen: true,
                     tabla_resumen: true,
                     ranking_entregadores: true,
                     ranking_registradores: true,
@@ -2204,11 +2341,20 @@
 
         const safeType = (value, allowed, fallback) => allowed.includes(value) ? value : fallback;
         const savedVersus = safeType(localStorage.getItem('dash_chart_versus') || 'doughnut', ['doughnut', 'pie', 'bar', 'bar_h', 'line', 'area', 'radar', 'polarArea'], 'doughnut');
+        const savedVolumenMetric = safeType(localStorage.getItem('dash_chart_volumen_metric') || 'registrados', ['registrados', 'peso', 'entregas', 'dinero'], 'registrados');
+        const savedVolumenType = safeType(localStorage.getItem('dash_chart_volumen_type') || 'doughnut', ['doughnut', 'pie', 'bar', 'bar_h', 'line', 'area', 'radar', 'polarArea'], 'doughnut');
         const savedTendencia = safeType(localStorage.getItem('dash_chart_tendencia') || 'line', ['line', 'bar', 'area', 'radar', 'bar_h'], 'line');
 
         if (selectVersus) {
             selectVersus.value = savedVersus;
         }
+        if (selectVolumenMetric) {
+            selectVolumenMetric.value = savedVolumenMetric;
+        }
+        if (selectVolumenType) {
+            selectVolumenType.value = savedVolumenType;
+        }
+        updateChartFilterSummaries();
         if (selectTendencia) {
             selectTendencia.value = savedTendencia;
         }
@@ -2289,6 +2435,279 @@
             });
         }
 
+        function chartSelection() {
+            const months = chartMonthChecks.filter((input) => input.checked).map((input) => Number(input.value)).sort((a, b) => a - b);
+            const departments = chartDepartmentChecks.filter((input) => input.checked).map((input) => input.value).sort();
+            const year = Number(selectVolumenYear.value);
+            return { months, departments, year, key: `${year}|${months.join(',')}|${departments.join(',')}` };
+        }
+
+        function updateChartFilterSummaries() {
+            const months = chartMonthChecks.filter((input) => input.checked);
+            const departments = chartDepartmentChecks.filter((input) => input.checked);
+            document.getElementById('chartVolumenMonthsSummary').textContent = months.length === 12
+                ? 'Meses: Todos (12)'
+                : `Meses: ${months.length === 1 ? months[0].parentElement.textContent.trim() : `${months.length} seleccionados`}`;
+            document.getElementById('chartVolumenDepartmentsSummary').textContent = departments.length === 9
+                ? 'Departamentos: Todos (9)'
+                : `Departamentos: ${departments.length === 1 ? departments[0].value : `${departments.length} seleccionados`}`;
+        }
+
+        function renderChartVolumen(metric, typeChoice) {
+            if (chartVolumen) {
+                chartVolumen.destroy();
+                chartVolumen = null;
+            }
+
+            const labels = {
+                registrados: 'Registrados',
+                peso: 'Peso',
+                entregas: 'Entregas',
+                dinero: 'Importe ingresado',
+            };
+            const decimals = metric === 'peso' ? 3 : (metric === 'dinero' ? 2 : 0);
+            const unit = metric === 'peso' ? ' kg' : (metric === 'dinero' ? ' Bs' : '');
+            const formatter = new Intl.NumberFormat('es-BO', {
+                minimumFractionDigits: decimals,
+                maximumFractionDigits: decimals,
+            });
+            const isMoney = metric === 'dinero';
+            const chartLabels = isMoney ? cashierDepartmentAmounts.map((row) => row.departamento) : (chartVolumenData?.labels || []);
+            const values = isMoney ? cashierDepartmentAmounts.map((row) => row.importe) : (chartVolumenData?.[metric] || []);
+            const total = isMoney ? cashierAmountTotal : Number(chartVolumenData?.totales?.[metric] || 0);
+            const totalElement = document.getElementById('chartVolumenTotal');
+            const emptyElement = document.getElementById('chartVolumenEmpty');
+            const moneyNote = document.getElementById('chartVolumenMoneyNote');
+            const chartTitle = document.getElementById('chartVolumenTitle');
+            const chartSubtitle = document.getElementById('chartVolumenSubtitle');
+            const chartBody = document.getElementById('chartVolumenBody');
+            const breakdown = document.getElementById('chartVolumenBreakdown');
+            const canvas = document.getElementById('chartVolumen');
+
+            chartTitle.textContent = `${labels[metric]} por departamento${isMoney ? '' : ' de origen'}`;
+            chartSubtitle.textContent = isMoney
+                ? 'Ingresos de todos los servicios segun la regional del reporte financiero'
+                : 'EMS y Contratos segun el origen de cada paquete';
+            chartBody.classList.toggle('chart-canvas-body-money', isMoney);
+            moneyNote.classList.toggle('d-none', !isMoney);
+
+            if (isMoney && (cashierAmountLoading || cashierAmountError || cashierAmountPeriod !== chartSelection().key)) {
+                totalElement.textContent = cashierAmountLoading ? 'Consultando importe ingresado...' : 'Importe no disponible';
+                emptyElement.textContent = cashierAmountError || (cashierAmountLoading ? 'Consultando ingresos...' : 'Pulsa Aplicar filtros para consultar esta seleccion.');
+                emptyElement.classList.remove('d-none');
+                canvas.classList.add('d-none');
+                breakdown.classList.add('d-none');
+                return;
+            }
+            if (!isMoney && (chartVolumeLoading || chartVolumeError || chartVolumePeriod !== chartSelection().key)) {
+                totalElement.textContent = chartVolumeLoading ? 'Consultando volumen...' : 'Volumen no disponible';
+                emptyElement.textContent = chartVolumeError || (chartVolumeLoading ? 'Consultando registros...' : 'Pulsa Aplicar filtros para consultar esta seleccion.');
+                emptyElement.classList.remove('d-none');
+                canvas.classList.add('d-none');
+                breakdown.classList.add('d-none');
+                return;
+            }
+
+            totalElement.textContent = isMoney
+                ? `Importe ingresado: Bs ${formatter.format(total)}`
+                : `Total ${labels[metric]}: ${formatter.format(total)}${metric === 'peso' ? ' kg' : ''}`;
+            emptyElement.textContent = isMoney
+                ? 'Sin ingresos registrados para los filtros elegidos.'
+                : 'Sin datos para esta medida y los filtros actuales.';
+            emptyElement.classList.toggle('d-none', total > 0);
+            canvas.classList.toggle('d-none', total <= 0);
+            canvas.setAttribute('aria-label', `${labels[metric]} por departamento. Total ${formatter.format(total)}${unit}`);
+
+            breakdown.replaceChildren();
+            chartLabels.forEach((department, index) => {
+                const item = document.createElement('div');
+                item.className = 'chart-department-item';
+                const name = document.createElement('span');
+                name.textContent = department;
+                const amount = document.createElement('strong');
+                amount.textContent = metric === 'dinero'
+                    ? `Bs ${formatter.format(Number(values[index] || 0))}`
+                    : `${formatter.format(Number(values[index] || 0))}${unit}`;
+                item.append(name, amount);
+                breakdown.appendChild(item);
+            });
+            breakdown.classList.toggle('d-none', chartLabels.length === 0);
+
+            if (total <= 0) {
+                return;
+            }
+
+            const palette = ['#20539a', '#17a2b8', '#28a745', '#f39c12', '#6f42c1', '#dc3545', '#20c997', '#795548', '#607d8b'];
+            const departmentColors = {
+                'LA PAZ': '#20539a', 'COCHABAMBA': '#17a2b8', 'SANTA CRUZ': '#28a745',
+                'ORURO': '#f39c12', 'POTOSI': '#6f42c1', 'TARIJA': '#dc3545',
+                'SUCRE': '#20c997', 'TRINIDAD': '#795548', 'COBIJA': '#607d8b',
+                'SIN ORIGEN ASIGNADO': '#8b949e', 'SIN REGIONAL ASIGNADA': '#8b949e',
+            };
+
+            const chartType = typeChoice === 'area' ? 'line' : (typeChoice === 'bar_h' ? 'bar' : typeChoice);
+            const isCircular = ['doughnut', 'pie', 'polarArea'].includes(chartType);
+            const horizontal = typeChoice === 'bar_h';
+            const dataset = {
+                label: labels[metric],
+                data: values,
+                backgroundColor: isCircular
+                    ? chartLabels.map((label, index) => departmentColors[label] || palette[index % palette.length])
+                    : (chartType === 'line' || chartType === 'radar' ? 'rgba(32, 83, 154, .25)' : '#20539a'),
+                borderColor: chartType === 'line' ? '#20539a' : '#fff',
+                borderWidth: chartType === 'line' ? 2 : 1,
+            };
+            if (chartType === 'line' || chartType === 'radar') {
+                dataset.fill = typeChoice === 'area' || chartType === 'radar';
+                dataset.tension = .25;
+            }
+            const options = {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: horizontal ? 'y' : 'x',
+                plugins: {
+                    legend: { display: isCircular, position: 'bottom' },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => {
+                                const value = Number(context.raw || 0);
+                                const percentage = total > 0 ? new Intl.NumberFormat('es-BO', { maximumFractionDigits: 1 }).format(value * 100 / total) : '0';
+                                return `${context.label}: ${formatter.format(value)}${unit} (${percentage}%)`;
+                            },
+                        },
+                    },
+                },
+            };
+            if (chartType === 'bar' || chartType === 'line') {
+                options.scales = horizontal
+                    ? { x: { beginAtZero: true }, y: { ticks: { autoSkip: false } } }
+                    : { y: { beginAtZero: true }, x: { ticks: { autoSkip: false } } };
+            } else if (chartType === 'radar') {
+                options.scales = { r: { beginAtZero: true } };
+            }
+
+            chartVolumen = new Chart(canvas, {
+                type: chartType,
+                data: {
+                    labels: chartLabels,
+                    datasets: [dataset],
+                },
+                options,
+            });
+        }
+
+        function validChartSelection(selection) {
+            return Number.isInteger(selection.year) && selection.year >= 2000
+                && selection.year <= Number(selectVolumenYear.max)
+                && selection.months.length > 0 && selection.departments.length > 0;
+        }
+
+        function chartFilterUrl(endpoint, selection) {
+            const url = new URL(endpoint, window.location.origin);
+            url.searchParams.set('anio', String(selection.year));
+            selection.months.forEach((month) => url.searchParams.append('meses[]', String(month)));
+            selection.departments.forEach((department) => url.searchParams.append('departamentos[]', department));
+            return url;
+        }
+
+        function loadCashierFlowAmounts() {
+            const selection = chartSelection();
+            const flowLink = document.getElementById('chartVolumenFlowLink');
+
+            if (!validChartSelection(selection)) {
+                cashierAmountRequest++;
+                cashierAmountError = 'Elige un año valido, al menos un mes y al menos un departamento.';
+                cashierAmountLoading = false;
+                renderChartVolumen('dinero', selectVolumenType.value);
+                return;
+            }
+
+            const url = chartFilterUrl(cashierAmountEndpoint, selection);
+            const flowUrl = new URL(cashierFlowUrl, window.location.origin);
+            flowUrl.searchParams.set('anio', String(selection.year));
+            selection.months.forEach((month) => flowUrl.searchParams.append('meses[]', String(month)));
+            if (selection.departments.length === 1) {
+                flowUrl.searchParams.set('departamento', selection.departments[0]);
+            }
+            flowLink.href = flowUrl.toString();
+
+            const requestId = ++cashierAmountRequest;
+            cashierAmountLoading = true;
+            cashierAmountError = '';
+            cashierAmountPeriod = null;
+            renderChartVolumen('dinero', selectVolumenType.value);
+
+            fetch(url.toString(), { headers: { Accept: 'application/json' } })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error(response.status === 403
+                            ? 'No tienes acceso al reporte financiero.'
+                            : 'No se pudo consultar el importe ingresado.');
+                    }
+                    return response.json();
+                })
+                .then((payload) => {
+                    if (requestId !== cashierAmountRequest) return;
+                    cashierDepartmentAmounts = Array.isArray(payload.desglose_departamentos)
+                        ? payload.desglose_departamentos.map((row) => ({ departamento: String(row.departamento), importe: Number(row.importe || 0) }))
+                        : [];
+                    cashierAmountTotal = Number(payload.importe_total || 0);
+                    cashierAmountPeriod = selection.key;
+                    cashierAmountLoading = false;
+                    if (selectVolumenMetric.value === 'dinero') {
+                        renderChartVolumen('dinero', selectVolumenType.value);
+                    }
+                })
+                .catch((error) => {
+                    if (requestId !== cashierAmountRequest) return;
+                    cashierAmountLoading = false;
+                    cashierAmountError = error.message;
+                    if (selectVolumenMetric.value === 'dinero') {
+                        renderChartVolumen('dinero', selectVolumenType.value);
+                    }
+                });
+        }
+
+        function loadChartVolumeData() {
+            const selection = chartSelection();
+            if (!validChartSelection(selection)) {
+                chartVolumeRequest++;
+                chartVolumeError = 'Elige un año valido, al menos un mes y al menos un departamento.';
+                chartVolumeLoading = false;
+                renderChartVolumen(selectVolumenMetric.value, selectVolumenType.value);
+                return;
+            }
+
+            const requestId = ++chartVolumeRequest;
+            chartVolumeLoading = true;
+            chartVolumeError = '';
+            chartVolumePeriod = null;
+            renderChartVolumen(selectVolumenMetric.value, selectVolumenType.value);
+
+            fetch(chartFilterUrl(chartVolumeEndpoint, selection).toString(), { headers: { Accept: 'application/json' } })
+                .then((response) => {
+                    if (!response.ok) throw new Error('No se pudieron consultar los registros, el peso y las entregas.');
+                    return response.json();
+                })
+                .then((payload) => {
+                    if (requestId !== chartVolumeRequest) return;
+                    chartVolumenData = payload;
+                    chartVolumePeriod = selection.key;
+                    chartVolumeLoading = false;
+                    if (selectVolumenMetric.value !== 'dinero') {
+                        renderChartVolumen(selectVolumenMetric.value, selectVolumenType.value);
+                    }
+                })
+                .catch((error) => {
+                    if (requestId !== chartVolumeRequest) return;
+                    chartVolumeLoading = false;
+                    chartVolumeError = error.message;
+                    if (selectVolumenMetric.value !== 'dinero') {
+                        renderChartVolumen(selectVolumenMetric.value, selectVolumenType.value);
+                    }
+                });
+        }
+
         function renderChartTendencia(typeChoice) {
             if (chartTendencia) {
                 chartTendencia.destroy();
@@ -2363,6 +2782,11 @@
         }
 
         renderChartVersus(savedVersus);
+        if (savedVolumenMetric === 'dinero') {
+            loadCashierFlowAmounts();
+        } else {
+            loadChartVolumeData();
+        }
         renderChartTendencia(savedTendencia);
 
         if (toggleFocusModeBtn) {
@@ -2496,6 +2920,47 @@
                 const type = event.target.value;
                 localStorage.setItem('dash_chart_versus', type);
                 renderChartVersus(type);
+            });
+        }
+
+        if (selectVolumenMetric) {
+            selectVolumenMetric.addEventListener('change', (event) => {
+                localStorage.setItem('dash_chart_volumen_metric', event.target.value);
+                if (event.target.value === 'dinero') {
+                    if (cashierAmountPeriod !== chartSelection().key && !cashierAmountLoading) loadCashierFlowAmounts();
+                    else renderChartVolumen(event.target.value, selectVolumenType.value);
+                } else if (chartVolumePeriod !== chartSelection().key && !chartVolumeLoading) {
+                    loadChartVolumeData();
+                } else {
+                    renderChartVolumen(event.target.value, selectVolumenType.value);
+                }
+            });
+        }
+
+        document.querySelectorAll('[data-chart-select], [data-chart-clear]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const checks = (button.dataset.chartSelect || button.dataset.chartClear) === 'months'
+                    ? chartMonthChecks : chartDepartmentChecks;
+                checks.forEach((input) => { input.checked = Boolean(button.dataset.chartSelect); });
+                updateChartFilterSummaries();
+                renderChartVolumen(selectVolumenMetric.value, selectVolumenType.value);
+            });
+        });
+        [...chartMonthChecks, ...chartDepartmentChecks, selectVolumenYear].forEach((input) => {
+            input.addEventListener('change', () => {
+                updateChartFilterSummaries();
+                renderChartVolumen(selectVolumenMetric.value, selectVolumenType.value);
+            });
+        });
+        document.getElementById('chartVolumenApply').addEventListener('click', () => {
+            if (selectVolumenMetric.value === 'dinero') loadCashierFlowAmounts();
+            else loadChartVolumeData();
+        });
+
+        if (selectVolumenType) {
+            selectVolumenType.addEventListener('change', (event) => {
+                localStorage.setItem('dash_chart_volumen_type', event.target.value);
+                renderChartVolumen(selectVolumenMetric.value, event.target.value);
             });
         }
 

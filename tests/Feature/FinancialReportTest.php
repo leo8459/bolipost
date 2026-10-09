@@ -130,6 +130,115 @@ class FinancialReportTest extends TestCase
         $this->assertSame(2, $remoteCalls);
     }
 
+    public function test_dashboard_income_uses_every_cashier_flow_service_and_collected_receivables(): void
+    {
+        Schema::create('cashier_flow_receivable_movements', function (Blueprint $table): void {
+            $table->id();
+            $table->string('movement_key');
+            $table->string('servicio');
+            $table->integer('anio');
+            $table->integer('mes');
+            $table->decimal('monto', 12, 2);
+            $table->boolean('cobro_activo');
+            $table->string('facturado_por_id');
+            $table->string('facturado_por_nombre');
+            $table->string('facturado_por_email');
+            $table->string('facturado_por_alias');
+            $table->decimal('cantidad_paquetes', 12, 2);
+            $table->timestamp('cobrado_at');
+        });
+        DB::table('cashier_flow_receivable_movements')->insert([
+            'movement_key' => str_repeat('a', 64),
+            'servicio' => 'Servicio Contratos por concepto de pago de servicios de courier correspondiente',
+            'anio' => 2026,
+            'mes' => 8,
+            'monto' => 25,
+            'cobro_activo' => true,
+            'facturado_por_id' => '1',
+            'facturado_por_nombre' => 'Cajero de prueba',
+            'facturado_por_email' => 'cajero@example.test',
+            'facturado_por_alias' => 'cajero',
+            'cantidad_paquetes' => 1,
+            'cobrado_at' => '2026-08-20 10:00:00',
+        ]);
+
+        Http::fake(fn () => Http::response(['servicios' => [
+            ['servicio' => 'Servicio EMS Nacional', 'totalMonto' => 100, 'totalMontoVendido' => 90, 'porRegionales' => [
+                ['regional' => 'LA PAZ', 'totalMontoVendido' => 50],
+                ['regional' => 'ORURO', 'totalMontoVendido' => 40],
+            ]],
+            ['servicio' => 'Servicio EMS Local Cobertura 1', 'totalMonto' => 30, 'totalMontoVendido' => 30, 'porRegionales' => [
+                ['regional' => 'LA PAZ', 'totalMontoVendido' => 30],
+            ]],
+            ['servicio' => 'Servicio Contratos por concepto de pago de servicios de courier correspondiente', 'totalMonto' => 200],
+            ['servicio' => 'Servicio Certificadas', 'totalMonto' => 50, 'porRegionales' => [
+                ['regional' => 'LA PAZ', 'totalMonto' => 50],
+            ]],
+            ['servicio' => 'Servicio Ordinarias', 'totalMonto' => 40, 'porRegionales' => [
+                ['regional' => 'ORURO', 'totalMonto' => 40],
+            ]],
+        ]], 200));
+
+        $this->withoutMiddleware()
+            ->getJson(route('dashboard.financiera.flujo-cajero.dashboard-amounts', [
+                'mes' => 8,
+                'anio' => 2026,
+                'departamentos' => ['LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI', 'TARIJA', 'SUCRE', 'TRINIDAD', 'COBIJA'],
+            ]))
+            ->assertOk()
+            ->assertJsonPath('importe_total', 235)
+            ->assertJsonFragment(['servicio' => 'Servicio EMS Nacional', 'importe' => 120])
+            ->assertJsonFragment(['servicio' => 'Servicio Contratos', 'importe' => 25])
+            ->assertJsonFragment(['servicio' => 'Servicio Internacional', 'importe' => 90])
+            ->assertJsonFragment(['departamento' => 'LA PAZ', 'importe' => 130])
+            ->assertJsonFragment(['departamento' => 'ORURO', 'importe' => 80])
+            ->assertJsonFragment(['departamento' => 'SIN REGIONAL ASIGNADA', 'importe' => 25]);
+
+        Http::assertSentCount(1);
+    }
+
+    public function test_dashboard_income_adds_selected_departments_across_selected_months(): void
+    {
+        Http::fake(function (Request $request) {
+            $month = (int) $request['mes'];
+            $department = (string) $request['regionalConteo'];
+            $amount = match ($department.'|'.$month) {
+                'LA PAZ|7' => 10,
+                'LA PAZ|8' => 20,
+                'ORURO|7' => 30,
+                'ORURO|8' => 40,
+                default => 0,
+            };
+
+            return Http::response(['servicios' => [[
+                'servicio' => 'Servicio EMS Nacional',
+                'totalMonto' => $amount,
+                'totalMontoVendido' => $amount,
+                'porRegionales' => [[
+                    'regional' => $department,
+                    'totalMonto' => $amount,
+                    'totalMontoVendido' => $amount,
+                ]],
+            ]]], 200);
+        });
+
+        $this->withoutMiddleware()
+            ->getJson(route('dashboard.financiera.flujo-cajero.dashboard-amounts', [
+                'meses' => [7, 8],
+                'anio' => 2026,
+                'departamentos' => ['LA PAZ', 'ORURO'],
+            ]))
+            ->assertOk()
+            ->assertJsonPath('meses', [7, 8])
+            ->assertJsonPath('departamentos', ['LA PAZ', 'ORURO'])
+            ->assertJsonPath('importe_total', 100)
+            ->assertJsonFragment(['departamento' => 'LA PAZ', 'importe' => 30])
+            ->assertJsonFragment(['departamento' => 'ORURO', 'importe' => 70])
+            ->assertJsonFragment(['servicio' => 'Servicio EMS Nacional', 'importe' => 100]);
+
+        Http::assertSentCount(4);
+    }
+
     public function test_cashier_modal_reuses_cached_details_for_multiple_services(): void
     {
         Http::fake(fn (Request $request) => Http::response(['servicio' => [

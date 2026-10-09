@@ -21,8 +21,9 @@
         .btn-outline-light2:hover{ background: rgba(255,255,255,.12); color:#fff; }
         .btn-outline-azul{ border:1px solid rgba(52,68,124,.35); color: var(--azul); font-weight: 800; border-radius: 12px; padding: 8px 12px; background:#fff; }
         .btn-outline-azul:hover{ background: rgba(52,68,124,.06); color: var(--azul); }
-        .action-col{ width: 128px; min-width: 128px; text-align:center; }
+        .action-col{ width: 156px; min-width: 156px; text-align:center; }
         .action-stack{ display:flex; flex-direction:column; align-items:center; gap:8px; }
+        .reject-btn{ width:100%; border-radius:10px; font-weight:800; }
         .action-btn{
             width:48px;
             height:48px;
@@ -252,6 +253,15 @@
                                             <i class="fas fa-print"></i>
                                         </a>
                                         @endif
+                                        @if ($canContratoRecogerAssign)
+                                        <button
+                                            type="button"
+                                            class="btn btn-sm btn-danger reject-btn"
+                                            wire:click="abrirModalRechazo({{ $recojo->id }})"
+                                        >
+                                            RECHAZAR
+                                        </button>
+                                        @endif
                                         </div>
                                     </td>
                                 </tr>
@@ -388,6 +398,69 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="rejectShipmentModal" tabindex="-1" aria-labelledby="rejectShipmentModalLabel" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title font-weight-bold" id="rejectShipmentModalLabel">Rechazar envio</h5>
+                        <div class="text-muted small">Codigo: <strong>{{ $rejectionCode ?: '-' }}</strong></div>
+                    </div>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    <label for="rejectReason" class="font-weight-bold">Motivo de rechazo <span class="text-danger">*</span></label>
+                    <select id="rejectReason" class="form-control @error('motivoRechazo') is-invalid @enderror" wire:model.live="motivoRechazo">
+                        <option value="">Selecciona un motivo</option>
+                        <option value="MAL EMBALAJE">MAL EMBALAJE</option>
+                        <option value="DIRECCION INCOMPLETA O INCORRECTA">DIRECCION INCOMPLETA O INCORRECTA</option>
+                        <option value="GUIA DUPLICADA">GUIA DUPLICADA</option>
+                        <option value="OTRO">OTRO</option>
+                    </select>
+                    @error('motivoRechazo')
+                        <small class="text-danger">{{ $message }}</small>
+                    @enderror
+
+                    @if ($motivoRechazo === 'OTRO')
+                        <div class="mt-3">
+                            <label for="rejectDetail" class="font-weight-bold">Escribe el motivo <span class="text-danger">*</span></label>
+                            <textarea
+                                id="rejectDetail"
+                                class="form-control @error('detalleRechazo') is-invalid @enderror"
+                                rows="3"
+                                maxlength="1000"
+                                wire:model.defer="detalleRechazo"
+                                placeholder="Describe el motivo del rechazo"
+                            ></textarea>
+                            @error('detalleRechazo')
+                                <small class="text-danger">{{ $message }}</small>
+                            @enderror
+                        </div>
+                    @endif
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    @if ($canContratoRecogerAssign)
+                        <button
+                            type="button"
+                            class="btn btn-danger"
+                            wire:click="rechazarEnvio"
+                            wire:loading.attr="disabled"
+                            wire:target="rechazarEnvio"
+                        >
+                            <span wire:loading.remove wire:target="rechazarEnvio">Confirmar rechazo</span>
+                            <span wire:loading wire:target="rechazarEnvio">Procesando...</span>
+                        </button>
+                    @endif
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 @once
@@ -404,15 +477,27 @@
             }
         };
 
+        const toggleRejectModal = (action) => {
+            if (window.jQuery && $('#rejectShipmentModal').length) {
+                $('#rejectShipmentModal').modal(action);
+            }
+        };
+
         const registerPickupModalEvents = () => {
             window.addEventListener('openPickupConfirmationModal', () => togglePickupModal('show'));
             window.addEventListener('closePickupConfirmationModal', () => togglePickupModal('hide'));
+            window.addEventListener('openRejectModal', () => toggleRejectModal('show'));
+            window.addEventListener('closeRejectModal', () => toggleRejectModal('hide'));
             document.addEventListener('openPickupConfirmationModal', () => togglePickupModal('show'));
             document.addEventListener('closePickupConfirmationModal', () => togglePickupModal('hide'));
+            document.addEventListener('openRejectModal', () => toggleRejectModal('show'));
+            document.addEventListener('closeRejectModal', () => toggleRejectModal('hide'));
 
             if (window.Livewire && typeof window.Livewire.on === 'function') {
                 window.Livewire.on('openPickupConfirmationModal', () => togglePickupModal('show'));
                 window.Livewire.on('closePickupConfirmationModal', () => togglePickupModal('hide'));
+                window.Livewire.on('openRejectModal', () => toggleRejectModal('show'));
+                window.Livewire.on('closeRejectModal', () => toggleRejectModal('hide'));
             }
         };
 

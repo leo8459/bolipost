@@ -189,7 +189,7 @@
                             class="btn btn-sm btn-light border mr-2 mb-2 js-dashboard-department-alert"
                             data-alert-type="pickup"
                             data-department="{{ $departamento->departamento }}"
-                            data-details-url="{{ route('dashboard.alerts.department-details', [], false) }}"
+                            data-details-url="{{ route('dashboard.alerts.department-details', request()->routeIs('dashboard') ? ['scope' => 'dashboard'] : [], false) }}"
                             data-toggle="modal"
                             data-target="#dashboardDepartmentAlertModal"
                         >
@@ -231,7 +231,7 @@
                             class="btn btn-sm btn-light border mr-2 mb-2 js-dashboard-department-alert"
                             data-alert-type="pending"
                             data-department="{{ $departamento->departamento }}"
-                            data-details-url="{{ route('dashboard.alerts.department-details', [], false) }}"
+                            data-details-url="{{ route('dashboard.alerts.department-details', request()->routeIs('dashboard') ? ['scope' => 'dashboard'] : [], false) }}"
                             data-toggle="modal"
                             data-target="#dashboardDepartmentAlertModal"
                         >

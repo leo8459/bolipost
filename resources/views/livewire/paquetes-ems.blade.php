@@ -3997,14 +3997,14 @@
                         <button
                             type="button"
                             class="btn btn-primary"
-                            wire:click="reimprimircn33detalle"
+                            wire:click="reimprimirCn33Detalle"
                             wire:loading.attr="disabled"
-                            wire:target="reimprimircn33detalle"
+                            wire:target="reimprimirCn33Detalle"
                         >
-                            <span wire:loading.remove wire:target="reimprimircn33detalle">
+                            <span wire:loading.remove wire:target="reimprimirCn33Detalle">
                                 <i class="fas fa-print mr-1"></i> Reimprimir CN-33
                             </span>
-                            <span wire:loading wire:target="reimprimircn33detalle">Generando...</span>
+                            <span wire:loading wire:target="reimprimirCn33Detalle">Generando...</span>
                         </button>
                     @endif
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>

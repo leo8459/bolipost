@@ -53,16 +53,12 @@
         <tr>
             <th>EMS</th>
             <th>Contratos</th>
-            <th>Certificados</th>
-            <th>Ordinarios</th>
         </tr>
     </thead>
     <tbody>
         <tr>
             <td class="num">{{ \App\Support\BolivianNumber::format((int) ($totalesModulo['EMS'] ?? 0)) }}</td>
             <td class="num">{{ \App\Support\BolivianNumber::format((int) ($totalesModulo['CONTRATOS'] ?? 0)) }}</td>
-            <td class="num">{{ \App\Support\BolivianNumber::format((int) ($totalesModulo['CERTIFICADOS'] ?? 0)) }}</td>
-            <td class="num">{{ \App\Support\BolivianNumber::format((int) ($totalesModulo['ORDINARIOS'] ?? 0)) }}</td>
         </tr>
     </tbody>
 </table>

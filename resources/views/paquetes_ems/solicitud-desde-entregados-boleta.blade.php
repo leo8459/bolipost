@@ -76,8 +76,14 @@
 
                 <table style="margin-top:-1px;">
                     <tr>
-                        <td style="width: 25%;"><span class="label">ORIGEN:</span><br>{{ $contrato->origen }}</td>
-                        <td style="width: 25%;"><span class="label">DESTINO:</span><br>{{ $contrato->destino }}</td>
+                        <td style="width: 25%;">
+                            <span class="label">ORIGEN:</span><br>{{ $contrato->origen }}
+                            <div class="muted">Provincia: {{ $contrato->provincia_origen ?: 'No especificada' }}</div>
+                        </td>
+                        <td style="width: 25%;">
+                            <span class="label">DESTINO:</span><br>{{ $contrato->destino }}
+                            <div class="muted">Provincia: {{ $contrato->provincia ?: 'No especificada' }}</div>
+                        </td>
                         <td style="width: 20%;"><span class="label">PESO:</span><br>{{ $contrato->peso }} kg</td>
                         <td style="width: 30%;"><span class="label">FECHA:</span><br>{{ optional($generatedAt)->format('Y-m-d H:i:s') }}</td>
                     </tr>
