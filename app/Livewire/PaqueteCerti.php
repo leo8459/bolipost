@@ -408,6 +408,7 @@ class PaqueteCerti extends Component
             $paquete->fk_estado = $estadoEntregadoId;
             $paquete->save();
         });
+        $this->registrarEventoCerti((string) $paquete->codigo, self::EVENTO_ID_PAQUETE_RECIBIDO_OFICINA_ENTREGA);
         $this->registrarEventoCerti((string) $paquete->codigo, self::EVENTO_ID_PAQUETE_PROCESADO_CLASIFICACION);
         session()->flash('success', 'Paquete enviado a ENTREGADO.');
     }
@@ -453,6 +454,7 @@ class PaqueteCerti extends Component
                     'precio' => self::BAJA_PRECIO,
                 ]);
         });
+        $this->registrarEventoCertiPorIds($ids, self::EVENTO_ID_PAQUETE_RECIBIDO_OFICINA_ENTREGA);
         $this->registrarEventoCertiPorIds($ids, self::EVENTO_ID_PAQUETE_PROCESADO_CLASIFICACION);
 
         $facturacionAgregados = 0;

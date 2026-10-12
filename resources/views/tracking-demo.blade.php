@@ -746,8 +746,8 @@
                 $mensajeAvisoRecojo = 'Aduana requiere una gestión para tu envío. Revisa las indicaciones antes de acudir a una oficina.';
             } else {
                 $mensajeAvisoRecojo = $departamento
-                    ? 'Tu envío está en gestión aduanera en ' . $departamento . '. Aún no figura como listo para recoger; espera una nueva actualización.'
-                    : 'Tu envío está en gestión aduanera. Aún no figura como listo para recoger; espera una nueva actualización.';
+                    ? 'Tu envío está en revisión aduanera en ' . $departamento . '. Debes pasar por Aduana para completar tus trámites.'
+                    : 'Tu envío está en revisión aduanera. Debes pasar por Aduana para completar tus trámites.';
             }
 
             if ($gestionAduanaRequerida && $departamento && isset($contactosRegional[$departamento])) {
@@ -987,6 +987,9 @@
                                             <div class="history-event-head">
                                                 <h4>{{ $limpiarNombreEvento($evento->nombre_evento ?? ('Evento #' . ($evento->evento_id ?? '-'))) }}</h4>
                                             </div>
+                                            @if((int) ($evento->codigo_evento ?? 0) === 37 && !empty($evento->delivery_mode))
+                                                <p class="history-event-delivery-mode"><i class="fas fa-truck" aria-hidden="true"></i> Entrega: {{ $evento->delivery_mode === 'DOMICILIARIA' ? 'Cartero · domiciliaria' : 'Ventanilla · no domiciliaria' }}</p>
+                                            @endif
                                             <div class="history-event-meta">
                                                 @php
                                                     $office = trim((string) ($evento->office ?? ''));

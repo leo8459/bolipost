@@ -256,9 +256,11 @@
                             <i class="fas fa-user mr-1"></i> Mis ventas
                         </a>
                     @endif
-                    <a href="{{ route($pageContext['export_route'], request()->query()) }}" target="_blank" rel="noopener" class="btn btn-outline-primary mr-2 mb-2">
-                        <i class="fas fa-file-pdf mr-1"></i> {{ $isBranchScope ? 'Reporte PDF sucursal' : 'Reporte PDF' }}
-                    </a>
+                    @if($isBranchScope)
+                        <a href="{{ route($pageContext['export_route'], request()->query()) }}" target="_blank" rel="noopener" class="btn btn-outline-primary mr-2 mb-2">
+                            <i class="fas fa-file-pdf mr-1"></i> Reporte PDF sucursal
+                        </a>
+                    @endif
                     <a href="{{ route($pageContext['filter_route']) }}" class="btn btn-outline-secondary mb-2">
                         <i class="fas fa-undo mr-1"></i> Reiniciar
                     </a>
@@ -777,6 +779,9 @@
                                                 $itemId = (int) data_get($item, 'id', 0);
                                                 $itemCodigo = trim((string) data_get($item, 'codigo', ''));
                                                 $itemOrigenTipo = trim((string) data_get($item, 'origen_tipo', ''));
+                                                $itemOrigenNormalizado = strtolower(preg_replace('/[^a-z0-9]/i', '', $itemOrigenTipo) ?? '');
+                                                $itemEsConceptoManual = str_contains($itemOrigenNormalizado, 'conceptofacturacion');
+                                                $itemVersionManual = (array) data_get($item, 'tarifario_manual_referencia', data_get($item, 'resumen_origen.tarifario_manual_referencia', []));
                                                 $itemTitulo = trim((string) data_get($item, 'titulo', ''));
                                                 $itemServicio = trim((string) data_get($item, 'nombre_servicio', ''));
                                                 $itemDestinatario = trim((string) data_get($item, 'nombre_destinatario', ''));
@@ -810,6 +815,9 @@
                                                     <div class="ventas-table__primary">{{ $itemTitulo !== '' ? $itemTitulo : 'Sin titulo' }}</div>
                                                     <div class="ventas-table__secondary">{{ $itemServicio !== '' ? $itemServicio : 'Sin servicio registrado' }}</div>
                                                     <div class="ventas-table__secondary">{{ $itemDestinatario !== '' ? $itemDestinatario : 'Sin destinatario' }}</div>
+                                                    @if($itemEsConceptoManual)
+                                                        <div class="ventas-table__secondary">Versión de referencia: {{ $itemVersionManual['version_codigo'] ?? 'Sin versión registrada' }}@if(!empty($itemVersionManual['version_nombre'])) · {{ $itemVersionManual['version_nombre'] }}@endif</div>
+                                                    @endif
                                                 </td>
                                                 <td class="text-center">
                                                     <span class="ventas-items-table__qty">{{ $itemCantidad }}</span>
@@ -1635,6 +1643,12 @@
                 const itemTitle = String(item.titulo || 'Sin titulo').trim();
                 const itemService = String(item.nombre_servicio || '').trim();
                 const itemDest = String(item.nombre_destinatario || '').trim();
+                const itemOrigin = String(item.origen_tipo || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                const isManualConcept = itemOrigin.includes('conceptofacturacion');
+                const manualVersion = item.tarifario_manual_referencia || item.resumen_origen?.tarifario_manual_referencia || {};
+                const manualVersionLabel = isManualConcept
+                    ? `Versión de referencia: ${manualVersion.version_codigo || 'Sin versión registrada'}${manualVersion.version_nombre ? ` · ${manualVersion.version_nombre}` : ''}`
+                    : '';
                 const itemReference = resolveItemReference(item);
                 const base = window.BolivianNumber.format(item.monto_base || 0, 2);
                 const extras = window.BolivianNumber.format(item.monto_extras || 0, 2);
@@ -1650,6 +1664,7 @@
                             <div class="ventas-table__primary">${escapeHtml(itemTitle)}</div>
                             <div class="ventas-table__secondary">${escapeHtml(itemService || 'Sin servicio registrado')}</div>
                             <div class="ventas-table__secondary">${escapeHtml(itemDest || 'Sin destinatario')}</div>
+                            ${manualVersionLabel ? `<div class="ventas-table__secondary">${escapeHtml(manualVersionLabel)}</div>` : ''}
                         </td>
                         <td class="text-center">
                             <span class="ventas-items-table__qty">${escapeHtml(qty)}</span>

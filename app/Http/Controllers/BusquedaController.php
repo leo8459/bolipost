@@ -962,15 +962,54 @@ class BusquedaController extends Controller
             ?? $evento['descripcion']
             ?? 'Evento de seguimiento'
         );
+        $eventDateLocal = $evento['eventDateLocal'] ?? null;
+        $eventDateUtc = $evento['eventDateUtc'] ?? null;
+        $captureDateUtc = $evento['captureDateUtc'] ?? null;
         $createdAt = (string) (
             $evento['created_at']
+            ?? $eventDateLocal
+            ?? $eventDateUtc
+            ?? $captureDateUtc
             ?? $evento['eventDate']
             ?? $evento['fecha_hora']
             ?? $evento['fecha_registro']
             ?? $evento['fecha']
             ?? now()->toDateTimeString()
         );
-        $timestamp = strtotime($createdAt);
+
+        // Convert IPS UTC values using that event's own local offset.
+        $sourceTable = strtoupper(trim((string) ($evento['tabla_origen'] ?? $evento['origen_evento'] ?? '')));
+        $timezoneLabel = null;
+        if (! empty($eventDateUtc) || $sourceTable === 'IPS5DB') {
+            try {
+                $eventTimezone = 'UTC';
+                $timezoneLabel = 'UTC';
+                if (is_numeric($evento['eventLocalOffset'] ?? null)) {
+                    $offsetMinutes = (int) round((float) $evento['eventLocalOffset'] * 60);
+                    $offsetSign = $offsetMinutes < 0 ? '-' : '+';
+                    $absoluteOffset = abs($offsetMinutes);
+                    $eventTimezone = sprintf(
+                        '%s%02d:%02d',
+                        $offsetSign,
+                        intdiv($absoluteOffset, 60),
+                        $absoluteOffset % 60
+                    );
+                    $timezoneLabel = 'UTC'.$eventTimezone;
+                }
+                $createdAt = \Illuminate\Support\Carbon::parse($createdAt, 'UTC')
+                    ->setTimezone($eventTimezone)
+                    ->toIso8601String();
+            } catch (\Throwable) {
+                // Leave the source value available if it is not a parseable timestamp.
+            }
+        } elseif (! empty($captureDateUtc)) {
+            $timezoneLabel = 'UTC · captura';
+        } elseif (! empty($eventDateLocal)) {
+            $timezoneLabel = 'Hora local del origen';
+        }
+
+        $timelineSortAt = (string) ($evento['eventDateUtc'] ?? $evento['captureDateUtc'] ?? $createdAt);
+        $timestamp = strtotime($timelineSortAt);
 
         return (object) [
             'id' => $evento['id'] ?? null,
@@ -985,6 +1024,9 @@ class BusquedaController extends Controller
                 ?? null,
             'user_id' => $evento['user_id'] ?? null,
             'created_at' => $createdAt,
+            'sort_at' => $timelineSortAt,
+            'timezone_label' => $timezoneLabel,
+            'delivery_mode' => $evento['delivery_mode'] ?? null,
             'updated_at' => $evento['updated_at'] ?? $createdAt,
             'nombre_evento' => $nombreEvento,
             'servicio' => $this->determinarServicio($evento, $payload, $codigo),
@@ -1239,7 +1281,7 @@ class BusquedaController extends Controller
                 );
                 $nombreEventoBase = preg_replace('/Asignado a CARTERO por .*? a .*?(?=\s*-\s*|$)/iu', 'Asignado a cartero', $nombreEventoBase) ?? $nombreEventoBase;
                 $nombreEventoBase = preg_replace('/\s*por\s+[^-]+?\s+a\s+[^-]+?(?=\s*-\s*|$)/iu', '', $nombreEventoBase) ?? $nombreEventoBase;
-                $timestamp = strtotime($createdAt);
+                $timestamp = strtotime((string) ($item->sort_at ?? $createdAt));
 
                 $item->_sort_ts = $timestamp !== false ? $timestamp : (PHP_INT_MAX - $index);
                 $item->_sort_priority = $this->calcularPrioridadEvento($nombreEventoBase);

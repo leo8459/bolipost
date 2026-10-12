@@ -20,6 +20,8 @@
         .code { font-family: DejaVu Sans Mono, monospace; text-transform: uppercase; font-size: 7.5px; }
         .annulled-row td { background:#fff1f2; color:#7f1d1d; font-weight:700; }
         .annulled-invoice { background:#ffc7ce !important; color:#c00000 !important; font-weight:700; }
+        .active-invoice { color:#198754; font-weight:700; }
+        .casilla-detail { display:block; margin-top:2px; font-size:7.5px; font-weight:400; }
         .totals td { border:1px solid #111; padding:4px; font-weight:700; }
         .footer td { border:1px solid #111; height:70px; vertical-align:bottom; text-align:center; font-size:7px; }
         .footer .obs { text-align:left; vertical-align:top; }
@@ -62,7 +64,7 @@
     </table>
 
     <table class="data">
-        <thead><tr><th>N°</th><th>FECHA</th><th>CANTIDAD</th><th>REGIONAL</th><th>TIPO DE CORRESPONDENCIA</th><th>CODIGO DE ENVIO</th><th>PESO</th><th>PAIS/CIUDAD DE DESTINO</th><th>N° FACTURA</th><th>IMPORTE</th></tr></thead>
+        <thead><tr><th>N°</th><th>FECHA</th><th>CANTIDAD</th><th>REGIONAL</th><th>TIPO DE CORRESPONDENCIA</th><th>CÓDIGO DE ENVÍO</th><th>PESO</th><th>PAÍS/CIUDAD DE DESTINO</th><th>OPERACIÓN</th><th>N° FACTURA</th><th>IMPORTE</th></tr></thead>
         <tbody>
             @forelse($visibleRows as $row)
                 <tr class="{{ data_get($row, 'es_anulada') ? 'annulled-row' : '' }}">
@@ -70,20 +72,30 @@
                     <td class="center">{{ data_get($row, 'fecha') }}</td>
                     <td class="center">{{ data_get($row, 'cantidad') }}</td>
                     <td class="center">{{ data_get($row, 'origen') }}</td>
-                    <td>{{ data_get($row, 'tipo_correspondencia') }}</td>
-                    <td class="code">{{ data_get($row, 'guia_casilla') }}</td>
-                    <td class="center">{{ data_get($row, 'peso') !== null && data_get($row, 'peso') !== '' ? number_format((float) data_get($row, 'peso'), 3, ',', '.') : '' }}</td>
-                    <td class="center">{{ data_get($row, 'pais_ciudad') }}</td>
-                    <td class="center {{ data_get($row, 'es_anulada') ? 'annulled-invoice' : '' }}">{{ data_get($row, 'numero_factura') }}</td>
+                    @if(data_get($row, 'es_casilla'))
+                        <td colspan="4" class="center">
+                            <strong>{{ data_get($row, 'tipo_correspondencia') }}</strong>
+                            @if(trim((string) data_get($row, 'detalle_casilla', '')) !== '')
+                                <span class="casilla-detail">{{ data_get($row, 'detalle_casilla') }}</span>
+                            @endif
+                        </td>
+                    @else
+                        <td>{{ data_get($row, 'tipo_correspondencia') }}</td>
+                        <td class="code">{{ data_get($row, 'guia_casilla') }}</td>
+                        <td class="center">{{ data_get($row, 'peso') !== null && data_get($row, 'peso') !== '' ? number_format((float) data_get($row, 'peso'), 3, ',', '.') : '' }}</td>
+                        <td class="center">{{ data_get($row, 'pais_ciudad') }}</td>
+                    @endif
+                    <td class="center">{{ data_get($row, 'modalidad_entrega', '-') }}</td>
+                    <td class="center {{ data_get($row, 'es_anulada') ? 'annulled-invoice' : 'active-invoice' }}">{{ data_get($row, 'numero_factura') }}</td>
                     <td class="right">Bs {{ number_format((float) data_get($row, 'importe', 0), 2, ',', '.') }}</td>
                 </tr>
             @empty
-                <tr><td colspan="10" class="center">Sin datos para los filtros aplicados.</td></tr>
+                <tr><td colspan="11" class="center">Sin datos para los filtros aplicados.</td></tr>
             @endforelse
         </tbody>
         <tfoot class="totals">
-            <tr><td colspan="9" class="right">TOTAL PARCIAL</td><td class="right">Bs {{ number_format((float) $totalImporte, 2, ',', '.') }}</td></tr>
-            <tr><td colspan="9" class="right">TOTAL GENERAL</td><td class="right">Bs {{ number_format((float) $totalImporte, 2, ',', '.') }}</td></tr>
+            <tr><td colspan="10" class="right">TOTAL PARCIAL</td><td class="right">Bs {{ number_format((float) $totalImporte, 2, ',', '.') }}</td></tr>
+            <tr><td colspan="10" class="right">TOTAL GENERAL</td><td class="right">Bs {{ number_format((float) $totalImporte, 2, ',', '.') }}</td></tr>
         </tfoot>
     </table>
 

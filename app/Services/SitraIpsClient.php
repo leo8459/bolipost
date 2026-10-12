@@ -40,6 +40,14 @@ class SitraIpsClient
             ->throw()->json();
     }
 
+    public function deliveryCatalog(): array
+    {
+        return $this->client()
+            ->get($this->url('/api/v1/ips/catalogos/entrega'))
+            ->throw()
+            ->json('data');
+    }
+
     public function package(string $codigo, ?int $office = null): array
     {
         return $this->client()->get($this->url('/api/v1/ips/paquetes/'.rawurlencode(strtoupper($codigo))), array_filter(['office_cd' => $office]))

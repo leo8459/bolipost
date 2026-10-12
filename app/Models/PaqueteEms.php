@@ -33,6 +33,8 @@ class PaqueteEms extends Model
         'referencia',
         'ciudad',
         'tarifario_id',
+        'tarifario_version_id',
+        'tarifario_snapshot',
         'estado_id',
         'user_id',
         'imagen',
@@ -42,6 +44,7 @@ class PaqueteEms extends Model
 
     protected $casts = [
         'envio_cn33' => 'datetime',
+        'tarifario_snapshot' => 'array',
     ];
 
     public function user()
@@ -52,6 +55,11 @@ class PaqueteEms extends Model
     public function tarifario()
     {
         return $this->belongsTo(Tarifario::class, 'tarifario_id');
+    }
+
+    public function tarifarioVersion()
+    {
+        return $this->belongsTo(TarifarioVersion::class, 'tarifario_version_id');
     }
 
     public function estado()

@@ -26,6 +26,61 @@
                     @endif
 
                     <div class="card-body">
+                        <div class="card card-outline card-warning mb-4">
+                            <div class="card-header d-flex justify-content-between align-items-center flex-wrap" style="gap:10px;">
+                                <strong>Versión de referencia para cobros manuales</strong>
+                                @if($versionManualActual)
+                                    <span class="badge badge-success">Vigente: {{ $versionManualActual->codigo }} · {{ $versionManualActual->nombre }}</span>
+                                @else
+                                    <span class="badge badge-secondary">Sin versión vigente</span>
+                                @endif
+                            </div>
+                            <div class="card-body">
+                                <p class="text-muted mb-3">La versión se guarda como referencia de auditoría. El flujo actual de precios no se modifica.</p>
+                                <form method="POST" action="{{ route('conceptos-facturacion.versiones.store') }}" class="row align-items-end">
+                                    @csrf
+                                    <div class="col-md-2">
+                                        <label for="version_manual_codigo">Código</label>
+                                        <input id="version_manual_codigo" name="codigo" class="form-control @error('codigo') is-invalid @enderror" value="{{ old('codigo') }}" maxlength="80" placeholder="TG-2026-02" required>
+                                        @error('codigo')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="version_manual_nombre">Nombre de referencia</label>
+                                        <input id="version_manual_nombre" name="nombre" class="form-control @error('nombre') is-invalid @enderror" value="{{ old('nombre') }}" maxlength="180" placeholder="Tarifario general octubre 2026" required>
+                                        @error('nombre')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="version_manual_observacion">Observación (opcional)</label>
+                                        <input id="version_manual_observacion" name="observacion" class="form-control @error('observacion') is-invalid @enderror" value="{{ old('observacion') }}" maxlength="2000" placeholder="Referencia documental o resolución">
+                                        @error('observacion')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                    </div>
+                                    <div class="col-md-2 mt-2 mt-md-0">
+                                        <button type="submit" class="btn btn-primary btn-block" onclick="return confirm('¿Publicar esta versión desde ahora? El flujo actual de precios no se modificará.')">Publicar versión</button>
+                                    </div>
+                                </form>
+
+                                @if($versionesManuales->isNotEmpty())
+                                    <div class="table-responsive mt-3">
+                                        <table class="table table-sm table-bordered mb-0">
+                                            <thead>
+                                                <tr><th>Versión</th><th>Estado</th><th>Vigencia</th><th>Observación</th></tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach($versionesManuales as $versionManual)
+                                                    <tr>
+                                                        <td><strong>{{ $versionManual->codigo }}</strong> · {{ $versionManual->nombre }}</td>
+                                                        <td>{{ $versionManual->estado === 'VIGENTE' ? 'Vigente' : 'Histórica' }}</td>
+                                                        <td>{{ $versionManual->vigente_desde?->format('d/m/Y H:i') }}{{ $versionManual->vigente_hasta ? ' – ' . $versionManual->vigente_hasta->format('d/m/Y H:i') : ' – actual' }}</td>
+                                                        <td>{{ $versionManual->observacion ?: '—' }}</td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+
                         <form method="GET" action="{{ route('conceptos-facturacion.index') }}" class="mb-3">
                             <div class="row">
                                 <div class="col-md-10">

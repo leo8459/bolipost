@@ -58,7 +58,7 @@
                     body: new FormData(addForm),
                     credentials: 'same-origin',
                 });
-                const result = await response.json();
+                const result = await response.json().catch(() => ({}));
                 if (!response.ok || !result.code) throw new Error(result.message || 'No se pudo guardar el paquete.');
                 const row = addForm.closest('tr');
                 row.querySelector('td:last-child').innerHTML = '<span class="text-success"><i class="fas fa-check"></i> En bandeja</span>';
@@ -70,7 +70,7 @@
                 setTimeout(() => { status.hidden = true; }, 3000);
             } catch (error) {
                 button.disabled = false;
-                button.innerHTML = '<i class="fas fa-plus"></i> Agregar';
+                button.innerHTML = '<i class="fas fa-plus"></i> ' + (document.querySelector('.ips-workspace')?.dataset.addLabel || 'Agregar');
                 status.hidden = false;
                 status.textContent = error.message;
             }
@@ -102,7 +102,12 @@
         const cell = codeCell?.closest('tr')?.querySelector('td:last-child');
         if (!cell || cell.querySelector('.ips-selection-add')) return;
         const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
-        cell.innerHTML = '<form class="ips-selection-add" method="POST" action="/ips/seleccionados"><input type="hidden" name="_token" value="'+token+'"><input type="hidden" name="codigo" value="'+code+'"><button class="btn btn-sm btn-outline-primary"><i class="fas fa-plus"></i> Agregar</button></form>';
+        const workspace = document.querySelector('.ips-workspace');
+        const deliveryOnly = workspace?.dataset.deliveryOnly === '1';
+        const addUrl = workspace?.dataset.selectionAddUrl || '/ips/seleccionados';
+        const workflowField = deliveryOnly ? '<input type="hidden" name="workflow" value="delivery">' : '';
+        const addLabel = workspace?.dataset.addLabel || 'Agregar';
+        cell.innerHTML = '<form class="ips-selection-add" method="POST" action="'+addUrl+'"><input type="hidden" name="_token" value="'+token+'"><input type="hidden" name="codigo" value="'+code+'">'+workflowField+'<button class="btn btn-sm btn-outline-primary"><i class="fas fa-plus"></i> '+addLabel+'</button></form>';
     });
     window.addEventListener('popstate', () => load(new URL(location.href), false));
 })();

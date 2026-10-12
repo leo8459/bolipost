@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\ConceptoFacturacion;
+use App\Models\TarifarioReferenciaManual;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -31,7 +34,57 @@ class ConceptoFacturacionController extends Controller
         return view('concepto_facturacion.index', [
             'conceptos' => $conceptos,
             'q' => $q,
+            'versionManualActual' => Schema::hasTable('tarifario_referencias_manuales')
+                ? TarifarioReferenciaManual::actual()
+                : null,
+            'versionesManuales' => Schema::hasTable('tarifario_referencias_manuales')
+                ? TarifarioReferenciaManual::query()->orderByDesc('vigente_desde')->orderByDesc('id')->limit(20)->get()
+                : collect(),
         ]);
+    }
+
+    public function storeVersionManual(Request $request)
+    {
+        abort_unless(Schema::hasTable('tarifario_referencias_manuales'), 503, 'Debe aplicarse la migración de versiones manuales antes de publicar una versión.');
+
+        $validated = $request->validate([
+            'codigo' => ['required', 'string', 'max:80', 'alpha_dash', Rule::unique('tarifario_referencias_manuales', 'codigo')],
+            'nombre' => ['required', 'string', 'max:180'],
+            'observacion' => ['nullable', 'string', 'max:2000'],
+        ], [], [
+            'codigo' => 'código de versión',
+            'nombre' => 'nombre de versión',
+        ]);
+
+        DB::transaction(function () use ($validated, $request): void {
+            $ahora = now();
+
+            TarifarioReferenciaManual::query()
+                ->where('estado', 'VIGENTE')
+                ->lockForUpdate()
+                ->get()
+                ->each(function (TarifarioReferenciaManual $version) use ($ahora): void {
+                    $version->update([
+                        'estado' => 'HISTORICA',
+                        'vigente_hasta' => $ahora,
+                    ]);
+                });
+
+            TarifarioReferenciaManual::query()->create([
+                'codigo' => strtoupper(trim($validated['codigo'])),
+                'nombre' => trim($validated['nombre']),
+                'estado' => 'VIGENTE',
+                'observacion' => trim((string) ($validated['observacion'] ?? '')) ?: null,
+                'publicada_por' => $request->user()?->id,
+                'publicada_en' => $ahora,
+                'vigente_desde' => $ahora,
+                'vigente_hasta' => null,
+            ]);
+        });
+
+        return redirect()
+            ->route('conceptos-facturacion.index')
+            ->with('success', 'Versión de referencia publicada. El flujo actual de precios no se modificó.');
     }
 
     public function create()

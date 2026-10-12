@@ -11,6 +11,7 @@ use App\Models\PaqueteOrdi;
 use App\Models\Recojo;
 use App\Models\Servicio;
 use App\Models\SolicitudCliente;
+use App\Models\TarifarioReferenciaManual;
 use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Client\ConnectionException;
@@ -19,6 +20,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class FacturacionCartService
 {
@@ -314,6 +316,8 @@ class FacturacionCartService
     {
         return array_merge([
             'codigo' => (string) ($paquete->codigo ?? ''),
+            'tipo_correspondencia' => (string) ($paquete->tipo_correspondencia ?? ''),
+            'servicio_especial' => (string) ($paquete->servicio_especial ?? ''),
             'contenido' => (string) ($paquete->contenido ?? ''),
             'peso' => (float) ($paquete->peso ?? 0),
             'destinatario' => (string) ($paquete->nombre_destinatario ?? ''),
@@ -324,6 +328,11 @@ class FacturacionCartService
             'codigo_producto' => (string) ($servicio->codigo ?? ''),
             'descripcion_servicio' => (string) ($descripcionServicio ?? $servicio->descripcion ?? ''),
             'unidad_medida' => (int) ($servicio->unidadMedida ?? 0),
+            'tarifario_id' => $paquete->tarifario_id ? (int) $paquete->tarifario_id : null,
+            'tarifario_version_id' => $paquete->tarifario_version_id ? (int) $paquete->tarifario_version_id : null,
+            'tarifario_snapshot' => is_array($paquete->tarifario_snapshot) ? $paquete->tarifario_snapshot : null,
+            'trazabilidad_tarifaria' => $paquete->tarifario_version_id ? 'VERSIONADA' : 'LEGACY_SIN_VERSION',
+            'importe_facturado_snapshot' => round((float) ($paquete->precio ?? 0), 2),
         ], $this->buildServicioAnalyticsResumen(
             $servicio,
             (string) ($nombreServicioPresentacion ?? $servicio->nombre_servicio ?? 'EMS'),
@@ -2623,6 +2632,9 @@ class FacturacionCartService
             $descripcionServicio
         );
         $resolvedDescripcionServicio = $this->normalizeConceptoFacturacionDescription($resolvedDescripcionServicio, $concepto);
+        $versionManual = Schema::hasTable('tarifario_referencias_manuales')
+            ? TarifarioReferenciaManual::actual()?->snapshot()
+            : null;
 
         return [
             'origen_tipo' => ConceptoFacturacion::class,
@@ -2650,6 +2662,7 @@ class FacturacionCartService
                 'servicio_nombre' => $this->normalizeServicioAnalyticsNombre($conceptoNormalizado['nombre_servicio']),
                 'servicio_familia' => 'CONCEPTO_FACTURABLE',
                 'codigo_producto_fiscal' => $resolvedCode,
+                'tarifario_manual_referencia' => $versionManual,
             ],
             'cantidad' => $cantidad,
             'monto_base' => $montoBase,
@@ -2670,9 +2683,10 @@ class FacturacionCartService
         $expectedTitulo = trim((string) ($expectedPayload['titulo'] ?? ''));
         $expectedNombreServicio = trim((string) ($expectedPayload['nombre_servicio'] ?? ''));
         $expectedCode = mb_strtolower(trim((string) ($expectedPayload['codigo'] ?? '')));
+        $expectedManualVersionId = (int) data_get($expectedPayload, 'resumen_origen.tarifario_manual_referencia.version_id', 0);
 
         return collect($draft->items ?? [])
-            ->first(function ($item) use ($concepto, $expectedTitulo, $expectedNombreServicio, $expectedMontoBase, $expectedMontoExtras, $expectedCode) {
+            ->first(function ($item) use ($concepto, $expectedTitulo, $expectedNombreServicio, $expectedMontoBase, $expectedMontoExtras, $expectedCode, $expectedManualVersionId) {
                 $itemConceptoId = (int) data_get(
                     $item,
                     'resumen_origen.concepto_facturacion_id',
@@ -2686,7 +2700,8 @@ class FacturacionCartService
                     && trim((string) data_get($item, 'titulo', '')) === $expectedTitulo
                     && trim((string) data_get($item, 'nombre_servicio', '')) === $expectedNombreServicio
                     && round((float) data_get($item, 'monto_base', 0), 2) === $expectedMontoBase
-                    && round((float) data_get($item, 'monto_extras', 0), 2) === $expectedMontoExtras;
+                    && round((float) data_get($item, 'monto_extras', 0), 2) === $expectedMontoExtras
+                    && (int) data_get($item, 'resumen_origen.tarifario_manual_referencia.version_id', 0) === $expectedManualVersionId;
             });
     }
 

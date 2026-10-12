@@ -528,6 +528,7 @@ class AclPermissionRegistry
      * @var array<string, array<int, string>>
      */
     private const ROUTE_ACCESS_PERMISSION_OVERRIDES = [
+        'conceptos-facturacion.versiones.store' => ['feature.conceptos-facturacion.index.create'],
         'dashboard.alerts.department-details' => ['dashboard'],
         'dashboard.chart-volume-data' => ['dashboard'],
         'dashboard.ranking-department-details' => ['dashboard'],
@@ -1951,6 +1952,14 @@ class AclPermissionRegistry
     private static function actionLabel(string $permissionName, string $actionKey): string
     {
         $specialLabels = [
+            'internacional.section' => 'Acceso: Secciones de Internacional',
+            'internacional.warehouse' => 'Acceso: Almacén internacional',
+            'internacional.selection.add' => 'Botón: Agregar entrega a la bandeja',
+            'internacional.selection.remove' => 'Botón: Quitar entrega de la bandeja',
+            'internacional.operate' => 'Botón: Registrar entrega internacional',
+            'internacional.workflow.selection.add' => 'Botón: Agregar paquete al recorrido',
+            'internacional.workflow.selection.remove' => 'Botón: Quitar paquete del recorrido',
+            'internacional.workflow.operate' => 'Botón: Confirmar paso del recorrido',
             'paquetes-contrato.gestor' => 'Ventana: Gestor',
             'feature.paquetes-ordinarios.restore' => 'Botones: Alta y Devolver',
             'feature.paquetes-ordinarios.print' => 'Botones: Reimprimir',
@@ -2358,6 +2367,14 @@ class AclPermissionRegistry
     private static function permissionHint(string $permissionName, string $moduleKey, string $actionKey): ?string
     {
         $specialHints = [
+            'internacional.section' => 'Controla el acceso a las ventanas de recorrido nacional, rezago y consulta de paquetes internacionales.',
+            'internacional.warehouse' => 'Controla el acceso a las vistas de entregas del Almacén internacional.',
+            'internacional.selection.add' => 'Controla agregar paquetes a la bandeja de entregas internacionales.',
+            'internacional.selection.remove' => 'Controla quitar paquetes de la bandeja de entregas internacionales.',
+            'internacional.operate' => 'Controla el registro de entregas internacionales en SITRA.',
+            'internacional.workflow.selection.add' => 'Controla agregar paquetes a la bandeja del paso de recorrido nacional.',
+            'internacional.workflow.selection.remove' => 'Controla quitar paquetes de la bandeja del paso de recorrido nacional.',
+            'internacional.workflow.operate' => 'Controla la confirmación de movimientos del recorrido nacional en SITRA.',
             'paquetes-contrato.gestor' => 'Controla el acceso a la ventana Gestor desde el menu Paquetes Contratos.',
             'feature.paquetes-ordinarios.restore' => 'Controla los botones Alta en Entregado, Devolver en Rezago y Devolver en Despacho.',
             'feature.paquetes-ordinarios.print' => 'Controla Reimprimir manifiesto en Despacho y Reimprimir formulario en Entregado.',

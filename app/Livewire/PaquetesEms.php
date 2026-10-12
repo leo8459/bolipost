@@ -25,6 +25,8 @@ use App\Models\SolicitudCliente;
 use App\Models\TarifaContrato;
 use App\Models\Tarifario;
 use App\Models\TarifarioPadre;
+use App\Models\TarifarioVersion;
+use App\Models\TarifarioVersionItem;
 use App\Models\TarifarioTiktoker;
 use App\Support\TiktokerTariffPriceCalculator;
 use App\Support\TiktokerEvent;
@@ -103,11 +105,16 @@ class PaquetesEms extends Component
     private const EN_TRANSITO_EMS_REPRINT_CN33_PERMISSION = 'feature.paquetes-ems.en-transito.reprintcn33';
     private const ALMACEN_ADMISIONES_ROUTE_PERMISSION = 'paquetes-ems.almacen-admisiones';
     private const TARIFARIO_PADRE_SETTING = 'ems.tarifario_padre_id';
+    private const TARIFARIO_VERSION_SETTING = 'ems.tarifario_version_id';
 
     #[\Livewire\Attributes\Locked]
     public $mode = 'admision';
 
     public $tarifarioPadreSeleccionado = '';
+    #[\Livewire\Attributes\Locked]
+    public $tarifario_version_id = null;
+    #[\Livewire\Attributes\Locked]
+    public $tarifario_snapshot = null;
     public bool $mostrarConfiguracionTarifario = false;
 
     public $search = '';
@@ -228,6 +235,7 @@ class PaquetesEms extends Component
     public $codigo = '';
     public $auto_codigo = true;
     public $precio = '';
+    #[\Livewire\Attributes\Locked]
     public $precio_confirm = null;
     public $anadir_recargo_30 = false;
     public $showPaqueteConfirmModal = false;
@@ -320,23 +328,118 @@ class PaquetesEms extends Component
             'tarifarioPadreSeleccionado' => ['required', 'integer', 'exists:tarifario_padre,id'],
         ], [], ['tarifarioPadreSeleccionado' => 'tarifario padre']);
 
-        AppSetting::setValue(self::TARIFARIO_PADRE_SETTING, (string) $this->tarifarioPadreSeleccionado);
+        $padre = TarifarioPadre::query()->findOrFail((int) $this->tarifarioPadreSeleccionado);
+        $version = DB::transaction(function () use ($padre) {
+            TarifarioPadre::query()->whereKey($padre->id)->lockForUpdate()->firstOrFail();
+            $servicioIds = Servicio::query()
+                ->where('tarifario_padre_id', $padre->id)
+                ->lockForUpdate()
+                ->pluck('id');
+            $tarifas = Tarifario::query()
+                ->with(['servicio', 'peso', 'origen', 'destino'])
+                ->whereIn('servicio_id', $servicioIds)
+                ->whereHas('peso')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+
+            if ($tarifas->isEmpty()) {
+                return null;
+            }
+
+            $numeroVersion = ((int) TarifarioVersion::query()
+                ->where('tarifario_padre_id', $padre->id)
+                ->max('numero_version')) + 1;
+            $codigo = sprintf('EMS-P%d-V%d', $padre->id, $numeroVersion);
+            $itemsSnapshot = $tarifas->map(function (Tarifario $tarifa) {
+                return [
+                    'source_tarifario_id' => (int) $tarifa->id,
+                    'servicio_id' => (int) $tarifa->servicio_id,
+                    'servicio' => (string) ($tarifa->servicio->nombre_servicio ?? ''),
+                    'peso_id' => $tarifa->peso_id ? (int) $tarifa->peso_id : null,
+                    'peso_inicial' => (float) $tarifa->peso->peso_inicial,
+                    'peso_final' => (float) $tarifa->peso->peso_final,
+                    'precio' => round((float) $tarifa->precio, 2),
+                    'observacion' => $tarifa->observacion,
+                    'origen_id' => $tarifa->origen_id ? (int) $tarifa->origen_id : null,
+                    'origen' => $tarifa->origen->nombre_origen ?? null,
+                    'destino_id' => $tarifa->destino_id ? (int) $tarifa->destino_id : null,
+                    'destino' => $tarifa->destino->nombre_destino ?? null,
+                ];
+            })->values()->all();
+            $itemsSnapshotByTarifaId = collect($itemsSnapshot)->keyBy('source_tarifario_id');
+
+            $version = TarifarioVersion::query()->create([
+                'tarifario_padre_id' => $padre->id,
+                'numero_version' => $numeroVersion,
+                'codigo' => $codigo,
+                'estado' => 'PUBLICADA',
+                'publicada_por' => Auth::id(),
+                'publicada_en' => now(),
+                'cantidad_items' => count($itemsSnapshot),
+                'checksum' => hash('sha256', json_encode($itemsSnapshot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
+            ]);
+
+            foreach ($tarifas as $tarifa) {
+                $itemSnapshot = $itemsSnapshotByTarifaId->get((int) $tarifa->id);
+                $version->items()->create([
+                    'source_tarifario_id' => (int) $tarifa->id,
+                    'servicio_id' => (int) $tarifa->servicio_id,
+                    'peso_id' => $tarifa->peso_id ? (int) $tarifa->peso_id : null,
+                    'peso_inicial' => (float) $tarifa->peso->peso_inicial,
+                    'peso_final' => (float) $tarifa->peso->peso_final,
+                    'precio' => round((float) $tarifa->precio, 2),
+                    'snapshot' => $itemSnapshot,
+                ]);
+            }
+
+            AppSetting::setValue(self::TARIFARIO_PADRE_SETTING, (string) $padre->id);
+            AppSetting::setValue(self::TARIFARIO_VERSION_SETTING, (string) $version->id);
+
+            return $version;
+        });
+
+        if (! $version) {
+            session()->flash('error', 'El tarifario seleccionado no tiene tramos de peso y precios para publicar. No se cambió la versión activa.');
+            return;
+        }
+
+        $this->tarifario_version_id = (int) $version->id;
         $this->servicios = $this->serviciosDisponiblesQuery()->orderBy('nombre_servicio')->get();
         $this->servicio_id = '';
         $this->tarifario_id = '';
+        $this->tarifario_snapshot = null;
         $this->precio = '';
         $this->precio_confirm = null;
         $this->codigo = '';
         $this->is_ems = false;
         $this->closePaqueteConfirmModal();
         $this->mostrarConfiguracionTarifario = false;
-        session()->flash('success', 'Tarifario padre actualizado para todos los usuarios del registro EMS.');
+        session()->flash('success', "Se publicó la versión {$version->codigo} con {$version->cantidad_items} tramos. Los nuevos envíos usarán esta copia congelada del tarifario.");
     }
 
     protected function serviciosDisponiblesQuery(): Builder
     {
         $query = Servicio::query();
         if ($this->isCreateEms) {
+            if ($this->editingId) {
+                if (! $this->tarifario_version_id) {
+                    return $query;
+                }
+                $versionId = (string) $this->tarifario_version_id;
+            } else {
+                $versionId = AppSetting::getValue(self::TARIFARIO_VERSION_SETTING);
+            }
+            if ($versionId !== null && $versionId !== '') {
+                $version = TarifarioVersion::query()->whereKey((int) $versionId)->where('estado', 'PUBLICADA')->first();
+                if ($version) {
+                    return $query->whereIn('id', TarifarioVersionItem::query()
+                        ->select('servicio_id')
+                        ->where('tarifario_version_id', $version->id)
+                        ->distinct());
+                }
+            }
+
             $padreId = AppSetting::getValue(self::TARIFARIO_PADRE_SETTING);
             if ($padreId !== null && $padreId !== '') {
                 $query->where('tarifario_padre_id', (int) $padreId);
@@ -348,6 +451,20 @@ class PaquetesEms extends Component
 
     protected function validarServicioDisponible(): void
     {
+        if ($this->isCreateEms && ! $this->editingId && ! $this->isOficialShipment() && ! $this->isCertificadoShipment()) {
+            $versionId = AppSetting::getValue(self::TARIFARIO_VERSION_SETTING);
+            $versionActiva = $versionId !== null && TarifarioVersion::query()
+                ->whereKey((int) $versionId)
+                ->where('estado', 'PUBLICADA')
+                ->exists();
+
+            if (! $versionActiva) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'servicio_id' => 'El administrador debe publicar una versión del tarifario antes de registrar envíos facturables.',
+                ]);
+            }
+        }
+
         if ($this->isCreateEms && ! $this->serviciosDisponiblesQuery()->whereKey($this->servicio_id)->exists()) {
             throw \Illuminate\Validation\ValidationException::withMessages([
                 'servicio_id' => 'Selecciona un servicio del tarifario padre vigente. Si cambió la configuración, actualiza la página.',
@@ -1352,6 +1469,8 @@ class PaquetesEms extends Component
         $this->precio = 0;
         $this->precio_confirm = 0;
         $this->tarifario_id = null;
+        $this->tarifario_version_id = null;
+        $this->tarifario_snapshot = null;
         $this->servicio_id = '';
         $this->destino_id = '';
 
@@ -2774,8 +2893,13 @@ class PaquetesEms extends Component
         $this->observacion = (string) ($paquete->observacion ?? '');
         $this->ciudad = $this->normalizeDestinoNombre((string) ($formulario->ciudad ?? $paquete->ciudad));
         $this->tarifario_id = $formulario->tarifario_id ?? $paquete->tarifario_id;
+        $this->tarifario_version_id = $paquete->tarifario_version_id;
+        $this->tarifario_snapshot = $paquete->tarifario_snapshot;
         $this->estado_id = $paquete->estado_id;
         $this->servicio_id = optional($paquete->tarifario)->servicio_id;
+        if ($this->isCreateEms) {
+            $this->servicios = $this->serviciosDisponiblesQuery()->orderBy('nombre_servicio')->get();
+        }
         $this->destino_id = optional($paquete->tarifario)->destino_id;
         $this->auto_codigo = false;
 
@@ -2815,6 +2939,10 @@ class PaquetesEms extends Component
         } else {
             $this->tarifario_id = null;
             $this->precio = $this->isOficialShipment() ? 0 : null;
+            if ($this->isCreateEms || $this->editingId) {
+                $this->tarifario_version_id = null;
+                $this->tarifario_snapshot = null;
+            }
         }
 
         $this->precio_confirm = $this->precio;
@@ -2859,10 +2987,29 @@ class PaquetesEms extends Component
         } else {
             $this->tarifario_id = null;
             $this->precio = $this->isOficialShipment() ? 0 : null;
+            if ($this->isCreateEms || $this->editingId) {
+                $this->tarifario_version_id = null;
+                $this->tarifario_snapshot = null;
+            }
+        }
+        if (! $this->isCertificadoShipment() && (
+            ! $this->tarifario_id
+            || ($this->isCreateEms && ! $this->editingId && ! $this->tarifario_version_id)
+        )) {
+            $this->addError('peso', 'No existe un tramo de precio publicado para este servicio y peso.');
+            return;
         }
         $this->ciudad = $this->normalizeDestinoNombre((string) $this->ciudad);
         if ($this->precio_confirm !== null) {
             $this->precio = $this->precio_confirm;
+        }
+
+        if ($this->isCreateEms && is_array($this->tarifario_snapshot)) {
+            $this->tarifario_snapshot['precio_final'] = round((float) ($this->precio ?? 0), 2);
+            $this->tarifario_snapshot['calculo']['precio_calculado'] = round((float) ($this->precio ?? 0), 2);
+            $this->tarifario_snapshot['calculo']['servicio_especial'] = (string) $this->servicio_especial;
+            $this->tarifario_snapshot['calculo']['recargo_telefono'] = $this->hasTelefonoDestinatarioRecargo();
+            $this->tarifario_snapshot['calculo']['recargo_30_por_ciento'] = (bool) $this->anadir_recargo_30;
         }
 
         if ($this->editingId) {
@@ -5724,6 +5871,8 @@ class PaquetesEms extends Component
             'ciudad',
             'servicio_id',
             'tarifario_id',
+            'tarifario_version_id',
+            'tarifario_snapshot',
             'destino_id',
             'estado_id',
             'remitenteSugerencias',
@@ -5816,6 +5965,8 @@ class PaquetesEms extends Component
             'observacion' => trim((string) $this->observacion) !== '' ? trim((string) $this->observacion) : null,
             'ciudad' => $this->normalizeDestinoNombre((string) $this->ciudad),
             'tarifario_id' => $this->tarifario_id ?: null,
+            'tarifario_version_id' => $this->tarifario_version_id ?: null,
+            'tarifario_snapshot' => $this->tarifario_snapshot,
             'estado_id' => $this->estado_id ?? null,
         ];
 
@@ -5963,6 +6114,12 @@ class PaquetesEms extends Component
             $this->servicios = $this->serviciosDisponiblesQuery()->orderBy('nombre_servicio')->get();
             return view('livewire.paquetes-ems', [
                 'tarifariosPadre' => $this->puedeConfigurarTarifario ? TarifarioPadre::orderBy('nombre')->get() : collect(),
+                'activeTarifarioVersion' => TarifarioVersion::query()
+                    ->with('tarifarioPadre')
+                    ->find((int) AppSetting::getValue(self::TARIFARIO_VERSION_SETTING, '0')),
+                'tarifarioVersiones' => $this->puedeConfigurarTarifario
+                    ? TarifarioVersion::query()->with('tarifarioPadre')->latest('id')->limit(10)->get()
+                    : collect(),
                 'paquetes' => collect(),
                 'almacenRows' => $almacenRows,
                 'contratosAlmacen' => $contratosAlmacen,
@@ -8419,6 +8576,10 @@ class PaquetesEms extends Component
         if ($name === 'servicio_id') {
             $this->tarifario_id = '';
             $this->precio = '';
+            if ($this->isCreateEms || $this->editingId) {
+                $this->tarifario_version_id = null;
+                $this->tarifario_snapshot = null;
+            }
             if ($this->normalizePreregistroCode((string) $this->preregistro_codigo) === '') {
                 $this->destino_id = '';
                 $this->peso = '';
@@ -8564,12 +8725,20 @@ class PaquetesEms extends Component
         if ($this->isOficialShipment()) {
             $this->tarifario_id = null;
             $this->precio = 0;
+            if ($this->isCreateEms || $this->editingId) {
+                $this->tarifario_version_id = null;
+                $this->tarifario_snapshot = null;
+            }
             return;
         }
 
         if ($this->isCertificadoShipment()) {
             $this->tarifario_id = null;
             $this->precio = null;
+            if ($this->isCreateEms || $this->editingId) {
+                $this->tarifario_version_id = null;
+                $this->tarifario_snapshot = null;
+            }
             return;
         }
 
@@ -8582,10 +8751,95 @@ class PaquetesEms extends Component
         ) {
             $this->tarifario_id = '';
             $this->precio = '';
+            if ($this->isCreateEms || $this->editingId) {
+                $this->tarifario_version_id = null;
+                $this->tarifario_snapshot = null;
+            }
             return;
         }
 
         $peso = (float) $this->peso;
+
+        if ($this->isCreateEms || ($this->editingId && $this->tarifario_version_id)) {
+            $versionId = $this->editingId
+                ? $this->tarifario_version_id
+                : AppSetting::getValue(self::TARIFARIO_VERSION_SETTING);
+
+            if ($versionId !== null && $versionId !== '') {
+                $version = TarifarioVersion::query()
+                    ->with('tarifarioPadre')
+                    ->whereKey((int) $versionId)
+                    ->where('estado', 'PUBLICADA')
+                    ->first();
+                $versionItem = $version
+                    ? TarifarioVersionItem::query()
+                        ->where('tarifario_version_id', $version->id)
+                        ->where('servicio_id', (int) $this->servicio_id)
+                        ->where('peso_inicial', '<=', $peso)
+                        ->where('peso_final', '>=', $peso)
+                        ->orderBy('source_tarifario_id')
+                        ->first()
+                    : null;
+
+                if (! $versionItem) {
+                    $this->tarifario_id = '';
+                    $this->tarifario_version_id = null;
+                    $this->tarifario_snapshot = null;
+                    $this->precio = '';
+                    return;
+                }
+
+                $precioBase = (float) $versionItem->precio;
+                $this->tarifario_id = (int) $versionItem->source_tarifario_id;
+                $this->tarifario_version_id = (int) $version->id;
+                $factorIdaVuelta = $this->servicio_especial === 'IDA Y VUELTA' ? 2.0 : 1.0;
+                $precioTrasIdaVuelta = round(round($precioBase, 2) * $factorIdaVuelta, 2);
+                $recargoTelefono = $this->hasTelefonoDestinatarioRecargo()
+                    ? self::TELEFONO_DESTINATARIO_RECARGO
+                    : 0.0;
+                $subtotalAntesRecargo30 = round($precioTrasIdaVuelta + $recargoTelefono, 2);
+                $factorRecargo30 = $this->anadir_recargo_30 ? 1.30 : 1.0;
+                $this->precio = round($subtotalAntesRecargo30 * $factorRecargo30, 2);
+                $this->tarifario_snapshot = [
+                    'version_id' => (int) $version->id,
+                    'version_codigo' => (string) $version->codigo,
+                    'version_numero' => (int) $version->numero_version,
+                    'tarifario_padre_id' => (int) $version->tarifario_padre_id,
+                    'tarifario_padre' => (string) ($version->tarifarioPadre->nombre ?? ''),
+                    'publicada_en' => optional($version->publicada_en)->toIso8601String(),
+                    'checksum' => (string) $version->checksum,
+                    'source_tarifario_id' => (int) $versionItem->source_tarifario_id,
+                    'tarifa' => $versionItem->snapshot,
+                    'regla_calculo_codigo' => 'EMS_PRECIO_V1',
+                    'calculo' => [
+                        'peso' => $peso,
+                        'precio_base' => round($precioBase, 2),
+                        'servicio_especial' => (string) $this->servicio_especial,
+                        'recargo_telefono' => $this->hasTelefonoDestinatarioRecargo(),
+                        'recargo_telefono_monto' => round($recargoTelefono, 2),
+                        'factor_ida_vuelta' => $factorIdaVuelta,
+                        'precio_tras_ida_vuelta' => $precioTrasIdaVuelta,
+                        'recargo_30_por_ciento' => (bool) $this->anadir_recargo_30,
+                        'factor_recargo_30' => $factorRecargo30,
+                        'subtotal_antes_recargo_30' => $subtotalAntesRecargo30,
+                        'precio_calculado' => round((float) $this->precio, 2),
+                        'redondeo' => '2_DECIMALES_POR_ETAPA',
+                    ],
+                    'precio_final' => round((float) $this->precio, 2),
+                    'moneda' => 'BOB',
+                ];
+
+                return;
+            }
+
+            if (! $this->editingId) {
+                $this->tarifario_id = '';
+                $this->tarifario_version_id = null;
+                $this->tarifario_snapshot = null;
+                $this->precio = '';
+                return;
+            }
+        }
 
         $tarifario = Tarifario::query()
             ->with(['peso'])
@@ -8600,6 +8854,10 @@ class PaquetesEms extends Component
         if (!$tarifario) {
             $this->tarifario_id = '';
             $this->precio = '';
+            if ($this->isCreateEms && ! $this->editingId) {
+                $this->tarifario_version_id = null;
+                $this->tarifario_snapshot = null;
+            }
             return;
         }
 

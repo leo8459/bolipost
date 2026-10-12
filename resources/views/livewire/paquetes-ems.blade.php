@@ -1309,6 +1309,17 @@
 
             <div class="card-body">
                 @if ($this->isCreateEms)
+                    @if ($activeTarifarioVersion)
+                        <div class="alert alert-success py-2 mb-3">
+                            <strong>Tarifario vigente:</strong> {{ $activeTarifarioVersion->tarifarioPadre->nombre ?? 'Tarifario' }} ·
+                            versión {{ $activeTarifarioVersion->codigo }} · {{ $activeTarifarioVersion->cantidad_items }} tramos ·
+                            publicada {{ optional($activeTarifarioVersion->publicada_en)->format('d/m/Y H:i') }}.
+                        </div>
+                    @else
+                        <div class="alert alert-warning py-2 mb-3">
+                            Aún no hay una versión publicada. Un administrador debe publicar el tarifario antes de registrar envíos facturables.
+                        </div>
+                    @endif
                     @if ($this->puedeConfigurarTarifario)
                         <div class="mb-3">
                             <button type="button" class="btn btn-outline-primary" wire:click="abrirConfiguracionTarifario">
@@ -1324,9 +1335,29 @@
                                         @endforeach
                                     </select>
                                     @error('tarifarioPadreSeleccionado') <small class="text-danger">{{ $message }}</small> @enderror
-                                    <p class="text-muted mt-2 mb-2">Todos los usuarios verán únicamente los servicios asociados al tarifario seleccionado. Los envíos EMS continuarán con el correlativo EN existente.</p>
-                                    <button type="button" class="btn btn-primary" wire:click="guardarConfiguracionTarifario" wire:loading.attr="disabled">Aplicar tarifario</button>
+                                    <p class="text-muted mt-2 mb-2">Al publicar se congela una copia de los precios y tramos actuales. Los cambios futuros crearán otra versión y no modificarán las ventas anteriores.</p>
+                                    <button type="button" class="btn btn-primary" wire:click="guardarConfiguracionTarifario" wire:loading.attr="disabled">Publicar nueva versión del tarifario</button>
                                     <button type="button" class="btn btn-secondary" wire:click="$set('mostrarConfiguracionTarifario', false)">Cancelar</button>
+                                    @if ($tarifarioVersiones->isNotEmpty())
+                                        <hr>
+                                        <strong>Historial de versiones</strong>
+                                        <div class="table-responsive mt-2">
+                                            <table class="table table-sm table-striped mb-0">
+                                                <thead><tr><th>Versión</th><th>Tarifario padre</th><th>Publicada</th><th>Tramos</th><th>Estado</th></tr></thead>
+                                                <tbody>
+                                                    @foreach ($tarifarioVersiones as $version)
+                                                        <tr>
+                                                            <td>{{ $version->codigo }}</td>
+                                                            <td>{{ $version->tarifarioPadre->nombre ?? '-' }}</td>
+                                                            <td>{{ optional($version->publicada_en)->format('d/m/Y H:i') }}</td>
+                                                            <td>{{ $version->cantidad_items }}</td>
+                                                            <td>{{ (int) ($activeTarifarioVersion->id ?? 0) === (int) $version->id ? 'ACTIVA' : 'PUBLICADA' }}</td>
+                                                        </tr>
+                                                    @endforeach
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    @endif
                                 </div>
                             @endif
                         </div>

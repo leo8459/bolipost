@@ -2,22 +2,24 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ConceptoFacturacion;
 use App\Models\FacturaTicketSnapshot;
 use App\Models\PaqueteCerti;
 use App\Models\PaqueteEms;
 use App\Models\PaqueteInt;
 use App\Models\PaqueteOrdi;
-use App\Models\Servicio;
 use App\Models\User;
 use App\Services\FacturacionCartService;
 use App\Services\SitraIpsClient;
+use App\Services\SitraTrackingDestinationClient;
+use App\Services\SitraTrackingEventsClient;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
@@ -30,7 +32,15 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class MisVentasController extends Controller
 {
-    private array $kardexDestinationCache = [];
+    private const KARDEX_EVENT_DELIVERED = 316;
+    private const KARDEX_EVENT_SENT_TO_WINDOW_EMS = 312;
+    private const KARDEX_EVENT_SENT_TO_WINDOW_CERTI = 172;
+    private const KARDEX_EVENT_ASSIGNED_TO_COURIER = 184;
+    private const KARDEX_EVENT_ADMISSION = 295;
+    private const KARDEX_EVENT_CERTI_ADMISSION = 168;
+    private const KARDEX_EVENT_COUNTER_DELIVERY = [183, 185, 2238, 4478];
+    private const KARDEX_EVENT_COURIER_DELIVERY = [165, 315, 4477];
+
     public function index(Request $request, FacturacionCartService $service): View
     {
         $effectiveScope = $this->resolveEffectiveOwnScope($request);
@@ -66,23 +76,23 @@ class MisVentasController extends Controller
         return $this->exportVentasPdf($request, $service, 'branch', 'branch');
     }
 
-    public function kardex(Request $request, FacturacionCartService $service): View
+    public function kardex(Request $request, FacturacionCartService $service, SitraTrackingDestinationClient $destinationClient, SitraTrackingEventsClient $eventsClient): View
     {
-        $report = $this->buildKardexReport($request, $service);
+        $report = $this->buildKardexReport($request, $service, $destinationClient, $eventsClient);
 
         return view('facturacion.kardex', array_merge($report, [
-            'scope' => 'regional',
+            'scope' => 'own',
             'canViewBranchVentas' => false,
             'branchCashierSummary' => collect(),
         ]));
     }
 
-    public function exportKardexPdf(Request $request, FacturacionCartService $service): Response
+    public function exportKardexPdf(Request $request, FacturacionCartService $service, SitraTrackingDestinationClient $destinationClient, SitraTrackingEventsClient $eventsClient): Response
     {
-        $report = $this->buildKardexReport($request, $service);
+        $report = $this->buildKardexReport($request, $service, $destinationClient, $eventsClient);
         $pdf = Pdf::loadView('facturacion.kardex-pdf', array_merge($report, [
             'generatedAt' => now(),
-        ]))->setPaper('A4', 'portrait');
+        ]))->setPaper('A4', 'landscape');
 
         $filename = 'kardex-facturacion-' . now()->format('Ymd-His') . '.pdf';
 
@@ -92,9 +102,9 @@ class MisVentasController extends Controller
         ]);
     }
 
-    public function exportKardexExcel(Request $request, FacturacionCartService $service): StreamedResponse
+    public function exportKardexExcel(Request $request, FacturacionCartService $service, SitraTrackingDestinationClient $destinationClient, SitraTrackingEventsClient $eventsClient): StreamedResponse
     {
-        $report = $this->buildKardexReport($request, $service);
+        $report = $this->buildKardexReport($request, $service, $destinationClient, $eventsClient);
         $spreadsheet = $this->buildKardexSpreadsheet($report);
         $filename = 'kardex-facturacion-' . now()->format('Ymd-His') . '.xlsx';
 
@@ -104,29 +114,28 @@ class MisVentasController extends Controller
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
     }
-    private function buildKardexReport(Request $request, FacturacionCartService $service): array
+    private function buildKardexReport(Request $request, FacturacionCartService $service, SitraTrackingDestinationClient $destinationClient, SitraTrackingEventsClient $eventsClient): array
     {
         [$user, $filters] = $this->resolveRequestContext($request, 'own');
         $kardexError = null;
 
         try {
-            $apiFilters = array_merge($filters, ['q' => '']);
-            $kardex = $service->fetchKardexRegionales($apiFilters);
-            $rows = $this->buildKardexApiViewRows(collect($kardex['detalle'] ?? []));
+            // Carga los registros del cajero en formato de detalle Kardex y complementa sus destinos mediante tracking.
+            [$sales] = $this->loadScopedVentas($service, $user, array_merge($filters, ['q' => '']), 'own');
+            $rows = $this->buildKardexViewRows($sales, $destinationClient, $eventsClient);
             $summary = array_merge($this->emptySummary(), [
-                'totalVentas' => (int) data_get($kardex, 'resumen.ventas', $rows->count()),
-                'montoTotal' => (float) data_get($kardex, 'resumen.totalVendido', $rows->sum(fn ($row) => (float) data_get($row, 'importe', 0))),
+                'totalVentas' => $rows->unique('venta_group_key')->count(),
+                'montoTotal' => round((float) $rows->sum(fn ($row) => (float) data_get($row, 'importe', 0)), 2),
             ]);
         } catch (\Throwable $e) {
             report($e);
             $rows = collect();
             $summary = $this->emptySummary();
-            $kardexError = 'No se pudo obtener el Kardex regional desde la API de facturacion: ' . $e->getMessage();
+            $kardexError = 'No se pudieron cargar las ventas del cajero para el Kardex: ' . $e->getMessage();
         }
 
-        $options = $this->resolveKardexDynamicOptions($rows, $request);
         $visibleRows = $this->applyKardexSearchFilter(
-                $this->applyKardexDynamicFilters($rows, $options['selectedOrigins'], $options['selectedServices']),
+                $rows,
                 (string) $request->input('q', '')
             )
             ->values()
@@ -134,13 +143,19 @@ class MisVentasController extends Controller
                 $row['nro'] = $index + 1;
                 return $row;
             });
+        $paymentMetrics = $this->summarizeKardexPaymentMetrics($visibleRows);
 
-        return array_merge($options, [
+        return [
             'user' => $user,
             'filters' => $filters,
             'summary' => $summary,
             'rows' => $rows,
             'visibleRows' => $visibleRows,
+            'totalVentas' => $paymentMetrics['totalVentas'],
+            'ventasEfectivo' => $paymentMetrics['ventasEfectivo'],
+            'montoEfectivo' => $paymentMetrics['montoEfectivo'],
+            'ventasQrPagadas' => $paymentMetrics['ventasQrPagadas'],
+            'montoQr' => $paymentMetrics['montoQr'],
             'totalImporte' => round((float) $visibleRows->sum(fn ($row) => (float) data_get($row, 'importe', 0)), 2),
             'totalPeso' => round((float) $visibleRows->sum(fn ($row) => (float) data_get($row, 'peso', 0)), 3),
             'totalAnuladas' => $visibleRows->filter(fn ($row) => (bool) data_get($row, 'es_anulada'))->count(),
@@ -148,7 +163,51 @@ class MisVentasController extends Controller
             'officePostal' => $this->resolveKardexUserOffice($user),
             'responsableName' => strtoupper(trim((string) ($user->name ?? ''))),
             'ventanillaName' => (string) data_get($user, 'ventanilla', data_get($user, 'id', '')),
-        ]);
+        ];
+    }
+
+    private function summarizeKardexPaymentMetrics(Collection $rows): array
+    {
+        $sales = $rows->groupBy(function ($row, $index): string {
+            $key = trim((string) data_get($row, 'venta_group_key', ''));
+
+            return $key !== '' ? 'sale:' . $key : 'row:' . $index;
+        });
+
+        $cashSales = $sales->filter(function (Collection $details): bool {
+            $sale = $details->first();
+
+            return strtolower(trim((string) data_get($sale, 'estado_venta', ''))) === 'emitido'
+                && strtolower(trim((string) data_get($sale, 'estado_pago', ''))) === 'pagado'
+                && strtoupper(trim((string) data_get($sale, 'estado_emision', ''))) === 'FACTURADA'
+                && strtolower(trim((string) data_get($sale, 'metodo_pago', ''))) !== 'qr'
+                && ! $this->isQrPaymentRow($sale)
+                && (bool) data_get($sale, 'contabiliza_en_caja', true)
+                && ! (bool) data_get($sale, 'es_cuenta_por_cobrar', false)
+                && strtolower(trim((string) data_get($sale, 'canal_emision', ''))) !== 'oficial'
+                && ! (bool) data_get($sale, 'es_anulada', false);
+        });
+        $qrPaidSales = $sales->filter(function (Collection $details): bool {
+            $sale = $details->first();
+
+            return $this->isQrPaymentRow($sale)
+                && strtolower(trim((string) data_get($sale, 'estado_venta', ''))) === 'emitido'
+                && strtolower(trim((string) data_get($sale, 'estado_pago', ''))) === 'pagado'
+                && ! (bool) data_get($sale, 'es_anulada', false);
+        });
+        $sumSaleDetails = static fn (Collection $groups): float => round((float) $groups->sum(
+            fn (Collection $details): float => (float) $details->sum(
+                fn ($detail): float => (float) data_get($detail, 'importe', 0)
+            )
+        ), 2);
+
+        return [
+            'totalVentas' => $sales->count(),
+            'ventasEfectivo' => $cashSales->count(),
+            'montoEfectivo' => $sumSaleDetails($cashSales),
+            'ventasQrPagadas' => $qrPaidSales->count(),
+            'montoQr' => $sumSaleDetails($qrPaidSales),
+        ];
     }
 
     private function resolveKardexUserOffice(User $user): string
@@ -158,98 +217,6 @@ class MisVentasController extends Controller
 
         return strtoupper($office !== '' ? $office : '-');
     }
-    private function resolveKardexDynamicOptions(Collection $rows, Request $request): array
-    {
-        $availableOrigins = $rows
-            ->pluck('origen')
-            ->map(fn ($origin) => strtoupper(trim((string) $origin)))
-            ->filter()
-            ->unique()
-            ->sort()
-            ->values();
-
-        $officialServices = $this->kardexOfficialConceptServiceNames();
-        $availableServices = $officialServices->isNotEmpty()
-            ? $officialServices
-            : $rows
-                ->pluck('tipo_correspondencia')
-                ->map(fn ($service) => $this->resolveKardexServiceDisplayName((string) $service))
-                ->filter()
-                ->unique()
-                ->sort()
-                ->values();
-
-        $filtersApplied = $request->has('kardex_filters');
-        $selectedOrigins = collect($filtersApplied ? $request->input('origenes', []) : $availableOrigins->all())
-            ->map(fn ($origin) => strtoupper(trim((string) $origin)))
-            ->filter()
-            ->unique()
-            ->values();
-        $selectedServices = collect($filtersApplied ? $request->input('servicios', []) : $availableServices->all())
-            ->map(fn ($service) => $this->resolveKardexServiceDisplayName((string) $service))
-            ->filter()
-            ->unique()
-            ->values();
-
-        if ($filtersApplied && $request->has('servicios') && $selectedServices->intersect($availableServices)->isEmpty()) {
-            $selectedServices = $availableServices;
-        }
-
-        return compact('availableOrigins', 'availableServices', 'selectedOrigins', 'selectedServices');
-    }
-
-    private function kardexOfficialConceptServiceNames(): Collection
-    {
-        $services = collect();
-
-        try {
-            $services = $services->concat(
-                ConceptoFacturacion::query()
-                    ->where('activo', true)
-                    ->orderBy('nombre')
-                    ->get(['nombre', 'descripcion', 'codigo'])
-                    ->map(fn (ConceptoFacturacion $concepto) => $this->resolveKardexServiceDisplayName(
-                        (string) ($concepto->nombre ?: $concepto->descripcion ?: $concepto->codigo)
-                    ))
-            );
-        } catch (\Throwable) {
-            // Si la tabla no existe en algun entorno, seguimos con el catalogo operativo.
-        }
-
-        try {
-            $services = $services->concat(
-                Servicio::query()
-                    ->orderBy('nombre_servicio')
-                    ->get(['nombre_servicio', 'descripcion', 'codigo'])
-                    ->map(fn (Servicio $servicio) => $this->resolveKardexServiceDisplayName(
-                        (string) ($servicio->nombre_servicio ?: $servicio->descripcion ?: $servicio->codigo)
-                    ))
-            );
-        } catch (\Throwable) {
-            // Si la tabla no existe en algun entorno, usamos lo que venga en las filas del Kardex.
-        }
-
-        return $services
-            ->map(fn ($service) => strtoupper(trim((string) $service)))
-            ->filter()
-            ->unique()
-            ->sort()
-            ->values();
-    }
-    private function resolveKardexServiceFilterKey(string $service): string
-    {
-        $normalized = $this->normalizeKardexText($service);
-        if (str_contains($normalized, 'ESTAMPILLA')) {
-            return 'ESTAMPILLAS';
-        }
-
-        if (str_contains($normalized, 'CASILLA')) {
-            return 'CASILLA';
-        }
-
-        return strtoupper(trim($this->resolveKardexServiceDisplayName($service)));
-    }
-
     private function isKardexCasillaService(string $tipoServicio, string $guiaCasilla = ''): bool
     {
         $normalized = $this->normalizeKardexText($tipoServicio . ' ' . $guiaCasilla);
@@ -272,27 +239,23 @@ class MisVentasController extends Controller
                 data_get($row, 'fecha'),
                 data_get($row, 'origen'),
                 data_get($row, 'regional_registro'),
+                data_get($row, 'venta_referencia'),
+                data_get($row, 'metodo_pago_label'),
+                data_get($row, 'estado_venta_label'),
+                data_get($row, 'estado_label'),
                 data_get($row, 'tipo_correspondencia'),
                 data_get($row, 'tipo_servicio'),
+                data_get($row, 'cliente'),
                 data_get($row, 'guia_casilla'),
                 data_get($row, 'pais_ciudad'),
                 data_get($row, 'numero_factura'),
                 data_get($row, 'importe'),
+                data_get($row, 'modalidad_entrega'),
             ])->map(fn ($value) => $this->normalizeKardexText((string) $value))->implode(' ');
 
             return str_contains($haystack, $query);
         });
     }
-    private function applyKardexDynamicFilters(Collection $rows, Collection $selectedOrigins, Collection $selectedServices): Collection
-    {
-        return $rows->filter(function ($row) use ($selectedOrigins, $selectedServices): bool {
-            $origin = strtoupper(trim((string) data_get($row, 'origen')));
-            $service = $this->resolveKardexServiceFilterKey((string) data_get($row, 'tipo_correspondencia'));
-
-            return $selectedOrigins->contains($origin) && $selectedServices->contains($service);
-        });
-    }
-
     private function buildKardexSpreadsheet(array $report): Spreadsheet
     {
         $spreadsheet = new Spreadsheet();
@@ -300,7 +263,7 @@ class MisVentasController extends Controller
         $sheet->setTitle('Kardex');
         $spreadsheet->getDefaultStyle()->getFont()->setName('Arial')->setSize(9);
 
-        foreach (['A' => 6, 'B' => 13, 'C' => 11, 'D' => 10, 'E' => 30, 'F' => 31, 'G' => 10, 'H' => 24, 'I' => 13, 'J' => 15] as $column => $width) {
+        foreach (['A' => 6, 'B' => 13, 'C' => 11, 'D' => 10, 'E' => 42, 'F' => 31, 'G' => 10, 'H' => 24, 'I' => 26, 'J' => 13, 'K' => 15] as $column => $width) {
             $sheet->getColumnDimension($column)->setWidth($width);
         }
 
@@ -310,8 +273,8 @@ class MisVentasController extends Controller
 
         $sheet->mergeCells('A1:B2');
         $sheet->mergeCells('C1:E2');
-        $sheet->mergeCells('F1:J2');
-        $sheet->getStyle('A1:J2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+        $sheet->mergeCells('F1:K2');
+        $sheet->getStyle('A1:K2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
         $this->addKardexLogo($sheet, public_path('images/LOGO 19-2-26.png'), 'A1', 118, 46);
         $this->addKardexLogo($sheet, public_path('images/LOGO-BOLIVIA.png'), 'C1', 190, 46);
         $this->addKardexLogo($sheet, public_path('images/ministerio-obras-publicas.png'), 'F1', 250, 46);
@@ -322,14 +285,14 @@ class MisVentasController extends Controller
         $sheet->getStyle('B3:E5')->getFont()->setBold(true)->setSize(10);
         $sheet->getStyle('B3:E5')->getBorders()->getOutline()->setBorderStyle(Border::BORDER_THIN);
 
-        $sheet->mergeCells('H3:J3');
-        $sheet->mergeCells('H4:J4');
-        $sheet->mergeCells('H5:J5');
+        $sheet->mergeCells('H3:K3');
+        $sheet->mergeCells('H4:K4');
+        $sheet->mergeCells('H5:K5');
         $sheet->setCellValue('H3', 'Dirección de Operaciones');
-        $sheet->setCellValue('H4', 'Admision');
+        $sheet->setCellValue('H4', 'Operación postal');
         $sheet->setCellValue('H5', 'Kardex 1');
-        $sheet->getStyle('H3:J5')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
-        $sheet->getStyle('H3:J5')->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
+        $sheet->getStyle('H3:K5')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle('H3:K5')->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
 
         $sheet->setCellValue('A6', 'Oficina Postal:');
         $sheet->mergeCells('B6:C6');
@@ -338,66 +301,76 @@ class MisVentasController extends Controller
         $sheet->mergeCells('E6:G7');
         $sheet->setCellValue('E6', strtoupper((string) data_get($report, 'responsableName', '')));
         $sheet->setCellValue('H6', 'Fecha de recaudación:');
-        $sheet->mergeCells('I6:J6');
+        $sheet->mergeCells('I6:K6');
         $sheet->setCellValue('I6', $this->formatKardexExportDate((string) data_get($report, 'filters.to')));
         $sheet->setCellValue('A7', 'Ventanilla:');
         $sheet->mergeCells('B7:C7');
         $sheet->setCellValue('B7', (string) data_get($report, 'ventanillaName', ''));
-        $sheet->mergeCells('H7:J7');
-        $sheet->getStyle('A6:J7')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
-        $sheet->getStyle('A6:J7')->getFont()->setBold(true);
-        $sheet->getStyle('A6:J7')->getAlignment()->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
+        $sheet->mergeCells('H7:K7');
+        $sheet->getStyle('A6:K7')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle('A6:K7')->getFont()->setBold(true);
+        $sheet->getStyle('A6:K7')->getAlignment()->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
         $sheet->getStyle('B6:C7')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         $sheet->getStyle('E6:G7')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-        $sheet->getStyle('I6:J6')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('I6:K6')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-        $headers = ['N°', 'FECHA', 'CANTIDAD', 'REGIONAL', 'TIPO DE CORRESPONDENCIA', 'CODIGO DE ENVIO', 'PESO', 'PAIS/CIUDAD DE DESTINO', 'N° FACTURA', 'IMPORTE'];
+        $headers = ['N°', 'FECHA', 'CANTIDAD', 'REGIONAL', 'TIPO DE CORRESPONDENCIA', 'CÓDIGO DE ENVÍO', 'PESO', 'PAIS/CIUDAD DE DESTINO', 'OPERACIÓN', 'N° FACTURA', 'IMPORTE'];
         $sheet->fromArray($headers, null, 'A9');
-        $sheet->getStyle('A9:J9')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('D9D9D9');
-        $sheet->getStyle('A9:J9')->getFont()->setBold(true)->setSize(9);
-        $sheet->getStyle('A9:J9')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
-        $sheet->getStyle('A9:J9')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle('A9:K9')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('D9D9D9');
+        $sheet->getStyle('A9:K9')->getFont()->setBold(true)->setSize(9);
+        $sheet->getStyle('A9:K9')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
+        $sheet->getStyle('A9:K9')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
 
         $rowNumber = 10;
         foreach ($report['visibleRows'] as $row) {
+            $tipoCorrespondencia = (string) data_get($row, 'tipo_correspondencia');
+            $detalleCasilla = trim((string) data_get($row, 'detalle_casilla', ''));
+            if ((bool) data_get($row, 'es_casilla') && $detalleCasilla !== '') {
+                $tipoCorrespondencia .= ' - ' . $detalleCasilla;
+            }
             $sheet->fromArray([
                 data_get($row, 'nro'),
                 data_get($row, 'fecha'),
                 data_get($row, 'cantidad'),
                 data_get($row, 'origen'),
-                data_get($row, 'tipo_correspondencia'),
+                $tipoCorrespondencia,
                 data_get($row, 'guia_casilla'),
                 data_get($row, 'peso') !== null && data_get($row, 'peso') !== '' ? number_format((float) data_get($row, 'peso'), 3, ',', '.') : '',
                 data_get($row, 'pais_ciudad'),
+                data_get($row, 'modalidad_entrega', '-'),
                 data_get($row, 'numero_factura'),
                 'Bs ' . number_format((float) data_get($row, 'importe', 0), 2, ',', '.'),
             ], null, 'A' . $rowNumber);
-            $sheet->getRowDimension($rowNumber)->setRowHeight(18);
-            $sheet->getStyle('A' . $rowNumber . ':J' . $rowNumber)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
-            $sheet->getStyle('A' . $rowNumber . ':J' . $rowNumber)->getAlignment()->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
+            $hasDeliveryMode = trim((string) data_get($row, 'modalidad_entrega', '-')) !== '-';
+            $sheet->getRowDimension($rowNumber)->setRowHeight(((bool) data_get($row, 'es_casilla') && $detalleCasilla !== '') || $hasDeliveryMode ? 30 : 18);
+            $sheet->getStyle('A' . $rowNumber . ':K' . $rowNumber)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+            $sheet->getStyle('A' . $rowNumber . ':K' . $rowNumber)->getAlignment()->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
             $sheet->getStyle('A' . $rowNumber . ':D' . $rowNumber)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle('G' . $rowNumber . ':I' . $rowNumber)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle('J' . $rowNumber)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+            $sheet->getStyle('G' . $rowNumber . ':J' . $rowNumber)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle('K' . $rowNumber)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
             if ((bool) data_get($row, 'es_anulada')) {
-                $sheet->getStyle('I' . $rowNumber)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FFC7CE');
-                $sheet->getStyle('I' . $rowNumber)->getFont()->getColor()->setRGB('C00000');
-                $sheet->getStyle('I' . $rowNumber)->getFont()->setBold(true);
+                $sheet->getStyle('J' . $rowNumber)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FFC7CE');
+                $sheet->getStyle('J' . $rowNumber)->getFont()->getColor()->setRGB('C00000');
+                $sheet->getStyle('J' . $rowNumber)->getFont()->setBold(true);
+            } else {
+                $sheet->getStyle('J' . $rowNumber)->getFont()->getColor()->setRGB('198754');
+                $sheet->getStyle('J' . $rowNumber)->getFont()->setBold(true);
             }
             $rowNumber++;
         }
 
         $lastDataRow = max(10, $rowNumber - 1);
         $totalRow = $rowNumber;
-        $sheet->mergeCells('A' . $totalRow . ':I' . $totalRow);
+        $sheet->mergeCells('A' . $totalRow . ':J' . $totalRow);
         $sheet->setCellValue('A' . $totalRow, 'TOTAL PARCIAL');
-        $sheet->setCellValue('J' . $totalRow, 'Bs ' . number_format((float) $report['totalImporte'], 2, ',', '.'));
-        $sheet->mergeCells('A' . ($totalRow + 1) . ':I' . ($totalRow + 1));
+        $sheet->setCellValue('K' . $totalRow, 'Bs ' . number_format((float) $report['totalImporte'], 2, ',', '.'));
+        $sheet->mergeCells('A' . ($totalRow + 1) . ':J' . ($totalRow + 1));
         $sheet->setCellValue('A' . ($totalRow + 1), 'TOTAL GENERAL');
-        $sheet->setCellValue('J' . ($totalRow + 1), 'Bs ' . number_format((float) $report['totalImporte'], 2, ',', '.'));
-        $sheet->getStyle('A' . $totalRow . ':J' . ($totalRow + 1))->getFont()->setBold(true);
-        $sheet->getStyle('A' . $totalRow . ':J' . ($totalRow + 1))->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->setCellValue('K' . ($totalRow + 1), 'Bs ' . number_format((float) $report['totalImporte'], 2, ',', '.'));
+        $sheet->getStyle('A' . $totalRow . ':K' . ($totalRow + 1))->getFont()->setBold(true);
+        $sheet->getStyle('A' . $totalRow . ':K' . ($totalRow + 1))->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
         $sheet->getStyle('A' . $totalRow . ':A' . ($totalRow + 1))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
-        $sheet->getStyle('J' . $totalRow . ':J' . ($totalRow + 1))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+        $sheet->getStyle('K' . $totalRow . ':K' . ($totalRow + 1))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
 
         $obsRow = $totalRow + 3;
         $sheet->mergeCells('A' . $obsRow . ':E' . ($obsRow + 5));
@@ -406,21 +379,21 @@ class MisVentasController extends Controller
         $sheet->setCellValue('F' . ($obsRow + 5), "SELLO / FIRMA DE CONFORMIDAD\nRECAUDADOR");
         $sheet->mergeCells('H' . $obsRow . ':I' . ($obsRow + 5));
         $sheet->setCellValue('H' . ($obsRow + 5), "SELLO / FIRMA DE CONFORMIDAD\nREVISOR");
-        $sheet->mergeCells('J' . $obsRow . ':J' . ($obsRow + 5));
+        $sheet->mergeCells('J' . $obsRow . ':K' . ($obsRow + 5));
         $sheet->setCellValue('J' . ($obsRow + 5), "SELLO RECEPCIÓN\nTESORERÍA");
         foreach (range($obsRow, $obsRow + 5) as $footerRow) {
             $sheet->getRowDimension($footerRow)->setRowHeight(22);
         }
-        $sheet->getStyle('A' . $obsRow . ':J' . ($obsRow + 5))->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
-        $sheet->getStyle('F' . $obsRow . ':J' . ($obsRow + 5))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_BOTTOM)->setWrapText(true);
+        $sheet->getStyle('A' . $obsRow . ':K' . ($obsRow + 5))->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle('F' . $obsRow . ':K' . ($obsRow + 5))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_BOTTOM)->setWrapText(true);
         $sheet->getStyle('A' . $obsRow)->getAlignment()->setVertical(Alignment::VERTICAL_TOP);
 
         $sheet->freezePane('A10');
-        $sheet->setAutoFilter('A9:J' . $lastDataRow);
+        $sheet->setAutoFilter('A9:K' . $lastDataRow);
         $sheet->getPageSetup()->setFitToWidth(1)->setFitToHeight(0)->setOrientation(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::ORIENTATION_LANDSCAPE);
         $sheet->getPageMargins()->setTop(0.35)->setRight(0.25)->setLeft(0.25)->setBottom(0.35);
-        $sheet->getPageSetup()->setPrintArea('A1:J' . ($obsRow + 5));
-        $sheet->getStyle('A1:J' . ($obsRow + 5))->getAlignment()->setShrinkToFit(false);
+        $sheet->getPageSetup()->setPrintArea('A1:K' . ($obsRow + 5));
+        $sheet->getStyle('A1:K' . ($obsRow + 5))->getAlignment()->setShrinkToFit(false);
 
         return $spreadsheet;
     }
@@ -603,6 +576,7 @@ class MisVentasController extends Controller
                     'nombre_servicio' => trim((string) data_get($item, 'nombre_servicio', '')),
                     'nombre_destinatario' => trim((string) data_get($item, 'nombre_destinatario', '')),
                     'resumen_origen' => (array) data_get($item, 'resumen_origen', []),
+                    'tarifario_manual_referencia' => (array) data_get($item, 'resumen_origen.tarifario_manual_referencia', []),
                     'cantidad' => (int) data_get($item, 'cantidad', 0),
                     'monto_base' => round((float) data_get($item, 'monto_base', 0), 2),
                     'monto_extras' => round((float) data_get($item, 'monto_extras', 0), 2),
@@ -1633,9 +1607,9 @@ class MisVentasController extends Controller
         };
     }
 
-    private function buildPdfRows(Collection $carts): Collection
+    private function buildPdfRows(Collection $carts, bool $includeKardexSourceItems = false): Collection
     {
-        return $carts->map(function ($cart) {
+        return $carts->values()->map(function ($cart, int $cartIndex) use ($includeKardexSourceItems) {
             $cart = is_array($cart) ? (object) $cart : $cart;
             $items = $this->normalizeItems(data_get($cart, 'items', []));
 
@@ -1644,7 +1618,7 @@ class MisVentasController extends Controller
                 data_get($respuesta, 'factura.nroFactura')
                 ?? data_get($respuesta, 'factura.numeroFactura')
                 ?? data_get($respuesta, 'consultaSefe.nroFactura')
-                ?? $cart->id
+                ?? ''
             ));
             $cuf = trim((string) (
                 data_get($respuesta, 'factura.cuf')
@@ -1652,6 +1626,24 @@ class MisVentasController extends Controller
                 ?? data_get($cart, 'cuf')
                 ?? ''
             ));
+            $ventaId = (int) data_get($cart, 'id', data_get($cart, 'venta_id', 0));
+            $codigoOrdenOriginal = trim((string) data_get($cart, 'codigo_orden', data_get($cart, 'codigoOrden', '')));
+            $pdfUrl = trim((string) (
+                data_get($respuesta, 'factura.pdfUrl')
+                ?? data_get($respuesta, 'factura.pdf_url')
+                ?? data_get($cart, 'pdf_url')
+                ?? data_get($cart, 'pdfUrl')
+                ?? ''
+            ));
+            $pdfUrl = $this->normalizeSefePublicUrl($pdfUrl);
+            if ($pdfUrl === '' && $cuf !== '') {
+                $pdfUrl = $this->sefePublicPdfUrl($cuf);
+            }
+            $saleGroupKey = $ventaId > 0
+                ? 'venta:' . $ventaId
+                : ($codigoOrdenOriginal !== ''
+                    ? 'codigo:' . mb_strtoupper($codigoOrdenOriginal)
+                    : ($numeroFactura !== '' ? 'factura:' . $numeroFactura : 'cart:' . $cartIndex));
             $fecha = $cart->emitido_en ?? $cart->created_at;
             $canalEmision = strtolower(trim((string) data_get($cart, 'canal_emision', 'factura_electronica')));
             $metodoPago = strtolower(trim((string) data_get($cart, 'metodo_pago', $canalEmision === 'qr' ? 'qr' : 'efectivo')));
@@ -1692,7 +1684,9 @@ class MisVentasController extends Controller
                 ->filter()
                 ->unique()
                 ->implode(' / ');
-            $codigoOrden = trim((string) data_get($cart, 'codigo_orden', data_get($cart, 'codigo_seguimiento', ''))) ?: '-';
+            $codigoOrden = $codigoOrdenOriginal !== ''
+                ? $codigoOrdenOriginal
+                : (trim((string) data_get($cart, 'codigo_seguimiento', '')) ?: '-');
             $detalleCodigos = $this->buildDetailCodeEntriesFromItems($items);
             $codigosPaquete = $detalleCodigos
                 ->pluck('codigo')
@@ -1724,7 +1718,11 @@ class MisVentasController extends Controller
                 $clienteLabel = (bool) data_get($cart, 'es_oficial', false) ? 'ENVIO OFICIAL' : 'Sin cliente';
             }
 
-            return [
+            $row = [
+                'venta_id' => $ventaId,
+                'venta_group_key' => $saleGroupKey,
+                'venta_referencia' => $codigoOrden !== '-' ? $codigoOrden : 'VENTA-' . ($ventaId > 0 ? $ventaId : ($cartIndex + 1)),
+                'numero_documento' => trim((string) data_get($cart, 'numero_documento', data_get($cart, 'documentoIdentidad', ''))),
                 'origen_usuario_id' => trim((string) data_get($cart, 'origen_usuario_id', '')),
                 'origen_usuario_nombre' => trim((string) data_get($cart, 'origen_usuario_nombre', '')),
                 'origen_usuario_email' => trim((string) data_get($cart, 'origen_usuario_email', '')),
@@ -1737,6 +1735,11 @@ class MisVentasController extends Controller
                 'fecha_hora' => $fecha ? date('d/m/Y H:i', strtotime((string) $fecha)) : '-',
                 'fecha_sort' => $fecha ? strtotime((string) $fecha) : 0,
                 'cliente' => $clienteLabel,
+                'estado_venta' => strtolower(trim((string) data_get($cart, 'estado', ''))),
+                'codigo_seguimiento' => trim((string) data_get($cart, 'codigo_seguimiento', '')),
+                'codigo_seguimiento_fiscal' => trim((string) data_get($cart, 'codigo_seguimiento_fiscal', data_get($cart, 'codigo_seguimiento', ''))),
+                'qr_transaction_id' => trim((string) data_get($cart, 'qr_transaction_id', '')),
+                'mensaje_emision' => trim((string) data_get($cart, 'mensaje_emision', '')),
                 'tipo_envio' => $tipoEnvio !== '' ? $tipoEnvio : 'SIN DETALLE REAL',
                 'detalle_items' => $detalleItems !== '' ? $detalleItems : 'Sin detalle real',
                 'detalle_resumen' => $detalleResumen,
@@ -1762,202 +1765,884 @@ class MisVentasController extends Controller
                 'empresa_nombre' => $empresaContrato,
                 'cobrada' => ! $isAnnulled && in_array($sectionKey, ['factura_electronica', 'qr_facturado', 'qr_pagado_pendiente_factura', 'oficial'], true),
                 'numero_factura' => $numeroFactura !== '' ? $numeroFactura : '-',
+                'pdf_url' => $pdfUrl,
                 'cuf' => $cuf,
                 'importe_parcial' => round((float) data_get($cart, 'total', 0), 2),
                 'importe_general' => round((float) data_get($cart, 'total', 0), 2),
+                'importe_venta' => round((float) data_get($cart, 'total', 0), 2),
             ];
+
+            if ($includeKardexSourceItems) {
+                $row['kardex_source_items'] = $items;
+            }
+
+            return $row;
         })->values();
     }
 
-    private function buildKardexViewRows(Collection $carts): Collection
+    private function buildKardexViewRows(Collection $carts, SitraTrackingDestinationClient $destinationClient, SitraTrackingEventsClient $eventsClient): Collection
     {
-        return $this->buildPdfRows($carts)
-            ->map(function (array $row, int $index): array {
-                $detalleCodigos = collect($row['detalle_codigos'] ?? []);
-                $tipoServicio = trim((string) ($row['tipo_envio'] ?? ''));
-                $guiaCasilla = $detalleCodigos
-                    ->pluck('codigo')
-                    ->filter()
-                    ->implode(', ');
-                if ($guiaCasilla === '') {
-                    $guiaCasilla = trim((string) ($row['codigo_referencia'] ?? $row['codigo_item'] ?? ''));
+        $pdfRows = $this->buildPdfRows($carts, true);
+        $destinationEntries = $pdfRows->flatMap(function (array $row): Collection {
+            $detalleCodigos = collect($row['detalle_codigos'] ?? []);
+            $esCasilla = $this->isKardexCasillaService(
+                (string) ($row['tipo_envio'] ?? ''),
+                $detalleCodigos->pluck('codigo')->filter()->implode(', ')
+            );
+            if ($esCasilla) {
+                return collect();
+            }
+
+            return $detalleCodigos->map(function (array $entry) use ($row): ?array {
+                $code = $this->normalizeKardexPackageLookupCode((string) ($entry['codigo'] ?? ''));
+                if ($code === '') {
+                    return null;
                 }
 
-                return array_merge($row, [
-                    'nro' => $index + 1,
-                    'regional_registro' => $this->resolveKardexRegional($row),
-                    'tipo_servicio' => $tipoServicio !== '' ? $tipoServicio : 'SIN DETALLE',
-                    'guia_casilla' => $guiaCasilla !== '' ? $guiaCasilla : '-',
-                    'pais_ciudad' => $this->resolveKardexDestinationForLocalRow($row),
-                    'importe' => (float) ($row['importe_general'] ?? 0),
-                ]);
-            })
-            ->values();
-    }
-
-    private function buildKardexApiViewRows(Collection $apiRows): Collection
-    {
-        return $apiRows
-            ->map(function ($row, int $index): array {
-                $regional = strtoupper(trim((string) data_get($row, 'regionalRegistro', '-')));
-                $tipoServicio = trim((string) data_get($row, 'tipoServicio', 'SIN DETALLE')) ?: 'SIN DETALLE';
-                $guiaCasilla = trim((string) data_get($row, 'guiaCasilla', '-')) ?: '-';
-                $isCasilla = $this->isKardexCasillaService($tipoServicio, $guiaCasilla);
-                $tipoCorrespondencia = $isCasilla
-                    ? $this->formatKardexCasillaLabel($tipoServicio, $guiaCasilla)
-                    : $this->resolveKardexServiceDisplayName($tipoServicio);
-                $destino = $this->resolveKardexDestinationForApiRow($row, $tipoCorrespondencia);
-
                 return [
-                    'nro' => (int) data_get($row, 'nro', $index + 1),
-                    'fecha' => trim((string) data_get($row, 'fecha', '-')) ?: '-',
-                    'cantidad' => (int) data_get($row, 'cantidad', 0),
-                    'regional_registro' => $regional !== '' ? $regional : '-',
-                    'origen' => $this->resolveKardexOriginCode($regional, data_get($row, 'codigoSucursal')),
-                    'tipo_servicio' => $tipoServicio,
-                    'tipo_correspondencia' => $tipoCorrespondencia,
-                    'guia_casilla' => $isCasilla ? '' : $guiaCasilla,
-                    'peso' => $isCasilla
-                        ? null
-                        : (data_get($row, 'peso') !== null && trim((string) data_get($row, 'peso')) !== ''
-                            ? (float) data_get($row, 'peso')
-                            : null),
-                    'pais_ciudad' => $isCasilla ? '' : ($destino !== '' ? $destino : '-'),
-                    'numero_factura' => trim((string) data_get($row, 'numeroFactura', '-')) ?: '-',
-                    'importe' => (float) data_get($row, 'importe', 0),
-                    'estado_emision' => strtoupper(trim((string) data_get($row, 'estadoEmision', ''))),
-                    'es_anulada' => in_array(strtoupper(trim((string) data_get($row, 'estadoEmision', ''))), ['ANULADA', 'ANULADO'], true),
-                    'es_casilla' => $isCasilla,
+                    'codigo' => $code,
+                    'servicio' => trim((string) ($entry['servicio'] ?? '')) ?: (string) ($row['tipo_envio'] ?? ''),
                 ];
-            })
-            ->values();
-    }
+            })->filter();
+        })->unique(fn (array $entry) => $entry['codigo'].'|'.$this->normalizeKardexText($entry['servicio']))->values();
 
-    private function resolveKardexDestinationForApiRow(mixed $row, string $service = ''): string
-    {
-        $guia = trim((string) data_get($row, 'guiaCasilla', ''));
-        $localDestination = $this->resolveKardexDestinationFromLocalPackages($guia, $service);
-        if ($localDestination !== '') {
-            return $localDestination;
-        }
-
-        $apiDestination = $this->cleanKardexReportText((string) data_get($row, 'paisCiudad', ''));
-        return $apiDestination !== '' ? $apiDestination : '-';
-    }
-
-    private function resolveKardexDestinationForLocalRow(array $row): string
-    {
-        $codes = collect($row['detalle_codigos'] ?? [])
+        $allCodes = $destinationEntries->pluck('codigo')->unique()->values();
+        $internationalCodes = $destinationEntries
+            ->filter(fn (array $entry) => $this->isKardexInternationalService($entry['servicio']))
             ->pluck('codigo')
-            ->push(data_get($row, 'codigo_referencia'))
-            ->push(data_get($row, 'codigo_item'))
-            ->filter(fn ($code) => trim((string) $code) !== '')
+            ->unique()
             ->values();
-
-        foreach ($codes as $code) {
-            $localDestination = $this->resolveKardexDestinationFromLocalPackages((string) $code, (string) data_get($row, 'tipo_correspondencia', data_get($row, 'tipo_servicio', '')));
-            if ($localDestination !== '') {
-                return $localDestination;
+        $localDestinations = $this->lookupKardexDestinationsInBatch($allCodes);
+        $trackingDestinations = $destinationClient->destinations($internationalCodes->all());
+        $trackingEvents = $eventsClient->events($internationalCodes->all());
+        foreach ($this->lookupKardexDestinationsFromTrackingEvents($trackingEvents) as $code => $destination) {
+            if ($this->cleanKardexReportText((string) ($trackingDestinations[$code] ?? '')) === '') {
+                $trackingDestinations[$code] = $destination;
             }
         }
 
+        $splitRows = $pdfRows
+            ->flatMap(fn (array $row) => $this->splitKardexPackageRows($row))
+            ->values();
+        $operationalStages = $this->lookupKardexOperationalStages($splitRows, $trackingEvents);
+        $viewRows = $splitRows
+            ->map(function (array $splitRow) use ($localDestinations, $trackingDestinations, $operationalStages): array {
+                $codes = collect($splitRow['detalle_codigos'] ?? [])
+                    ->pluck('codigo')
+                    ->map(fn ($code) => $this->normalizeKardexPackageLookupCode((string) $code))
+                    ->filter()
+                    ->unique()
+                    ->values();
+                $modes = $codes
+                    ->map(fn (string $code) => $operationalStages[$code] ?? null)
+                    ->filter()
+                    ->unique()
+                    ->values();
+                $splitRow['modalidad_entrega'] = $modes->isNotEmpty() ? $modes->implode(' / ') : '-';
+
+                return $this->formatKardexViewRow($splitRow, $localDestinations, $trackingDestinations);
+            })
+            ->values();
+
+        return $viewRows
+            ->groupBy('venta_group_key')
+            ->flatMap(function (Collection $saleRows): Collection {
+                $detailCount = $saleRows->count();
+
+                return $saleRows->values()->map(function (array $row, int $index) use ($detailCount): array {
+                    $row['venta_detalle_orden'] = $index + 1;
+                    $row['venta_detalles_total'] = $detailCount;
+
+                    return $row;
+                });
+            })
+            ->values()
+            ->map(function (array $row, int $index): array {
+                $row['nro'] = $index + 1;
+
+                return $row;
+            });
+    }
+
+    private function lookupKardexOperationalStages(Collection $rows, array $trackingEventsByCode = []): array
+    {
+        $codes = $rows
+            ->flatMap(fn (array $row) => collect($row['detalle_codigos'] ?? [])->pluck('codigo'))
+            ->map(fn ($code) => $this->normalizeKardexPackageLookupCode((string) $code))
+            ->filter()
+            ->unique()
+            ->values();
+        if ($codes->isEmpty()) {
+            return [];
+        }
+
+        $eventTypesByTable = [
+            'eventos_ems' => [
+                'admission' => [self::KARDEX_EVENT_ADMISSION],
+                'domiciliary' => array_merge([self::KARDEX_EVENT_ASSIGNED_TO_COURIER], self::KARDEX_EVENT_COURIER_DELIVERY),
+                'non_domiciliary' => array_merge([self::KARDEX_EVENT_SENT_TO_WINDOW_EMS], self::KARDEX_EVENT_COUNTER_DELIVERY),
+            ],
+            'eventos_contrato' => [
+                'admission' => [self::KARDEX_EVENT_ADMISSION],
+                'domiciliary' => array_merge([self::KARDEX_EVENT_ASSIGNED_TO_COURIER], self::KARDEX_EVENT_COURIER_DELIVERY),
+                'non_domiciliary' => array_merge([self::KARDEX_EVENT_SENT_TO_WINDOW_EMS], self::KARDEX_EVENT_COUNTER_DELIVERY),
+            ],
+            'eventos_certi' => [
+                'admission' => [self::KARDEX_EVENT_CERTI_ADMISSION],
+                'domiciliary' => array_merge([self::KARDEX_EVENT_ASSIGNED_TO_COURIER], self::KARDEX_EVENT_COURIER_DELIVERY),
+                'non_domiciliary' => array_merge([self::KARDEX_EVENT_SENT_TO_WINDOW_CERTI], self::KARDEX_EVENT_COUNTER_DELIVERY),
+            ],
+            'eventos_ordi' => [
+                'admission' => [self::KARDEX_EVENT_ADMISSION],
+                'domiciliary' => array_merge([self::KARDEX_EVENT_ASSIGNED_TO_COURIER], self::KARDEX_EVENT_COURIER_DELIVERY),
+                'non_domiciliary' => self::KARDEX_EVENT_COUNTER_DELIVERY,
+            ],
+        ];
+        $eventsByCode = [];
+        foreach ($eventTypesByTable as $table => $eventTypes) {
+            if (! Schema::hasTable($table)
+                || ! Schema::hasColumn($table, 'codigo')
+                || ! Schema::hasColumn($table, 'evento_id')
+                || ! Schema::hasColumn($table, 'created_at')) {
+                continue;
+            }
+
+            $eventIds = array_values(array_unique(array_merge(
+                $eventTypes['admission'],
+                $eventTypes['domiciliary'],
+                $eventTypes['non_domiciliary'],
+                [self::KARDEX_EVENT_DELIVERED]
+            )));
+
+            foreach ($codes->chunk(1000) as $codeChunk) {
+                $events = DB::table($table)
+                    ->select(['codigo', 'evento_id', 'created_at'])
+                    ->whereIn(DB::raw('TRIM(UPPER(codigo))'), $codeChunk->all())
+                    ->whereIn('evento_id', $eventIds)
+                    ->orderBy('created_at')
+                    ->get();
+
+                foreach ($events as $event) {
+                    $code = $this->normalizeKardexPackageLookupCode((string) $event->codigo);
+                    if ($code !== '') {
+                        $eventsByCode[$code][$table][] = $event;
+                    }
+                }
+            }
+        }
+
+        $stages = [];
+        $stageTimestamps = [];
+        foreach ($eventsByCode as $code => $eventsByTable) {
+            $history = collect();
+            foreach ($eventsByTable as $table => $events) {
+                foreach ($events as $event) {
+                    $timestamp = strtotime((string) $event->created_at);
+                    if ($timestamp === false) {
+                        continue;
+                    }
+                    $eventId = (int) $event->evento_id;
+                    $category = null;
+                    foreach ($eventTypesByTable[$table] as $type => $ids) {
+                        if (in_array($eventId, $ids, true)) {
+                            $category = $type;
+                            break;
+                        }
+                    }
+                    if ($category !== null || $eventId === self::KARDEX_EVENT_DELIVERED) {
+                        $history->push([
+                            'timestamp' => $timestamp,
+                            'event_id' => $eventId,
+                            'category' => $category,
+                        ]);
+                    }
+                }
+            }
+
+            if ($history->isEmpty()) {
+                continue;
+            }
+
+            $history = $history->sortBy('timestamp')->values();
+            $latest = $history->last();
+            if ((int) $latest['event_id'] === self::KARDEX_EVENT_DELIVERED) {
+                $route = $history->filter(fn (array $event) => $event['category'] !== null)->last();
+                $category = in_array($route['category'] ?? null, ['domiciliary', 'non_domiciliary'], true)
+                    ? $route['category']
+                    : null;
+            } else {
+                $category = $latest['category'];
+            }
+
+            $stages[$code] = match ($category) {
+                'admission' => 'ADMISIÓN',
+                'domiciliary' => 'DISTRIBUCIÓN DOMICILIARIA',
+                'non_domiciliary' => 'DISTRIBUCIÓN NO DOMICILIARIA',
+                default => '-',
+            };
+            $stageTimestamps[$code] = (int) ($latest['timestamp'] ?? 0);
+        }
+
+        foreach ($trackingEventsByCode as $rawCode => $events) {
+            $code = $this->normalizeKardexPackageLookupCode((string) $rawCode);
+            if ($code === '') {
+                continue;
+            }
+
+            $latestTrackingTimestamp = collect((array) $events)
+                ->map(fn ($event) => strtotime((string) (data_get($event, 'timeline_sort_at') ?? data_get($event, 'created_at', ''))) ?: 0)
+                ->filter(fn (int $timestamp) => $timestamp > 0)
+                ->max();
+            if (isset($stages[$code])
+                && ($latestTrackingTimestamp === null
+                    || $latestTrackingTimestamp <= (int) ($stageTimestamps[$code] ?? 0))) {
+                continue;
+            }
+
+            $stage = $this->resolveKardexSitraOperationalStage((array) $events, $code);
+            if ($stage !== null) {
+                $stages[$code] = $stage;
+                $stageTimestamps[$code] = (int) ($latestTrackingTimestamp ?? 0);
+            }
+        }
+
+        return $stages;
+    }
+
+    private function resolveKardexSitraOperationalStage(array $events, string $code): ?string
+    {
+        $events = collect($events)
+            ->map(fn ($event) => (object) (is_array($event) ? $event : (array) $event))
+            ->sortByDesc(fn ($event) => strtotime((string) ($event->timeline_sort_at ?? $event->created_at ?? '')) ?: 0)
+            ->values();
+        if ($events->isEmpty()) {
+            return null;
+        }
+
+        $service = preg_match('/^R[A-Z]\d{9}[A-Z]{2}$/', $code) === 1 ? 'CERTI' : 'EMS';
+        $progress = app(\App\Services\TrackingProgressService::class)->resolve($events, $service);
+        $steps = collect($progress['steps'] ?? [])->map(fn ($step) => $this->normalizeKardexText((string) $step));
+        $currentStep = $this->normalizeKardexText((string) data_get($progress, 'steps.'.(int) data_get($progress, 'current_index', 0), ''));
+        $progressStatus = $this->normalizeKardexText((string) data_get($progress, 'status', ''));
+        $latestEvent = (object) $events->first();
+        $latestEventCode = is_numeric($latestEvent->codigo_evento ?? null)
+            ? (int) $latestEvent->codigo_evento
+            : null;
+        $latestLocalEventId = is_numeric($latestEvent->evento_id ?? null)
+            ? (int) $latestEvent->evento_id
+            : null;
+        $latestEventText = $this->normalizeKardexText(implode(' ', array_filter([
+            (string) ($latestEvent->nombre_evento ?? ''),
+            (string) ($latestEvent->eventType ?? ''),
+            (string) ($latestEvent->evento ?? ''),
+            (string) ($latestEvent->descripcion ?? ''),
+        ])));
+        $counterEventCodes = [32, 73, 75];
+        $counterEventIds = array_merge(
+            $counterEventCodes,
+            self::KARDEX_EVENT_COUNTER_DELIVERY,
+            [self::KARDEX_EVENT_SENT_TO_WINDOW_EMS, self::KARDEX_EVENT_SENT_TO_WINDOW_CERTI]
+        );
+        $courierEventCodes = [36, 39, 67, 74];
+        $courierEventIds = array_merge([self::KARDEX_EVENT_ASSIGNED_TO_COURIER], self::KARDEX_EVENT_COURIER_DELIVERY);
+        $latestRouteEvent = $events->first(function ($event) use ($counterEventIds, $courierEventCodes, $courierEventIds): bool {
+            $event = (object) $event;
+            $eventCode = is_numeric($event->codigo_evento ?? null) ? (int) $event->codigo_evento : null;
+            $eventId = is_numeric($event->evento_id ?? null) ? (int) $event->evento_id : null;
+
+            return in_array($eventCode, $courierEventCodes, true)
+                || in_array($eventCode, [32, 73, 75], true)
+                || in_array($eventId, $courierEventIds, true)
+                || in_array($eventId, $counterEventIds, true);
+        });
+        $latestRouteEvent = $latestRouteEvent !== null ? (object) $latestRouteEvent : null;
+        $latestRouteEventCode = is_numeric($latestRouteEvent?->codigo_evento ?? null)
+            ? (int) $latestRouteEvent->codigo_evento
+            : null;
+        $latestRouteLocalEventId = is_numeric($latestRouteEvent?->evento_id ?? null)
+            ? (int) $latestRouteEvent->evento_id
+            : null;
+        $latestRouteIsDomiciliary = in_array($latestRouteEventCode, $courierEventCodes, true)
+            || in_array($latestRouteLocalEventId, $courierEventIds, true);
+
+        if (in_array($progressStatus, ['ENVIO CANCELADO', 'DEVOLUCION EN CURSO', 'DEVUELTO AL REMITENTE'], true)) {
+            return null;
+        }
+
+        // El evento actual manda sobre los eventos históricos. Por ejemplo,
+        // un envío entregado puede conservar eventos anteriores de Aduana.
+        if ($progressStatus === 'ENTREGADO' || in_array($latestEventCode, [37, 1250], true)) {
+            $deliveryMode = strtoupper(trim((string) ($latestEvent->delivery_mode ?? '')));
+            if ($deliveryMode === 'DOMICILIARIA') {
+                return 'DISTRIBUCIÓN DOMICILIARIA';
+            }
+            if ($deliveryMode === 'NO_DOMICILIARIA') {
+                return 'DISTRIBUCIÓN NO DOMICILIARIA';
+            }
+            if ($latestRouteIsDomiciliary) {
+                return 'DISTRIBUCIÓN DOMICILIARIA';
+            }
+            $hasCounterDeliveryEvidence = in_array($latestRouteLocalEventId, self::KARDEX_EVENT_COUNTER_DELIVERY, true)
+                || $latestRouteEventCode === 75
+                || ($latestEventCode === 37 && $events->contains(fn ($event) => (int) ($event->codigo_evento ?? 0) === 38));
+
+            return $hasCounterDeliveryEvidence ? 'DISTRIBUCIÓN NO DOMICILIARIA' : null;
+        }
+
+        if (str_contains($currentStep, 'cartero')
+            || in_array($latestEventCode, $courierEventCodes, true)
+            || in_array($latestLocalEventId, $courierEventIds, true)) {
+            return 'DISTRIBUCIÓN DOMICILIARIA';
+        }
+        if ((bool) data_get($progress, 'is_pickup_available')
+            || (bool) data_get($progress, 'pickup_ready_at_destination_customs')
+            || in_array($latestEventCode, $counterEventCodes, true)
+            || in_array($latestLocalEventId, $counterEventIds, true)
+            || $currentStep === 'VENTANILLA'
+            // El evento 38 libera el envío de Aduana hacia la ventanilla postal.
+            || ($currentStep === 'VENTANILLA = ADUANA' && $latestEventCode === 38)) {
+            return 'DISTRIBUCIÓN NO DOMICILIARIA';
+        }
+
+        $isAdmissionEvent = in_array($latestEventCode, [1, 45, 68, 78], true)
+            || in_array($latestLocalEventId, [self::KARDEX_EVENT_ADMISSION, self::KARDEX_EVENT_CERTI_ADMISSION, 2239], true)
+            || str_contains($latestEventText, 'ADMISION')
+            || str_contains($latestEventText, 'RECIBIR ENVIO DEL CLIENTE')
+            || str_contains($latestEventText, 'PAQUETE RECIBIDO DEL CLIENTE');
+        if ($isAdmissionEvent) {
+            return 'ADMISIÓN';
+        }
+
+        return null;
+    }
+
+    private function splitKardexPackageRows(array $row): Collection
+    {
+        $detalleCodigos = collect($row['detalle_codigos'] ?? []);
+        $packageEntries = $detalleCodigos
+            ->filter(fn (array $entry): bool => $this->isKardexPackageEntry($entry))
+            ->filter(function (array $entry): bool {
+                $source = $entry['source'] ?? null;
+
+                return is_object($source) && max(1, (int) data_get($source, 'cantidad', 1)) === 1;
+            })
+            ->unique(fn (array $entry) => spl_object_id($entry['source']))
+            ->values();
+
+        if ($packageEntries->isEmpty()) {
+            $sourceItems = collect($row['kardex_source_items'] ?? [])->filter(fn ($item) => is_object($item));
+            $hasPackageItems = $sourceItems->contains(fn ($item) => $this->isPackageCartItem($item))
+                || $detalleCodigos->contains(fn (array $entry) => $this->isKardexPackageEntry($entry));
+            $sourceItemDetails = $sourceItems
+                ->map(fn ($item) => $this->resolveKardexItemDisplayDetail($item))
+                ->filter()
+                ->unique()
+                ->implode(' / ');
+            if ($sourceItemDetails !== '') {
+                $row['detalle_items'] = $sourceItemDetails;
+            }
+            if ($hasPackageItems) {
+                $packageCodes = $detalleCodigos->pluck('codigo')->filter()->values();
+                $row['codigo_referencia'] = $packageCodes->isNotEmpty() ? $packageCodes->implode(', ') : '-';
+            } else {
+                $row['codigo_referencia'] = '-';
+                $row['kardex_non_package_service'] = true;
+            }
+            unset($row['kardex_source_items']);
+
+            return collect([$row]);
+        }
+
+        $sourceItems = collect($row['kardex_source_items'] ?? [])->filter(fn ($item) => is_object($item));
+        $packageSourceIds = $packageEntries
+            ->map(fn (array $entry) => spl_object_id($entry['source']))
+            ->flip();
+        $remainingItems = $sourceItems
+            ->reject(fn ($item) => $packageSourceIds->has(spl_object_id($item)))
+            ->values();
+        $packageAmounts = $packageEntries
+            ->map(fn (array $entry) => $this->resolveKardexItemAmount($entry['source']))
+            ->all();
+        $invoiceAmount = round((float) ($row['importe_general'] ?? 0), 2);
+        $packageAmountTotal = round(array_sum($packageAmounts), 2);
+
+        if ($remainingItems->isEmpty() && $packageAmountTotal !== $invoiceAmount) {
+            $packageAmounts = $this->reconcileKardexLineAmounts($invoiceAmount, $packageAmounts);
+            $packageAmountTotal = round(array_sum($packageAmounts), 2);
+        } elseif ($packageAmountTotal > $invoiceAmount) {
+            $packageAmounts = $this->reconcileKardexLineAmounts($invoiceAmount, $packageAmounts);
+            $packageAmountTotal = round(array_sum($packageAmounts), 2);
+        }
+
+        $splitRows = $packageEntries
+            ->values()
+            ->map(function (array $entry, int $index) use ($row, $packageAmounts): array {
+                $source = $entry['source'];
+                $code = trim((string) ($entry['codigo'] ?? ''));
+                $service = trim((string) ($entry['servicio'] ?? ''));
+                $entryCollection = collect([$entry]);
+                $amount = (float) ($packageAmounts[$index] ?? 0);
+
+                return array_merge($row, [
+                    'tipo_envio' => $service !== '' ? $service : (string) ($row['tipo_envio'] ?? ''),
+                    'detalle_items' => trim((string) (
+                        data_get($source, 'titulo')
+                        ?: data_get($source, 'nombre_servicio')
+                        ?: $service
+                    )),
+                    'detalle_codigos' => $entryCollection,
+                    'codigo_paquetes' => collect([$code])->filter()->values(),
+                    'codigo_paquetes_texto' => $code,
+                    'codigo_referencia' => $code,
+                    'cantidad' => 1,
+                    'peso' => (float) data_get($source, 'resumen_origen.peso', data_get($source, 'peso', 0)),
+                    'importe_parcial' => $amount,
+                    'importe_general' => $amount,
+                ]);
+            });
+
+        if ($remainingItems->isNotEmpty()) {
+            $remainingEntries = $detalleCodigos
+                ->reject(function (array $entry) use ($packageSourceIds): bool {
+                    $source = $entry['source'] ?? null;
+
+                    return is_object($source) && $packageSourceIds->has(spl_object_id($source));
+                })
+                ->values();
+            $serviceNames = $remainingItems
+                ->map(fn ($item) => trim((string) (data_get($item, 'nombre_servicio') ?: data_get($item, 'titulo', ''))))
+                ->filter()
+                ->unique()
+                ->values();
+            $itemTitles = $remainingItems
+                ->map(fn ($item) => $this->resolveKardexItemDisplayDetail($item))
+                ->filter()
+                ->unique()
+                ->values();
+            $codes = $remainingEntries->pluck('codigo')->filter()->values();
+            $residualAmount = max(0, round($invoiceAmount - $packageAmountTotal, 2));
+            $residualRow = array_merge($row, [
+                'tipo_envio' => $serviceNames->isNotEmpty() ? $serviceNames->implode(' / ') : 'OTROS SERVICIOS',
+                'detalle_items' => $itemTitles->isNotEmpty() ? $itemTitles->implode(' / ') : 'Otros servicios',
+                'detalle_codigos' => $remainingEntries,
+                'codigo_paquetes' => $codes,
+                'codigo_paquetes_texto' => $codes->implode(', '),
+                'codigo_referencia' => '-',
+                'kardex_non_package_service' => true,
+                'cantidad' => max(1, (int) $remainingItems->sum(fn ($item) => max(1, (int) data_get($item, 'cantidad', 1)))),
+                'peso' => round((float) $remainingItems->sum(fn ($item) => (float) data_get($item, 'resumen_origen.peso', data_get($item, 'peso', 0))), 3),
+                'importe_parcial' => $residualAmount,
+                'importe_general' => $residualAmount,
+            ]);
+            $splitRows->push($residualRow);
+        }
+
+        unset($row['kardex_source_items']);
+
+        return $splitRows
+            ->map(function (array $splitRow): array {
+                unset($splitRow['kardex_source_items']);
+
+                return $splitRow;
+            })
+            ->values();
+    }
+
+    private function resolveKardexItemDisplayDetail(mixed $item): string
+    {
+        $title = trim((string) (data_get($item, 'titulo') ?: data_get($item, 'nombre_servicio', '')));
+        $serviceDescription = trim((string) (
+            data_get($item, 'resumen_origen.descripcion_servicio')
+            ?: data_get($item, 'descripcion_servicio')
+            ?: ''
+        ));
+        $itemService = trim((string) (data_get($item, 'nombre_servicio') ?: $title));
+        $isCasilla = str_contains($this->normalizeKardexText($title . ' ' . $itemService . ' ' . $serviceDescription), 'CASILLA');
+
+        return $isCasilla && $serviceDescription !== '' ? $serviceDescription : $title;
+    }
+
+    private function isKardexPackageEntry(array $entry): bool
+    {
+        $source = $entry['source'] ?? null;
+        $code = trim((string) ($entry['codigo'] ?? ''));
+        if (! is_object($source) || $code === '') {
+            return false;
+        }
+
+        $origin = ltrim(trim((string) data_get($source, 'origen_tipo', '')), '\\');
+        $packageOrigins = [PaqueteEms::class, PaqueteInt::class, PaqueteOrdi::class, PaqueteCerti::class];
+        if (in_array($origin, array_map(fn ($type) => ltrim($type, '\\'), $packageOrigins), true)) {
+            return true;
+        }
+
+        if ($origin !== 'App\\Models\\ConceptoFacturacion') {
+            return false;
+        }
+
+        $references = [
+            data_get($source, 'codigo'),
+            data_get($source, 'codigo_paquete'),
+            data_get($source, 'resumen_origen.codigo_paquete'),
+        ];
+
+        foreach ($references as $reference) {
+            if (preg_match('/^SRVE-(?:2|3|4|11|12)\\s*-/i', trim((string) $reference)) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function resolveKardexItemAmount(object $item): float
+    {
+        $base = (float) data_get($item, 'monto_base', data_get($item, 'precio', 0));
+        $extras = (float) data_get($item, 'monto_extras', 0);
+        $quantity = max(1, (int) data_get($item, 'cantidad', 1));
+        $lineTotal = data_get($item, 'total_linea');
+
+        if (is_numeric($lineTotal) && ((float) $lineTotal > 0 || ($base + $extras) <= 0)) {
+            return round((float) $lineTotal, 2);
+        }
+
+        return round(($base + $extras) * $quantity, 2);
+    }
+
+    private function reconcileKardexLineAmounts(float $targetAmount, array $amounts): array
+    {
+        if ($amounts === []) {
+            return [];
+        }
+
+        $weights = array_map(fn ($amount) => max(0, (float) $amount), $amounts);
+        $weightTotal = array_sum($weights);
+        if ($weightTotal <= 0) {
+            $weights = array_fill(0, count($amounts), 1.0);
+            $weightTotal = count($weights);
+        }
+
+        $remainingCents = max(0, (int) round($targetAmount * 100));
+        $allocated = [];
+        foreach ($weights as $index => $weight) {
+            if ($index === array_key_last($weights)) {
+                $allocated[] = $remainingCents / 100;
+                break;
+            }
+
+            $cents = (int) floor(($targetAmount * 100) * ($weight / $weightTotal));
+            $cents = max(0, min($remainingCents, $cents));
+            $allocated[] = $cents / 100;
+            $remainingCents -= $cents;
+        }
+
+        return $allocated;
+    }
+
+    private function formatKardexViewRow(array $row, array $localDestinations, array $trackingDestinations): array
+    {
+        $detalleCodigos = collect($row['detalle_codigos'] ?? []);
+        $tipoServicio = trim((string) ($row['tipo_envio'] ?? ''));
+        $isNonPackageService = (bool) ($row['kardex_non_package_service'] ?? false);
+        $guiaCasilla = $isNonPackageService
+            ? '-'
+            : $detalleCodigos->pluck('codigo')->filter()->implode(', ');
+        $hasDestinationHint = $detalleCodigos
+            ->pluck('destino_hint')
+            ->contains(fn ($hint) => trim((string) $hint) !== '');
+        if (! $isNonPackageService && $guiaCasilla === '' && ! $hasDestinationHint) {
+            $guiaCasilla = trim((string) ($row['codigo_referencia'] ?? ''));
+        }
+        $regional = $this->resolveKardexRegional($row);
+        $esCasilla = $this->isKardexCasillaService($tipoServicio, $guiaCasilla);
+        $tipoCorrespondencia = $esCasilla
+            ? $this->formatKardexCasillaLabel($tipoServicio, $guiaCasilla)
+            : $this->resolveKardexServiceDisplayName($tipoServicio);
+        $estadoEmision = strtoupper(trim((string) ($row['estado_emision'] ?? '')));
+        $estadoVenta = strtolower(trim((string) ($row['estado_venta'] ?? '')));
+        $esAnulada = in_array($estadoEmision, ['ANULADA', 'ANULADO'], true)
+            || in_array($estadoVenta, ['anulado', 'descartado'], true)
+            || ($row['section_key'] ?? '') === 'factura_anulada';
+        $metodoPago = strtolower(trim((string) ($row['metodo_pago'] ?? '')));
+        $estadoPago = strtolower(trim((string) ($row['estado_pago'] ?? '')));
+        $metodoPagoLabel = (bool) ($row['es_cuenta_por_cobrar'] ?? false)
+            ? 'CUENTA POR COBRAR'
+            : (strtolower(trim((string) ($row['canal_emision'] ?? ''))) === 'oficial'
+                ? 'REGISTRO OFICIAL'
+                : ($metodoPago === 'qr'
+                    ? 'QR · ' . strtoupper($estadoPago !== '' ? $estadoPago : 'PENDIENTE')
+                    : 'EFECTIVO'));
+        $estadoVentaLabel = match ($estadoVenta) {
+            'emitido' => 'EMITIDO',
+            'pendiente_pago' => 'PENDIENTE DE PAGO',
+            'borrador' => 'BORRADOR',
+            'anulado', 'descartado' => 'ANULADO',
+            default => $estadoEmision !== '' ? $estadoEmision : 'SIN ESTADO',
+        };
+        $destino = $esCasilla
+            ? ''
+            : $this->resolveKardexDestinationFromBatch($row, $localDestinations, $trackingDestinations);
+        $detalleCasilla = '';
+        if ($esCasilla) {
+            $detalleCasilla = trim((string) ($row['detalle_items'] ?? ''));
+            if ($detalleCasilla === '' || in_array($this->normalizeKardexText($detalleCasilla), ['SIN DETALLE REAL', 'OTROS SERVICIOS'], true)) {
+                $detalleCasilla = $tipoServicio;
+            }
+
+            $detalleCasilla = collect(preg_split('/\s+\/\s+/', $detalleCasilla) ?: [$detalleCasilla])
+                ->map(fn ($detail) => trim((string) (preg_replace('/^\s*(?:SERVICIO\s+)?CASILLA\s*[-:\x{2013}\x{2014}]?\s*/iu', '', (string) $detail) ?? $detail)))
+                ->filter(fn ($detail) => $detail !== '' && ! in_array($this->normalizeKardexText($detail), ['CASILLA', 'SERVICIO CASILLA'], true))
+                ->implode(' | ');
+        }
+
+        return array_merge($row, [
+            'fecha' => $row['fecha'] ?? '-',
+            'cantidad' => (int) ($row['cantidad'] ?? 0),
+            'regional_registro' => $regional,
+            'origen' => $this->resolveKardexOriginCode($regional, $row['origen_sucursal_codigo'] ?? null),
+            'tipo_servicio' => $tipoServicio !== '' ? $tipoServicio : 'SIN DETALLE',
+            'tipo_correspondencia' => $tipoCorrespondencia,
+            'detalle_casilla' => $detalleCasilla,
+            'guia_casilla' => $esCasilla ? '' : ($guiaCasilla !== '' ? $guiaCasilla : '-'),
+            'peso' => $esCasilla ? null : (float) ($row['peso'] ?? 0),
+            'pais_ciudad' => $destino,
+            'numero_factura' => trim((string) ($row['numero_factura'] ?? '-')) ?: '-',
+            'importe' => (float) ($row['importe_general'] ?? 0),
+            'importe_venta' => (float) ($row['importe_venta'] ?? $row['importe_general'] ?? 0),
+            'metodo_pago_label' => $metodoPagoLabel,
+            'facturacion_label' => trim((string) ($row['estado_label'] ?? '')) ?: 'SIN ESTADO',
+            'estado_venta_label' => $estadoVentaLabel,
+            'estado_emision' => $estadoEmision,
+            'es_anulada' => $esAnulada,
+            'es_casilla' => $esCasilla,
+        ]);
+    }
+
+    private function resolveKardexDestinationFromBatch(array $row, array $localDestinations, array $trackingDestinations): string
+    {
+        $destinations = collect($row['detalle_codigos'] ?? [])
+            ->map(function (array $entry) use ($row, $localDestinations, $trackingDestinations): string {
+                $code = $this->normalizeKardexPackageLookupCode((string) ($entry['codigo'] ?? ''));
+                $destinationHint = $this->cleanKardexReportText((string) ($entry['destino_hint'] ?? ''));
+                $service = trim((string) ($entry['servicio'] ?? '')) ?: (string) ($row['tipo_envio'] ?? '');
+                $isInternational = $this->isKardexInternationalService($service);
+                if ($code === '') {
+                    return $isInternational ? $this->kardexInternationalCountry($destinationHint) : $destinationHint;
+                }
+
+                if ($isInternational) {
+                    $trackingDestination = $this->cleanKardexReportText((string) ($trackingDestinations[$code] ?? ''));
+                    if ($trackingDestination !== '') {
+                        return $this->normalizeKardexInternationalCountry($trackingDestination);
+                    }
+                }
+
+                foreach ($this->kardexDestinationLookupOrder($code, $service) as $lookup) {
+                    $destination = $this->cleanKardexReportText((string) data_get($localDestinations, $code.'.'.$lookup, ''));
+                    if ($destination !== '') {
+                        return $isInternational ? $this->normalizeKardexInternationalCountry($destination) : $destination;
+                    }
+                }
+
+                return $isInternational ? $this->normalizeKardexInternationalCountry($destinationHint) : $destinationHint;
+            })
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($destinations->isNotEmpty()) {
+            return $destinations->implode(', ');
+        }
+
         $fallback = $this->cleanKardexReportText($this->resolveKardexDestination($row, 'place'));
+        if ($fallback !== '' && $this->isKardexInternationalService((string) ($row['tipo_envio'] ?? ''))) {
+            $fallback = $this->normalizeKardexInternationalCountry($fallback);
+        }
+
         return $fallback !== '' ? $fallback : '-';
     }
 
-    private function resolveKardexDestinationFromLocalPackages(string $code, string $service = ''): string
+    private function lookupKardexDestinationsFromTrackingEvents(array $trackingEventsByCode): array
     {
-        $code = $this->normalizeKardexPackageLookupCode($code);
-        if ($code === '') {
-            return '';
+        $destinations = [];
+
+        foreach ($trackingEventsByCode as $rawCode => $rawEvents) {
+            $code = $this->normalizeKardexPackageLookupCode((string) $rawCode);
+            if ($code === '') {
+                continue;
+            }
+
+            $events = collect((array) $rawEvents)
+                ->map(fn ($event) => (array) $event)
+                ->sortByDesc(fn (array $event) => strtotime((string) ($event['created_at'] ?? '')) ?: 0)
+                ->values();
+
+            foreach ($events as $event) {
+                $countryName = trim((string) (
+                    $event['destination_country_name']
+                    ?? $event['pais_destino_nombre']
+                    ?? $event['pais_destino']
+                    ?? $event['country_destino']
+                    ?? ''
+                ));
+                $countryCode = strtoupper(trim((string) (
+                    $event['destination_country_code']
+                    ?? $event['pais_destino_iso2']
+                    ?? ''
+                )));
+                if ($countryName === '' && $countryCode !== '') {
+                    $countryName = $countryCode;
+                }
+
+                $country = $this->normalizeKardexInternationalCountry($countryName);
+                if ($country !== '') {
+                    $destinations[$code] = $country;
+                    break;
+                }
+            }
+
+            if (isset($destinations[$code])) {
+                continue;
+            }
+
+            $enteredBolivia = $events->contains(function (array $event): bool {
+                $eventCode = $event['codigo_evento'] ?? $event['eventCode'] ?? $event['event_type_cd'] ?? null;
+                if (! is_numeric($eventCode) || ! in_array((int) $eventCode, [31, 34, 38, 76], true)) {
+                    return false;
+                }
+
+                $offices = [
+                    $event['office_code'] ?? null,
+                    $event['officeCode'] ?? null,
+                    $event['office'] ?? null,
+                    $event['oficina'] ?? null,
+                ];
+
+                foreach ($offices as $office) {
+                    if (preg_match('/^\s*BO[A-Z0-9]{2,}/i', (string) $office) === 1) {
+                        return true;
+                    }
+                }
+
+                return false;
+            });
+
+            if ($enteredBolivia) {
+                $destinations[$code] = 'BOLIVIA (PLURINATIONAL STATE OF)';
+            }
         }
 
-        $cacheKey = $code . '|' . $this->resolveKardexServiceDisplayName($service);
-        if (array_key_exists($cacheKey, $this->kardexDestinationCache)) {
-            return $this->kardexDestinationCache[$cacheKey];
-        }
-
-        $destination = $this->lookupKardexPackageDestination($code, $service);
-        $this->kardexDestinationCache[$cacheKey] = $destination;
-
-        return $destination;
+        return $destinations;
     }
 
-    private function lookupKardexPackageDestination(string $code, string $service = ''): string
+    private function normalizeKardexInternationalCountry(string $country): string
+    {
+        $country = $this->kardexInternationalCountry($this->cleanKardexReportText($country));
+        $normalized = $this->normalizeKardexText($country);
+
+        if (in_array($normalized, [
+            'BO',
+            'BOL',
+            'BOLIVIA',
+            'BOLIVIA PLURINATIONAL STATE OF',
+            'BOLIVIA (PLURINATIONAL STATE OF)',
+            'PLURINATIONAL STATE OF BOLIVIA',
+        ], true)) {
+            return 'BOLIVIA (PLURINATIONAL STATE OF)';
+        }
+
+        return $country;
+    }
+
+    private function kardexInternationalCountry(string $destination): string
+    {
+        $parts = explode('/', $destination, 2);
+        $country = trim((string) ($parts[1] ?? $parts[0]));
+
+        return $country !== '' ? $country : trim($destination);
+    }
+
+    private function lookupKardexDestinationsInBatch(Collection $codes): array
+    {
+        $codes = $codes
+            ->map(fn ($code) => $this->normalizeKardexPackageLookupCode((string) $code))
+            ->filter()
+            ->unique()
+            ->values();
+        if ($codes->isEmpty()) {
+            return [];
+        }
+
+        $destinations = [];
+        $models = [
+            'ems' => [PaqueteEms::class, ['ciudad']],
+            'int' => [PaqueteInt::class, ['destino']],
+            'ordi' => [PaqueteOrdi::class, ['pais', 'ciudad']],
+            'certi' => [PaqueteCerti::class, ['cuidad']],
+        ];
+
+        foreach ($models as $type => [$model, $columns]) {
+            foreach ($codes->chunk(400) as $chunk) {
+                $values = $chunk->all();
+                $placeholders = implode(',', array_fill(0, count($values), '?'));
+                $rows = $model::query()
+                    ->where(function ($query) use ($placeholders, $values): void {
+                        $query->whereRaw('trim(upper(codigo)) IN ('.$placeholders.')', $values)
+                            ->orWhereRaw("trim(upper(coalesce(cod_especial, ''))) IN (".$placeholders.')', $values);
+                    })
+                    ->get(array_merge(['codigo', 'cod_especial'], $columns));
+
+                foreach ($rows as $package) {
+                    $code = $this->normalizeKardexPackageLookupCode((string) data_get($package, 'codigo', ''));
+                    $specialCode = $this->normalizeKardexPackageLookupCode((string) data_get($package, 'cod_especial', ''));
+                    $country = $this->cleanKardexReportText((string) data_get($package, 'pais', ''));
+                    $city = $this->cleanKardexReportText((string) (
+                        data_get($package, 'ciudad')
+                        ?? data_get($package, 'cuidad')
+                        ?? data_get($package, 'destino')
+                        ?? ''
+                    ));
+                    $destination = $type === 'ordi' && $country !== '' ? $country : $city;
+
+                    foreach ([$code, $specialCode] as $alias) {
+                        if ($alias !== '' && $chunk->contains($alias) && $destination !== '') {
+                            $destinations[$alias][$type] ??= $destination;
+                        }
+                    }
+                }
+            }
+        }
+
+        return $destinations;
+    }
+
+    private function isKardexInternationalService(string $service): bool
+    {
+        $service = $this->normalizeKardexText($service);
+
+        return str_contains($service, 'INTERNACIONAL') || str_contains($service, 'ENCOMIENDA RETOUR');
+    }
+
+    private function kardexDestinationLookupOrder(string $code, string $service = ''): array
     {
         $service = $this->normalizeKardexText($service);
 
         if (str_contains($service, 'EMS') && ! str_contains($service, 'INTERNACIONAL')) {
-            $lookups = ['ems', 'int', 'ordi', 'certi'];
-        } elseif (str_contains($service, 'ORDINARIA') || str_contains($service, 'ORDINARIAS')) {
-            $lookups = str_contains($service, 'INTERNACIONAL') ? ['int', 'ordi', 'ems', 'certi'] : ['ordi', 'ems', 'int', 'certi'];
-        } elseif (str_contains($service, 'CERTIFICADO') || str_contains($service, 'CERTIFICADAS')) {
-            $lookups = str_contains($service, 'INTERNACIONAL') ? ['int', 'certi', 'ems', 'ordi'] : ['certi', 'int', 'ems', 'ordi'];
-        } elseif (str_contains($service, 'ENCOMIENDA') || str_contains($service, 'INTERNACIONAL')) {
-            $lookups = ['int', 'ems', 'ordi', 'certi'];
-        } else {
-            $lookups = $this->looksLikeInternationalBolivianTracking($code)
-                ? ['int', 'ems', 'ordi', 'certi']
-                : ['ems', 'ordi', 'certi', 'int'];
+            return ['ems', 'int', 'ordi', 'certi'];
+        }
+        if (str_contains($service, 'ORDINARIA') || str_contains($service, 'ORDINARIAS')) {
+            return str_contains($service, 'INTERNACIONAL') ? ['int', 'ordi', 'ems', 'certi'] : ['ordi', 'ems', 'int', 'certi'];
+        }
+        if (str_contains($service, 'CERTIFICADO') || str_contains($service, 'CERTIFICADAS')) {
+            return str_contains($service, 'INTERNACIONAL') ? ['int', 'certi', 'ems', 'ordi'] : ['certi', 'int', 'ems', 'ordi'];
+        }
+        if (str_contains($service, 'ENCOMIENDA') || str_contains($service, 'INTERNACIONAL')) {
+            return ['int', 'ems', 'ordi', 'certi'];
         }
 
-        foreach (array_unique($lookups) as $lookup) {
-            $destination = match ($lookup) {
-                'ems' => $this->lookupKardexEmsDestination($code),
-                'int' => $this->lookupKardexInternationalDestination($code),
-                'ordi' => $this->lookupKardexOrdiDestination($code),
-                'certi' => $this->lookupKardexCertiDestination($code),
-                default => '',
-            };
-
-            if ($destination !== '') {
-                return $destination;
-            }
-        }
-
-        return '';
-    }
-
-    private function lookupKardexEmsDestination(string $code): string
-    {
-        $row = PaqueteEms::query()
-            ->whereRaw('trim(upper(codigo)) = ?', [$code])
-            ->orWhereRaw("trim(upper(coalesce(cod_especial, ''))) = ?", [$code])
-            ->first(['ciudad']);
-
-        return $this->cleanKardexReportText((string) data_get($row, 'ciudad'));
-    }
-
-    private function lookupKardexInternationalDestination(string $code): string
-    {
-        $row = PaqueteInt::query()
-            ->whereRaw('trim(upper(codigo)) = ?', [$code])
-            ->orWhereRaw("trim(upper(coalesce(cod_especial, ''))) = ?", [$code])
-            ->first(['destino']);
-
-        return $this->cleanKardexReportText((string) data_get($row, 'destino'));
-    }
-
-    private function lookupKardexOrdiDestination(string $code): string
-    {
-        $row = PaqueteOrdi::query()
-            ->whereRaw('trim(upper(codigo)) = ?', [$code])
-            ->orWhereRaw("trim(upper(coalesce(cod_especial, ''))) = ?", [$code])
-            ->first(['ciudad', 'pais', 'iso']);
-        $country = $this->cleanKardexReportText((string) data_get($row, 'pais'));
-        $city = $this->cleanKardexReportText((string) data_get($row, 'ciudad'));
-
-        return $country !== '' ? $country : $city;
-    }
-
-    private function lookupKardexCertiDestination(string $code): string
-    {
-        $row = PaqueteCerti::query()
-            ->whereRaw('trim(upper(codigo)) = ?', [$code])
-            ->orWhereRaw("trim(upper(coalesce(cod_especial, ''))) = ?", [$code])
-            ->first(['cuidad']);
-
-        return $this->cleanKardexReportText((string) data_get($row, 'cuidad'));
+        return $this->looksLikeInternationalBolivianTracking($code)
+            ? ['int', 'ems', 'ordi', 'certi']
+            : ['ems', 'ordi', 'certi', 'int'];
     }
 
     private function looksLikeInternationalBolivianTracking(string $code): bool
@@ -2208,7 +2893,7 @@ class MisVentasController extends Controller
     {
         return $items
             ->map(function ($item) {
-                $codigo = collect([
+                $candidates = collect([
                     trim((string) data_get($item, 'resumen_origen.codigo_detalle_enviado', '')),
                     trim((string) data_get($item, 'codigo_detalle_enviado', '')),
                     trim((string) data_get($item, 'codigo_paquete', '')),
@@ -2217,10 +2902,38 @@ class MisVentasController extends Controller
                     trim((string) data_get($item, 'resumen_origen.codigo_item', '')),
                     trim((string) data_get($item, 'codigo', '')),
                     trim((string) data_get($item, 'codigo_item', '')),
-                ])
-                    ->first(fn ($code) => $code !== '' && ! $this->isServiceReferenceCode((string) $code));
+                ])->filter();
 
-                if (!is_string($codigo) || $codigo === '') {
+                $codigo = '';
+                $destinoHint = '';
+                foreach ($candidates as $candidate) {
+                    $candidate = $this->normalizeKardexPackageLookupCode((string) $candidate);
+                    if ($candidate === '') {
+                        continue;
+                    }
+
+                    if (preg_match('/^(?:VFC|VQC)-\d+/i', $candidate) === 1) {
+                        continue;
+                    }
+
+                    $countryHint = $this->kardexCountryDestinationHint($candidate);
+                    if ($countryHint !== '') {
+                        $destinoHint = $destinoHint !== '' ? $destinoHint : $countryHint;
+                        continue;
+                    }
+
+                    // A tracking code must contain a digit or a separator.
+                    // This prevents a destination label such as FRANCIA from
+                    // being shown or sent to SITRA as the shipment identifier.
+                    if (preg_match('/[0-9-]/', $candidate) !== 1) {
+                        continue;
+                    }
+
+                    $codigo = $candidate;
+                    break;
+                }
+
+                if ($codigo === '' && $destinoHint === '') {
                     return null;
                 }
 
@@ -2235,12 +2948,49 @@ class MisVentasController extends Controller
                 return [
                     'servicio' => $servicio,
                     'codigo' => $codigo,
+                    'destino_hint' => $destinoHint,
                     'source' => $item,
                 ];
             })
             ->filter()
             ->unique(fn ($entry) => mb_strtoupper(trim((string) data_get($entry, 'servicio', ''))) . '|' . mb_strtoupper(trim((string) data_get($entry, 'codigo', ''))))
             ->values();
+    }
+
+    private function kardexCountryDestinationHint(string $value): string
+    {
+        $value = $this->normalizeKardexText($value);
+        $countries = [
+            'AR' => 'ARGENTINA', 'ARGENTINA' => 'ARGENTINA',
+            'BE' => 'BELGICA', 'BELGICA' => 'BELGICA', 'BELGIUM' => 'BELGICA',
+            'BO' => 'BOLIVIA', 'BOLIVIA' => 'BOLIVIA',
+            'BR' => 'BRASIL', 'BRASIL' => 'BRASIL', 'BRAZIL' => 'BRASIL',
+            'CA' => 'CANADA', 'CANADA' => 'CANADA',
+            'CH' => 'SUIZA', 'SUIZA' => 'SUIZA', 'SWITZERLAND' => 'SUIZA',
+            'CL' => 'CHILE', 'CHILE' => 'CHILE',
+            'CN' => 'CHINA', 'CHINA' => 'CHINA',
+            'CO' => 'COLOMBIA', 'COLOMBIA' => 'COLOMBIA',
+            'DE' => 'ALEMANIA', 'ALEMANIA' => 'ALEMANIA', 'GERMANY' => 'ALEMANIA',
+            'DO' => 'REPUBLICA DOMINICANA', 'REPUBLICA DOMINICANA' => 'REPUBLICA DOMINICANA',
+            'EC' => 'ECUADOR', 'ECUADOR' => 'ECUADOR',
+            'ES' => 'ESPANA', 'ESPANA' => 'ESPANA', 'SPAIN' => 'ESPANA',
+            'FR' => 'FRANCIA', 'FRANCIA' => 'FRANCIA', 'FRANCE' => 'FRANCIA',
+            'GB' => 'REINO UNIDO', 'REINO UNIDO' => 'REINO UNIDO', 'UNITED KINGDOM' => 'REINO UNIDO',
+            'IT' => 'ITALIA', 'ITALIA' => 'ITALIA',
+            'JP' => 'JAPON', 'JAPON' => 'JAPON', 'JAPAN' => 'JAPON',
+            'KR' => 'COREA DEL SUR', 'COREA DEL SUR' => 'COREA DEL SUR', 'SOUTH KOREA' => 'COREA DEL SUR',
+            'MX' => 'MEXICO', 'MEXICO' => 'MEXICO',
+            'NL' => 'PAISES BAJOS', 'PAISES BAJOS' => 'PAISES BAJOS', 'NETHERLANDS' => 'PAISES BAJOS',
+            'PE' => 'PERU', 'PERU' => 'PERU',
+            'PT' => 'PORTUGAL', 'PORTUGAL' => 'PORTUGAL',
+            'PY' => 'PARAGUAY', 'PARAGUAY' => 'PARAGUAY',
+            'SE' => 'SUECIA', 'SUECIA' => 'SUECIA', 'SWEDEN' => 'SUECIA',
+            'US' => 'ESTADOS UNIDOS', 'ESTADOS UNIDOS' => 'ESTADOS UNIDOS', 'UNITED STATES' => 'ESTADOS UNIDOS',
+            'UY' => 'URUGUAY', 'URUGUAY' => 'URUGUAY',
+            'VE' => 'VENEZUELA', 'VENEZUELA' => 'VENEZUELA',
+        ];
+
+        return $countries[$value] ?? '';
     }
 
     private function isPackageCartItem(object|array $item): bool

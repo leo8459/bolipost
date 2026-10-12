@@ -735,6 +735,98 @@ $config = [
             ],
         ],
         [
+            'text' => 'Internacional',
+            'icon' => 'fas fa-globe-americas',
+            'can' => 'internacional.section',
+            'active' => ['internacional/*'],
+            'submenu' => [
+                [
+                    'text' => 'Recorrido nacional',
+                    'icon' => 'fas fa-route',
+                    'can' => 'internacional.section',
+                    'active' => [
+                        'internacional/recepcion-cambio',
+                        'internacional/despacho-nacional',
+                        'internacional/saca-nacional',
+                        'internacional/recepcion-oficina',
+                    ],
+                    'submenu' => [
+                        [
+                            'text' => '1. Recibir en cambio',
+                            'url' => 'internacional/recepcion-cambio',
+                            'icon' => 'fas fa-plane-arrival',
+                            'can' => 'internacional.section',
+                            'active' => ['internacional/recepcion-cambio*'],
+                        ],
+                        [
+                            'text' => '2. Registrar despacho',
+                            'url' => 'internacional/despacho-nacional',
+                            'icon' => 'fas fa-truck-loading',
+                            'can' => 'internacional.section',
+                            'active' => ['internacional/despacho-nacional*'],
+                        ],
+                        [
+                            'text' => '3. Asociar a saca nacional',
+                            'url' => 'internacional/saca-nacional',
+                            'icon' => 'fas fa-envelope-open-text',
+                            'can' => 'internacional.section',
+                            'active' => ['internacional/saca-nacional*'],
+                        ],
+                        [
+                            'text' => '4. Recibir en destino',
+                            'url' => 'internacional/recepcion-oficina',
+                            'icon' => 'fas fa-box',
+                            'can' => 'internacional.section',
+                            'active' => ['internacional/recepcion-oficina*'],
+                        ],
+                    ],
+                ],
+                [
+                    'text' => 'Almacén',
+                    'submenu' => [
+                        [
+                            'text' => 'Por entregar',
+                            'url' => 'internacional/almacen/por-entregar',
+                            'icon' => 'fas fa-box-open',
+                            'can' => 'internacional.warehouse',
+                            'active' => ['internacional/almacen/por-entregar*'],
+                        ],
+                        [
+                            'text' => 'Entregados',
+                            'url' => 'internacional/almacen/entregados',
+                            'icon' => 'fas fa-check-circle',
+                            'can' => 'internacional.warehouse',
+                            'active' => ['internacional/almacen/entregados'],
+                        ],
+                        [
+                            'text' => 'Entregados por mí',
+                            'url' => 'internacional/almacen/entregados-por-mi',
+                            'icon' => 'fas fa-user-check',
+                            'can' => 'internacional.warehouse',
+                            'active' => ['internacional/almacen/entregados-por-mi'],
+                        ],
+                    ],
+                    'icon' => 'fas fa-warehouse',
+                    'can' => 'internacional.warehouse',
+                    'active' => ['internacional/almacen*'],
+                ],
+                [
+                    'text' => 'Rezago y devoluciones',
+                    'url' => 'internacional/rezago',
+                    'icon' => 'fas fa-archive',
+                    'can' => 'internacional.section',
+                    'active' => ['internacional/rezago*'],
+                ],
+                [
+                    'text' => 'Todos los paquetes',
+                    'url' => 'internacional/todos',
+                    'icon' => 'fas fa-boxes',
+                    'can' => 'internacional.section',
+                    'active' => ['internacional/todos*'],
+                ],
+            ],
+        ],
+        [
             'text' => 'Paquetes Certificados',
             'icon' => 'fas fa-certificate',
             'submenu' => [

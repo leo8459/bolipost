@@ -19,6 +19,9 @@
     $facturacionConceptos = $canOpenFacturacionShortcut && \Illuminate\Support\Facades\Schema::hasTable('conceptos_facturacion')
         ? \App\Models\ConceptoFacturacion::query()->where('activo', true)->orderBy('nombre')->get()
         : collect();
+    $facturacionVersionManualActual = $canOpenFacturacionShortcut && \Illuminate\Support\Facades\Schema::hasTable('tarifario_referencias_manuales')
+        ? \App\Models\TarifarioReferenciaManual::actual()
+        : null;
     $showFacturaElectronicaButton = \App\Models\AppSetting::getValue('facturacion.show_factura_electronica', '1') === '1';
     $showQrFacturaButton = \App\Models\AppSetting::getValue('facturacion.show_qr_factura', '1') === '1';
     $showQrSoloButton = \App\Models\AppSetting::getValue('facturacion.show_qr_solo', '1') === '1';
@@ -1185,6 +1188,11 @@
                 <div class="global-shortcut-confirm__eyebrow">Nuevo cobro</div>
             </div>
             <h4 id="facturacionConceptoModalTitle" class="global-shortcut-confirm__title">Configurar cobro antes de agregar</h4>
+            <div class="small text-muted mb-3" id="facturacionConceptoManualVersionReference">
+                Versión de referencia:
+                <strong>{{ $facturacionVersionManualActual ? $facturacionVersionManualActual->codigo . ' · ' . $facturacionVersionManualActual->nombre : 'Sin versión registrada' }}</strong>.
+                El flujo actual de precios se mantiene.
+            </div>
             <form
                 method="POST"
                 action="{{ route('facturacion.cart.conceptos.store') }}"

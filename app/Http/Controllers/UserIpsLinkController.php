@@ -109,8 +109,11 @@ class UserIpsLinkController extends Controller
         return back()->with('success', 'Usuario IPS creado y vinculado correctamente.');
     }
 
-    public function verify(User $user, SitraIpsClient $ips)
+    public function verify(int $user, SitraIpsClient $ips)
     {
+        // The IPS link list intentionally includes soft-deleted users. Resolve this
+        // route parameter explicitly so verification works for those visible rows.
+        $user = User::withTrashed()->findOrFail($user);
         $link = $user->ipsLink;
         abort_unless($link, 404);
 
@@ -126,8 +129,9 @@ class UserIpsLinkController extends Controller
             ]);
     }
 
-    public function destroy(User $user)
+    public function destroy(int $user)
     {
+        $user = User::withTrashed()->findOrFail($user);
         $user->ipsLink?->delete();
 
         return back()->with('success', 'Vinculo IPS eliminado.');

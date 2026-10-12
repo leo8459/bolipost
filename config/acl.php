@@ -384,6 +384,7 @@ return [
     */
     'module_labels' => [
         'users' => 'Usuarios',
+        'internacional' => 'Internacional',
         'users.empresas' => 'Usuarios empresas',
         'roles' => 'Roles',
         'permissions' => 'Permisos',
