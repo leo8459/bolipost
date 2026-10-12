@@ -30,7 +30,7 @@
 @push('css')
     <style>
         .flow-section-card { border-radius: 12px; overflow: hidden; }
-        .flow-section-card .card-header { background: #fff; }
+        .flow-section-card .card-header { background: #fff; cursor: pointer; }
         .flow-icon { display: inline-flex; width: 34px; height: 34px; margin-right: 9px; align-items: center; justify-content: center; border-radius: 9px; background: #e8f1fc; color: #13539b; }
         .flow-icon-warning { background: #fff3cd; color: #856404; }
         .flow-rank { display: inline-flex; width: 27px; height: 27px; align-items: center; justify-content: center; border-radius: 50%; background: #edf2f7; color: #4a5568; font-weight: 700; }
@@ -45,6 +45,10 @@
         .group-toggle-button:focus { outline: 3px solid #13539b; outline-offset: 2px; }
         .group-chevron { display: inline-flex; width: 24px; height: 24px; margin-right: 3px; align-items: center; justify-content: center; border-radius: 50%; color: #13539b; background: #e2eefc; transition: transform .2s ease; }
         .service-group-row.is-open .group-chevron { transform: rotate(90deg); }
+        .flow-section-toggle { display: inline-flex; align-items: center; gap: .5rem; padding: 0; border: 0; background: transparent; color: #102a43; font-weight: 700; text-align: left; }
+        .flow-section-toggle:focus { outline: 3px solid #13539b; outline-offset: 3px; }
+        .flow-section-toggle .group-chevron { flex: 0 0 24px; margin: 0; }
+        .flow-section-toggle[aria-expanded="true"] .group-chevron { transform: rotate(90deg); }
         .service-child-row { background: #fff; }
         .child-service-name { position: relative; padding-left: 45px !important; font-weight: 600; }
         .child-connector { position: absolute; left: 20px; top: 0; width: 16px; height: 50%; border-left: 2px solid #cbd5e0; border-bottom: 2px solid #cbd5e0; border-radius: 0 0 0 6px; }
@@ -131,6 +135,29 @@
                     if (!event.target.closest('[data-flow-detail-trigger]')) {
                         toggleGroup();
                     }
+                });
+            });
+
+            document.querySelectorAll('[data-flow-section-toggle]').forEach(function (button) {
+                var header = button.closest('.card-header');
+                if (!header) {
+                    return;
+                }
+
+                header.addEventListener('click', function (event) {
+                    if (event.target.closest('a, input, select, textarea, [data-no-section-toggle]')) {
+                        return;
+                    }
+
+                    var content = document.getElementById(button.getAttribute('aria-controls'));
+                    if (!content) {
+                        return;
+                    }
+
+                    var open = button.getAttribute('aria-expanded') !== 'true';
+                    button.setAttribute('aria-expanded', open ? 'true' : 'false');
+                    button.setAttribute('aria-label', (open ? 'Ocultar' : 'Mostrar') + ' contenido de ' + button.dataset.flowSectionName);
+                    content.classList.toggle('d-none', !open);
                 });
             });
 
@@ -413,17 +440,22 @@
     </div>
 
         <div class="card card-outline card-warning flow-section-card">
-            <div class="card-header d-flex align-items-center">
-                <span class="flow-icon flow-icon-warning"><i class="fas fa-file-invoice-dollar"></i></span>
-                <div>
-                    <strong>Contratos y ECA por cobrar</strong>
+            <div class="card-header d-flex flex-column flex-md-row justify-content-between align-items-md-center">
+                <div class="d-flex align-items-center">
+                    <button type="button" class="flow-section-toggle mr-2" data-flow-section-toggle data-flow-section-name="Contratos y ECA por cobrar" aria-controls="cashier-receivables-content" aria-expanded="true" aria-label="Ocultar contenido de Contratos y ECA por cobrar">
+                        <span class="flow-icon flow-icon-warning mb-0"><i class="fas fa-file-invoice-dollar"></i></span>
+                        <strong class="d-block">Contratos y ECA por cobrar</strong>
+                        <span class="group-chevron"><i class="fas fa-chevron-right" aria-hidden="true"></i></span>
+                    </button>
+                    <div class="ml-2">
                     <div class="text-muted small">Se muestran aunque no estén seleccionados en Servicios. Los cobros realizados ya forman parte del total recaudado.</div>
+                </div>
                 </div>
                 <div class="h5 text-warning font-weight-bold mb-0 ml-md-3 mt-2 mt-md-0">
                     Saldo pendiente: Bs {{ \App\Support\BolivianNumber::format((float) $receivableServices->sum('_montoPendiente'), 2) }}
                 </div>
             </div>
-            <div class="card-body p-0">
+            <div class="card-body p-0" id="cashier-receivables-content">
                 <div class="table-responsive">
                     <table class="table table-sm table-striped table-hover mb-0 financial-table">
                         <thead class="thead-light">
@@ -512,15 +544,18 @@
             </div>
         </div>
     <div class="card card-outline card-success flow-section-card">
-        <div class="card-header d-flex align-items-center">
-            <span class="flow-icon"><i class="fas fa-cash-register"></i></span>
-            <div>
-                    <strong>Ingresos por cajero</strong>
+        <div class="card-header">
+            <button type="button" class="flow-section-toggle" data-flow-section-toggle data-flow-section-name="Ingresos por cajero" aria-controls="cashier-by-cashier-content" aria-expanded="true" aria-label="Ocultar contenido de Ingresos por cajero">
+                <span class="flow-icon mb-0"><i class="fas fa-cash-register"></i></span>
+                <strong>Ingresos por cajero</strong>
+                <span class="group-chevron"><i class="fas fa-chevron-right" aria-hidden="true"></i></span>
+            </button>
+            <div class="ml-5">
                     <div class="text-muted small">Los importes facturados de Contratos/ECA se suman a los ingresos del cajero que los generó.</div>
                 <div class="text-muted small">Los cobros aceptados se atribuyen al usuario que facturó el contrato o ECA.</div>
             </div>
         </div>
-        <div class="card-body p-0">
+        <div class="card-body p-0" id="cashier-by-cashier-content">
             <div class="table-responsive">
                 @php($cashierTotal = (float) $cashierDepartmentGroups->sum('totalIngresos'))
                 <table class="table table-sm table-striped table-hover mb-0 financial-table">
@@ -603,15 +638,18 @@
     </div>
 
     <div class="card card-outline card-secondary flow-section-card">
-        <div class="card-header d-flex align-items-center">
-            <span class="flow-icon"><i class="fas fa-layer-group"></i></span>
-            <div>
+        <div class="card-header">
+            <button type="button" class="flow-section-toggle" data-flow-section-toggle data-flow-section-name="Ingresos por servicio" aria-controls="cashier-by-service-content" aria-expanded="true" aria-label="Ocultar contenido de Ingresos por servicio">
+                <span class="flow-icon mb-0"><i class="fas fa-layer-group"></i></span>
                 <strong>Ingresos por servicio</strong>
+                <span class="group-chevron"><i class="fas fa-chevron-right" aria-hidden="true"></i></span>
+            </button>
+            <div class="ml-5">
                 <div class="text-muted small">Haga clic en un grupo para mostrar u ocultar sus subservicios.</div>
                 <div class="text-muted small">“QR ANULADOS” agrupa los montos fuera del total vendido y las facturas anuladas. La columna “Anulado” muestra la parte correspondiente a anulaciones.</div>
             </div>
         </div>
-        <div class="card-body p-0">
+        <div class="card-body p-0" id="cashier-by-service-content">
             <div class="table-responsive">
                 <table class="table table-sm table-striped table-hover mb-0 financial-table">
                     <thead class="thead-light">
@@ -694,18 +732,21 @@
     <div class="card card-outline card-danger flow-section-card">
         <div class="card-header d-flex flex-column flex-md-row justify-content-between align-items-md-center">
             <div class="d-flex align-items-center">
-                <span class="flow-icon flow-icon-warning"><i class="fas fa-file-invoice"></i></span>
-                <div>
-                    <strong>Facturas canceladas</strong>
-                    <div class="text-muted small">Facturas con estado fiscal anulado o estado de pago anulado/cancelado, dentro del periodo seleccionado.</div>
-                </div>
+                <button type="button" class="flow-section-toggle mr-2" data-flow-section-toggle data-flow-section-name="Facturas canceladas" aria-controls="cashier-cancelled-invoices-content" aria-expanded="true" aria-label="Ocultar contenido de Facturas canceladas">
+                    <span class="flow-icon flow-icon-warning mb-0"><i class="fas fa-file-invoice"></i></span>
+                    <span>
+                        <strong class="d-block">Facturas canceladas</strong>
+                        <span class="text-muted small font-weight-normal">Facturas anuladas o canceladas en el periodo. Haga clic para ocultar o mostrar la tabla.</span>
+                    </span>
+                    <span class="group-chevron"><i class="fas fa-chevron-right" aria-hidden="true"></i></span>
+                </button>
             </div>
             <div class="mt-2 mt-md-0 text-md-right">
                 <span class="badge badge-danger">{{ $cashierFlowCancelledInvoices->count() }} facturas</span>
                 <div class="font-weight-bold text-danger mt-1">Total: Bs {{ \App\Support\BolivianNumber::format((float) $cashierFlowCancelledInvoices->sum('monto'), 2) }}</div>
             </div>
         </div>
-        <div class="card-body p-0">
+        <div class="card-body p-0" id="cashier-cancelled-invoices-content">
             @if($cashierFlowCancellationLookupErrors->isNotEmpty())
                 <div class="alert alert-warning rounded-0 mb-0" role="status">
                     <strong>Consulta incompleta:</strong> no se pudo verificar el estado de {{ $cashierFlowCancellationLookupErrors->count() }} detalle(s). Algunas facturas canceladas podrían no aparecer.
