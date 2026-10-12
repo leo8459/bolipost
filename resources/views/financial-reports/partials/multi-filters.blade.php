@@ -159,7 +159,16 @@
             </div>
             <h2>Filtrando datos</h2>
             <p>Espere por favor, estamos preparando su reporte.</p>
-            <div class="report-loading-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+            <div class="report-progress-block" data-report-progress-block hidden>
+                <div class="report-progress-heading">
+                    <span data-report-progress-stage>Conectando con el servidor…</span>
+                    <strong data-report-progress-percent>0%</strong>
+                </div>
+                <div class="report-progress-track" data-report-progress role="progressbar" aria-label="Progreso del reporte" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                    <div class="report-progress-fill" data-report-progress-bar></div>
+                </div>
+                <div class="report-progress-detail" data-report-progress-detail aria-live="polite">Preparando las consultas del reporte</div>
+            </div>
         </div>
     </div>
 
@@ -225,17 +234,22 @@
             .report-loading-ring-one { inset: 0; border-top-color: #13539b; border-right-color: #13539b; animation: report-spin 1.15s linear infinite; }
             .report-loading-ring-two { inset: 10px; border-bottom-color: #f5b800; border-left-color: #f5b800; animation: report-spin-reverse .85s linear infinite; }
             .report-loading-icon { position: absolute; inset: 22px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: #e8f1fc; color: #13539b; font-size: 1.2rem; animation: report-pulse 1.3s ease-in-out infinite; }
-            .report-loading-dots { display: flex; justify-content: center; gap: 7px; margin-top: 18px; }
-            .report-loading-dots span { width: 8px; height: 8px; border-radius: 50%; background: #13539b; animation: report-dot 1.1s ease-in-out infinite; }
-            .report-loading-dots span:nth-child(2) { animation-delay: .16s; }
-            .report-loading-dots span:nth-child(3) { animation-delay: .32s; }
+            .report-progress-block { margin-top: 23px; text-align: left; }
+            .report-progress-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; color: #36516d; font-size: .82rem; }
+            .report-progress-heading span { overflow-wrap: anywhere; }
+            .report-progress-heading strong { color: #13539b; font-size: 1rem; font-variant-numeric: tabular-nums; }
+            .report-progress-track { height: 12px; overflow: hidden; border-radius: 999px; background: #e8eef5; box-shadow: inset 0 1px 2px rgba(16, 42, 67, .12); }
+            .report-progress-fill { position: relative; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #13539b 0%, #16a6bb 62%, #f5b800 100%); transition: width .45s cubic-bezier(.22, .8, .3, 1); }
+            .report-progress-fill::after { position: absolute; inset: 0; content: ''; background: linear-gradient(105deg, transparent 20%, rgba(255,255,255,.55) 48%, transparent 76%); transform: translateX(-100%); animation: report-progress-shimmer 1.8s ease-in-out infinite; }
+            .report-progress-detail { min-height: 18px; margin-top: 8px; color: #718096; font-size: .75rem; text-align: center; }
             body.report-is-loading { overflow: hidden; }
             @keyframes report-spin { to { transform: rotate(360deg); } }
             @keyframes report-spin-reverse { to { transform: rotate(-360deg); } }
             @keyframes report-pulse { 0%, 100% { transform: scale(.92); } 50% { transform: scale(1.05); } }
-            @keyframes report-dot { 0%, 60%, 100% { opacity: .25; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-5px); } }
+            @keyframes report-progress-shimmer { 65%, 100% { transform: translateX(100%); } }
             @media (prefers-reduced-motion: reduce) {
-                .report-loading-ring, .report-loading-icon, .report-loading-dots span { animation-duration: 2.5s; }
+                .report-loading-ring, .report-loading-icon, .report-progress-fill::after { animation-duration: 2.5s; }
+                .report-progress-fill { transition-duration: .01ms; }
             }
             .financial-table td, .financial-table th { vertical-align: middle; }
             .financial-table .service-cell { min-width: 230px; max-width: 360px; white-space: normal; overflow-wrap: anywhere; }
@@ -343,8 +357,10 @@
                         if (loadingModal) {
                             var loadingTitle = loadingModal.querySelector('h2');
                             var loadingMessage = loadingModal.querySelector('p');
+                            var progressBlock = loadingModal.querySelector('[data-report-progress-block]');
                             if (loadingTitle) loadingTitle.textContent = 'Filtrando datos';
                             if (loadingMessage) loadingMessage.textContent = 'Espere por favor, estamos preparando su reporte.';
+                            if (progressBlock) progressBlock.hidden = true;
                             loadingModal.classList.add('is-visible');
                             loadingModal.setAttribute('aria-hidden', 'false');
                             document.body.classList.add('report-is-loading');
@@ -370,47 +386,155 @@
                             var downloadModal = document.querySelector('[data-report-loading-modal]');
                             var downloadTitle = downloadModal ? downloadModal.querySelector('h2') : null;
                             var downloadMessage = downloadModal ? downloadModal.querySelector('p') : null;
+                            var progressBlock = downloadModal ? downloadModal.querySelector('[data-report-progress-block]') : null;
+                            var progressStage = downloadModal ? downloadModal.querySelector('[data-report-progress-stage]') : null;
+                            var progressPercent = downloadModal ? downloadModal.querySelector('[data-report-progress-percent]') : null;
+                            var progressDetail = downloadModal ? downloadModal.querySelector('[data-report-progress-detail]') : null;
+                            var progressTrack = downloadModal ? downloadModal.querySelector('[data-report-progress]') : null;
+                            var progressBar = downloadModal ? downloadModal.querySelector('[data-report-progress-bar]') : null;
+                            var latestProgress = 0;
+                            var pdfParts = [];
+                            var fileName = 'reporte-flujo-cajero.pdf';
+                            var pdfComplete = false;
+                            var receivedEncodedBytes = 0;
+                            var totalEncodedBytes = 0;
+
                             function closeDownloadModal() {
                                 if (downloadModal) {
                                     downloadModal.classList.remove('is-visible');
                                     downloadModal.setAttribute('aria-hidden', 'true');
                                 }
+                                if (progressBlock) progressBlock.hidden = true;
                                 document.body.classList.remove('report-is-loading');
+                            }
+
+                            function setProgress(percent, stage, detail) {
+                                var requestedProgress = Math.min(100, Math.max(0, Number(percent) || 0));
+                                var isStaleUpdate = requestedProgress < latestProgress;
+                                var nextProgress = Math.max(latestProgress, requestedProgress);
+                                latestProgress = nextProgress;
+                                if (progressBar) progressBar.style.width = nextProgress + '%';
+                                if (progressTrack) progressTrack.setAttribute('aria-valuenow', String(Math.round(nextProgress)));
+                                if (progressPercent) progressPercent.textContent = Math.round(nextProgress) + '%';
+                                if (!isStaleUpdate && progressStage && stage) progressStage.textContent = stage;
+                                if (!isStaleUpdate && progressDetail && detail) progressDetail.textContent = detail;
+                            }
+
+                            function finishDownload(delay) {
+                                window.setTimeout(function () {
+                                    closeDownloadModal();
+                                    link.dataset.downloading = 'false';
+                                }, delay);
+                            }
+
+                            function formatBytes(bytes) {
+                                if (bytes < 1024) return bytes + ' B';
+                                if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+                                return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+                            }
+
+                            function decodeBase64Chunk(encodedChunk) {
+                                var binary = window.atob(encodedChunk);
+                                var bytes = new Uint8Array(binary.length);
+                                for (var byteIndex = 0; byteIndex < binary.length; byteIndex++) {
+                                    bytes[byteIndex] = binary.charCodeAt(byteIndex);
+                                }
+                                return bytes;
+                            }
+
+                            function handleReportMessage(message) {
+                                if (message.type === 'progress') {
+                                    var queryDetail = Number(message.total) > 0
+                                        ? 'Consultas completadas: ' + Number(message.completed || 0) + ' de ' + Number(message.total)
+                                        : 'Preparando las consultas del reporte';
+                                    setProgress(message.percent, message.stage, queryDetail);
+                                    return;
+                                }
+
+                                if (message.type === 'download-start') {
+                                    fileName = message.fileName || fileName;
+                                    totalEncodedBytes = Number(message.total) || 0;
+                                    setProgress(94, 'Preparando la descarga del PDF…', 'El reporte ya está listo');
+                                    return;
+                                }
+
+                                if (message.type === 'pdf-chunk') {
+                                    pdfParts.push(decodeBase64Chunk(message.data || ''));
+                                    receivedEncodedBytes = Number(message.loaded) || receivedEncodedBytes;
+                                    totalEncodedBytes = Number(message.total) || totalEncodedBytes;
+                                    var transferRatio = totalEncodedBytes > 0 ? receivedEncodedBytes / totalEncodedBytes : 0;
+                                    var transferProgress = 94 + Math.floor(transferRatio * 5);
+                                    var loadedBytes = Math.floor(receivedEncodedBytes * 3 / 4);
+                                    var totalBytes = Math.floor(totalEncodedBytes * 3 / 4);
+                                    setProgress(transferProgress, 'Descargando el PDF…', formatBytes(loadedBytes) + ' de ' + formatBytes(totalBytes));
+                                    return;
+                                }
+
+                                if (message.type === 'complete') {
+                                    pdfComplete = true;
+                                    setProgress(100, 'Reporte completado', 'PDF recibido y enviado a tus descargas');
+                                    return;
+                                }
+
+                                if (message.type === 'error') {
+                                    throw new Error(message.message || 'No se pudo generar el PDF.');
+                                }
                             }
 
                             if (downloadTitle) downloadTitle.textContent = link.dataset.loadingTitle || 'Generando reporte';
                             if (downloadMessage) downloadMessage.textContent = link.dataset.loadingMessage || 'Espere por favor, estamos preparando el PDF.';
+                            if (progressBlock) progressBlock.hidden = false;
+                            setProgress(0, 'Conectando con el servidor…', 'Iniciando consultas reales del reporte');
                             if (downloadModal) {
                                 downloadModal.classList.add('is-visible');
                                 downloadModal.setAttribute('aria-hidden', 'false');
                             }
                             document.body.classList.add('report-is-loading');
 
-                            fetch(link.href, { credentials: 'same-origin' })
-                                .then(function (response) {
+                            var reportUrl = new URL(link.href, window.location.href);
+                            reportUrl.searchParams.set('stream', '1');
+
+                            (async function () {
+                                try {
+                                    var response = await fetch(reportUrl.toString(), { credentials: 'same-origin', cache: 'no-store' });
                                     if (!response.ok) {
                                         throw new Error('El servidor respondió con el código ' + response.status + '.');
                                     }
-
-                                    var contentType = (response.headers.get('Content-Type') || '').toLowerCase();
-                                    if (contentType && !contentType.includes('application/pdf') && !contentType.includes('application/octet-stream')) {
-                                        throw new Error('La respuesta recibida no es un archivo PDF.');
+                                    var responseType = (response.headers.get('Content-Type') || '').toLowerCase();
+                                    if (!responseType.includes('application/x-ndjson')) {
+                                        throw new Error('El servidor devolvió una respuesta inesperada. Actualice la página e intente nuevamente.');
+                                    }
+                                    if (!response.body || typeof response.body.getReader !== 'function') {
+                                        throw new Error('El navegador no permite mostrar el avance del reporte.');
                                     }
 
-                                    return response.blob().then(function (blob) {
-                                        if (blob.size === 0) {
-                                            throw new Error('El archivo recibido está vacío.');
-                                        }
+                                    var reader = response.body.getReader();
+                                    var decoder = new TextDecoder();
+                                    var pendingText = '';
+                                    var finishedReading = false;
 
-                                        return { response: response, blob: blob };
-                                    });
-                                })
-                                .then(function (result) {
-                                    var disposition = result.response.headers.get('Content-Disposition') || '';
-                                    var utf8Name = disposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
-                                    var regularName = disposition.match(/filename\s*=\s*"?([^";]+)"?/i);
-                                    var fileName = utf8Name ? decodeURIComponent(utf8Name[1]) : (regularName ? regularName[1].trim() : 'reporte-flujo-cajero.pdf');
-                                    var objectUrl = URL.createObjectURL(result.blob);
+                                    while (!finishedReading) {
+                                        var part = await reader.read();
+                                        pendingText += decoder.decode(part.value || new Uint8Array(), { stream: !part.done });
+                                        var lineBreak = pendingText.indexOf('\n');
+                                        while (lineBreak >= 0) {
+                                            var line = pendingText.slice(0, lineBreak).trim();
+                                            pendingText = pendingText.slice(lineBreak + 1);
+                                            if (line) handleReportMessage(JSON.parse(line));
+                                            lineBreak = pendingText.indexOf('\n');
+                                        }
+                                        finishedReading = part.done;
+                                    }
+
+                                    if (pendingText.trim()) handleReportMessage(JSON.parse(pendingText.trim()));
+                                    if (!pdfComplete || pdfParts.length === 0) {
+                                        throw new Error('La respuesta terminó antes de completar el PDF.');
+                                    }
+
+                                    var pdfBlob = new Blob(pdfParts, { type: 'application/pdf' });
+                                    if (pdfBlob.size === 0) throw new Error('El PDF llegó vacío.');
+
+                                    var objectUrl = URL.createObjectURL(pdfBlob);
                                     var downloadLink = document.createElement('a');
                                     downloadLink.href = objectUrl;
                                     downloadLink.download = fileName;
@@ -420,22 +544,19 @@
                                     downloadLink.remove();
                                     window.setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 1000);
 
-                                    if (downloadTitle) downloadTitle.textContent = 'Descarga iniciada';
+                                    if (downloadTitle) downloadTitle.textContent = '¡Reporte listo!';
                                     if (downloadMessage) downloadMessage.textContent = 'El PDF se recibió completo y se envió a las descargas.';
-                                    window.setTimeout(closeDownloadModal, 900);
-                                })
-                                .catch(function (error) {
-                                    if (downloadTitle) downloadTitle.textContent = 'No se pudo descargar el PDF';
+                                    finishDownload(1300);
+                                } catch (error) {
+                                    if (downloadTitle) downloadTitle.textContent = 'No se pudo completar el reporte';
                                     if (downloadMessage) downloadMessage.textContent = error.message || 'Revise su conexión e intente nuevamente.';
-                                    window.setTimeout(closeDownloadModal, 4000);
-                                })
-                                .finally(function () {
-                                    link.dataset.downloading = 'false';
-                                });
+                                    if (progressDetail) progressDetail.textContent = 'Puede volver a generar el reporte.';
+                                    finishDownload(4500);
+                                }
+                            })();
 
                             return;
                         }
-
                         var loadingModal = document.querySelector('[data-report-loading-modal]');
                         if (loadingModal) {
                             var loadingTitle = loadingModal.querySelector('h2');
@@ -472,6 +593,8 @@
                     if (loadingModal) {
                         loadingModal.classList.remove('is-visible');
                         loadingModal.setAttribute('aria-hidden', 'true');
+                        var progressBlock = loadingModal.querySelector('[data-report-progress-block]');
+                        if (progressBlock) progressBlock.hidden = true;
                     }
                     document.body.classList.remove('report-is-loading');
                     document.querySelectorAll('.report-submit').forEach(function (button) {

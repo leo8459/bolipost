@@ -1314,6 +1314,7 @@
                             <strong>Tarifario vigente:</strong> {{ $activeTarifarioVersion->tarifarioPadre->nombre ?? 'Tarifario' }} ·
                             versión {{ $activeTarifarioVersion->codigo }} · {{ $activeTarifarioVersion->cantidad_items }} tramos ·
                             publicada {{ optional($activeTarifarioVersion->publicada_en)->format('d/m/Y H:i') }}.
+                            No vence automáticamente; seguirá vigente hasta que se publique otra versión.
                         </div>
                     @else
                         <div class="alert alert-warning py-2 mb-3">

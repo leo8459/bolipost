@@ -149,7 +149,7 @@
                         wire:model="search"
                     >
                     <button class="btn btn-outline-light2" type="button" wire:click="searchTarifarios">Buscar</button>
-                    <a class="btn btn-outline-light2" href="{{ route('tarifario.pdf') }}" target="_blank">Reporte PDF</a>
+                    <button class="btn btn-outline-light2" type="button" data-toggle="modal" data-target="#tarifarioPdfModal">Reporte PDF</button>
                     <a class="btn btn-outline-light2" href="{{ route('tarifario.global-excel') }}">Reporte Global Excel</a>
                     <a class="btn btn-outline-light2" href="{{ route('tarifario.template-excel') }}">Plantilla Excel</a>
                     <a class="btn btn-outline-light2" href="{{ route('tarifario.template-mass-excel', ['servicio' => 'EMS_NACIONAL']) }}">Plantilla Masiva</a>
@@ -157,6 +157,39 @@
                     @aclcan('create', $this)
                     <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
                     @endaclcan
+                </div>
+            </div>
+
+            <div class="modal fade" id="tarifarioPdfModal" tabindex="-1" role="dialog" aria-labelledby="tarifarioPdfModalLabel" aria-hidden="true">
+                <div class="modal-dialog" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="tarifarioPdfModalLabel">Generar reporte PDF</h5>
+                            <button type="button" class="close text-white" data-dismiss="modal" aria-label="Cerrar">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <form method="GET" action="{{ route('tarifario.pdf') }}" target="_blank">
+                            <div class="modal-body">
+                                <label for="tarifarioPdfPadre">¿Qué tarifario padre quieres incluir?</label>
+                                <select id="tarifarioPdfPadre" name="tarifario_padre_id" class="form-control" required>
+                                    <option value="">Selecciona un tarifario padre...</option>
+                                    @foreach ($tarifariosPadre as $tarifarioPadre)
+                                        <option value="{{ $tarifarioPadre->id }}">{{ $tarifarioPadre->nombre }}</option>
+                                    @endforeach
+                                </select>
+                                @if ($tarifariosPadre->isEmpty())
+                                    <small class="text-danger d-block mt-2">No hay tarifarios padre registrados.</small>
+                                @else
+                                    <small class="text-muted d-block mt-2">El PDF incluirá los servicios y precios asociados al tarifario seleccionado.</small>
+                                @endif
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                                <button type="submit" class="btn btn-primary" @disabled($tarifariosPadre->isEmpty())>Generar PDF</button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             </div>
 

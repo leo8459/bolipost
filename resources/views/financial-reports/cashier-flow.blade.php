@@ -16,8 +16,8 @@
                class="btn btn-danger btn-sm mr-1"
                data-report-download
                data-wait-for-download
-               data-loading-title="Generando reporte"
-               data-loading-message="Espere por favor, estamos preparando el PDF ejecutivo.">
+               data-loading-title="Generando reporte de flujo de caja"
+               data-loading-message="Estamos consultando los datos y armando el PDF ejecutivo.">
                 <i class="fas fa-file-pdf mr-1"></i> Descargar reporte ejecutivo
             </a>
             <a href="{{ route('dashboard') }}" class="btn btn-outline-secondary btn-sm">
@@ -278,7 +278,7 @@
         'departmentOptions' => $departmentOptions,
         'selectedDepartment' => $selectedDepartment,
         'filterTitle' => 'Prepare el flujo de cajero',
-        'filterHelp' => 'Seleccione los servicios y meses que desea consolidar. Contratos y ECA Internacional se muestran aparte; al marcar su cobro, el importe pasa a Total recaudado.',
+        'filterHelp' => 'Seleccione los servicios y meses que desea consolidar. Contratos y ECA Internacional se consultan por separado y aparecen en cuentas por cobrar, aunque no los seleccione aquí.',
     ])
 
     @if(collect($serviceOptions)->count() > count($selectedServices))
@@ -291,6 +291,13 @@
         <i class="fas fa-info-circle mr-1"></i>
         <strong>Criterio del reporte:</strong> Contratos y ECA Internacional se muestran por separado. Registra el cobro o la devolución desde cada movimiento de su detalle; los paquetes siguen separados de los totales operativos.
     </div>
+
+    @if(collect($cashierFlowReceivableDepartmentErrors ?? [])->isNotEmpty())
+        <div class="alert alert-warning border-0 shadow-sm">
+            <i class="fas fa-exclamation-triangle mr-1"></i>
+            El detalle de algunas facturas de Contratos/ECA no estuvo disponible o no coincidió con el resumen. El saldo se distribuye según el resumen por usuario y el departamento registrado de quien facturó; los casos sin departamento quedan en “Sin regional asignada”.
+        </div>
+    @endif
 
     @if(session('cashierFlowSuccess'))
         <div class="alert alert-success border-0 shadow-sm" role="status">
@@ -324,24 +331,26 @@
     @php
         $executiveTopCashier = $cashierRows->first();
         $executiveTopService = $serviceGroups->first();
-        $executiveFlowIncome = (float) ($summary['totalRecaudado'] ?? $summary['totalMontoVendido'] ?? $summary['totalMonto'] ?? 0);
+        $executiveCashReceived = (float) ($summary['totalRecaudado'] ?? $summary['totalMontoVendido'] ?? $summary['totalMonto'] ?? 0);
+        $executiveReceivablePending = (float) ($cashierFlowReceivablePendingAmount ?? $receivableServices->sum('_montoPendiente'));
+        $executiveFlowIncome = (float) ($totalReportAmountIncludingReceivables ?? ($executiveCashReceived + $executiveReceivablePending));
         $executiveDepartmentScope = $selectedDepartment !== '' ? ' en ' . $selectedDepartment : '';
         $executiveLead = 'Durante el periodo seleccionado se registraron '
             . \App\Support\BolivianNumber::format((float) ($summary['cantidadVentas'] ?? 0))
-            . (($includedSalesCountFromApi ?? false) ? ' ventas incluidas en el total' : ' operaciones registradas') . $executiveDepartmentScope . '; los ingresos totales, incluidos los cobros aceptados, suman Bs '
+            . (($includedSalesCountFromApi ?? false) ? ' ventas incluidas en el total' : ' operaciones registradas') . $executiveDepartmentScope . '; los ingresos recaudados, incluida la facturación de Contratos y ECA, suman Bs '
             . \App\Support\BolivianNumber::format($executiveFlowIncome, 2) . '.';
         $executiveItems = [
             [
-                'label' => 'Cajero con mayor ingreso',
+                'label' => 'Cajero con mayores ingresos recaudados',
                 'value' => $executiveTopCashier['usuarioNombre'] ?? 'Sin datos',
-                'detail' => $executiveTopCashier ? 'Bs ' . \App\Support\BolivianNumber::format((float) ($executiveTopCashier['totalIngresos'] ?? $executiveTopCashier['totalMonto']), 2) . ' en ingresos totales.' : 'No existe información por cajero.',
+                'detail' => $executiveTopCashier ? 'Bs ' . \App\Support\BolivianNumber::format((float) ($executiveTopCashier['totalIngresosIncluyendoPorCobrar'] ?? $executiveTopCashier['totalIngresos'] ?? $executiveTopCashier['totalMonto']), 2) . ' en ingresos, incluida la facturación de Contratos/ECA.' : 'No existe información por cajero.',
                 'icon' => 'fa-user-tie',
                 'color' => 'info',
             ],
             [
                 'label' => 'Ingresos totales',
                 'value' => 'Bs ' . \App\Support\BolivianNumber::format($executiveFlowIncome, 2),
-                'detail' => 'Incluye Contratos y ECA Internacional cobrados.',
+                'detail' => 'Incluye los ingresos de servicios y la facturación de Contratos/ECA del periodo.',
                 'icon' => 'fa-money-bill-wave',
                 'color' => 'success',
             ],
@@ -370,7 +379,7 @@
             ['Total vendido de servicios', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['totalSinContratosEca'] ?? $summary['totalMontoVendido'] ?? $summary['totalMonto'] ?? 0), 2), 'fa-coins', 'info'],
             ['No incluido en total vendido', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['totalMontoNoIncluidoEnTotalVendido'] ?? 0), 2), 'fa-exclamation-circle', 'warning'],
             ['Facturas anuladas', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['totalMontoAnulado'] ?? 0), 2), 'fa-ban', 'danger'],
-            ['Ingresos totales (incluye Contratos y ECA cobrados)', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['totalRecaudado'] ?? $summary['totalMonto'] ?? 0), 2), 'fa-cash-register', 'primary'],
+            ['Ingresos recaudados (incluye Contratos y ECA)', 'Bs ' . \App\Support\BolivianNumber::format((float) ($totalReportAmountIncludingReceivables ?? $summary['totalRecaudado'] ?? $summary['totalMonto'] ?? 0), 2), 'fa-cash-register', 'primary'],
         ] as $metric)
             @php([$label, $value, $icon, $color] = $metric)
             <div class="col-sm-6 col-xl-4 mb-3">
@@ -385,13 +394,15 @@
         @endforeach
     </div>
 
-    @if($receivableServices->isNotEmpty())
         <div class="card card-outline card-warning flow-section-card">
             <div class="card-header d-flex align-items-center">
                 <span class="flow-icon flow-icon-warning"><i class="fas fa-file-invoice-dollar"></i></span>
                 <div>
-                    <strong>Cuentas por cobrar y cobros realizados</strong>
-                    <div class="text-muted small">Contratos y ECA Internacional; los cobros realizados ya forman parte del total recaudado.</div>
+                    <strong>Contratos y ECA por cobrar</strong>
+                    <div class="text-muted small">Se muestran aunque no estén seleccionados en Servicios. Los cobros realizados ya forman parte del total recaudado.</div>
+                </div>
+                <div class="h5 text-warning font-weight-bold mb-0 ml-md-3 mt-2 mt-md-0">
+                    Saldo pendiente: Bs {{ \App\Support\BolivianNumber::format((float) $receivableServices->sum('_montoPendiente'), 2) }}
                 </div>
             </div>
             <div class="card-body p-0">
@@ -405,14 +416,14 @@
                                 <th class="text-right">Detalles</th>
                                 <th class="text-right">Cantidad de paquetes</th>
                                 <th class="text-right">Paquetes promedio por día</th>
-                                <th class="text-right">Importe</th>
+                                <th class="text-right">Facturado</th>
                                 <th class="text-right">Cobrado</th>
-                                <th class="text-right">Pendiente</th>
+                                <th class="text-right">Pendiente por cobrar</th>
                                 <th class="text-center">Detalle</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($receivableServices as $receivableService)
+                            @forelse($receivableServices as $receivableService)
                                 @php($isContractReceivable = \Illuminate\Support\Str::startsWith((string) ($receivableService['servicio'] ?? ''), 'Servicio Contratos'))
                                 <tr>
                                     <td class="font-weight-bold">
@@ -439,27 +450,61 @@
                                         </a>
                                     </td>
                                 </tr>
-                            @endforeach
+                            @empty
+                                <tr>
+                                    <td colspan="10" class="text-center text-muted py-4">No se encontraron contratos ni ECA facturados para los meses y el departamento seleccionados.</td>
+                                </tr>
+                            @endforelse
                         </tbody>
                     </table>
                 </div>
-                <div class="small text-muted px-3 py-2 border-top">El promedio usa los días del periodo seleccionado, de lunes a sábado; los domingos quedan fuera. Los importes marcados como cobrados se incluyen una sola vez en Total recaudado.</div>
+                <div class="small text-muted px-3 py-2 border-top">El promedio usa los días del periodo seleccionado, de lunes a sábado; los domingos quedan fuera. La facturación de Contratos/ECA se suma una sola vez a los ingresos del usuario.</div>
+                <div class="px-3 py-3 border-top">
+                    <h6 class="font-weight-bold mb-2">Facturadores de Contratos y ECA</h6>
+                    <div class="small text-muted mb-2">El nombre corresponde al usuario que facturó el servicio; los montos se distribuyen por facturador y departamento.</div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped table-hover mb-0 financial-table">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>Facturado por</th>
+                                    <th>Regional / departamento</th>
+                                    <th>Servicio</th>
+                                    <th class="text-right">Facturado</th>
+                                    <th class="text-right">Cobrado</th>
+                                    <th class="text-right">No cobrado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse(($cashierFlowReceivableInvoicers ?? collect()) as $receivableInvoicer)
+                                    <tr>
+                                        <td class="font-weight-bold">{{ $receivableInvoicer['facturadoPor'] ?? 'USUARIO SIN IDENTIFICAR' }}</td>
+                                        <td><span class="badge badge-warning">{{ $receivableInvoicer['departamento'] ?? 'SIN REGIONAL ASIGNADA' }}</span></td>
+                                        <td>{{ $receivableInvoicer['servicio'] ?? '-' }}</td>
+                                        <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) ($receivableInvoicer['totalFacturado'] ?? 0), 2) }}</td>
+                                        <td class="text-right text-success">Bs {{ \App\Support\BolivianNumber::format((float) ($receivableInvoicer['totalCobrado'] ?? 0), 2) }}</td>
+                                        <td class="text-right text-warning font-weight-bold">Bs {{ \App\Support\BolivianNumber::format((float) ($receivableInvoicer['totalNoCobrado'] ?? 0), 2) }}</td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="6" class="text-center text-muted py-3">No hay facturadores de Contratos o ECA para los filtros seleccionados.</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
-    @endif
-
     <div class="card card-outline card-success flow-section-card">
         <div class="card-header d-flex align-items-center">
             <span class="flow-icon"><i class="fas fa-cash-register"></i></span>
             <div>
                     <strong>Ingresos por cajero</strong>
-                    <div class="text-muted small">Separado por departamento. Los cajeros asignados a varias regionales se agrupan aparte para evitar duplicar ingresos.</div>
+                    <div class="text-muted small">Los importes facturados de Contratos/ECA se suman a los ingresos del cajero que los generó.</div>
                 <div class="text-muted small">Los cobros aceptados se atribuyen al usuario que facturó el contrato o ECA.</div>
             </div>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
-                @php($cashierTotal = (float) $cashierRows->sum('totalIngresos'))
+                @php($cashierTotal = (float) $cashierDepartmentGroups->sum('totalIngresos'))
                 <table class="table table-sm table-striped table-hover mb-0 financial-table">
                     <thead class="thead-light">
                         <tr>
@@ -470,8 +515,8 @@
                             <th class="text-right">Detalles</th>
                             <th class="text-right">Cantidad de paquetes</th>
                             <th class="text-right">Paquetes promedio por día</th>
-                            <th class="text-right">Promedio de ingresos por día (lun-sáb)</th>
-                            <th class="text-right">Ingresos totales</th>
+                            <th class="text-right">Promedio de ingresos recaudados por día (lun-sáb)</th>
+                            <th class="text-right">Ingresos recaudados</th>
                             <th>Participación</th>
                         </tr>
                     </thead>
@@ -487,7 +532,7 @@
                                 <td class="text-right">{{ \App\Support\BolivianNumber::format($departmentGroup['cantidadDetalles']) }}</td>
                                 <td class="text-right">{{ \App\Support\BolivianNumber::format($departmentGroup['totalCantidad'], 2) }}</td>
                                 <td></td>
-                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format($departmentGroup['promedioDiario'], 2) }}</td>
+                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format($departmentGroup['promedioGeneradoDiario'], 2) }}</td>
                                 <td class="text-right">Bs {{ \App\Support\BolivianNumber::format($departmentGroup['totalIngresos'], 2) }}</td>
                                 <td class="text-right">{{ \App\Support\BolivianNumber::format($cashierTotal > 0 ? ($departmentGroup['totalIngresos'] / $cashierTotal) * 100 : 0, 1) }}%</td>
                             </tr>
@@ -508,7 +553,7 @@
                                     <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $cashier['cantidadDetalles']) }}</td>
                                     <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $cashier['totalCantidad'], 2) }}</td>
                                     <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($cashier['promedioPaquetesDiario'] ?? 0), 2) }}</td>
-                                    <td class="text-right font-weight-bold">Bs {{ \App\Support\BolivianNumber::format((float) ($cashier['promedioDiario'] ?? 0), 2) }}</td>
+                                    <td class="text-right font-weight-bold">Bs {{ \App\Support\BolivianNumber::format((float) ($cashier['promedioGeneradoDiario'] ?? 0), 2) }}</td>
                                     <td class="text-right font-weight-bold">Bs {{ \App\Support\BolivianNumber::format((float) ($cashier['totalIngresos'] ?? $cashier['totalMonto']), 2) }}</td>
                                     <td class="flow-progress">
                                         <span class="small font-weight-bold">{{ \App\Support\BolivianNumber::format($share, 1) }}%</span>
@@ -520,7 +565,7 @@
                             <tr><td colspan="10" class="text-center text-muted py-4">La API no devolvió información por cajero.</td></tr>
                         @endforelse
                     </tbody>
-                    @if($cashierRows->isNotEmpty())
+                    @if($cashierDepartmentGroups->isNotEmpty())
                         <tfoot class="font-weight-bold">
                             <tr>
                                 <td colspan="3">Totales</td>
@@ -528,8 +573,8 @@
                                 <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $cashierRows->sum('cantidadDetalles')) }}</td>
                                 <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $cashierRows->sum('totalCantidad'), 2) }}</td>
                                 <td></td>
-                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) $cashierRows->sum('promedioDiario'), 2) }}</td>
-                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format($cashierTotal, 2) }}</td>
+                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) $cashierRows->sum('promedioGeneradoDiario'), 2) }}</td>
+                                <td class="text-right">Bs {{ \App\Support\BolivianNumber::format((float) $cashierDepartmentGroups->sum('totalIngresos'), 2) }}</td>
                                 <td></td>
                             </tr>
                         </tfoot>

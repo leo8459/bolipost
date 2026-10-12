@@ -93,15 +93,22 @@
         <div class="title">Reporte de Tarifario</div>
         <table class="meta">
             <tr>
-                <td><strong>Fecha de generacion:</strong> {{ $generatedAt->format('d/m/Y H:i') }}</td>
+                <td><strong>Tarifario padre:</strong> {{ $tarifarioPadre->nombre }}</td>
                 <td class="text-right"><strong>Total registros:</strong> {{ $totalTarifarios }}</td>
+            </tr>
+            <tr>
+                <td colspan="2"><strong>Fecha de generación:</strong> {{ $generatedAt->format('d/m/Y H:i') }}</td>
             </tr>
         </table>
     </div>
 
     <div class="summary">
-        El reporte se encuentra agrupado por servicio. Cada bloque muestra los rangos de peso registrados y su precio actual.
+        El reporte corresponde al tarifario padre {{ $tarifarioPadre->nombre }}. Incluye sus servicios, rangos de peso y precios actuales.
     </div>
+
+    @if ($groupedTarifarios->isEmpty())
+        <div class="summary">Este tarifario padre todavía no tiene tarifas registradas.</div>
+    @endif
 
     @foreach ($groupedTarifarios as $serviceName => $items)
         <div class="service-block">

@@ -6,6 +6,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\Peso;
 use App\Models\Servicio;
 use App\Models\Tarifario;
+use App\Models\TarifarioPadre;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -60,12 +61,18 @@ class TarifarioController extends Controller
         return view('tarifario.index');
     }
 
-    public function exportPdf()
+    public function exportPdf(Request $request)
     {
         $this->authorizeTarifarioAccess();
 
+        $data = $request->validate([
+            'tarifario_padre_id' => ['required', 'integer', 'exists:tarifario_padre,id'],
+        ]);
+        $tarifarioPadre = TarifarioPadre::query()->findOrFail($data['tarifario_padre_id']);
+
         $tarifarios = Tarifario::query()
             ->with(['servicio', 'peso'])
+            ->whereHas('servicio', fn ($query) => $query->where('tarifario_padre_id', $tarifarioPadre->id))
             ->orderBy('servicio_id')
             ->orderBy('peso_id')
             ->get();
@@ -76,11 +83,12 @@ class TarifarioController extends Controller
 
         $pdf = Pdf::loadView('tarifario.report-pdf', [
             'groupedTarifarios' => $grouped,
+            'tarifarioPadre' => $tarifarioPadre,
             'generatedAt' => now(),
             'totalTarifarios' => $tarifarios->count(),
         ])->setPaper('A4', 'portrait');
 
-        return $pdf->stream('tarifario-' . now()->format('Ymd-His') . '.pdf');
+        return $pdf->stream('tarifario-' . Str::slug($tarifarioPadre->nombre) . '-' . now()->format('Ymd-His') . '.pdf');
     }
 
     public function downloadGlobalReportExcel()

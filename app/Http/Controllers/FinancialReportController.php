@@ -9,12 +9,14 @@ use App\Models\Empresa;
 use App\Models\User;
 use App\Services\FacturacionReportService;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Closure;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -24,9 +26,7 @@ class FinancialReportController extends Controller
 {
     private const MAX_SERVICE_FILTER_ITEMS = 200;
 
-    private const CASHIER_FLOW_EXCLUDED_CASHIERS = [
-        'EDGAR JAVIER GIRONDA CHIRI',
-    ];
+    private const CASHIER_FLOW_EXCLUDED_CASHIERS = [];
 
     private const DEPARTMENT_BY_BRANCH_CODE = [
         '0' => 'LA PAZ',
@@ -100,11 +100,12 @@ class FinancialReportController extends Controller
             enableDepartmentFilter: true,
             cacheReports: true,
             showReceivablesSeparately: true,
-            includeAnnulledDetails: true
+            includeAnnulledDetails: true,
+            loadAllReceivablesOutsideServiceFilter: true
         );
         $receivableRows = collect($data['receivableServices']);
         $invoicePeriodMovements = collect();
-        if (Schema::hasTable('cashier_flow_receivable_movements') && $data['selectedDepartment'] === '') {
+        if ($includeCashierBreakdown && Schema::hasTable('cashier_flow_receivable_movements') && $data['selectedDepartment'] === '') {
             $invoicePeriodMovements = CashierFlowReceivableMovement::query()
                 ->where('cobro_activo', true)
                 ->where('anio', $data['anio'])
@@ -142,6 +143,16 @@ class FinancialReportController extends Controller
             ->reject(fn (array $invoice): bool => $this->isCashierFlowReceivableService((string) ($invoice['_servicio'] ?? '')))
             ->groupBy('_servicio')
             ->map(fn (Collection $invoices): float => (float) $invoices->sum('monto'));
+        $cancelledReceivablesByService = $cancelledInvoices
+            ->filter(fn (array $invoice): bool => $this->isCashierFlowReceivableService((string) ($invoice['_servicio'] ?? '')))
+            ->groupBy('_servicio')
+            ->map(fn (Collection $invoices): float => (float) $invoices->sum('monto'));
+        $receivableRows = $receivableRows->map(function (array $service) use ($cancelledReceivablesByService): array {
+            $serviceName = (string) ($service['servicio'] ?? '');
+            $service['totalMonto'] = max(0, (float) ($service['totalMonto'] ?? 0) - (float) $cancelledReceivablesByService->get($serviceName, 0));
+
+            return $service;
+        })->values();
         $data['services'] = collect($data['services'])->map(function (array $service) use ($cancelledByService): array {
             $service['totalMontoAnulado'] = (float) $cancelledByService->get((string) ($service['servicio'] ?? ''), 0);
 
@@ -160,6 +171,33 @@ class FinancialReportController extends Controller
                 return $service;
             })
             ->values();
+        $receivableDepartmentBreakdown = null;
+        if ($includeCashierBreakdown) {
+            $receivableDepartmentBreakdown = $this->cashierFlowReceivableDepartmentBreakdown(
+                $data['receivableServices'],
+                $data['selectedMonths'],
+                $data['anio'],
+                $invoicePeriodMovements,
+                $data['selectedDepartment']
+            );
+            $data['cashierFlowReceivableDepartmentErrors'] = $receivableDepartmentBreakdown['errors'];
+            $data['cashierFlowReceivableDepartmentAmounts'] = $receivableDepartmentBreakdown['pendingByDepartment'];
+            $data['cashierFlowReceivableInvoicers'] = $receivableDepartmentBreakdown['invoicers'];
+            if ($receivableDepartmentBreakdown['complete']) {
+                $data['receivableServices'] = $data['receivableServices']
+                    ->map(function (array $service) use ($receivableDepartmentBreakdown): array {
+                        $serviceName = (string) ($service['servicio'] ?? '');
+                        $service['totalMonto'] = (float) $receivableDepartmentBreakdown['billedByService']->get($serviceName, $service['totalMonto'] ?? 0);
+                        $service['_montoCobrado'] = (float) $receivableDepartmentBreakdown['collectedByService']->get($serviceName, 0);
+                        $service['_montoPendiente'] = (float) $receivableDepartmentBreakdown['pendingByService']->get($serviceName, 0);
+                        $service['_cobroRealizado'] = $service['_montoCobrado'] > 0;
+
+                        return $service;
+                    })
+                    ->values();
+            }
+            $data['cashierFlowReceivablePendingAmount'] = (float) $data['receivableServices']->sum('_montoPendiente');
+        }
         $collectedServiceRows = $this->buildCollectedReceivableServiceRows($invoicePeriodMovements->groupBy('servicio'));
         $data['serviceGroups'] = $this->buildServiceGroups(
             collect($data['services'])->concat($collectedServiceRows)
@@ -169,17 +207,27 @@ class FinancialReportController extends Controller
         $data['summary']['totalRecaudado'] = (float) ($data['summary']['totalMontoVendido'] ?? $data['summary']['totalMonto'] ?? 0)
             + $data['cashierFlowCollectedAmount'];
         $data['summary']['totalSinContratosEca'] = (float) ($data['summary']['totalMontoVendido'] ?? $data['summary']['totalMonto'] ?? 0);
+        $data['totalReportAmountIncludingReceivables'] = (float) $data['summary']['totalRecaudado']
+            + (float) ($data['cashierFlowReceivablePendingAmount'] ?? $data['receivableServices']->sum('_montoPendiente'));
         if ($includeCashierBreakdown) {
             $data['cashierRows'] = $this->addCashierReceivableIncome(
                 $this->buildCashierBreakdown($data['services']),
                 $invoicePeriodMovements
+            );
+            $data['cashierRows'] = $this->addCashierFlowReceivableInvoicers(
+                $data['cashierRows'],
+                $data['cashierFlowReceivableInvoicers'] ?? collect()
             );
             $data['cashierRows'] = $this->addCashierPeriodAverages(
                 $data['cashierRows'],
                 $data['selectedMonths'],
                 $data['anio']
             );
-            $data['cashierDepartmentGroups'] = $this->buildCashierDepartmentGroups($data['cashierRows']);
+            $data['cashierDepartmentGroups'] = $this->addReceivablesToCashierDepartmentGroups(
+                $this->buildCashierDepartmentGroups($data['cashierRows']),
+                $data['cashierFlowReceivableDepartmentAmounts'] ?? collect(),
+                $this->countReportDaysExcludingSundays($data['selectedMonths'], $data['anio'])
+            );
         }
 
         return $data;
@@ -293,9 +341,31 @@ class FinancialReportController extends Controller
 
     public function cashierFlowReport(Request $request)
     {
+        if ($request->boolean('stream')) {
+            return $this->streamCashierFlowReport($request);
+        }
+
         @set_time_limit(300);
         @ini_set('max_execution_time', '300');
         @ini_set('memory_limit', '1024M');
+
+        $progressCallback = $request->attributes->get('_cashier_flow_progress_callback');
+        $progressCallback = $progressCallback instanceof Closure ? $progressCallback : null;
+        $reportProgress = function (int $percent, string $stage, int $completed = 0, int $total = 0) use ($progressCallback): void {
+            if ($progressCallback === null) {
+                return;
+            }
+
+            $progressCallback([
+                'type' => 'progress',
+                'percent' => min(94, max(0, $percent)),
+                'stage' => $stage,
+                'completed' => max(0, $completed),
+                'total' => max(0, $total),
+            ]);
+        };
+
+        $reportProgress(3, 'Validando filtros del reporte…');
 
         $data = $this->buildServicesReportData(
             $request,
@@ -306,8 +376,13 @@ class FinancialReportController extends Controller
             enableDepartmentFilter: true,
             cacheReports: true,
             showReceivablesSeparately: true,
-            includeAnnulledDetails: true
+            includeAnnulledDetails: true,
+            loadAllReceivablesOutsideServiceFilter: true,
+            progressCallback: function (int $percent, string $stage, int $completed, int $total) use ($reportProgress): void {
+                $reportProgress($percent, $stage, $completed, $total);
+            }
         );
+        $reportProgress(82, 'Revisando facturas anuladas y pagos…');
         $auditServices = collect($data['services'])->concat($data['receivableServices']);
         $hasCompleteOptimizedAudit = collect($data['annulledDetailErrors'] ?? [])->isEmpty();
         if ($hasCompleteOptimizedAudit) {
@@ -324,6 +399,7 @@ class FinancialReportController extends Controller
                 $data['selectedDepartment']
             );
         }
+        $reportProgress(87, 'Cuadrando los importes de las facturas…');
         $periodCancelledInvoices = $invoiceAudit['invoices'];
         $summaryCancelledInvoices = $periodCancelledInvoices
             ->reject(fn (array $invoice): bool => $this->isCashierFlowReceivableService((string) $invoice['_servicio']));
@@ -370,18 +446,21 @@ class FinancialReportController extends Controller
         $data['summary']['totalMontoVendido'] = (float) $data['services']->sum('totalMontoVendido');
         $data['summary']['totalMontoNoIncluidoEnTotalVendido'] = (float) $data['services']->sum('totalMontoNoIncluidoEnTotalVendido');
         $data['summary']['totalMontoAnulado'] = (float) $data['services']->sum('totalMontoAnulado');
-        $collectedMovements = Schema::hasTable('cashier_flow_receivable_movements') && $data['selectedDepartment'] === ''
+        $allCollectedMovements = Schema::hasTable('cashier_flow_receivable_movements')
             ? $this->cashierFlowCollectedMovementsForPeriod($data['selectedMonths'], $data['anio'])
             : collect();
+        $collectedMovements = $data['selectedDepartment'] === '' ? $allCollectedMovements : collect();
+        $reportProgress(89, 'Validando cobros registrados…');
         $collectionAudit = $this->loadCashierFlowCancelledInvoices(
-            $this->cashierFlowMovementDetailFilters($collectedMovements)
+            $this->cashierFlowMovementDetailFilters($allCollectedMovements)
         );
         $cancelledMovementKeys = $collectionAudit['invoices']->pluck('_movementKey')->filter()->flip();
         if ($cancelledMovementKeys->isNotEmpty()) {
-            $collectedMovements = $collectedMovements
+            $allCollectedMovements = $allCollectedMovements
                 ->reject(fn (CashierFlowReceivableMovement $movement): bool => $cancelledMovementKeys->has($movement->movement_key))
                 ->values();
         }
+        $collectedMovements = $data['selectedDepartment'] === '' ? $allCollectedMovements : collect();
         $data['cashierFlowCancelledInvoices'] = $periodCancelledInvoices
             ->concat($collectionAudit['invoices'])
             ->unique(fn (array $invoice): string => filled($invoice['_movementKey'] ?? null)
@@ -393,6 +472,29 @@ class FinancialReportController extends Controller
             ->concat($collectionAudit['errors'])
             ->unique()
             ->values();
+        $cancelledReceivablesByService = $periodCancelledInvoices
+            ->filter(fn (array $invoice): bool => $this->isCashierFlowReceivableService((string) ($invoice['_servicio'] ?? '')))
+            ->groupBy('_servicio')
+            ->map(fn (Collection $invoices): float => (float) $invoices->sum('monto'));
+        $data['receivableServices'] = collect($data['receivableServices'] ?? [])
+            ->map(function (array $service) use ($cancelledReceivablesByService): array {
+                $serviceName = (string) ($service['servicio'] ?? '');
+                $service['totalMonto'] = max(0, (float) ($service['totalMonto'] ?? 0) - (float) $cancelledReceivablesByService->get($serviceName, 0));
+
+                return $service;
+            })
+            ->values();
+        $reportProgress(91, 'Separando el saldo pendiente por departamento…');
+        $receivableDepartmentBreakdown = $this->cashierFlowReceivableDepartmentBreakdown(
+            collect($data['receivableServices'] ?? []),
+            $data['selectedMonths'],
+            $data['anio'],
+            $data['selectedDepartment'] === '' ? $allCollectedMovements : collect(),
+            $data['selectedDepartment']
+        );
+        $data['cashierFlowReceivableDepartmentErrors'] = $receivableDepartmentBreakdown['errors'];
+        $data['cashierFlowReceivableDepartmentAmounts'] = $receivableDepartmentBreakdown['pendingByDepartment'];
+        $data['cashierFlowReceivableInvoicers'] = $receivableDepartmentBreakdown['invoicers'];
         $collectedServiceRows = $this->buildCollectedReceivableServiceRows(
             $collectedMovements->groupBy('servicio')
         );
@@ -402,6 +504,29 @@ class FinancialReportController extends Controller
         $data['summary']['cantidadServicios'] = $data['serviceGroups']->count();
         $data['cashierFlowCollectedMovements'] = $collectedMovements;
         $data['cashierFlowCollectedAmount'] = (float) $collectedMovements->sum('monto');
+        $receivableCollections = $collectedMovements->groupBy('servicio');
+        $data['receivableServices'] = collect($data['receivableServices'] ?? [])
+            ->map(function (array $service) use ($receivableCollections, $receivableDepartmentBreakdown): array {
+                $serviceCollections = $receivableCollections->get((string) ($service['servicio'] ?? ''), collect());
+                $serviceName = (string) ($service['servicio'] ?? '');
+                if ($receivableDepartmentBreakdown['complete']) {
+                    $service['totalMonto'] = (float) $receivableDepartmentBreakdown['billedByService']->get($serviceName, $service['totalMonto'] ?? 0);
+                }
+                $service['_montoCobrado'] = $receivableDepartmentBreakdown['complete']
+                    ? (float) $receivableDepartmentBreakdown['collectedByService']->get($serviceName, 0)
+                    : (float) $serviceCollections->sum('monto');
+                $service['_montoPendiente'] = $receivableDepartmentBreakdown['complete']
+                    ? (float) $receivableDepartmentBreakdown['pendingByService']->get($serviceName, 0)
+                    : max(0, (float) ($service['totalMonto'] ?? 0) - $service['_montoCobrado']);
+                $service['_cobroRealizado'] = $service['_montoCobrado'] > 0;
+
+                return $service;
+            })
+            ->values();
+        $data['cashierFlowReceivablePendingAmount'] = (float) $data['receivableServices']->sum('_montoPendiente');
+        $data['totalReportAmountIncludingReceivables'] = (float) ($data['summary']['totalMontoVendido'] ?? $data['summary']['totalMonto'] ?? 0)
+            + $data['cashierFlowCollectedAmount']
+            + $data['cashierFlowReceivablePendingAmount'];
         $data['summary']['totalRecaudado'] = (float) ($data['summary']['totalMontoVendido'] ?? $data['summary']['totalMonto'] ?? 0)
             + $data['cashierFlowCollectedAmount'];
         $data['summary']['totalSinContratosEca'] = (float) ($data['summary']['totalMontoVendido'] ?? $data['summary']['totalMonto'] ?? 0);
@@ -410,6 +535,10 @@ class FinancialReportController extends Controller
         $data['cashierRows'] = $this->addCashierReceivableIncome(
             $this->buildCashierBreakdown($data['services']),
             $collectedMovements
+        );
+        $data['cashierRows'] = $this->addCashierFlowReceivableInvoicers(
+            $data['cashierRows'],
+            $data['cashierFlowReceivableInvoicers'] ?? collect()
         );
         $data['cashierRows'] = $this->addCashierPeriodAverages(
             $data['cashierRows'],
@@ -422,7 +551,11 @@ class FinancialReportController extends Controller
             $collectedMovements,
             $invoiceAudit['movementPaymentMethods']->merge($collectionAudit['movementPaymentMethods'])
         );
-        $data['cashierDepartmentGroups'] = $this->buildCashierDepartmentGroups($data['cashierRows']);
+        $data['cashierDepartmentGroups'] = $this->addReceivablesToCashierDepartmentGroups(
+            $this->buildCashierDepartmentGroups($data['cashierRows']),
+            $data['cashierFlowReceivableDepartmentAmounts'],
+            $this->countReportDaysExcludingSundays($data['selectedMonths'], $data['anio'])
+        );
         $data['generatedAt'] = now();
         $data['periodLabel'] = collect($data['selectedMonths'])
             ->map(fn (int $month) => [
@@ -433,13 +566,130 @@ class FinancialReportController extends Controller
             ->implode(', ').' de '.$data['anio'];
 
         $reportDays = $this->countReportDaysExcludingSundays($data['selectedMonths'], $data['anio']);
-        $data['averageDailyIncome'] = $reportDays > 0 ? $data['totalReportIncome'] / $reportDays : 0.0;
+        $data['averageDailyIncome'] = $reportDays > 0 ? $data['totalReportAmountIncludingReceivables'] / $reportDays : 0.0;
         $data['topCashier'] = $data['cashierRows']->first();
         $data['topService'] = $data['serviceGroups']->first();
+
+        $reportProgress(94, 'Preparando y dibujando el PDF…');
 
         return Pdf::loadView('financial-reports.cashier-flow-pdf', $data)
             ->setPaper('A4', 'portrait')
             ->download('reporte-flujo-cajero-'.$data['anio'].'-'.now()->format('Ymd_His').'.pdf');
+    }
+
+    private function streamCashierFlowReport(Request $request)
+    {
+        @set_time_limit(300);
+        @ini_set('max_execution_time', '300');
+        @ini_set('memory_limit', '1024M');
+        @ini_set('zlib.output_compression', '0');
+
+        return response()->stream(function () use ($request): void {
+            $send = function (array $message): void {
+                echo json_encode($message, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)."\n";
+                if (ob_get_level() > 0) {
+                    @ob_flush();
+                }
+                flush();
+            };
+
+            $send([
+                'type' => 'progress',
+                'percent' => 2,
+                'stage' => 'Iniciando las consultas del reporte…',
+                'completed' => 0,
+                'total' => 0,
+            ]);
+
+            $auditConnection = null;
+            $auditContext = [];
+            try {
+                try {
+                    if (DB::getDriverName() === 'pgsql') {
+                        $user = $request->user();
+                        $auditConnection = DB::connection();
+                        $auditContext = [
+                            'app.audit_user_id' => $user?->getAuthIdentifier(),
+                            'app.audit_user_name' => $user?->name,
+                            'app.audit_user_alias' => $user?->alias,
+                            'app.audit_request_ip' => $request->ip(),
+                            'app.audit_user_agent' => $request->userAgent(),
+                        ];
+                        $assignments = [];
+                        $bindings = [];
+                        foreach ($auditContext as $key => $value) {
+                            $assignments[] = "set_config('{$key}', ?, false)";
+                            $bindings[] = (string) ($value ?? '');
+                        }
+                        $auditConnection->select('SELECT '.implode(', ', $assignments), $bindings);
+                    }
+                } catch (\Throwable) {
+                    $auditConnection = null;
+                    $auditContext = [];
+                }
+
+                $reportRequest = clone $request;
+                $reportRequest->query->remove('stream');
+                $reportRequest->attributes->set('_cashier_flow_progress_callback', $send);
+
+                $pdfResponse = $this->cashierFlowReport($reportRequest);
+                if (! method_exists($pdfResponse, 'getContent')) {
+                    throw new \RuntimeException('La respuesta PDF no contiene datos descargables.');
+                }
+
+                $pdfContent = $pdfResponse->getContent();
+                if (! is_string($pdfContent) || $pdfContent === '') {
+                    throw new \RuntimeException('No se pudo leer el PDF generado.');
+                }
+
+                $disposition = (string) $pdfResponse->headers->get('Content-Disposition', '');
+                $fileName = preg_match('/filename\s*=\s*"?([^";]+)"?/i', $disposition, $matches)
+                    ? trim($matches[1])
+                    : 'reporte-flujo-cajero.pdf';
+                $encodedPdf = base64_encode($pdfContent);
+                $encodedLength = strlen($encodedPdf);
+                $chunkLength = 65536;
+
+                $send([
+                    'type' => 'download-start',
+                    'percent' => 94,
+                    'fileName' => $fileName,
+                    'total' => $encodedLength,
+                ]);
+
+                for ($offset = 0; $offset < $encodedLength; $offset += $chunkLength) {
+                    $chunk = substr($encodedPdf, $offset, $chunkLength);
+                    $send([
+                        'type' => 'pdf-chunk',
+                        'data' => $chunk,
+                        'loaded' => min($encodedLength, $offset + strlen($chunk)),
+                        'total' => $encodedLength,
+                    ]);
+                }
+
+                $send(['type' => 'complete', 'percent' => 100]);
+            } catch (\Throwable $exception) {
+                report($exception);
+                $send([
+                    'type' => 'error',
+                    'message' => 'No se pudo completar el PDF. Revise los filtros e inténtelo nuevamente.',
+                ]);
+            } finally {
+                if ($auditConnection !== null && $auditContext !== []) {
+                    try {
+                        $clear = array_map(fn (string $key): string => "set_config('{$key}', '', false)", array_keys($auditContext));
+                        $auditConnection->select('SELECT '.implode(', ', $clear));
+                    } catch (\Throwable) {
+                        // El flujo del reporte no debe fallar por la limpieza del contexto de auditoria.
+                    }
+                }
+            }
+        }, 200, [
+            'Content-Type' => 'application/x-ndjson; charset=UTF-8',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            'X-Accel-Buffering' => 'no',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     private function cashierFlowInvoiceDetailFilters(Collection $services, array $months, int $year): array
@@ -1482,7 +1732,9 @@ class FinancialReportController extends Controller
         bool $enableDepartmentFilter = false,
         bool $cacheReports = false,
         bool $showReceivablesSeparately = false,
-        bool $includeAnnulledDetails = false
+        bool $includeAnnulledDetails = false,
+        bool $loadAllReceivablesOutsideServiceFilter = false,
+        ?Closure $progressCallback = null
     ): array {
         $this->normalizeServiceFilterInput($request, 'servicios');
 
@@ -1516,6 +1768,29 @@ class FinancialReportController extends Controller
             ->unique()
             ->values();
         $hasServiceFilter = array_key_exists('servicios', $validated) || $legacyService !== '';
+        $loadCatalogForProgress = $hasServiceFilter;
+        $loadReceivablesForProgress = $loadAllReceivablesOutsideServiceFilter
+            && $showReceivablesSeparately
+            && $hasServiceFilter
+            && $requestedServices->isNotEmpty();
+        $progressWorkTotal = $selectedMonths->count()
+            + ($loadCatalogForProgress ? $selectedMonths->count() : 0)
+            + ($loadReceivablesForProgress ? $selectedMonths->count() : 0);
+        $progressWorkCompleted = 0;
+        $advanceReportProgress = function (string $stage) use (&$progressWorkCompleted, $progressWorkTotal, $progressCallback): void {
+            if ($progressCallback === null) {
+                return;
+            }
+
+            $progressWorkCompleted++;
+            $percent = 5 + (int) round(72 * $progressWorkCompleted / max(1, $progressWorkTotal));
+            $progressCallback(
+                $percent,
+                $stage.' ('.$progressWorkCompleted.' de '.$progressWorkTotal.')',
+                $progressWorkCompleted,
+                $progressWorkTotal
+            );
+        };
         $aggregated = collect();
         $serviceOptions = $requestedServices->keyBy(fn ($service) => mb_strtoupper($service, 'UTF-8'));
         $errors = collect();
@@ -1557,7 +1832,7 @@ class FinancialReportController extends Controller
         $summaryReportFilters = $reportFilters;
         unset($summaryReportFilters['incluirDetalleAnuladas'], $summaryReportFilters['regionalDetalle']);
         $batchReports = null;
-        if ($cacheReports && $selectedMonths->count() > 1) {
+        if ($cacheReports && $selectedMonths->count() > 1 && $progressCallback === null) {
             try {
                 $filters = $selectedMonths->map(fn (int $month): array => [
                     'mes' => $month,
@@ -1709,6 +1984,7 @@ class FinancialReportController extends Controller
                 $errors->push("No se pudo cargar el resumen del mes {$month}: {$exception->getMessage()}");
                 $this->logDetailError($exception, null, $month, $year);
             }
+            $advanceReportProgress("Consultando ventas del mes {$month}");
         }
 
         // Las opciones deben incluir servicios ausentes de la selección actual.
@@ -1727,20 +2003,154 @@ class FinancialReportController extends Controller
                     $errors->push("No se pudo completar la lista de servicios del mes {$month}. Actualice el reporte antes de seleccionar todos.");
                     $this->logDetailError($exception, null, $month, $year);
                 }
+                $advanceReportProgress("Completando catálogo de servicios del mes {$month}");
             }
+        }
+
+        $receivableSource = $aggregated;
+        if ($loadAllReceivablesOutsideServiceFilter && $showReceivablesSeparately && $hasServiceFilter && $requestedServices->isNotEmpty()) {
+            $receivableReportFilters = $reportFilters;
+            unset($receivableReportFilters['servicios']);
+            unset($receivableReportFilters['excluirGruposConteo']);
+            $receivableAggregated = collect();
+
+            foreach ($selectedMonths as $month) {
+                try {
+                    $receivableReport = $this->reports->services(
+                        (int) $month,
+                        $year,
+                        $limit,
+                        $cacheReports,
+                        $refresh,
+                        $receivableReportFilters
+                    );
+                } catch (\Throwable $exception) {
+                    if ($includeAnnulledDetails) {
+                        $annulledDetailErrors->push("No se pudo obtener el detalle optimizado de anulaciones de Contratos y ECA del mes {$month}: {$exception->getMessage()}. Se conserva el resumen financiero.");
+                        $this->logDetailError($exception, null, (int) $month, $year);
+
+                        $receivableSummaryFilters = $summaryReportFilters;
+                        unset($receivableSummaryFilters['servicios']);
+                        unset($receivableSummaryFilters['excluirGruposConteo']);
+                        try {
+                            $receivableReport = $this->reports->services(
+                                (int) $month,
+                                $year,
+                                $limit,
+                                $cacheReports,
+                                $refresh,
+                                $receivableSummaryFilters
+                            );
+                        } catch (\Throwable $summaryException) {
+                            $errors->push("No se pudieron cargar Contratos y ECA del mes {$month}: {$summaryException->getMessage()}");
+                            $this->logDetailError($summaryException, null, (int) $month, $year);
+                            $advanceReportProgress("Consultando Contratos y ECA del mes {$month}");
+
+                            continue;
+                        }
+                    } else {
+                        $errors->push("No se pudieron cargar Contratos y ECA del mes {$month}: {$exception->getMessage()}");
+                        $this->logDetailError($exception, null, (int) $month, $year);
+                        $advanceReportProgress("Consultando Contratos y ECA del mes {$month}");
+
+                        continue;
+                    }
+                }
+
+                if ($includeAnnulledDetails && (
+                    ! (bool) data_get($receivableReport, 'meta.detalleAnulacionesIncluido', false)
+                    || ! (bool) data_get($receivableReport, 'meta.auditoriaMediosPagoIncluida', false)
+                )) {
+                    $annulledDetailErrors->push("La API no devolvio el detalle de auditoria completo de Contratos y ECA del mes {$month}; los importes por cobrar se conservan.");
+                }
+
+                foreach ((array) ($receivableReport['servicios'] ?? []) as $row) {
+                    $name = trim((string) ($row['servicio'] ?? ''));
+                    if ($name === '' || ! $this->isCashierFlowReceivableService($name)) {
+                        continue;
+                    }
+
+                    $serviceKey = mb_strtoupper($name, 'UTF-8');
+                    $current = $receivableAggregated->get($serviceKey, [
+                        'servicio' => $name,
+                        'cantidadVentas' => 0,
+                        'cantidadDetalles' => 0,
+                        'totalCantidad' => 0,
+                        'totalMonto' => 0,
+                        'totalMontoVendido' => 0,
+                        'totalMontoNoIncluidoEnTotalVendido' => 0,
+                        'totalMontoAnulado' => 0,
+                        'ultimaFecha' => null,
+                        'descripcionMuestra' => null,
+                        '_meses' => [],
+                        '_porRegionales' => [],
+                        '_porPersonas' => [],
+                        '_annulledRows' => [],
+                        '_paymentAuditRows' => [],
+                    ]);
+
+                    foreach (['cantidadVentas', 'cantidadDetalles', 'totalCantidad', 'totalMonto'] as $totalKey) {
+                        $current[$totalKey] += (float) ($row[$totalKey] ?? 0);
+                    }
+                    $rowTotalMonto = (float) ($row['totalMonto'] ?? 0);
+                    $current['totalMontoVendido'] += array_key_exists('totalMontoVendido', $row)
+                        ? (float) $row['totalMontoVendido']
+                        : $rowTotalMonto;
+                    $current['totalMontoNoIncluidoEnTotalVendido'] += (float) ($row['totalMontoNoIncluidoEnTotalVendido'] ?? 0);
+                    $current['totalMontoAnulado'] += (float) ($row['totalMontoAnulado'] ?? 0);
+
+                    $date = trim((string) ($row['ultimaFecha'] ?? ''));
+                    if ($date !== '' && ($current['ultimaFecha'] === null || $date > $current['ultimaFecha'])) {
+                        $current['ultimaFecha'] = $date;
+                    }
+                    if (blank($current['descripcionMuestra']) && filled($row['descripcionMuestra'] ?? null)) {
+                        $current['descripcionMuestra'] = $row['descripcionMuestra'];
+                    }
+                    $current['_porRegionales'] = [
+                        ...($current['_porRegionales'] ?? []),
+                        ...collect($row['porRegionales'] ?? [])->map(fn ($item) => (array) $item)->all(),
+                    ];
+                    $current['_porPersonas'] = [
+                        ...($current['_porPersonas'] ?? []),
+                        ...collect($row['porPersonas'] ?? [])->map(fn ($item) => (array) $item)->all(),
+                    ];
+                    $current['_annulledRows'] = [
+                        ...($current['_annulledRows'] ?? []),
+                        ...collect($row['rows'] ?? [])->map(fn ($item): array => [
+                            ...(array) $item,
+                            '_servicio' => $name,
+                            '_mes' => (int) $month,
+                        ])->all(),
+                    ];
+                    $current['_paymentAuditRows'] = [
+                        ...($current['_paymentAuditRows'] ?? []),
+                        ...collect($row['auditoriaMediosPago'] ?? [])->map(fn ($item): array => [
+                            ...(array) $item,
+                            '_servicio' => $name,
+                            '_mes' => (int) $month,
+                        ])->all(),
+                    ];
+                    $current['_meses'][] = (int) $month;
+                    $current['_meses'] = array_values(array_unique($current['_meses']));
+                    $receivableAggregated->put($serviceKey, $current);
+                }
+                $advanceReportProgress("Consultando Contratos y ECA del mes {$month}");
+            }
+
+            $receivableSource = $aggregated
+                ->filter(fn (array $service): bool => $this->isCashierFlowReceivableService((string) ($service['servicio'] ?? '')))
+                ->keyBy(fn (array $service): string => mb_strtoupper((string) ($service['servicio'] ?? ''), 'UTF-8'))
+                ->merge($receivableAggregated);
         }
 
         $receivableServices = collect();
         if ($showReceivablesSeparately) {
-            $receivableServices = $aggregated
-                ->filter(function (array $service) use ($hasServiceFilter, $requestedServices): bool {
+            $receivableServices = $receivableSource
+                ->filter(function (array $service): bool {
                     $name = (string) ($service['servicio'] ?? '');
 
                     return $this->serviceGroupName($name) === 'Servicio Contratos'
-                        || ($this->isEcaInternationalService($name)
-                            && (! $hasServiceFilter || $requestedServices->contains(
-                                fn (string $requestedService): bool => $this->sameNormalizedText($requestedService, $name)
-                            )));
+                        || $this->isEcaInternationalService($name);
                 })
                 ->values();
         }
@@ -1762,6 +2172,10 @@ class FinancialReportController extends Controller
             $aggregated = $aggregated->reject(
                 fn (array $service): bool => $this->isEcaInternationalService((string) ($service['servicio'] ?? ''))
             );
+            $serviceOptions = $serviceOptions->reject(fn (string $service): bool => $this->isEcaInternationalService($service));
+            $requestedServices = $requestedServices
+                ->reject(fn (string $service): bool => $this->isEcaInternationalService($service))
+                ->values();
         }
 
         $contractServices = $aggregated
@@ -1825,7 +2239,6 @@ class FinancialReportController extends Controller
         }
         if ($excludedCashierNames !== []) {
             $services = $this->excludeCashiersFromServices($services, $excludedCashierNames);
-            $receivableServices = $this->excludeCashiersFromServices($receivableServices, $excludedCashierNames);
         }
         if ($showReceivablesSeparately) {
             $reportDays = $this->countReportDaysExcludingSundays($selectedMonths->all(), $year);
@@ -1870,6 +2283,10 @@ class FinancialReportController extends Controller
         }
         $serviceGroups = $this->buildServiceGroups($services);
         $summary['cantidadServicios'] = $serviceGroups->count();
+
+        if ($progressCallback !== null) {
+            $progressCallback(80, 'Consolidando cajeros, servicios y montos…', $progressWorkCompleted, $progressWorkTotal);
+        }
 
         return [
             'mes' => (int) $selectedMonths->first(),
@@ -2383,18 +2800,628 @@ class FinancialReportController extends Controller
             ->map(function (Collection $cashiers, string $department): array {
                 return [
                     'departamento' => $department,
-                    'cajeros' => $cashiers->sortByDesc('totalIngresos')->values(),
+                    'cajeros' => $cashiers->sortByDesc('totalIngresosIncluyendoPorCobrar')->values(),
                     'cantidadCajeros' => $cashiers->count(),
                     'cantidadVentas' => (float) $cashiers->sum('cantidadVentas'),
                     'cantidadDetalles' => (float) $cashiers->sum('cantidadDetalles'),
                     'totalCantidad' => (float) $cashiers->sum('totalCantidad'),
                     'totalMontoVentanilla' => (float) $cashiers->sum('totalMontoVentanilla'),
                     'totalMontoCobrado' => (float) $cashiers->sum('totalMontoCobrado'),
+                    'totalMontoFacturadoContratosEca' => (float) $cashiers->sum('totalMontoFacturadoContratosEca'),
                     'totalIngresos' => (float) $cashiers->sum('totalIngresos'),
+                    'totalMontoNoCobrado' => (float) $cashiers->sum('totalMontoNoCobrado'),
+                    'totalIngresosIncluyendoPorCobrar' => (float) $cashiers->sum('totalIngresosIncluyendoPorCobrar'),
                     'promedioDiario' => (float) $cashiers->sum('promedioDiario'),
+                    'promedioGeneradoDiario' => (float) $cashiers->sum('promedioGeneradoDiario'),
                 ];
             })
-            ->sortByDesc('totalIngresos')
+            ->sortByDesc('totalIngresosIncluyendoPorCobrar')
+            ->values();
+    }
+
+    private function cashierFlowReceivableDepartmentBreakdown(
+        Collection $receivableServices,
+        array $months,
+        int $year,
+        Collection $collectedMovements,
+        string $selectedDepartment
+    ): array {
+        $pendingByDepartment = collect();
+        $pendingByService = collect();
+        $collectedByService = collect();
+        $billedByService = collect();
+        $invoicers = collect();
+        $detailCountsByService = collect();
+        $errors = collect();
+
+        if ($receivableServices->isEmpty()) {
+            return [
+                'complete' => true,
+                'pendingByDepartment' => $pendingByDepartment,
+                'pendingByService' => $pendingByService,
+                'collectedByService' => $collectedByService,
+                'billedByService' => $billedByService,
+                'invoicers' => $invoicers,
+                'errors' => $errors,
+            ];
+        }
+
+        $filters = $this->cashierFlowInvoiceDetailFilters($receivableServices, $months, $year);
+        $movementsByKey = $collectedMovements->keyBy(fn (CashierFlowReceivableMovement $movement): string => (string) $movement->movement_key);
+        try {
+            $results = $this->reports->serviceDetailsBatch($filters, true, false);
+        } catch (\Throwable $exception) {
+            $results = array_map(fn (array $filter): array => [
+                'filter' => $filter,
+                'report' => null,
+                'error' => $exception->getMessage(),
+            ], $filters);
+        }
+
+        $invoicePeople = collect($results)
+            ->flatMap(fn (array $result) => collect(data_get($result, 'report.servicio.rows', []))
+                ->map(function ($row): array {
+                    $row = (array) $row;
+                    $invoiceUser = (array) ($row['usuario'] ?? []);
+
+                    return [
+                        'usuarioId' => $invoiceUser['id'] ?? $row['usuarioId'] ?? '',
+                        'usuarioNombre' => $invoiceUser['nombre'] ?? $invoiceUser['name'] ?? $row['usuarioNombre'] ?? '',
+                        'usuarioEmail' => $invoiceUser['email'] ?? $row['usuarioEmail'] ?? '',
+                        'usuarioAlias' => $invoiceUser['alias'] ?? $row['usuarioAlias'] ?? '',
+                    ];
+                }))
+            ->concat($receivableServices->flatMap(fn (array $service) => collect($service['_porPersonas'] ?? [])
+                ->map(fn ($person): array => (array) $person)));
+        $invoiceUserDepartments = $this->cashierFlowInvoiceUserDepartments($invoicePeople);
+
+        foreach ($results as $result) {
+            $filter = (array) ($result['filter'] ?? []);
+            $serviceName = trim((string) ($filter['servicio'] ?? ''));
+            $month = (int) ($filter['mes'] ?? 0);
+            if (($result['error'] ?? null) !== null || ! is_array($result['report'] ?? null)) {
+                $errors->push("{$serviceName} / {$month}-{$year}: ".(string) ($result['error'] ?? 'No se pudo consultar el detalle.'));
+
+                continue;
+            }
+
+            $service = $receivableServices->first(
+                fn (array $candidate): bool => (string) ($candidate['servicio'] ?? '') === $serviceName
+            );
+            $servicePeopleByIdentity = collect($service['_porPersonas'] ?? [])
+                ->map(fn ($person): array => (array) $person)
+                ->groupBy(fn (array $person): string => $this->cashierIdentity(
+                    (string) ($person['usuarioId'] ?? ''),
+                    (string) ($person['usuarioEmail'] ?? ''),
+                    (string) ($person['usuarioAlias'] ?? ''),
+                    (string) ($person['usuarioNombre'] ?? '')
+                ))
+                ->map(function (Collection $personRows): array {
+                    $person = (array) $personRows->first();
+                    $person['cantidadVentas'] = (float) $personRows->sum('cantidadVentas');
+                    $person['cantidadDetalles'] = (float) $personRows->sum('cantidadDetalles');
+                    $person['totalCantidad'] = (float) $personRows->sum('totalCantidad');
+                    $person['usuarioCarnet'] = (string) ($personRows->first(
+                        fn (array $row): bool => trim((string) ($row['usuarioCarnet'] ?? '')) !== ''
+                    )['usuarioCarnet'] ?? '');
+
+                    return $person;
+                });
+            $rows = $this->attachCashierFlowMovementKeys(
+                collect(data_get($result, 'report.servicio.rows', []))->map(fn ($row): array => [
+                    ...(array) $row,
+                    '_servicio' => $serviceName,
+                    '_mes' => $month,
+                ]),
+                $year
+            );
+            $detailCountsByService->put($serviceName, (int) $detailCountsByService->get($serviceName, 0) + $rows->count());
+
+            foreach ($rows as $row) {
+                if ($this->isCancelledCashierFlowInvoice($row)) {
+                    continue;
+                }
+
+                $department = $this->cashierFlowReceivableDetailDepartment(
+                    $row,
+                    $serviceName,
+                    $receivableServices,
+                    $invoiceUserDepartments,
+                    $selectedDepartment
+                );
+                if ($selectedDepartment !== '' && ! $this->sameNormalizedText($department, $selectedDepartment)) {
+                    continue;
+                }
+
+                $amount = max(0, round((float) ($row['totalLinea'] ?? $row['monto'] ?? 0), 2));
+                if ($amount <= 0) {
+                    continue;
+                }
+
+                $billedByService->put($serviceName, (float) $billedByService->get($serviceName, 0) + $amount);
+                $movement = $movementsByKey->get((string) ($row['_movementKey'] ?? ''));
+                $collectedAmount = $movement instanceof CashierFlowReceivableMovement
+                    ? min($amount, max(0, (float) $movement->monto))
+                    : 0.0;
+                $pendingAmount = max(0, $amount - $collectedAmount);
+                $pendingByService->put($serviceName, (float) $pendingByService->get($serviceName, 0) + $pendingAmount);
+                $collectedByService->put($serviceName, (float) $collectedByService->get($serviceName, 0) + $collectedAmount);
+
+                $invoiceUser = (array) ($row['usuario'] ?? []);
+                $invoicePerson = [
+                    'usuarioId' => $invoiceUser['id'] ?? $row['usuarioId'] ?? '',
+                    'usuarioNombre' => $invoiceUser['nombre'] ?? $invoiceUser['name'] ?? $row['usuarioNombre'] ?? '',
+                    'usuarioEmail' => $invoiceUser['email'] ?? $row['usuarioEmail'] ?? '',
+                    'usuarioAlias' => $invoiceUser['alias'] ?? $row['usuarioAlias'] ?? '',
+                ];
+                $invoicerKey = mb_strtoupper($serviceName, 'UTF-8').'|'.$this->cashierIdentity(
+                    (string) $invoicePerson['usuarioId'],
+                    (string) $invoicePerson['usuarioEmail'],
+                    (string) $invoicePerson['usuarioAlias'],
+                    (string) $invoicePerson['usuarioNombre']
+                );
+                $personMetricsKey = $this->matchingCashierRowKey($servicePeopleByIdentity, $invoicePerson);
+                $personMetrics = $personMetricsKey !== null
+                    ? (array) $servicePeopleByIdentity->get($personMetricsKey)
+                    : [];
+                $invoicer = $invoicers->get($invoicerKey, [
+                    'servicio' => $serviceName,
+                    'facturadoPor' => trim((string) $invoicePerson['usuarioNombre']) !== ''
+                        ? trim((string) $invoicePerson['usuarioNombre'])
+                        : 'USUARIO SIN IDENTIFICAR',
+                    'usuarioId' => (string) $invoicePerson['usuarioId'],
+                    'usuarioEmail' => (string) $invoicePerson['usuarioEmail'],
+                    'usuarioAlias' => (string) $invoicePerson['usuarioAlias'],
+                    'usuarioCarnet' => (string) ($personMetrics['usuarioCarnet'] ?? ''),
+                    'cantidadVentas' => (float) ($personMetrics['cantidadVentas'] ?? 0),
+                    'cantidadDetalles' => (float) ($personMetrics['cantidadDetalles'] ?? 0),
+                    'totalCantidad' => (float) ($personMetrics['totalCantidad'] ?? 0),
+                    'departamento' => $department,
+                    'totalFacturado' => 0.0,
+                    'totalCobrado' => 0.0,
+                    'totalNoCobrado' => 0.0,
+                ]);
+                $invoicer['totalFacturado'] += $amount;
+                $invoicer['totalCobrado'] += $collectedAmount;
+                $invoicer['totalNoCobrado'] += $pendingAmount;
+                $invoicers->put($invoicerKey, $invoicer);
+
+                if ($pendingAmount > 0) {
+                    $pendingByDepartment->put(
+                        $department,
+                        (float) $pendingByDepartment->get($department, 0) + $pendingAmount
+                    );
+                }
+            }
+        }
+
+        foreach ($receivableServices as $service) {
+            $serviceName = (string) ($service['servicio'] ?? '');
+            if ((float) ($service['totalMonto'] ?? 0) > 0 && (int) $detailCountsByService->get($serviceName, 0) === 0) {
+                $errors->push("{$serviceName}: el detalle no devolvio facturas para distribuir por departamento.");
+            }
+            $expectedAmount = (float) ($service['totalMonto'] ?? 0);
+            $detailAmount = (float) $billedByService->get($serviceName, 0);
+            if (abs($expectedAmount - $detailAmount) > 0.05) {
+                $errors->push("{$serviceName}: el detalle por factura no coincide con el total del servicio.");
+            }
+        }
+
+        $complete = $errors->isEmpty();
+        if (! $complete) {
+            $pendingByService = collect();
+            $collectedByService = collect();
+            $billedByService = collect();
+            foreach ($receivableServices as $service) {
+                $serviceName = (string) ($service['servicio'] ?? '');
+                $collected = $selectedDepartment === ''
+                    ? (float) $collectedMovements->where('servicio', $serviceName)->sum('monto')
+                    : 0.0;
+                $billed = max(0, (float) ($service['totalMonto'] ?? 0));
+                $pendingByService->put($serviceName, max(0, $billed - $collected));
+                $collectedByService->put($serviceName, $collected);
+                $billedByService->put($serviceName, $billed);
+            }
+            $pendingByDepartment = $this->cashierFlowReceivableSummaryPendingByDepartment(
+                $receivableServices,
+                $collectedMovements,
+                $invoiceUserDepartments,
+                $selectedDepartment
+            );
+            $invoicers = $pendingByDepartment['invoicers'];
+            $pendingByDepartment = $pendingByDepartment['pendingByDepartment'];
+        }
+
+        return [
+            'complete' => $complete,
+            'pendingByDepartment' => $pendingByDepartment,
+            'pendingByService' => $pendingByService,
+            'collectedByService' => $collectedByService,
+            'billedByService' => $billedByService,
+            'invoicers' => $invoicers->sortByDesc('totalNoCobrado')->values(),
+            'errors' => $errors->unique()->values(),
+        ];
+    }
+
+    private function cashierFlowReceivableSummaryPendingByDepartment(
+        Collection $receivableServices,
+        Collection $collectedMovements,
+        Collection $invoiceUserDepartments,
+        string $selectedDepartment
+    ): array {
+        $pendingByDepartment = collect();
+        $invoicers = collect();
+
+        foreach ($receivableServices as $service) {
+            $serviceName = (string) ($service['servicio'] ?? '');
+            $serviceBilled = max(0, (float) ($service['totalMonto'] ?? 0));
+            $serviceCollections = $selectedDepartment === ''
+                ? $collectedMovements->where('servicio', $serviceName)
+                : collect();
+            $servicePending = max(0, $serviceBilled - (float) $serviceCollections->sum('monto'));
+            if ($serviceBilled <= 0) {
+                continue;
+            }
+
+            $people = collect($service['_porPersonas'] ?? [])
+                ->map(fn ($person): array => (array) $person)
+                ->filter(fn (array $person): bool => (float) ($person['totalMonto'] ?? 0) > 0)
+                ->groupBy(fn (array $person): string => $this->cashierIdentity(
+                    (string) ($person['usuarioId'] ?? ''),
+                    (string) ($person['usuarioEmail'] ?? ''),
+                    (string) ($person['usuarioAlias'] ?? ''),
+                    (string) ($person['usuarioNombre'] ?? '')
+                ))
+                ->map(function (Collection $rows): array {
+                    $person = (array) $rows->first();
+                    $person['totalMonto'] = (float) $rows->sum('totalMonto');
+                    $person['cantidadVentas'] = (float) $rows->sum('cantidadVentas');
+                    $person['cantidadDetalles'] = (float) $rows->sum('cantidadDetalles');
+                    $person['totalCantidad'] = (float) $rows->sum('totalCantidad');
+                    $personWithCarnet = $rows->first(fn (array $row): bool => trim((string) ($row['usuarioCarnet'] ?? '')) !== '');
+                    $person['usuarioCarnet'] = (string) ($personWithCarnet['usuarioCarnet'] ?? '');
+                    $person['_departamentos'] = $rows
+                        ->flatMap(fn (array $row) => collect($row['_departamentos'] ?? $row['departamentos'] ?? []))
+                        ->map(fn ($department): string => $this->canonicalDepartmentName((string) $department))
+                        ->filter()
+                        ->unique()
+                        ->sort()
+                        ->values()
+                        ->all();
+
+                    return $person;
+                })
+                ->values();
+            $peopleBilled = (float) $people->sum('totalMonto');
+            if ($people->isEmpty() || $peopleBilled <= 0) {
+                $department = $selectedDepartment !== '' ? $selectedDepartment : 'SIN REGIONAL ASIGNADA';
+                if ($servicePending > 0) {
+                    $pendingByDepartment->put($department, (float) $pendingByDepartment->get($department, 0) + $servicePending);
+                }
+                $invoicers->push([
+                    'servicio' => $serviceName,
+                    'facturadoPor' => 'USUARIO SIN IDENTIFICAR',
+                    'usuarioId' => '',
+                    'usuarioEmail' => '',
+                    'usuarioAlias' => '',
+                    'usuarioCarnet' => '',
+                    'cantidadVentas' => 0.0,
+                    'cantidadDetalles' => 0.0,
+                    'totalCantidad' => 0.0,
+                    'departamento' => $department,
+                    'totalFacturado' => $serviceBilled,
+                    'totalCobrado' => (float) $serviceCollections->sum('monto'),
+                    'totalNoCobrado' => $servicePending,
+                ]);
+
+                continue;
+            }
+
+            $peopleByIdentity = $people->keyBy(fn (array $person): string => $this->cashierIdentity(
+                (string) ($person['usuarioId'] ?? ''),
+                (string) ($person['usuarioEmail'] ?? ''),
+                (string) ($person['usuarioAlias'] ?? ''),
+                (string) ($person['usuarioNombre'] ?? '')
+            ));
+            $collectedByPerson = collect();
+            foreach ($serviceCollections as $movement) {
+                $movementPerson = [
+                    'usuarioId' => (string) ($movement->facturado_por_id ?? ''),
+                    'usuarioNombre' => (string) ($movement->facturado_por_nombre ?? ''),
+                    'usuarioEmail' => (string) ($movement->facturado_por_email ?? ''),
+                    'usuarioAlias' => (string) ($movement->facturado_por_alias ?? ''),
+                ];
+                $personKey = $this->matchingCashierRowKey($peopleByIdentity, $movementPerson);
+                if ($personKey !== null) {
+                    $collectedByPerson->put(
+                        $personKey,
+                        (float) $collectedByPerson->get($personKey, 0) + (float) $movement->monto
+                    );
+                }
+            }
+
+            $personWeights = $people->mapWithKeys(function (array $person) use ($peopleBilled, $serviceBilled, $collectedByPerson): array {
+                $personKey = $this->cashierIdentity(
+                    (string) ($person['usuarioId'] ?? ''),
+                    (string) ($person['usuarioEmail'] ?? ''),
+                    (string) ($person['usuarioAlias'] ?? ''),
+                    (string) ($person['usuarioNombre'] ?? '')
+                );
+                $personBilled = $serviceBilled * ((float) ($person['totalMonto'] ?? 0) / $peopleBilled);
+
+                return [$personKey => max(0, $personBilled - (float) $collectedByPerson->get($personKey, 0))];
+            });
+            $weightTotal = (float) $personWeights->sum();
+            if ($weightTotal <= 0) {
+                $personWeights = $people->mapWithKeys(fn (array $person): array => [
+                    $this->cashierIdentity(
+                        (string) ($person['usuarioId'] ?? ''),
+                        (string) ($person['usuarioEmail'] ?? ''),
+                        (string) ($person['usuarioAlias'] ?? ''),
+                        (string) ($person['usuarioNombre'] ?? '')
+                    ) => (float) ($person['totalMonto'] ?? 0),
+                ]);
+                $weightTotal = (float) $personWeights->sum();
+            }
+
+            foreach ($people as $person) {
+                $personKey = $this->cashierIdentity(
+                    (string) ($person['usuarioId'] ?? ''),
+                    (string) ($person['usuarioEmail'] ?? ''),
+                    (string) ($person['usuarioAlias'] ?? ''),
+                    (string) ($person['usuarioNombre'] ?? '')
+                );
+                $department = $this->cashierFlowReceivableDetailDepartment(
+                    [
+                        'usuario' => [
+                            'id' => $person['usuarioId'] ?? '',
+                            'nombre' => $person['usuarioNombre'] ?? '',
+                            'email' => $person['usuarioEmail'] ?? '',
+                            'alias' => $person['usuarioAlias'] ?? '',
+                        ],
+                    ],
+                    $serviceName,
+                    $receivableServices,
+                    $invoiceUserDepartments,
+                    $selectedDepartment
+                );
+                if ($selectedDepartment !== '' && ! $this->sameNormalizedText($department, $selectedDepartment)) {
+                    continue;
+                }
+
+                $share = $weightTotal > 0
+                    ? $servicePending * ((float) $personWeights->get($personKey, 0) / $weightTotal)
+                    : 0.0;
+                $personBilled = $serviceBilled * ((float) ($person['totalMonto'] ?? 0) / $peopleBilled);
+                $personCollected = max(0, $personBilled - $share);
+                if ($share > 0) {
+                    $pendingByDepartment->put(
+                        $department,
+                        (float) $pendingByDepartment->get($department, 0) + $share
+                    );
+                }
+                $invoicers->push([
+                    'servicio' => $serviceName,
+                    'facturadoPor' => trim((string) ($person['usuarioNombre'] ?? '')) !== ''
+                        ? trim((string) $person['usuarioNombre'])
+                        : 'USUARIO SIN IDENTIFICAR',
+                    'usuarioId' => (string) ($person['usuarioId'] ?? ''),
+                    'usuarioEmail' => (string) ($person['usuarioEmail'] ?? ''),
+                    'usuarioAlias' => (string) ($person['usuarioAlias'] ?? ''),
+                    'usuarioCarnet' => (string) ($person['usuarioCarnet'] ?? ''),
+                    'cantidadVentas' => (float) ($person['cantidadVentas'] ?? 0),
+                    'cantidadDetalles' => (float) ($person['cantidadDetalles'] ?? 0),
+                    'totalCantidad' => (float) ($person['totalCantidad'] ?? 0),
+                    'departamento' => $department,
+                    'totalFacturado' => $personBilled,
+                    'totalCobrado' => $personCollected,
+                    'totalNoCobrado' => $share,
+                ]);
+            }
+        }
+
+        return [
+            'pendingByDepartment' => $pendingByDepartment,
+            'invoicers' => $invoicers->sortByDesc('totalNoCobrado')->values(),
+        ];
+    }
+
+    private function cashierFlowReceivableDetailDepartment(
+        array $row,
+        string $serviceName,
+        Collection $services,
+        Collection $invoiceUserDepartments,
+        string $selectedDepartment = ''
+    ): string {
+        $service = $services->first(
+            fn (array $candidate): bool => (string) ($candidate['servicio'] ?? '') === $serviceName
+        );
+        $invoiceUser = (array) ($row['usuario'] ?? []);
+        $invoicePerson = [
+            'usuarioId' => $invoiceUser['id'] ?? $row['usuarioId'] ?? '',
+            'usuarioNombre' => $invoiceUser['nombre'] ?? $invoiceUser['name'] ?? $row['usuarioNombre'] ?? '',
+            'usuarioEmail' => $invoiceUser['email'] ?? $row['usuarioEmail'] ?? '',
+            'usuarioAlias' => $invoiceUser['alias'] ?? $row['usuarioAlias'] ?? '',
+        ];
+        $invoiceProfileDepartmentKeys = collect([
+            filled($invoicePerson['usuarioId']) ? 'id:'.trim((string) $invoicePerson['usuarioId']) : null,
+            filled($invoicePerson['usuarioEmail']) ? 'email:'.mb_strtolower(trim((string) $invoicePerson['usuarioEmail'])) : null,
+            filled($invoicePerson['usuarioAlias']) ? 'user:'.mb_strtolower(trim((string) $invoicePerson['usuarioAlias'])) : null,
+        ])->filter();
+        $invoiceProfileDepartmentKey = $invoiceProfileDepartmentKeys
+            ->first(fn (string $key): bool => $invoiceUserDepartments->has($key));
+        $departments = $invoiceProfileDepartmentKey !== null
+            ? collect($invoiceUserDepartments->get($invoiceProfileDepartmentKey, []))
+            : collect();
+
+        $people = collect($service['_porPersonas'] ?? [])->map(fn ($person): array => (array) $person);
+        $peopleByIdentity = $people->keyBy(fn (array $person): string => $this->cashierIdentity(
+            (string) ($person['usuarioId'] ?? ''),
+            (string) ($person['usuarioEmail'] ?? ''),
+            (string) ($person['usuarioAlias'] ?? ''),
+            (string) ($person['usuarioNombre'] ?? '')
+        ));
+        $personKey = $this->matchingCashierRowKey($peopleByIdentity, $invoicePerson);
+        $person = $personKey !== null ? $peopleByIdentity->get($personKey) : null;
+        if ($departments->isEmpty()) {
+            $departments = collect($person['_departamentos'] ?? $person['departamentos'] ?? [])
+                ->map(fn ($department): string => $this->canonicalDepartmentName((string) $department))
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values();
+        }
+        if ($departments->isEmpty() && filled($person['departamento'] ?? null)) {
+            $departments = collect(explode(',', (string) $person['departamento']))
+                ->map(fn ($department): string => $this->canonicalDepartmentName($department))
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values();
+        }
+        if ($selectedDepartment !== '' && $departments->contains(
+            fn (string $department): bool => $this->sameNormalizedText($department, $selectedDepartment)
+        )) {
+            return $selectedDepartment;
+        }
+        if ($departments->isNotEmpty()) {
+            return $departments->count() === 1
+                ? (string) $departments->first()
+                : 'VARIOS DEPARTAMENTOS: '.$departments->implode(', ');
+        }
+
+        $rowDepartment = $this->firstReportTextValue(
+            $row['departamento'] ?? null,
+            $row['regional'] ?? null,
+            $row['regionalNombre'] ?? null
+        );
+        if ($rowDepartment !== '') {
+            return $this->canonicalDepartmentName($rowDepartment);
+        }
+        if (isset($row['codigosSucursal']) && is_array($row['codigosSucursal'])) {
+            return $this->departmentNameFromRegionalRow($row);
+        }
+
+        return 'SIN REGIONAL ASIGNADA';
+    }
+
+    private function cashierFlowInvoiceUserDepartments(Collection $invoicePeople): Collection
+    {
+        if ($invoicePeople->isEmpty() || ! Schema::hasTable('users')) {
+            return collect();
+        }
+
+        $ids = $invoicePeople->pluck('usuarioId')
+            ->filter(fn ($id): bool => is_numeric($id))
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values();
+        $emails = $invoicePeople->pluck('usuarioEmail')
+            ->map(fn ($email): string => mb_strtolower(trim((string) $email)))
+            ->filter()
+            ->unique()
+            ->values();
+        $aliases = $invoicePeople->pluck('usuarioAlias')
+            ->map(fn ($alias): string => mb_strtolower(trim((string) $alias)))
+            ->filter()
+            ->unique()
+            ->values();
+        $hasAlias = Schema::hasColumn('users', 'alias');
+
+        if ($ids->isEmpty() && $emails->isEmpty() && ($aliases->isEmpty() || ! $hasAlias)) {
+            return collect();
+        }
+
+        $users = User::withTrashed()
+            ->where(function ($query) use ($ids, $emails, $aliases, $hasAlias): void {
+                if ($ids->isNotEmpty()) {
+                    $query->whereIn('id', $ids->all());
+                }
+                if ($emails->isNotEmpty()) {
+                    $method = $ids->isNotEmpty() ? 'orWhereIn' : 'whereIn';
+                    $query->{$method}('email', $emails->all());
+                }
+                if ($aliases->isNotEmpty() && $hasAlias) {
+                    $method = $ids->isNotEmpty() || $emails->isNotEmpty() ? 'orWhereIn' : 'whereIn';
+                    $query->{$method}('alias', $aliases->all());
+                }
+            })
+            ->get();
+        $departmentsByIdentity = collect();
+
+        foreach ($users as $user) {
+            $departments = collect($user->regionalesLista())
+                ->map(fn (string $department): string => $this->canonicalDepartmentName($department))
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values()
+                ->all();
+
+            $id = trim((string) $user->id);
+            $email = mb_strtolower(trim((string) $user->email));
+            $alias = mb_strtolower(trim((string) $user->alias));
+            if ($id !== '') {
+                $departmentsByIdentity->put('id:'.$id, $departments);
+            }
+            if ($email !== '') {
+                $departmentsByIdentity->put('email:'.$email, $departments);
+            }
+            if ($alias !== '') {
+                $departmentsByIdentity->put('user:'.$alias, $departments);
+            }
+        }
+
+        return $departmentsByIdentity;
+    }
+
+    private function addReceivablesToCashierDepartmentGroups(
+        Collection $departmentGroups,
+        Collection $pendingByDepartment,
+        int $reportDays
+    ): Collection {
+        $groupsByName = $departmentGroups->keyBy(fn (array $group): string => $this->normalizePersonName((string) $group['departamento']));
+        foreach ($groupsByName as $key => $group) {
+            $group['totalMontoNoCobrado'] = (float) ($group['totalMontoNoCobrado'] ?? 0);
+            $group['totalIngresosIncluyendoPorCobrar'] = (float) ($group['totalIngresosIncluyendoPorCobrar'] ?? $group['totalIngresos'] ?? 0);
+            $group['promedioGeneradoDiario'] = $reportDays > 0
+                ? $group['totalIngresosIncluyendoPorCobrar'] / $reportDays
+                : 0.0;
+            $groupsByName->put($key, $group);
+        }
+
+        foreach ($pendingByDepartment as $department => $pendingAmount) {
+            $department = trim((string) $department) !== '' ? trim((string) $department) : 'SIN REGIONAL ASIGNADA';
+            $key = $this->normalizePersonName($department);
+            $group = $groupsByName->get($key, [
+                'departamento' => $department,
+                'cajeros' => collect(),
+                'cantidadCajeros' => 0,
+                'cantidadVentas' => 0.0,
+                'cantidadDetalles' => 0.0,
+                'totalCantidad' => 0.0,
+                'totalMontoVentanilla' => 0.0,
+                'totalMontoCobrado' => 0.0,
+                'totalMontoFacturadoContratosEca' => 0.0,
+                'totalIngresos' => 0.0,
+                'promedioDiario' => 0.0,
+                'promedioGeneradoDiario' => 0.0,
+                'totalMontoNoCobrado' => 0.0,
+                'totalIngresosIncluyendoPorCobrar' => 0.0,
+            ]);
+            $alreadyIncludedPending = (float) collect($group['cajeros'] ?? [])->sum('totalMontoNoCobrado');
+            $pendingToInclude = max(0, (float) $pendingAmount - $alreadyIncludedPending);
+            $group['totalMontoNoCobrado'] += $pendingToInclude;
+            $group['totalIngresos'] = (float) ($group['totalIngresos'] ?? 0) + $pendingToInclude;
+            $group['totalIngresosIncluyendoPorCobrar'] = (float) $group['totalIngresos'];
+            $group['promedioGeneradoDiario'] = $reportDays > 0
+                ? $group['totalIngresosIncluyendoPorCobrar'] / $reportDays
+                : 0.0;
+            $groupsByName->put($key, $group);
+        }
+
+        return $groupsByName
+            ->sortByDesc('totalIngresosIncluyendoPorCobrar')
             ->values();
     }
 
@@ -2467,6 +3494,114 @@ class FinancialReportController extends Controller
         }
 
         return $rows->sortByDesc('totalIngresos')->values();
+    }
+
+    private function addCashierFlowReceivableInvoicers(Collection $cashierRows, Collection $invoicers): Collection
+    {
+        $rows = $cashierRows
+            ->map(function (array $cashier): array {
+                $cashier['totalIngresos'] = (float) ($cashier['totalIngresos'] ?? $cashier['totalMontoVentanilla'] ?? 0);
+                $cashier['totalMontoFacturadoContratosEca'] = (float) ($cashier['totalMontoFacturadoContratosEca'] ?? 0);
+                $cashier['totalMontoNoCobrado'] = (float) ($cashier['totalMontoNoCobrado'] ?? 0);
+                $cashier['cantidadVentas'] = (float) ($cashier['cantidadVentas'] ?? 0);
+                $cashier['cantidadDetalles'] = (float) ($cashier['cantidadDetalles'] ?? 0);
+                $cashier['totalCantidad'] = (float) ($cashier['totalCantidad'] ?? 0);
+                $cashier['totalIngresosIncluyendoPorCobrar'] = $cashier['totalIngresos'] + $cashier['totalMontoNoCobrado'];
+
+                return $cashier;
+            })
+            ->keyBy(fn (array $cashier): string => $this->cashierIdentity(
+                (string) ($cashier['usuarioId'] ?? ''),
+                (string) ($cashier['usuarioEmail'] ?? ''),
+                (string) ($cashier['usuarioAlias'] ?? ''),
+                (string) ($cashier['usuarioNombre'] ?? '')
+            ));
+
+        $invoicersByIdentity = $invoicers->groupBy(fn (array $invoicer): string => $this->cashierIdentity(
+            (string) ($invoicer['usuarioId'] ?? ''),
+            (string) ($invoicer['usuarioEmail'] ?? ''),
+            (string) ($invoicer['usuarioAlias'] ?? ''),
+            (string) ($invoicer['facturadoPor'] ?? '')
+        ));
+
+        foreach ($invoicersByIdentity as $identity => $personInvoices) {
+            $firstInvoice = (array) $personInvoices->first();
+            $person = [
+                'usuarioId' => (string) ($firstInvoice['usuarioId'] ?? ''),
+                'usuarioNombre' => trim((string) ($firstInvoice['facturadoPor'] ?? '')) ?: 'USUARIO SIN IDENTIFICAR',
+                'usuarioEmail' => (string) ($firstInvoice['usuarioEmail'] ?? ''),
+                'usuarioAlias' => (string) ($firstInvoice['usuarioAlias'] ?? ''),
+            ];
+            $cashierKey = $rows->has($identity)
+                ? (string) $identity
+                : $this->matchingCashierRowKey($rows, $person);
+            $cashier = $cashierKey !== null ? $rows->get($cashierKey) : null;
+            $departments = $personInvoices
+                ->pluck('departamento')
+                ->flatMap(function ($department): array {
+                    $department = trim((string) $department);
+                    if (str_starts_with(mb_strtoupper($department, 'UTF-8'), 'VARIOS DEPARTAMENTOS:')) {
+                        $department = trim(substr($department, strlen('VARIOS DEPARTAMENTOS:')));
+                    }
+
+                    return $department !== '' ? explode(',', $department) : [];
+                })
+                ->map(fn ($department): string => $this->canonicalDepartmentName((string) $department))
+                ->filter(fn (string $department): bool => $department !== '' && ! $this->sameNormalizedText($department, 'SIN REGIONAL ASIGNADA'))
+                ->unique()
+                ->sort()
+                ->values();
+
+            if ($cashier === null) {
+                $cashier = [
+                    'usuarioId' => $person['usuarioId'],
+                    'usuarioNombre' => $person['usuarioNombre'],
+                    'usuarioEmail' => $person['usuarioEmail'],
+                    'usuarioAlias' => $person['usuarioAlias'],
+                    'usuarioCarnet' => '',
+                    'departamentos' => [],
+                    'departamento' => 'SIN REGIONAL ASIGNADA',
+                    'cantidadVentas' => 0.0,
+                    'cantidadDetalles' => 0.0,
+                    'totalCantidad' => 0.0,
+                    'totalMonto' => 0.0,
+                    'totalMontoVendido' => 0.0,
+                    'totalMontoNoIncluidoEnTotalVendido' => 0.0,
+                    'totalMontoVentanilla' => 0.0,
+                    'totalMontoCobrado' => 0.0,
+                    'totalIngresos' => 0.0,
+                    'totalMontoFacturadoContratosEca' => 0.0,
+                    'totalMontoNoCobrado' => 0.0,
+                    'totalIngresosIncluyendoPorCobrar' => 0.0,
+                ];
+                $cashierKey = (string) $identity;
+            }
+
+            $cashier['departamentos'] = collect($cashier['departamentos'] ?? [])
+                ->concat($departments)
+                ->map(fn ($department): string => $this->canonicalDepartmentName((string) $department))
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values()
+                ->all();
+            $cashier['departamento'] = $cashier['departamentos'] !== []
+                ? implode(', ', $cashier['departamentos'])
+                : (string) ($cashier['departamento'] ?? 'SIN REGIONAL ASIGNADA');
+            $cashier['cantidadVentas'] = (float) ($cashier['cantidadVentas'] ?? 0) + (float) $personInvoices->sum('cantidadVentas');
+            $cashier['cantidadDetalles'] = (float) ($cashier['cantidadDetalles'] ?? 0) + (float) $personInvoices->sum('cantidadDetalles');
+            $cashier['totalCantidad'] = (float) ($cashier['totalCantidad'] ?? 0) + (float) $personInvoices->sum('totalCantidad');
+            if (trim((string) ($cashier['usuarioCarnet'] ?? '')) === '') {
+                $cashier['usuarioCarnet'] = (string) ($firstInvoice['usuarioCarnet'] ?? '');
+            }
+            $cashier['totalMontoFacturadoContratosEca'] += (float) $personInvoices->sum('totalFacturado');
+            $cashier['totalMontoNoCobrado'] += (float) $personInvoices->sum('totalNoCobrado');
+            $cashier['totalIngresos'] += (float) $personInvoices->sum('totalNoCobrado');
+            $cashier['totalIngresosIncluyendoPorCobrar'] = (float) $cashier['totalIngresos'];
+            $rows->put((string) $cashierKey, $cashier);
+        }
+
+        return $rows->sortByDesc('totalIngresosIncluyendoPorCobrar')->values();
     }
 
     private function matchingCashierRowKey(Collection $cashierRows, array $person): ?string
@@ -2562,8 +3697,10 @@ class FinancialReportController extends Controller
             }
 
             $knownAmount = (float) collect($cashier['paymentMethods'])->sum('totalMonto');
+            $collectedIncome = max(0, (float) ($cashier['totalIngresos'] ?? $cashier['totalMonto'] ?? 0)
+                - (float) ($cashier['totalMontoNoCobrado'] ?? 0));
             $unclassifiedAmount = max(0, round(
-                (float) ($cashier['totalIngresos'] ?? $cashier['totalMonto'] ?? 0) - $knownAmount,
+                $collectedIncome - $knownAmount,
                 2
             ));
             $cashier['paymentMethods']['otros']['totalMonto'] += $unclassifiedAmount;
@@ -2601,6 +3738,9 @@ class FinancialReportController extends Controller
                 : 0.0;
             $cashier['promedioDiario'] = $reportDays > 0
                 ? (float) ($cashier['totalIngresos'] ?? $cashier['totalMonto'] ?? 0) / $reportDays
+                : 0.0;
+            $cashier['promedioGeneradoDiario'] = $reportDays > 0
+                ? (float) ($cashier['totalIngresosIncluyendoPorCobrar'] ?? $cashier['totalIngresos'] ?? 0) / $reportDays
                 : 0.0;
 
             return $cashier;

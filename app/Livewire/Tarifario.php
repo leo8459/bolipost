@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\Peso;
 use App\Models\Servicio;
 use App\Models\Tarifario as TarifarioModel;
+use App\Models\TarifarioPadre;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -133,6 +134,7 @@ class Tarifario extends Component
 
         return view('livewire.tarifario', [
             'tarifarios' => $tarifarios,
+            'tarifariosPadre' => TarifarioPadre::query()->orderBy('nombre')->get(),
         ]);
     }
 }

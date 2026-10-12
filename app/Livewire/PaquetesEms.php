@@ -415,7 +415,7 @@ class PaquetesEms extends Component
         $this->is_ems = false;
         $this->closePaqueteConfirmModal();
         $this->mostrarConfiguracionTarifario = false;
-        session()->flash('success', "Se publicó la versión {$version->codigo} con {$version->cantidad_items} tramos. Los nuevos envíos usarán esta copia congelada del tarifario.");
+        session()->flash('success', "Se publicó la versión {$version->codigo} con {$version->cantidad_items} tramos. Los nuevos envíos usarán esta copia congelada del tarifario. No vence automáticamente y seguirá vigente hasta que se publique otra versión.");
     }
 
     protected function serviciosDisponiblesQuery(): Builder

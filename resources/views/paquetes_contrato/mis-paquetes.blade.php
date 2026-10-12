@@ -86,6 +86,16 @@
                                             'class' => 'btn btn-sm btn-track',
                                             'text' => 'Rastrear',
                                         ])
+                                        @can('feature.paquetes-contrato.mis-paquetes.print')
+                                            <a href="{{ route('paquetes-contrato.reporte', ['contrato' => $paquete->id, 'reimpreso' => 1]) }}"
+                                               class="btn btn-sm btn-reprint ml-1"
+                                               target="_blank"
+                                               rel="noopener"
+                                               title="Reimprimir rótulo"
+                                               aria-label="Reimprimir rótulo de {{ $paquete->codigo }}">
+                                                <i class="fas fa-print mr-1"></i> Reimprimir rótulo
+                                            </a>
+                                        @endcan
                                     </td>
                                 </tr>
                             @empty
@@ -120,6 +130,16 @@
                                 'class' => 'btn btn-track btn-block',
                                 'text' => 'Rastrear paquete',
                             ])
+                            @can('feature.paquetes-contrato.mis-paquetes.print')
+                                <a href="{{ route('paquetes-contrato.reporte', ['contrato' => $paquete->id, 'reimpreso' => 1]) }}"
+                                   class="btn btn-reprint btn-block mt-2"
+                                   target="_blank"
+                                   rel="noopener"
+                                   title="Reimprimir rótulo"
+                                   aria-label="Reimprimir rótulo de {{ $paquete->codigo }}">
+                                    <i class="fas fa-print mr-1"></i> Reimprimir rótulo
+                                </a>
+                            @endcan
                         </article>
                     @empty
                         <div class="empty-state">
@@ -161,6 +181,8 @@
         .status-pill { display: inline-block; padding: 5px 10px; border-radius: 999px; color: #755700; background: #fff4c7; font-size: .78rem; font-weight: 800; white-space: nowrap; }
         .btn-track { border: 1px solid #20539a; border-radius: 10px; color: #20539a; background: #fff; font-weight: 800; }
         .btn-track:hover { color: #fff; background: #20539a; }
+        .btn-reprint { border: 1px solid #1d7a5a; border-radius: 10px; color: #1d7a5a; background: #fff; font-weight: 800; }
+        .btn-reprint:hover { color: #fff; background: #1d7a5a; }
         .empty-state { padding: 48px 20px !important; color: #64748b; text-align: center; }
         .empty-state i, .empty-state strong, .empty-state span { display: block; }
         .empty-state i { margin-bottom: 10px; color: #94a3b8; font-size: 2rem; }

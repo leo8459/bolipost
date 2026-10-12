@@ -118,6 +118,7 @@ return [
         'feature.carteros.entrega.attempt',
         'feature.paquetes-contrato.index.report',
         'feature.paquetes-contrato.index.print',
+        'feature.paquetes-contrato.mis-paquetes.print',
         'feature.paquetes-contrato.index.create',
         'feature.paquetes-contrato.index.manage',
         'feature.paquetes-contrato.gestor.search',

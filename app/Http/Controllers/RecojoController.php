@@ -1030,7 +1030,20 @@ class RecojoController extends Controller
 
     public function reporte(Recojo $contrato)
     {
-        $this->authorizeAnyPermission(request(), $this->cn33PrintPermissions());
+        $request = request();
+        $printPermissions = $this->cn33PrintPermissions();
+        $this->authorizeAnyPermission($request, array_merge(
+            ['feature.paquetes-contrato.mis-paquetes.print'],
+            $printPermissions
+        ));
+
+        $user = $request->user();
+        $canPrintAnyContract = collect($printPermissions)
+            ->contains(fn (string $permission): bool => $user->can($permission));
+
+        if (! $canPrintAnyContract && (int) $contrato->user_id !== (int) $user->id) {
+            abort(403, 'Solo puedes reimprimir rótulos de tus propios paquetes.');
+        }
 
         $generatedAt = now();
         $numeroCopias = $this->normalizeNumeroCopias(request()->query('copias', 1));
