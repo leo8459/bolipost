@@ -186,7 +186,7 @@
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                                <button type="submit" class="btn btn-primary" @disabled($tarifariosPadre->isEmpty())>Generar PDF</button>
+                                <button type="submit" class="btn btn-primary" data-pdf-modal-ignore @disabled($tarifariosPadre->isEmpty())>Generar PDF</button>
                             </div>
                         </form>
                     </div>

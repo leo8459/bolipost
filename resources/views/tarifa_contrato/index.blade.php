@@ -27,6 +27,9 @@
                                 <a href="{{ route('tarifa-contrato.reporte') }}" target="_blank" class="btn btn-outline-dark btn-sm">
                                     Generar reporte
                                 </a>
+                                <a href="{{ route('tarifa-contrato.reporte-detalle') }}" target="_blank" class="btn btn-primary btn-sm">
+                                    Detalle tarifario PDF
+                                </a>
                                 @endif
                                 @aclcan('import', null, 'tarifa-contrato')
                                 <a href="{{ route('tarifa-contrato.import-form') }}" class="btn btn-info btn-sm">

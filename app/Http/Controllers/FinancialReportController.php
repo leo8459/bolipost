@@ -143,18 +143,11 @@ class FinancialReportController extends Controller
             ->reject(fn (array $invoice): bool => $this->isCashierFlowReceivableService((string) ($invoice['_servicio'] ?? '')))
             ->groupBy('_servicio')
             ->map(fn (Collection $invoices): float => (float) $invoices->sum('monto'));
-        $cancelledReceivablesByService = $cancelledInvoices
-            ->filter(fn (array $invoice): bool => $this->isCashierFlowReceivableService((string) ($invoice['_servicio'] ?? '')))
-            ->groupBy('_servicio')
-            ->map(fn (Collection $invoices): float => (float) $invoices->sum('monto'));
-        $receivableRows = $receivableRows->map(function (array $service) use ($cancelledReceivablesByService): array {
-            $serviceName = (string) ($service['servicio'] ?? '');
-            $service['totalMonto'] = max(0, (float) ($service['totalMonto'] ?? 0) - (float) $cancelledReceivablesByService->get($serviceName, 0));
-
-            return $service;
-        })->values();
         $data['services'] = collect($data['services'])->map(function (array $service) use ($cancelledByService): array {
-            $service['totalMontoAnulado'] = (float) $cancelledByService->get((string) ($service['servicio'] ?? ''), 0);
+            $annulledAmount = (float) $cancelledByService->get((string) ($service['servicio'] ?? ''), 0);
+            $service['totalMontoAnulado'] = $annulledAmount;
+            $service['totalMontoNoIncluidoEnTotalVendido'] = (float) ($service['totalMontoNoIncluidoEnTotalVendido'] ?? 0)
+                + $annulledAmount;
 
             return $service;
         })->values();
@@ -414,7 +407,10 @@ class FinancialReportController extends Controller
             ->groupBy('_servicio')
             ->map(fn (Collection $invoices): float => (float) $invoices->sum('monto'));
         $data['services'] = collect($data['services'])->map(function (array $service) use ($cancelledByService): array {
-            $service['totalMontoAnulado'] = (float) $cancelledByService->get((string) ($service['servicio'] ?? ''), 0);
+            $annulledAmount = (float) $cancelledByService->get((string) ($service['servicio'] ?? ''), 0);
+            $service['totalMontoAnulado'] = $annulledAmount;
+            $service['totalMontoNoIncluidoEnTotalVendido'] = (float) ($service['totalMontoNoIncluidoEnTotalVendido'] ?? 0)
+                + $annulledAmount;
 
             return $service;
         })->values();
@@ -471,18 +467,6 @@ class FinancialReportController extends Controller
         $data['cashierFlowCancellationLookupErrors'] = $invoiceAudit['errors']
             ->concat($collectionAudit['errors'])
             ->unique()
-            ->values();
-        $cancelledReceivablesByService = $periodCancelledInvoices
-            ->filter(fn (array $invoice): bool => $this->isCashierFlowReceivableService((string) ($invoice['_servicio'] ?? '')))
-            ->groupBy('_servicio')
-            ->map(fn (Collection $invoices): float => (float) $invoices->sum('monto'));
-        $data['receivableServices'] = collect($data['receivableServices'] ?? [])
-            ->map(function (array $service) use ($cancelledReceivablesByService): array {
-                $serviceName = (string) ($service['servicio'] ?? '');
-                $service['totalMonto'] = max(0, (float) ($service['totalMonto'] ?? 0) - (float) $cancelledReceivablesByService->get($serviceName, 0));
-
-                return $service;
-            })
             ->values();
         $reportProgress(91, 'Separando el saldo pendiente por departamento…');
         $receivableDepartmentBreakdown = $this->cashierFlowReceivableDepartmentBreakdown(
@@ -2376,6 +2360,7 @@ class FinancialReportController extends Controller
             'actualizar' => ['nullable', 'boolean'],
             'buscar' => ['nullable', 'string', 'max:180'],
             'solo_cobrados' => ['nullable', 'boolean'],
+            'clasificacion' => ['nullable', Rule::in(['todos', 'incluido', 'no_incluido', 'qr_anulado', 'anulado', 'sin_clasificar'])],
         ]);
 
         $year = (int) ($validated['anio'] ?? now()->year);
@@ -2393,6 +2378,7 @@ class FinancialReportController extends Controller
         $isModal = true;
         $refresh = (bool) ($validated['actualizar'] ?? false);
         $showCollectedOnly = (bool) ($validated['solo_cobrados'] ?? false);
+        $classification = (string) ($validated['clasificacion'] ?? 'todos');
         $serviceOptions = $selectedServices->keyBy(fn ($service) => mb_strtoupper($service, 'UTF-8'));
         $errors = collect();
 
@@ -2466,6 +2452,59 @@ class FinancialReportController extends Controller
             ])->all());
         }
 
+        $isCashierFlowReceivableDetail = $request->boolean('flujo_cajero')
+            && $selectedServices->isNotEmpty()
+            && $selectedServices->every(fn (string $serviceName): bool => $this->isCashierFlowReceivableService($serviceName));
+        if ($isCashierFlowReceivableDetail) {
+            $rows = $rows->map(function (array $row): array {
+                $row['_facturaAnulada'] = $this->isCancelledCashierFlowInvoice($row);
+                $row['_estadoFiscal'] = trim((string) ($row['estadoFiscal'] ?? $row['estado_fiscal'] ?? ''));
+                $row['_estadoPago'] = trim((string) ($row['estadoPago'] ?? $row['estado_pago'] ?? ''));
+                $row['_mesServicio'] = $this->monthFromDescription((string) ($row['descripcion'] ?? ''));
+
+                return $row;
+            });
+            $annulledRows = $rows->filter(fn (array $row): bool => (bool) ($row['_facturaAnulada'] ?? false));
+            $validRows = $rows->reject(fn (array $row): bool => (bool) ($row['_facturaAnulada'] ?? false));
+            $lineAmount = fn (array $row): float => (float) ($row['totalLinea'] ?? $row['monto'] ?? 0);
+            $countSales = function (Collection $invoiceRows): int {
+                $saleIds = $invoiceRows->pluck('ventaId')->map(fn ($id): string => trim((string) $id))->filter()->unique();
+
+                return $saleIds->isNotEmpty() ? $saleIds->count() : $invoiceRows->count();
+            };
+            $validAmount = (float) $validRows->sum($lineAmount);
+            $annulledAmount = (float) $annulledRows->sum($lineAmount);
+
+            $service['detallePorFacturaCompleto'] = $errors->isEmpty();
+            if ($service['detallePorFacturaCompleto']) {
+                $service['cantidadVentas'] = $countSales($validRows);
+                $service['cantidadDetalles'] = $validRows->count();
+                $service['totalCantidad'] = (float) $validRows->sum(fn (array $row): float => (float) ($row['cantidad'] ?? 0));
+                $service['totalMonto'] = $validAmount;
+                $service['totalMontoVendido'] = $validAmount;
+            }
+            $service['totalMontoAnulado'] = $annulledAmount;
+            $service['cantidadMovimientosDetalle'] = $rows->count();
+            $service['cantidadLineasAnuladas'] = $annulledRows->count();
+            $service['cantidadFacturasAnuladas'] = $countSales($annulledRows);
+            $service['totalMontoAnuladoDetalle'] = $annulledAmount;
+            $service['totalMontoBrutoDetalle'] = $validAmount + $annulledAmount;
+        }
+
+        $rows = $rows->map(function (array $row) use ($isCashierFlowReceivableDetail): array {
+            if ((bool) ($row['_facturaAnulada'] ?? false)) {
+                $row['_clasificacionTotalVendido'] = $this->cashierFlowPaymentMethod($row) === 'qr'
+                    ? 'qr_anulado'
+                    : 'anulado';
+            } elseif ($isCashierFlowReceivableDetail) {
+                $row['_clasificacionTotalVendido'] = 'incluido';
+            } else {
+                $row['_clasificacionTotalVendido'] = $this->serviceDetailRowClassification($row);
+            }
+
+            return $row;
+        });
+
         $canManageReceivables = $isModal
             && $request->boolean('flujo_cajero')
             && $selectedServices->isNotEmpty()
@@ -2506,13 +2545,15 @@ class FinancialReportController extends Controller
 
                 return $row;
             });
-            $paidRows = $rows->filter(fn (array $row): bool => (bool) ($row['_cobroRealizado'] ?? false));
+            $paidRows = $rows->filter(fn (array $row): bool => ! ($row['_facturaAnulada'] ?? false)
+                && (bool) ($row['_cobroRealizado'] ?? false));
             $service['totalMontoCobrado'] = (float) $paidRows->sum('_montoCobrado');
             $service['cantidadMovimientosCobrados'] = $paidRows->count();
             $service['cantidadVentasCobradas'] = $paidRows->pluck('ventaId')->filter()->unique()->count();
             $service['totalMontoPendiente'] = max(0, (float) $service['totalMonto'] - $service['totalMontoCobrado']);
             if ($showCollectedOnly) {
-                $rows = $rows->filter(fn (array $row): bool => (bool) ($row['_cobroRealizado'] ?? false))->values();
+                $rows = $rows->filter(fn (array $row): bool => ! ($row['_facturaAnulada'] ?? false)
+                    && (bool) ($row['_cobroRealizado'] ?? false))->values();
             }
         }
 
@@ -2534,8 +2575,10 @@ class FinancialReportController extends Controller
                     $row['codigoOrden'] ?? '',
                     $row['codigoSeguimiento'] ?? '',
                     $row['fecha'] ?? '',
-                    $row['totalLinea'] ?? '',
-                    \App\Support\BolivianNumber::format((float) ($row['totalLinea'] ?? 0), 2),
+                    $row['_estadoFiscal'] ?? '',
+                    $row['_estadoPago'] ?? '',
+                    $row['totalLinea'] ?? $row['monto'] ?? '',
+                    \App\Support\BolivianNumber::format((float) ($row['totalLinea'] ?? $row['monto'] ?? 0), 2),
                 ];
                 $haystack = collect($searchableValues)
                     ->filter(fn ($value): bool => is_scalar($value))
@@ -2545,6 +2588,37 @@ class FinancialReportController extends Controller
                 return str_contains(mb_strtolower(Str::ascii($haystack)), $normalizedSearch);
             })->values();
         }
+
+        $classificationLabels = [
+            'incluido' => 'Incluido en total vendido',
+            'no_incluido' => 'Fuera del total vendido (incluye anulados)',
+            'qr_anulado' => 'QR ANULADOS',
+            'anulado' => 'Otros anulados/cancelados',
+            'sin_clasificar' => 'Sin clasificar',
+        ];
+        $classificationSummary = [
+            'todos' => [
+                'label' => 'Todos los movimientos',
+                'count' => $rows->count(),
+                'amount' => (float) $rows->sum(fn (array $row): float => (float) ($row['totalLinea'] ?? $row['monto'] ?? 0)),
+            ],
+        ];
+        foreach ($classificationLabels as $key => $label) {
+            $matchingRows = $key === 'no_incluido'
+                ? $rows->whereIn('_clasificacionTotalVendido', ['no_incluido', 'qr_anulado', 'anulado'])
+                : $rows->where('_clasificacionTotalVendido', $key);
+            $classificationSummary[$key] = [
+                'label' => $label,
+                'count' => $matchingRows->count(),
+                'amount' => (float) $matchingRows->sum(fn (array $row): float => (float) ($row['totalLinea'] ?? $row['monto'] ?? 0)),
+            ];
+        }
+        if ($classification !== 'todos') {
+            $rows = $classification === 'no_incluido'
+                ? $rows->whereIn('_clasificacionTotalVendido', ['no_incluido', 'qr_anulado', 'anulado'])->values()
+                : $rows->where('_clasificacionTotalVendido', $classification)->values();
+        }
+
         $page = max(1, (int) $request->query('page', 1));
         $perPage = $isModal ? 20 : 50;
         $paginatedRows = new LengthAwarePaginator(
@@ -2563,10 +2637,13 @@ class FinancialReportController extends Controller
             'serviceOptions' => $serviceOptions->sortKeys()->values(),
             'serviceName' => $selectedServices->implode(', '),
             'service' => $service,
+            'isCashierFlowReceivableDetail' => $isCashierFlowReceivableDetail,
             'rows' => $paginatedRows,
             'errors' => $errors,
             'error' => $errors->first(),
             'searchTerm' => $searchTerm,
+            'classification' => $classification,
+            'classificationSummary' => $classificationSummary,
             'canManageReceivables' => $canManageReceivables,
             'cashierFlowContext' => $cashierFlowContext,
             'showCollectedOnly' => $showCollectedOnly && $canManageReceivables,
@@ -2575,6 +2652,40 @@ class FinancialReportController extends Controller
         return response()
             ->view('financial-reports.partials.service-detail-modal-content', $viewData)
             ->header('X-Flow-Detail-Fragment', '1');
+    }
+
+    private function serviceDetailRowClassification(array $row): string
+    {
+        $annulled = filter_var($row['anulada'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $fiscalStatus = $this->normalizePersonName((string) ($row['estadoFiscal'] ?? $row['estado_fiscal'] ?? ''));
+        $paymentStatus = $this->normalizePersonName((string) ($row['estadoPago'] ?? $row['estado_pago'] ?? ''));
+        $isPaymentCancelled = in_array($paymentStatus, ['ANULADA', 'ANULADO', 'CANCELADA', 'CANCELADO'], true);
+        $isInvoiceAnnulled = $annulled || in_array($fiscalStatus, ['ANULADA', 'ANULADO'], true);
+        if ($this->cashierFlowPaymentMethod($row) === 'qr' && ($isInvoiceAnnulled || $isPaymentCancelled)) {
+            return 'qr_anulado';
+        }
+        if ($isInvoiceAnnulled || $isPaymentCancelled) {
+            return 'anulado';
+        }
+
+        $included = $row['incluidaEnTotalVendido'] ?? null;
+        if (is_bool($included)) {
+            return $included ? 'incluido' : 'no_incluido';
+        }
+        if (is_numeric($included)) {
+            return (bool) $included ? 'incluido' : 'no_incluido';
+        }
+        if (is_string($included)) {
+            $normalized = mb_strtoupper(trim($included), 'UTF-8');
+            if (in_array($normalized, ['SI', 'SÍ', 'TRUE', '1'], true)) {
+                return 'incluido';
+            }
+            if (in_array($normalized, ['NO', 'FALSE', '0'], true)) {
+                return 'no_incluido';
+            }
+        }
+
+        return 'sin_clasificar';
     }
 
     private function logDetailError(\Throwable $exception, ?string $service, int $month, int $year): void

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Empresa;
 use App\Models\TarifaContrato;
+use App\Services\TarifaContratoDetallePdf;
 use App\Support\AclPermissionRegistry;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -34,6 +35,45 @@ class TarifaContratoController extends Controller
         'ENVIO INTERPROVINCIAL',
         'ENVIO INTERPROVINCIAL TERRESTRE',
         'ENVIO INTERPROVINCIAL AEREO',
+    ];
+
+    /**
+     * Familias que se presentan en las cinco tablas del reporte.
+     * Las modalidades terrestre y aerea se conservan en la columna Servicio.
+     */
+    private const GRUPOS_SERVICIO_REPORTE = [
+        [
+            'titulo' => 'Envío nacional regular',
+            'servicios' => [
+                'ENVIO NACIONAL (REGULAR)',
+                'ENVIO NACIONAL (REGULAR) TERRESTRE',
+                'ENVIO NACIONAL (REGULAR) AEREO',
+            ],
+        ],
+        [
+            'titulo' => 'Envío nacional express',
+            'servicios' => [
+                'ENVIO NACIONAL (EXPRESS)',
+                'ENVIO NACIONAL (EXPRESS) TERRESTRE',
+                'ENVIO NACIONAL (EXPRESS) AEREO',
+            ],
+        ],
+        [
+            'titulo' => 'Envío local regular',
+            'servicios' => ['ENVIO LOCAL(REGULAR)'],
+        ],
+        [
+            'titulo' => 'Envío local express',
+            'servicios' => ['ENVIO LOCAL(EXPRESS)'],
+        ],
+        [
+            'titulo' => 'Envío interprovincial',
+            'servicios' => [
+                'ENVIO INTERPROVINCIAL',
+                'ENVIO INTERPROVINCIAL TERRESTRE',
+                'ENVIO INTERPROVINCIAL AEREO',
+            ],
+        ],
     ];
 
     private const DEPARTAMENTOS = [
@@ -808,6 +848,96 @@ class TarifaContratoController extends Controller
         ])->setPaper('A4', 'portrait');
 
         return $pdf->stream('reporte-tarifas-contrato-' . $generatedAt->format('Ymd-His') . '.pdf');
+    }
+
+    public function reporteDetalle()
+    {
+        $this->authorizeTarifaContratoAnyButtonAction(['report', 'export']);
+
+        $tarifas = TarifaContrato::query()
+            ->with(['empresa:id,nombre,codigo_cliente'])
+            ->orderBy('empresa_id')
+            ->orderBy('origen')
+            ->orderBy('destino')
+            ->orderBy('provincia')
+            ->orderBy('provincia_origen')
+            ->orderBy('servicio')
+            ->get();
+
+        $gruposServicio = collect(self::GRUPOS_SERVICIO_REPORTE)
+            ->map(fn (array $grupo): array => [
+                ...$grupo,
+                'servicios_normalizados' => array_map(
+                    fn (string $servicio): string => $this->normalizeServicio($servicio),
+                    $grupo['servicios']
+                ),
+            ]);
+
+        $empresasConTarifas = $tarifas
+            ->groupBy(fn (TarifaContrato $tarifa) => $tarifa->empresa_id ?? 0)
+            ->map(fn ($tarifasEmpresa): array => [
+                'empresa' => $tarifasEmpresa->first()?->empresa,
+                'tarifas' => $tarifasEmpresa,
+            ])
+            ->sortBy(fn (array $grupo): string => strtoupper((string) ($grupo['empresa']?->nombre ?? 'SIN EMPRESA'))
+                . '|' . strtoupper((string) ($grupo['empresa']?->codigo_cliente ?? '')))
+            ->values();
+
+        $generatedAt = now();
+        $pdf = new TarifaContratoDetallePdf($generatedAt->format('d/m/Y H:i'));
+
+        foreach ($empresasConTarifas as $grupoEmpresa) {
+            $empresa = $grupoEmpresa['empresa'];
+            $tarifasEmpresa = $grupoEmpresa['tarifas'];
+
+            $pdf->beginCompany(
+                $empresa?->nombre ?: 'Sin empresa',
+                $empresa?->codigo_cliente ?: '—'
+            );
+
+            foreach ($gruposServicio as $grupoServicio) {
+                $tarifasServicio = $tarifasEmpresa
+                    ->filter(fn (TarifaContrato $tarifa): bool => in_array(
+                        $this->normalizeServicio((string) $tarifa->servicio),
+                        $grupoServicio['servicios_normalizados'],
+                        true
+                    ))
+                    ->values();
+
+                if ($tarifasServicio->isEmpty()) {
+                    continue;
+                }
+
+                $pdf->beginServiceGroup(
+                    $grupoServicio['titulo'],
+                    $grupoServicio['servicios'],
+                    $tarifasServicio->count()
+                );
+
+                foreach ($tarifasServicio as $tarifa) {
+                    $pdf->addTariffRow([
+                        $tarifa->servicio ?: '—',
+                        $tarifa->origen ?: '—',
+                        $tarifa->destino ?: '—',
+                        $tarifa->direccion ?: '—',
+                        $tarifa->zona ?: '—',
+                        $tarifa->peso !== null ? \App\Support\BolivianNumber::format($tarifa->peso, 2) : '—',
+                        \App\Support\BolivianNumber::format($tarifa->kilo, 2),
+                        \App\Support\BolivianNumber::format($tarifa->kilo_extra, 2),
+                        $tarifa->provincia ?: '—',
+                        $tarifa->provincia_origen ?: '—',
+                        $tarifa->horas_entrega !== null ? \App\Support\BolivianNumber::format($tarifa->horas_entrega) . ' h' : '—',
+                    ]);
+                }
+            }
+        }
+
+        $filename = 'detalle-tarifario-contratos-' . $generatedAt->format('Ymd-His') . '.pdf';
+
+        return response($pdf->outputPdf(), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+        ]);
     }
 
     public function edit(TarifaContrato $tarifaContrato)

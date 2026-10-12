@@ -79,7 +79,10 @@ class TarifarioController extends Controller
 
         $grouped = $tarifarios
             ->groupBy(fn ($item) => optional($item->servicio)->nombre_servicio ?: 'SIN SERVICIO')
-            ->sortKeys();
+            ->sortKeys()
+            ->map(fn ($items) => $items
+                ->sortBy(fn ($item) => (float) optional($item->peso)->peso_inicial, SORT_NUMERIC)
+                ->values());
 
         $pdf = Pdf::loadView('tarifario.report-pdf', [
             'groupedTarifarios' => $grouped,

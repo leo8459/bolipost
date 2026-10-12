@@ -539,6 +539,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::post('/tarifa-contrato/import', [TarifaContratoController::class, 'import'])->name('tarifa-contrato.import');
     Route::get('/tarifa-contrato/plantilla-excel', [TarifaContratoController::class, 'downloadTemplateExcel'])->name('tarifa-contrato.template-excel');
     Route::get('/tarifa-contrato/reporte', [TarifaContratoController::class, 'reporte'])->name('tarifa-contrato.reporte');
+    Route::get('/tarifa-contrato/reporte-detalle', [TarifaContratoController::class, 'reporteDetalle'])->name('tarifa-contrato.reporte-detalle');
     Route::get('/tarifario-tiktoker', [TarifarioTiktokerController::class, 'index'])->name('tarifario-tiktoker.index');
     Route::get('/tarifario-tiktoker/pdf', [TarifarioTiktokerController::class, 'exportPdf'])->name('tarifario-tiktoker.pdf');
     Route::get('/tarifario-tiktoker/excel', [TarifarioTiktokerController::class, 'downloadReportExcel'])->name('tarifario-tiktoker.excel');

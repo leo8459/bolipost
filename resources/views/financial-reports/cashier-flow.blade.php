@@ -67,6 +67,9 @@
         .flow-detail-search-form .form-control, .flow-detail-search-form .input-group-text, .flow-detail-search-form .btn { font-size: 1.1rem; min-height: 54px; }
         .flow-detail-search-form .input-group-text { color: #102a43; background: #f3f7fc; }
         .flow-detail-search-help { color: #334e68; font-size: 1rem; margin-top: .4rem; }
+        .flow-detail-classification-filters { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 1.25rem; }
+        .flow-detail-classification-button { display: flex; flex-direction: column; align-items: flex-start; min-width: 190px; padding: .55rem .8rem; text-align: left; }
+        .flow-detail-classification-button small { opacity: .85; }
         .flow-detail-list-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .5rem; margin-bottom: .75rem; }
         .flow-detail-list-heading h5 { color: #102a43; font-size: 1.3rem; font-weight: 700; }
         .flow-detail-list-heading span { font-weight: 600; }
@@ -206,6 +209,21 @@
             });
 
             detailModal.addEventListener('click', function (event) {
+                var classificationButton = event.target.closest('[data-flow-detail-classification]');
+                if (classificationButton && currentUrl) {
+                    var classificationUrl = new URL(currentUrl, window.location.href);
+                    var classification = classificationButton.dataset.flowDetailClassification;
+                    if (classification === 'todos') {
+                        classificationUrl.searchParams.delete('clasificacion');
+                    } else {
+                        classificationUrl.searchParams.set('clasificacion', classification);
+                    }
+                    classificationUrl.searchParams.delete('page');
+                    classificationUrl.searchParams.delete('actualizar');
+                    loadDetail(classificationUrl.toString());
+                    return;
+                }
+
                 var clearButton = event.target.closest('[data-flow-detail-clear]');
                 if (clearButton) {
                     var clearUrl = new URL(currentUrl, window.location.href);
@@ -377,7 +395,7 @@
             ['Cajeros', $cashierRows->count(), 'fa-users', 'secondary'],
             ['Cantidad de paquetes', $summary['totalCantidad'] ?? 0, 'fa-boxes', 'warning'],
             ['Total vendido de servicios', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['totalSinContratosEca'] ?? $summary['totalMontoVendido'] ?? $summary['totalMonto'] ?? 0), 2), 'fa-coins', 'info'],
-            ['No incluido en total vendido', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['totalMontoNoIncluidoEnTotalVendido'] ?? 0), 2), 'fa-exclamation-circle', 'warning'],
+            ['QR ANULADOS', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['totalMontoNoIncluidoEnTotalVendido'] ?? 0), 2), 'fa-exclamation-circle', 'warning'],
             ['Facturas anuladas', 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['totalMontoAnulado'] ?? 0), 2), 'fa-ban', 'danger'],
             ['Ingresos recaudados (incluye Contratos y ECA)', 'Bs ' . \App\Support\BolivianNumber::format((float) ($totalReportAmountIncludingReceivables ?? $summary['totalRecaudado'] ?? $summary['totalMonto'] ?? 0), 2), 'fa-cash-register', 'primary'],
         ] as $metric)
@@ -590,6 +608,7 @@
             <div>
                 <strong>Ingresos por servicio</strong>
                 <div class="text-muted small">Haga clic en un grupo para mostrar u ocultar sus subservicios.</div>
+                <div class="text-muted small">“QR ANULADOS” agrupa los montos fuera del total vendido y las facturas anuladas. La columna “Anulado” muestra la parte correspondiente a anulaciones.</div>
             </div>
         </div>
         <div class="card-body p-0">
@@ -604,7 +623,7 @@
                             <th class="text-right">Detalles</th>
                             <th class="text-right">Cantidad de paquetes</th>
                             <th class="text-right">Total vendido</th>
-                            <th class="text-right">No incluido</th>
+                            <th class="text-right">QR ANULADOS</th>
                             <th class="text-right">Anulado</th>
                             <th>Última fecha</th>
                             <th class="text-center">Movimientos</th>
