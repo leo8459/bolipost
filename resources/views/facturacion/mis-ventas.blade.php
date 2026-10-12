@@ -260,6 +260,10 @@
                         <a href="{{ route($pageContext['export_route'], request()->query()) }}" target="_blank" rel="noopener" class="btn btn-outline-primary mr-2 mb-2">
                             <i class="fas fa-file-pdf mr-1"></i> Reporte PDF sucursal
                         </a>
+                    @elseif($routeScope === 'own')
+                        <a href="{{ route($pageContext['export_route'], request()->query()) }}" target="_blank" rel="noopener" class="btn btn-outline-primary mr-2 mb-2">
+                            <i class="fas fa-file-pdf mr-1"></i> PDF Mis ventas
+                        </a>
                     @endif
                     <a href="{{ route($pageContext['filter_route']) }}" class="btn btn-outline-secondary mb-2">
                         <i class="fas fa-undo mr-1"></i> Reiniciar
