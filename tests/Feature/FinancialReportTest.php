@@ -396,7 +396,7 @@ class FinancialReportTest extends TestCase
         ]));
 
         $response->assertOk()
-            ->assertSee('Flujo de cajero')
+            ->assertSee('Ingresos')
             ->assertSee('Reporte ejecutivo resumido')
             ->assertSee('Cajero con mayor ingreso')
             ->assertSee('Filtrando datos')

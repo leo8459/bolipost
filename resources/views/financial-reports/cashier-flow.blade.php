@@ -1,11 +1,11 @@
 @extends('adminlte::page')
 
-@section('title', 'Flujo de cajero')
+@section('title', 'Ingresos')
 
 @section('content_header')
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center">
         <div>
-            <h1 class="mb-0">Flujo de cajero</h1>
+            <h1 class="mb-0">Ingresos</h1>
             <small class="text-muted">Ventas facturadas consolidadas por servicio y cajero.</small>
         </div>
         <div class="mt-2 mt-md-0">
@@ -16,7 +16,8 @@
                class="btn btn-danger btn-sm mr-1"
                data-report-download
                data-wait-for-download
-               data-loading-title="Generando reporte de flujo de caja"
+               data-pdf-modal-ignore
+               data-loading-title="Generando reporte de ingresos"
                data-loading-message="Estamos consultando los datos y armando el PDF ejecutivo.">
                 <i class="fas fa-file-pdf mr-1"></i> Descargar reporte ejecutivo
             </a>
@@ -41,16 +42,20 @@
         .cashier-meta { line-height: 1.25; }
         .service-group-row { cursor: pointer; background: #f8fbff !important; border-top: 2px solid #d8e6f5; }
         .service-group-row:hover { background: #edf5ff !important; }
+        .service-family-row { cursor: pointer; background: #edf5ff !important; }
+        .service-family-row:hover { background: #e4effb !important; }
+        .service-item-row { background: #fff; }
         .group-toggle-button { display: inline-flex; align-items: center; min-width: 44px; min-height: 40px; border: 0; background: transparent; color: #102a43; font-weight: 600; }
         .group-toggle-button:focus { outline: 3px solid #13539b; outline-offset: 2px; }
         .group-chevron { display: inline-flex; width: 24px; height: 24px; margin-right: 3px; align-items: center; justify-content: center; border-radius: 50%; color: #13539b; background: #e2eefc; transition: transform .2s ease; }
         .service-group-row.is-open .group-chevron { transform: rotate(90deg); }
+        .service-family-row.is-open .group-chevron { transform: rotate(90deg); }
         .flow-section-toggle { display: inline-flex; align-items: center; gap: .5rem; padding: 0; border: 0; background: transparent; color: #102a43; font-weight: 700; text-align: left; }
         .flow-section-toggle:focus { outline: 3px solid #13539b; outline-offset: 3px; }
         .flow-section-toggle .group-chevron { flex: 0 0 24px; margin: 0; }
         .flow-section-toggle[aria-expanded="true"] .group-chevron { transform: rotate(90deg); }
-        .service-child-row { background: #fff; }
         .child-service-name { position: relative; padding-left: 45px !important; font-weight: 600; }
+        .service-family-name { font-weight: 700; }
         .child-connector { position: absolute; left: 20px; top: 0; width: 16px; height: 50%; border-left: 2px solid #cbd5e0; border-bottom: 2px solid #cbd5e0; border-radius: 0 0 0 6px; }
         .flow-detail-open { min-height: 42px; min-width: 112px; font-size: 1rem; font-weight: 600; }
         .flow-detail-dialog { width: calc(100% - 2rem); max-width: 1220px; }
@@ -118,23 +123,34 @@
                 window.history.replaceState(window.history.state, '', pageUrl.pathname + pageUrl.search + pageUrl.hash);
             }
 
-            document.querySelectorAll('[data-flow-group-toggle]').forEach(function (row) {
+            function setServiceGroupExpanded(row, open) {
+                var groupId = row.dataset.flowToggleId;
                 var button = row.querySelector('[data-flow-toggle-button]');
-                function toggleGroup() {
-                    var groupId = row.dataset.flowGroupToggle;
-                    var open = button.getAttribute('aria-expanded') !== 'true';
-                    button.setAttribute('aria-expanded', open ? 'true' : 'false');
-                    button.setAttribute('aria-label', (open ? 'Ocultar' : 'Mostrar') + ' subservicios de ' + button.dataset.flowToggleName);
-                    row.classList.toggle('is-open', open);
-                    document.querySelectorAll('[data-flow-group-child="' + groupId + '"]').forEach(function (child) {
-                        child.classList.toggle('d-none', !open);
-                    });
+                if (!groupId || !button) {
+                    return;
                 }
 
-                row.addEventListener('click', function (event) {
-                    if (!event.target.closest('[data-flow-detail-trigger]')) {
-                        toggleGroup();
+                button.setAttribute('aria-expanded', open ? 'true' : 'false');
+                button.setAttribute('aria-label', (open ? 'Ocultar' : 'Mostrar') + ' servicios de ' + button.dataset.flowToggleName);
+                row.classList.toggle('is-open', open);
+                document.querySelectorAll('[data-flow-parent="' + groupId + '"]').forEach(function (child) {
+                    child.classList.toggle('d-none', !open);
+                    if (!open && child.hasAttribute('data-flow-toggle-row')) {
+                        setServiceGroupExpanded(child, false);
                     }
+                });
+            }
+
+            document.querySelectorAll('[data-flow-toggle-row]').forEach(function (row) {
+                var button = row.querySelector('[data-flow-toggle-button]');
+                row.addEventListener('click', function (event) {
+                    if (event.target.closest('[data-flow-detail-trigger]')) {
+                        return;
+                    }
+
+                    event.stopPropagation();
+                    var open = button.getAttribute('aria-expanded') !== 'true';
+                    setServiceGroupExpanded(row, open);
                 });
             });
 
@@ -322,7 +338,7 @@
         'showDepartmentFilter' => true,
         'departmentOptions' => $departmentOptions,
         'selectedDepartment' => $selectedDepartment,
-        'filterTitle' => 'Prepare el flujo de cajero',
+        'filterTitle' => 'Prepare el reporte de ingresos',
         'filterHelp' => 'Seleccione los servicios y meses que desea consolidar. Contratos y ECA Internacional se consultan por separado y aparecen en cuentas por cobrar, aunque no los seleccione aquí.',
     ])
 
@@ -556,6 +572,10 @@
             </div>
         </div>
         <div class="card-body p-0" id="cashier-by-cashier-content">
+            <div class="text-muted small px-3 pt-2">El total general y los subtotales por departamento usan ventas únicas. Las filas individuales de cajeros muestran facturados por servicio y pueden solaparse si una venta incluye varios servicios.</div>
+            @if(!empty($cashierFlowDepartmentSalesCountWarning))
+                <div class="alert alert-warning mx-3 mt-2 mb-0 py-2">{{ $cashierFlowDepartmentSalesCountWarning }}</div>
+            @endif
             <div class="table-responsive">
                 @php($cashierTotal = (float) $cashierDepartmentGroups->sum('totalIngresos'))
                 <table class="table table-sm table-striped table-hover mb-0 financial-table">
@@ -564,7 +584,7 @@
                             <th class="text-center">#</th>
                             <th>Cajero</th>
                             <th>Regional / departamento</th>
-                            <th class="text-right">Operaciones</th>
+                            <th class="text-right">Facturados</th>
                             <th class="text-right">Detalles</th>
                             <th class="text-right">Cantidad de paquetes</th>
                             <th class="text-right">Paquetes promedio por día</th>
@@ -622,7 +642,7 @@
                         <tfoot class="font-weight-bold">
                             <tr>
                                 <td colspan="3">Totales</td>
-                                <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $cashierRows->sum('cantidadVentas')) }}</td>
+                                <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($summary['cantidadVentas'] ?? $cashierRows->sum('cantidadVentas'))) }}</td>
                                 <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $cashierRows->sum('cantidadDetalles')) }}</td>
                                 <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $cashierRows->sum('totalCantidad'), 2) }}</td>
                                 <td></td>
@@ -645,8 +665,9 @@
                 <span class="group-chevron"><i class="fas fa-chevron-right" aria-hidden="true"></i></span>
             </button>
             <div class="ml-5">
-                <div class="text-muted small">Haga clic en un grupo para mostrar u ocultar sus subservicios.</div>
-                <div class="text-muted small">“QR ANULADOS” agrupa los montos fuera del total vendido y las facturas anuladas. La columna “Anulado” muestra la parte correspondiente a anulaciones.</div>
+                <div class="text-muted small">Abra VENTANILLAS o Contratos para ver los servicios; abra cada grupo de servicio para ver sus movimientos.</div>
+                <div class="text-muted small">VENTANILLAS muestra ventas únicas; los conteos por servicio pueden solaparse cuando una venta incluye varios servicios.</div>
+                <div class="text-muted small">Cobrado + Cobrado QR = Total recaudado. Cobrado QR excluye las facturas anuladas y se suma una sola vez; Por cobrar de Contratos y ECA se muestra aparte.</div>
             </div>
         </div>
         <div class="card-body p-0" id="cashier-by-service-content">
@@ -660,9 +681,12 @@
                             <th class="text-right">Operaciones por servicio</th>
                             <th class="text-right">Detalles</th>
                             <th class="text-right">Cantidad de paquetes</th>
-                            <th class="text-right">Total vendido</th>
+                            <th class="text-right">Cobrado</th>
+                            <th class="text-right">Cobrado QR</th>
+                            <th class="text-right">Total recaudado</th>
                             <th class="text-right">QR ANULADOS</th>
                             <th class="text-right">Anulado</th>
+                            <th class="text-right">Por cobrar</th>
                             <th>Última fecha</th>
                             <th class="text-center">Movimientos</th>
                         </tr>
@@ -670,9 +694,15 @@
                     <tbody>
                         @forelse($serviceGroups as $group)
                             @php($groupId = 'cashier-service-group-' . $loop->iteration)
-                            <tr class="service-group-row" data-flow-group-toggle="{{ $groupId }}">
+                            @php($isReceivableGroup = ($group['servicio'] ?? '') === 'Contratos')
+                            @php($groupDetailServices = collect($group['_children'] ?? [])->flatMap(fn (array $child) => collect($child['_children'] ?? [])->isNotEmpty() ? collect($child['_children'])->pluck('servicio') : collect([$child['servicio'] ?? '']))->filter()->unique()->values()->all())
+                            @php($groupDetailQuery = ['servicios' => $groupDetailServices, 'meses' => $selectedMonths, 'anio' => $anio])
+                            @if($isReceivableGroup)
+                                @php($groupDetailQuery = array_merge($groupDetailQuery, ['flujo_cajero' => 1, 'filtro_servicios' => $selectedServices, 'filtro_meses' => $selectedMonths, 'filtro_anio' => $anio, 'filtro_limite' => $limite, 'filtro_departamento' => $selectedDepartment]))
+                            @endif
+                            <tr class="service-group-row" data-flow-toggle-row data-flow-toggle-id="{{ $groupId }}">
                                 <td>
-                                    <button type="button" class="group-toggle-button" data-flow-toggle-button data-flow-toggle-name="{{ $group['servicio'] ?? '-' }}" aria-expanded="false" aria-label="Mostrar subservicios de {{ $group['servicio'] ?? '-' }}">
+                                    <button type="button" class="group-toggle-button" data-flow-toggle-button data-flow-toggle-name="{{ $group['servicio'] ?? '-' }}" aria-expanded="false" aria-label="Mostrar servicios de {{ $group['servicio'] ?? '-' }}">
                                         <span class="group-chevron"><i class="fas fa-chevron-right" aria-hidden="true"></i></span>{{ $loop->iteration }}
                                     </button>
                                 </td>
@@ -685,43 +715,85 @@
                                 <td class="text-right font-weight-bold">{{ \App\Support\BolivianNumber::format((float) ($group['cantidadVentas'] ?? 0)) }}</td>
                                 <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($group['cantidadDetalles'] ?? 0)) }}</td>
                                 <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($group['totalCantidad'] ?? 0), 2) }}</td>
-                                    <td class="text-right font-weight-bold text-success">Bs {{ \App\Support\BolivianNumber::format((float) ($group['totalMontoVendido'] ?? $group['totalMonto'] ?? 0), 2) }}</td>
+                                    <td class="text-right font-weight-bold text-success">Bs {{ \App\Support\BolivianNumber::format((float) ($group['totalMontoCobrado'] ?? 0), 2) }}</td>
+                                    <td class="text-right text-primary">Bs {{ \App\Support\BolivianNumber::format((float) ($group['totalMontoCobradoQr'] ?? 0), 2) }}</td>
+                                    <td class="text-right font-weight-bold text-success">Bs {{ \App\Support\BolivianNumber::format((float) ($group['totalMontoRecaudado'] ?? 0), 2) }}</td>
                                     <td class="text-right text-warning">Bs {{ \App\Support\BolivianNumber::format((float) ($group['totalMontoNoIncluidoEnTotalVendido'] ?? 0), 2) }}</td>
                                     <td class="text-right text-danger">Bs {{ \App\Support\BolivianNumber::format((float) ($group['totalMontoAnulado'] ?? 0), 2) }}</td>
+                                    <td class="text-right text-info font-weight-bold">@if($isReceivableGroup)Bs {{ \App\Support\BolivianNumber::format((float) ($group['totalMontoPorCobrar'] ?? 0), 2) }}@else—@endif</td>
                                 <td class="text-nowrap">
                                     {{ $group['ultimaFecha'] ?? '-' }}
                                     @if($group['_ultimaFechaEsCobro'] ?? false)<small class="d-block text-muted">Fecha del Ãºltimo cobro</small>@endif
                                 </td>
                                 <td class="text-center">
-                                    <a class="btn btn-outline-primary flow-detail-open" href="{{ route('dashboard.financiera.ventas-servicios.detalle', ['servicios' => collect($group['_children'] ?? [])->pluck('servicio')->all(), 'meses' => $selectedMonths, 'anio' => $anio]) }}" data-flow-detail-trigger data-flow-detail-title="{{ $group['servicio'] ?? '-' }}" aria-haspopup="dialog" aria-controls="flow-detail-modal">
+                                    <a class="btn btn-outline-primary flow-detail-open" href="{{ route('dashboard.financiera.ventas-servicios.detalle', $groupDetailQuery) }}" data-flow-detail-trigger data-flow-detail-title="{{ $group['servicio'] ?? '-' }}" aria-haspopup="dialog" aria-controls="flow-detail-modal">
                                         <i class="fas fa-list mr-1"></i> Ver detalle
                                     </a>
                                 </td>
                             </tr>
                             @foreach($group['_children'] ?? [] as $child)
-                                <tr class="service-child-row d-none" data-flow-group-child="{{ $groupId }}">
-                                    <td></td>
-                                    <td class="child-service-name"><span class="child-connector"></span>{{ $child['servicio'] ?? '-' }}</td>
-                                    <td></td>
-                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($child['cantidadVentas'] ?? 0)) }}</td>
-                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($child['cantidadDetalles'] ?? 0)) }}</td>
-                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($child['totalCantidad'] ?? 0), 2) }}</td>
-                                    <td class="text-right font-weight-bold">Bs {{ \App\Support\BolivianNumber::format((float) ($child['totalMontoVendido'] ?? $child['totalMonto'] ?? 0), 2) }}</td>
-                                    <td class="text-right text-warning">Bs {{ \App\Support\BolivianNumber::format((float) ($child['totalMontoNoIncluidoEnTotalVendido'] ?? 0), 2) }}</td>
-                                    <td class="text-right text-danger">Bs {{ \App\Support\BolivianNumber::format((float) ($child['totalMontoAnulado'] ?? 0), 2) }}</td>
-                                    <td class="text-nowrap">
-                                        {{ $child['ultimaFecha'] ?? '-' }}
-                                        @if($child['_esCobroReceivable'] ?? false)<small class="d-block text-muted">Fecha de cobro</small>@endif
-                                    </td>
-                                    <td class="text-center">
-                                        <a class="btn btn-outline-primary flow-detail-open" href="{{ route('dashboard.financiera.ventas-servicios.detalle', ['servicios' => [$child['servicio'] ?? ''], 'meses' => $selectedMonths, 'anio' => $anio]) }}" data-flow-detail-trigger data-flow-detail-title="{{ $child['servicio'] ?? '-' }}" aria-haspopup="dialog" aria-controls="flow-detail-modal">
-                                            <i class="fas fa-search mr-1"></i> Detalle
-                                        </a>
-                                    </td>
-                                </tr>
+                                @if($isReceivableGroup)
+                                    @php($serviceItem = $child)
+                                    @php($serviceDetailQuery = ['servicios' => [$serviceItem['servicio'] ?? ''], 'meses' => $selectedMonths, 'anio' => $anio, 'flujo_cajero' => 1, 'filtro_servicios' => $selectedServices, 'filtro_meses' => $selectedMonths, 'filtro_anio' => $anio, 'filtro_limite' => $limite, 'filtro_departamento' => $selectedDepartment])
+                                    <tr class="service-item-row d-none" data-flow-parent="{{ $groupId }}">
+                                        <td></td>
+                                        <td class="child-service-name"><span class="child-connector"></span>{{ $serviceItem['servicio'] ?? '-' }}</td>
+                                        <td>@foreach($serviceItem['_meses'] ?? [] as $includedMonth)<span class="badge badge-light border">{{ [1 => 'Ene', 2 => 'Feb', 3 => 'Mar', 4 => 'Abr', 5 => 'May', 6 => 'Jun', 7 => 'Jul', 8 => 'Ago', 9 => 'Sep', 10 => 'Oct', 11 => 'Nov', 12 => 'Dic'][$includedMonth] ?? $includedMonth }}</span>@endforeach</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($serviceItem['cantidadVentas'] ?? 0)) }}</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($serviceItem['cantidadDetalles'] ?? 0)) }}</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($serviceItem['totalCantidad'] ?? 0), 2) }}</td>
+                                        <td class="text-right font-weight-bold">Bs {{ \App\Support\BolivianNumber::format((float) ($serviceItem['totalMontoCobrado'] ?? 0), 2) }}</td>
+                                        <td class="text-right text-primary">Bs {{ \App\Support\BolivianNumber::format((float) ($serviceItem['totalMontoCobradoQr'] ?? 0), 2) }}</td>
+                                        <td class="text-right font-weight-bold text-success">Bs {{ \App\Support\BolivianNumber::format((float) ($serviceItem['totalMontoRecaudado'] ?? 0), 2) }}</td>
+                                        <td class="text-right text-warning">Bs {{ \App\Support\BolivianNumber::format((float) ($serviceItem['totalMontoNoIncluidoEnTotalVendido'] ?? 0), 2) }}</td>
+                                        <td class="text-right text-danger">Bs {{ \App\Support\BolivianNumber::format((float) ($serviceItem['totalMontoAnulado'] ?? 0), 2) }}</td>
+                                        <td class="text-right text-info font-weight-bold">Bs {{ \App\Support\BolivianNumber::format((float) ($serviceItem['totalMontoPorCobrar'] ?? $serviceItem['_montoPendiente'] ?? 0), 2) }}</td>
+                                        <td class="text-nowrap">{{ $serviceItem['ultimaFecha'] ?? '-' }}</td>
+                                        <td class="text-center"><a class="btn btn-outline-primary flow-detail-open" href="{{ route('dashboard.financiera.ventas-servicios.detalle', $serviceDetailQuery) }}" data-flow-detail-trigger data-flow-detail-title="{{ $serviceItem['servicio'] ?? '-' }}" aria-haspopup="dialog" aria-controls="flow-detail-modal"><i class="fas fa-search mr-1"></i> Detalle</a></td>
+                                    </tr>
+                                @else
+                                    @php($familyId = $groupId . '-family-' . $loop->iteration)
+                                    @php($familyDetailServices = collect($child['_children'] ?? [])->pluck('servicio')->filter()->unique()->values()->all())
+                                    @php($familyDetailQuery = ['servicios' => $familyDetailServices, 'meses' => $selectedMonths, 'anio' => $anio])
+                                    <tr class="service-family-row d-none" data-flow-parent="{{ $groupId }}" data-flow-toggle-row data-flow-toggle-id="{{ $familyId }}">
+                                        <td><button type="button" class="group-toggle-button" data-flow-toggle-button data-flow-toggle-name="{{ $child['servicio'] ?? '-' }}" aria-expanded="false" aria-label="Mostrar servicios de {{ $child['servicio'] ?? '-' }}"><span class="group-chevron"><i class="fas fa-chevron-right" aria-hidden="true"></i></span></button></td>
+                                        <td class="service-family-name">{{ $child['servicio'] ?? '-' }}</td>
+                                        <td>@foreach($child['_meses'] ?? [] as $includedMonth)<span class="badge badge-light border">{{ [1 => 'Ene', 2 => 'Feb', 3 => 'Mar', 4 => 'Abr', 5 => 'May', 6 => 'Jun', 7 => 'Jul', 8 => 'Ago', 9 => 'Sep', 10 => 'Oct', 11 => 'Nov', 12 => 'Dic'][$includedMonth] ?? $includedMonth }}</span>@endforeach</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($child['cantidadVentas'] ?? 0)) }}</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($child['cantidadDetalles'] ?? 0)) }}</td>
+                                        <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($child['totalCantidad'] ?? 0), 2) }}</td>
+                                        <td class="text-right font-weight-bold">Bs {{ \App\Support\BolivianNumber::format((float) ($child['totalMontoCobrado'] ?? 0), 2) }}</td>
+                                        <td class="text-right text-primary">Bs {{ \App\Support\BolivianNumber::format((float) ($child['totalMontoCobradoQr'] ?? 0), 2) }}</td>
+                                        <td class="text-right font-weight-bold text-success">Bs {{ \App\Support\BolivianNumber::format((float) ($child['totalMontoRecaudado'] ?? 0), 2) }}</td>
+                                        <td class="text-right text-warning">Bs {{ \App\Support\BolivianNumber::format((float) ($child['totalMontoNoIncluidoEnTotalVendido'] ?? 0), 2) }}</td>
+                                        <td class="text-right text-danger">Bs {{ \App\Support\BolivianNumber::format((float) ($child['totalMontoAnulado'] ?? 0), 2) }}</td>
+                                        <td class="text-right">—</td>
+                                        <td class="text-nowrap">{{ $child['ultimaFecha'] ?? '-' }}</td>
+                                        <td class="text-center"><a class="btn btn-outline-primary flow-detail-open" href="{{ route('dashboard.financiera.ventas-servicios.detalle', $familyDetailQuery) }}" data-flow-detail-trigger data-flow-detail-title="{{ $child['servicio'] ?? '-' }}" aria-haspopup="dialog" aria-controls="flow-detail-modal"><i class="fas fa-search mr-1"></i> Ver detalle</a></td>
+                                    </tr>
+                                    @foreach($child['_children'] ?? [] as $serviceItem)
+                                        @php($serviceDetailQuery = ['servicios' => [$serviceItem['servicio'] ?? ''], 'meses' => $selectedMonths, 'anio' => $anio])
+                                        <tr class="service-item-row d-none" data-flow-parent="{{ $familyId }}">
+                                            <td></td>
+                                            <td class="child-service-name"><span class="child-connector"></span>{{ $serviceItem['servicio'] ?? '-' }}</td>
+                                            <td>@foreach($serviceItem['_meses'] ?? [] as $includedMonth)<span class="badge badge-light border">{{ [1 => 'Ene', 2 => 'Feb', 3 => 'Mar', 4 => 'Abr', 5 => 'May', 6 => 'Jun', 7 => 'Jul', 8 => 'Ago', 9 => 'Sep', 10 => 'Oct', 11 => 'Nov', 12 => 'Dic'][$includedMonth] ?? $includedMonth }}</span>@endforeach</td>
+                                            <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($serviceItem['cantidadVentas'] ?? 0)) }}</td>
+                                            <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($serviceItem['cantidadDetalles'] ?? 0)) }}</td>
+                                            <td class="text-right">{{ \App\Support\BolivianNumber::format((float) ($serviceItem['totalCantidad'] ?? 0), 2) }}</td>
+                                            <td class="text-right font-weight-bold">Bs {{ \App\Support\BolivianNumber::format((float) ($serviceItem['totalMontoCobrado'] ?? 0), 2) }}</td>
+                                            <td class="text-right text-primary">Bs {{ \App\Support\BolivianNumber::format((float) ($serviceItem['totalMontoCobradoQr'] ?? 0), 2) }}</td>
+                                            <td class="text-right font-weight-bold text-success">Bs {{ \App\Support\BolivianNumber::format((float) ($serviceItem['totalMontoRecaudado'] ?? 0), 2) }}</td>
+                                            <td class="text-right text-warning">Bs {{ \App\Support\BolivianNumber::format((float) ($serviceItem['totalMontoNoIncluidoEnTotalVendido'] ?? 0), 2) }}</td>
+                                            <td class="text-right text-danger">Bs {{ \App\Support\BolivianNumber::format((float) ($serviceItem['totalMontoAnulado'] ?? 0), 2) }}</td>
+                                            <td class="text-right">—</td>
+                                            <td class="text-nowrap">{{ $serviceItem['ultimaFecha'] ?? '-' }}</td>
+                                            <td class="text-center"><a class="btn btn-outline-primary flow-detail-open" href="{{ route('dashboard.financiera.ventas-servicios.detalle', $serviceDetailQuery) }}" data-flow-detail-trigger data-flow-detail-title="{{ $serviceItem['servicio'] ?? '-' }}" aria-haspopup="dialog" aria-controls="flow-detail-modal"><i class="fas fa-search mr-1"></i> Detalle</a></td>
+                                        </tr>
+                                    @endforeach
+                                @endif
                             @endforeach
                         @empty
-                            <tr><td colspan="11" class="text-center text-muted py-4">No se encontraron servicios para la selección realizada.</td></tr>
+                            <tr><td colspan="14" class="text-center text-muted py-4">No se encontraron servicios para la selección realizada.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

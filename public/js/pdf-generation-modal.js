@@ -50,7 +50,7 @@
         if (/marbete/.test(source)) return 'marbetes';
         if (/flujo-paqueteria/.test(source)) return 'reporte de flujo de paquetería';
         if (/rendimiento-servicios/.test(source)) return 'reporte de rendimiento comercial';
-        if (/flujo-cajero/.test(source)) return 'reporte de flujo de caja';
+        if (/flujo-cajero/.test(source)) return 'reporte de ingresos';
         if (/hacer-envio-desde-casa|preregistro/.test(source)) return 'ticket de preenvío';
         if (/paquetes-ems.*solicitudes.*ticket|clientes.*solicitudes.*ticket/.test(source)) return 'ticket de solicitud EMS';
         if (/mis-ventas.*ticket/.test(source)) return 'ticket de venta';
@@ -125,6 +125,7 @@
     document.addEventListener('submit', function (event) {
         const form = event.target;
         const submitter = event.submitter || null;
+        if (form.hasAttribute('data-pdf-modal-ignore') || submitter?.hasAttribute('data-pdf-modal-ignore')) return;
         const url = actionUrlFor(submitter, form);
         const hint = controlTextFor(submitter, form);
         if (looksLikePdfAction(url, hint)) showModal(url, hint);
@@ -143,8 +144,22 @@
         const requestUrl = typeof input === 'string' || input instanceof URL ? String(input) : (input?.url || '');
         const requestHeaders = args[1]?.headers || (typeof Request !== 'undefined' && input instanceof Request ? input.headers : null);
         const acceptHeader = requestHeaders?.get?.('Accept') || requestHeaders?.Accept || requestHeaders?.accept || '';
+        const suppressGlobalPdfModal = String(
+            requestHeaders?.get?.('X-Pdf-Modal-Ignore')
+                || requestHeaders?.['X-Pdf-Modal-Ignore']
+                || requestHeaders?.['x-pdf-modal-ignore']
+                || ''
+        ).toLowerCase() === 'true';
         const isDashboardOwnExport = requestUrl.includes('/dashboard/export/pdf');
-        const expectsPdf = looksLikePdfAction(requestUrl, acceptHeader);
+        let isCashierFlowProgressRequest = false;
+        try {
+            const parsedUrl = new URL(requestUrl, window.location.href);
+            isCashierFlowProgressRequest = parsedUrl.pathname.includes('/dir-financiera/flujo-cajero/reporte-ejecutivo.pdf')
+                && parsedUrl.searchParams.get('stream') === '1';
+        } catch (error) {
+            isCashierFlowProgressRequest = false;
+        }
+        const expectsPdf = !suppressGlobalPdfModal && !isCashierFlowProgressRequest && looksLikePdfAction(requestUrl, acceptHeader);
 
         if (expectsPdf && !isDashboardOwnExport && !modal.classList.contains('is-visible')) {
             showModal(requestUrl, acceptHeader);
@@ -152,7 +167,7 @@
 
         return nativeFetch.apply(this, args).then((response) => {
             const contentType = response.headers.get('Content-Type') || '';
-            if (contentType.toLowerCase().includes('application/pdf') && !isDashboardOwnExport) {
+            if (contentType.toLowerCase().includes('application/pdf') && !isDashboardOwnExport && !suppressGlobalPdfModal) {
                 const resolvedUrl = requestUrl || response.url;
                 const documentName = documentNameFor(resolvedUrl, acceptHeader);
                 if (!modal.classList.contains('is-visible')) showModal(resolvedUrl, acceptHeader || 'PDF');

@@ -66,12 +66,18 @@ class FinancialReportController extends Controller
         'Servicio Contratos' => [
             'Servicio Contratos por concepto de pago de servicios de courier correspondiente',
         ],
+        'Servicio Certificado' => [
+            'Servicio Certificado',
+            'Servicio Certificado Internacional',
+        ],
+        'Servicio Certificadas' => [
+            'Servicio Certificadas',
+        ],
         'Servicio Internacional' => [
             'Servicio Internacional',
             'Servicio EMS Internacional',
             'Servicio Encomienda Internacional',
             'Servicio Ordinaria Internacional',
-            'Servicio Certificadas',
             'Servicio Ordinarias',
             'Servicio Aerolinea',
             'Servicio Venta de Estampillas',
@@ -86,6 +92,9 @@ class FinancialReportController extends Controller
 
     public function cashierFlow(Request $request)
     {
+        @set_time_limit(180);
+        @ini_set('max_execution_time', '180');
+
         return view('financial-reports.cashier-flow', $this->buildCashierFlowData($request));
     }
 
@@ -192,14 +201,28 @@ class FinancialReportController extends Controller
             $data['cashierFlowReceivablePendingAmount'] = (float) $data['receivableServices']->sum('_montoPendiente');
         }
         $collectedServiceRows = $this->buildCollectedReceivableServiceRows($invoicePeriodMovements->groupBy('servicio'));
-        $data['serviceGroups'] = $this->buildServiceGroups(
-            collect($data['services'])->concat($collectedServiceRows)
+        $data['serviceGroups'] = $this->buildCashierFlowServiceGroups(
+            collect($data['services']),
+            collect($data['receivableServices']),
+            $collectedServiceRows,
+            collect($receivableDepartmentBreakdown['collectedQrByService'] ?? [])
+        );
+        $data['serviceGroups'] = $this->alignCashierFlowVentanillasSalesCount(
+            $data['serviceGroups'],
+            (float) ($data['summary']['cantidadVentas'] ?? 0)
         );
         $data['summary']['cantidadServicios'] = $data['serviceGroups']->count();
         $data['cashierFlowCollectedAmount'] = (float) $invoicePeriodMovements->sum('monto');
-        $data['summary']['totalRecaudado'] = (float) ($data['summary']['totalMontoVendido'] ?? $data['summary']['totalMonto'] ?? 0)
-            + $data['cashierFlowCollectedAmount'];
-        $data['summary']['totalSinContratosEca'] = (float) ($data['summary']['totalMontoVendido'] ?? $data['summary']['totalMonto'] ?? 0);
+        $data['summary']['totalRecaudado'] = (float) $data['serviceGroups']->sum(
+            fn (array $group): float => (float) ($group['totalMontoRecaudado'] ?? 0)
+        );
+        $ventanillasGroup = $data['serviceGroups']->first(
+            fn (array $group): bool => ($group['servicio'] ?? '') === 'VENTANILLAS'
+        );
+        $data['summary']['totalSinContratosEca'] = (float) ($ventanillasGroup['totalMontoRecaudado']
+            ?? $data['summary']['totalMontoVendido']
+            ?? $data['summary']['totalMonto']
+            ?? 0);
         $data['totalReportAmountIncludingReceivables'] = (float) $data['summary']['totalRecaudado']
             + (float) ($data['cashierFlowReceivablePendingAmount'] ?? $data['receivableServices']->sum('_montoPendiente'));
         if ($includeCashierBreakdown) {
@@ -221,6 +244,12 @@ class FinancialReportController extends Controller
                 $data['cashierFlowReceivableDepartmentAmounts'] ?? collect(),
                 $this->countReportDaysExcludingSundays($data['selectedMonths'], $data['anio'])
             );
+            $departmentSalesAlignment = $this->alignCashierFlowDepartmentSalesCounts(
+                $data['cashierDepartmentGroups'],
+                $data
+            );
+            $data['cashierDepartmentGroups'] = $departmentSalesAlignment['groups'];
+            $data['cashierFlowDepartmentSalesCountWarning'] = $departmentSalesAlignment['warning'];
         }
 
         return $data;
@@ -228,6 +257,9 @@ class FinancialReportController extends Controller
 
     public function cashierFlowDashboardAmounts(Request $request): JsonResponse
     {
+        @set_time_limit(180);
+        @ini_set('max_execution_time', '180');
+
         $validated = $request->validate([
             'mes' => ['required_without:meses', 'nullable', 'integer', 'between:1,12'],
             'meses' => ['required_without:mes', 'nullable', 'array', 'min:1', 'max:12'],
@@ -479,13 +511,6 @@ class FinancialReportController extends Controller
         $data['cashierFlowReceivableDepartmentErrors'] = $receivableDepartmentBreakdown['errors'];
         $data['cashierFlowReceivableDepartmentAmounts'] = $receivableDepartmentBreakdown['pendingByDepartment'];
         $data['cashierFlowReceivableInvoicers'] = $receivableDepartmentBreakdown['invoicers'];
-        $collectedServiceRows = $this->buildCollectedReceivableServiceRows(
-            $collectedMovements->groupBy('servicio')
-        );
-        $data['serviceGroups'] = $this->buildServiceGroups(
-            collect($data['services'])->concat($collectedServiceRows)
-        );
-        $data['summary']['cantidadServicios'] = $data['serviceGroups']->count();
         $data['cashierFlowCollectedMovements'] = $collectedMovements;
         $data['cashierFlowCollectedAmount'] = (float) $collectedMovements->sum('monto');
         $receivableCollections = $collectedMovements->groupBy('servicio');
@@ -507,13 +532,33 @@ class FinancialReportController extends Controller
                 return $service;
             })
             ->values();
+        $collectedServiceRows = $this->buildCollectedReceivableServiceRows(
+            $collectedMovements->groupBy('servicio')
+        );
+        $data['serviceGroups'] = $this->buildCashierFlowServiceGroups(
+            collect($data['services']),
+            collect($data['receivableServices']),
+            $collectedServiceRows,
+            collect($receivableDepartmentBreakdown['collectedQrByService'] ?? [])
+        );
+        $data['serviceGroups'] = $this->alignCashierFlowVentanillasSalesCount(
+            $data['serviceGroups'],
+            (float) ($data['summary']['cantidadVentas'] ?? 0)
+        );
+        $data['summary']['cantidadServicios'] = $data['serviceGroups']->count();
         $data['cashierFlowReceivablePendingAmount'] = (float) $data['receivableServices']->sum('_montoPendiente');
-        $data['totalReportAmountIncludingReceivables'] = (float) ($data['summary']['totalMontoVendido'] ?? $data['summary']['totalMonto'] ?? 0)
-            + $data['cashierFlowCollectedAmount']
+        $data['summary']['totalRecaudado'] = (float) $data['serviceGroups']->sum(
+            fn (array $group): float => (float) ($group['totalMontoRecaudado'] ?? 0)
+        );
+        $ventanillasGroup = $data['serviceGroups']->first(
+            fn (array $group): bool => ($group['servicio'] ?? '') === 'VENTANILLAS'
+        );
+        $data['summary']['totalSinContratosEca'] = (float) ($ventanillasGroup['totalMontoRecaudado']
+            ?? $data['summary']['totalMontoVendido']
+            ?? $data['summary']['totalMonto']
+            ?? 0);
+        $data['totalReportAmountIncludingReceivables'] = $data['summary']['totalRecaudado']
             + $data['cashierFlowReceivablePendingAmount'];
-        $data['summary']['totalRecaudado'] = (float) ($data['summary']['totalMontoVendido'] ?? $data['summary']['totalMonto'] ?? 0)
-            + $data['cashierFlowCollectedAmount'];
-        $data['summary']['totalSinContratosEca'] = (float) ($data['summary']['totalMontoVendido'] ?? $data['summary']['totalMonto'] ?? 0);
         $data['totalReportIncome'] = $data['summary']['totalRecaudado'];
         $data['cashierFlowCollectionsOmittedByDepartment'] = $data['selectedDepartment'] !== '';
         $data['cashierRows'] = $this->addCashierReceivableIncome(
@@ -540,6 +585,12 @@ class FinancialReportController extends Controller
             $data['cashierFlowReceivableDepartmentAmounts'],
             $this->countReportDaysExcludingSundays($data['selectedMonths'], $data['anio'])
         );
+        $departmentSalesAlignment = $this->alignCashierFlowDepartmentSalesCounts(
+            $data['cashierDepartmentGroups'],
+            $data
+        );
+        $data['cashierDepartmentGroups'] = $departmentSalesAlignment['groups'];
+        $data['cashierFlowDepartmentSalesCountWarning'] = $departmentSalesAlignment['warning'];
         $data['generatedAt'] = now();
         $data['periodLabel'] = collect($data['selectedMonths'])
             ->map(fn (int $month) => [
@@ -552,7 +603,12 @@ class FinancialReportController extends Controller
         $reportDays = $this->countReportDaysExcludingSundays($data['selectedMonths'], $data['anio']);
         $data['averageDailyIncome'] = $reportDays > 0 ? $data['totalReportAmountIncludingReceivables'] / $reportDays : 0.0;
         $data['topCashier'] = $data['cashierRows']->first();
-        $data['topService'] = $data['serviceGroups']->first();
+        $data['topService'] = collect($data['serviceGroups'])
+            ->flatMap(fn (array $group) => ($group['servicio'] ?? '') === 'VENTANILLAS'
+                ? collect($group['_children'] ?? [])
+                : collect([$group]))
+            ->sortByDesc(fn (array $group) => $group['totalMontoVendido'] ?? $group['totalMonto'] ?? 0)
+            ->first();
 
         $reportProgress(94, 'Preparando y dibujando el PDF…');
 
@@ -2279,6 +2335,7 @@ class FinancialReportController extends Controller
             'soloContratos' => $onlyContracts,
             'contractsExcluded' => $excludeContracts,
             'maxSelectedServices' => self::MAX_SERVICE_FILTER_ITEMS,
+            'refreshReports' => $refresh,
             'selectedDepartment' => $selectedDepartment,
             'departmentOptions' => $departmentOptions,
             'selectedMonths' => $selectedMonths->all(),
@@ -2755,24 +2812,161 @@ class FinancialReportController extends Controller
         return null;
     }
 
-    private function buildServiceGroups(Collection $services): Collection
+    private function buildCashierFlowServiceGroups(
+        Collection $services,
+        Collection $receivableServices,
+        Collection $collectedServiceRows,
+        ?Collection $collectedQrByService = null
+    ): Collection {
+        $collectedQrByService ??= collect();
+        $services = $services->map(function (array $service): array {
+            $soldAmount = max(0, (float) ($service['totalMontoVendido'] ?? $service['totalMonto'] ?? 0));
+            $qrOutsideSold = max(
+                0,
+                (float) ($service['totalMontoNoIncluidoEnTotalVendido'] ?? 0)
+                    - (float) ($service['totalMontoAnulado'] ?? 0)
+            );
+            $qrFromAudit = collect($service['_paymentAuditRows'] ?? [])
+                ->sum(fn (array $row): float => max(0, (float) data_get($row, 'porMedioPago.qr', 0)));
+            // The cashier-flow total must match the API's Facturado amount.
+            // Values outside totalMontoVendido are shown separately and must not
+            // be added to income; annulled invoices are already excluded there.
+            $totalCollected = $soldAmount;
+            $qrCollected = min($totalCollected, max($qrFromAudit, $qrOutsideSold));
+
+            $service['totalMontoCobrado'] = max(0, $totalCollected - $qrCollected);
+            $service['totalMontoCobradoQr'] = $qrCollected;
+            $service['totalMontoRecaudado'] = $service['totalMontoCobrado'] + $service['totalMontoCobradoQr'];
+
+            return $service;
+        });
+        $receivableRows = $receivableServices->map(function (array $service) use ($collectedQrByService): array {
+            $serviceName = (string) ($service['servicio'] ?? '');
+            $collectedAmount = max(0, (float) ($service['_montoCobrado'] ?? 0));
+            $collectedQrAmount = min(
+                $collectedAmount,
+                max(0, (float) $collectedQrByService->get($serviceName, 0))
+            );
+
+            $service['totalMontoPorCobrar'] = (float) ($service['_montoPendiente']
+                ?? max(0, (float) ($service['totalMonto'] ?? 0) - (float) ($service['_montoCobrado'] ?? 0)));
+            $service['totalMontoNoIncluidoEnTotalVendido'] = 0.0;
+            $service['totalMontoCobradoQr'] = $collectedQrAmount;
+            $service['totalMontoCobrado'] = max(0, $collectedAmount - $collectedQrAmount);
+            $service['totalMontoRecaudado'] = $service['totalMontoCobrado'] + $service['totalMontoCobradoQr'];
+
+            return $service;
+        });
+        $nonReceivableCollectionRows = $collectedServiceRows->reject(
+            fn (array $service): bool => $this->isCashierFlowReceivableService((string) ($service['servicio'] ?? ''))
+        )->map(function (array $service): array {
+            $amount = max(0, (float) ($service['totalMonto'] ?? 0));
+            $service['totalMontoCobrado'] = $amount;
+            $service['totalMontoCobradoQr'] = 0.0;
+            $service['totalMontoRecaudado'] = $amount;
+
+            return $service;
+        });
+        $serviceGroups = $this->buildServiceGroups(
+            $services->concat($receivableRows)->concat($nonReceivableCollectionRows),
+            mergeContractsAndEca: true,
+            labelCombinedReceivablesAsContracts: true
+        );
+        $aggregateGroup = function (string $name, Collection $source, Collection $children): array {
+            return [
+                'servicio' => $name,
+                'cantidadVentas' => $source->sum('cantidadVentas'),
+                'cantidadDetalles' => $source->sum('cantidadDetalles'),
+                'totalCantidad' => $source->sum('totalCantidad'),
+                'totalMonto' => $source->sum('totalMonto'),
+                'totalMontoVendido' => $source->sum(fn (array $group) => $group['totalMontoVendido'] ?? $group['totalMonto'] ?? 0),
+                'totalMontoCobrado' => $source->sum('totalMontoCobrado'),
+                'totalMontoCobradoQr' => $source->sum('totalMontoCobradoQr'),
+                'totalMontoRecaudado' => $source->sum('totalMontoRecaudado'),
+                'totalMontoPorCobrar' => $source->sum(fn (array $group) => $group['totalMontoPorCobrar'] ?? 0),
+                'totalMontoNoIncluidoEnTotalVendido' => $source->sum('totalMontoNoIncluidoEnTotalVendido'),
+                'totalMontoAnulado' => $source->sum('totalMontoAnulado'),
+                'ultimaFecha' => $source->pluck('ultimaFecha')->filter()->max(),
+                '_ultimaFechaEsCobro' => $source->contains(fn (array $group): bool => (bool) ($group['_ultimaFechaEsCobro'] ?? false)),
+                '_meses' => $source->pluck('_meses')->flatten()->unique()->sort()->values()->all(),
+                '_children' => $children->sortByDesc(fn (array $child) => $child['totalMontoVendido'] ?? $child['totalMonto'] ?? 0)->values(),
+            ];
+        };
+
+        $ventanillaGroups = $serviceGroups->reject(fn (array $group): bool => ($group['servicio'] ?? '') === 'Contratos')->values();
+        $contractGroups = $serviceGroups->filter(fn (array $group): bool => ($group['servicio'] ?? '') === 'Contratos')->values();
+        $groups = collect();
+
+        if ($ventanillaGroups->isNotEmpty()) {
+            $groups->push($aggregateGroup('VENTANILLAS', $ventanillaGroups, $ventanillaGroups));
+        }
+
+        if ($contractGroups->isNotEmpty()) {
+            $contractChildren = $contractGroups
+                ->flatMap(fn (array $group) => collect($group['_children'] ?? []))
+                ->values();
+            $groups->push($aggregateGroup('Contratos', $contractGroups, $contractChildren));
+        }
+
+        return $groups->values();
+    }
+
+    private function alignCashierFlowVentanillasSalesCount(Collection $serviceGroups, float $uniqueSalesCount): Collection
     {
+        // Child service counts may overlap when one sale contains multiple service types.
+        return $serviceGroups
+            ->map(function (array $group) use ($uniqueSalesCount): array {
+                if (($group['servicio'] ?? '') === 'VENTANILLAS') {
+                    $group['cantidadVentas'] = $uniqueSalesCount;
+                }
+
+                return $group;
+            })
+            ->values();
+    }
+
+    private function buildServiceGroups(
+        Collection $services,
+        bool $mergeContractsAndEca = false,
+        bool $labelCombinedReceivablesAsContracts = false
+    ): Collection {
         return $services
-            ->groupBy(fn (array $service) => $this->serviceGroupName((string) ($service['servicio'] ?? '')))
-            ->map(function (Collection $children, string $groupName) {
+            ->map(function (array $service) use ($mergeContractsAndEca): array {
+                $serviceName = (string) ($service['servicio'] ?? '');
+                $service['_serviceGroupName'] = $mergeContractsAndEca && $this->isCashierFlowReceivableService($serviceName)
+                    ? 'Servicio Contratos'
+                    : $this->serviceGroupName($serviceName);
+
+                return $service;
+            })
+            ->groupBy(fn (array $service): string => $this->normalizePersonName((string) $service['_serviceGroupName']))
+            ->map(function (Collection $children) use ($labelCombinedReceivablesAsContracts): array {
+                $groupName = (string) ($children->first()['_serviceGroupName'] ?? 'Otros servicios');
+                $displayChildren = $children->map(function (array $service): array {
+                    unset($service['_serviceGroupName']);
+
+                    return $service;
+                });
+
                 return [
-                    'servicio' => $groupName,
-                    'cantidadVentas' => $children->sum('cantidadVentas'),
-                    'cantidadDetalles' => $children->sum('cantidadDetalles'),
-                    'totalCantidad' => $children->sum('totalCantidad'),
-                    'totalMonto' => $children->sum('totalMonto'),
-                    'totalMontoVendido' => $children->sum(fn (array $service) => $service['totalMontoVendido'] ?? $service['totalMonto'] ?? 0),
-                    'totalMontoNoIncluidoEnTotalVendido' => $children->sum('totalMontoNoIncluidoEnTotalVendido'),
-                    'totalMontoAnulado' => $children->sum('totalMontoAnulado'),
-                    'ultimaFecha' => $children->pluck('ultimaFecha')->filter()->max(),
-                    '_ultimaFechaEsCobro' => $children->contains(fn (array $service): bool => (bool) ($service['_esCobroReceivable'] ?? false)),
-                    '_meses' => $children->pluck('_meses')->flatten()->unique()->sort()->values()->all(),
-                    '_children' => $children->sortByDesc('totalMontoVendido')->values(),
+                    'servicio' => $labelCombinedReceivablesAsContracts && $groupName === 'Servicio Contratos'
+                        ? 'Contratos'
+                        : $groupName,
+                    'cantidadVentas' => $displayChildren->sum('cantidadVentas'),
+                    'cantidadDetalles' => $displayChildren->sum('cantidadDetalles'),
+                    'totalCantidad' => $displayChildren->sum('totalCantidad'),
+                    'totalMonto' => $displayChildren->sum('totalMonto'),
+                    'totalMontoVendido' => $displayChildren->sum(fn (array $service) => $service['totalMontoVendido'] ?? $service['totalMonto'] ?? 0),
+                    'totalMontoCobrado' => $displayChildren->sum('totalMontoCobrado'),
+                    'totalMontoCobradoQr' => $displayChildren->sum('totalMontoCobradoQr'),
+                    'totalMontoRecaudado' => $displayChildren->sum('totalMontoRecaudado'),
+                    'totalMontoPorCobrar' => $displayChildren->sum(fn (array $service) => $service['totalMontoPorCobrar'] ?? $service['_montoPendiente'] ?? 0),
+                    'totalMontoNoIncluidoEnTotalVendido' => $displayChildren->sum('totalMontoNoIncluidoEnTotalVendido'),
+                    'totalMontoAnulado' => $displayChildren->sum('totalMontoAnulado'),
+                    'ultimaFecha' => $displayChildren->pluck('ultimaFecha')->filter()->max(),
+                    '_ultimaFechaEsCobro' => $displayChildren->contains(fn (array $service): bool => (bool) ($service['_esCobroReceivable'] ?? false)),
+                    '_meses' => $displayChildren->pluck('_meses')->flatten()->unique()->sort()->values()->all(),
+                    '_children' => $displayChildren->sortByDesc('totalMontoVendido')->values(),
                 ];
             })
             ->sortByDesc('totalMontoVendido')
@@ -2930,6 +3124,138 @@ class FinancialReportController extends Controller
             ->values();
     }
 
+    /**
+     * Replaces department subtotals built from overlapping service rows with
+     * the unique sale counts returned by the regional report query.
+     * Individual cashier rows remain operation counts because one sale can
+     * contain several service lines.
+     *
+     * @return array{groups: Collection, warning: ?string}
+     */
+    private function alignCashierFlowDepartmentSalesCounts(Collection $departmentGroups, array $data): array
+    {
+        if ($departmentGroups->isEmpty()) {
+            return ['groups' => $departmentGroups, 'warning' => null];
+        }
+
+        if (! (bool) ($data['uniqueSalesCountFromApi'] ?? false)) {
+            return [
+                'groups' => $departmentGroups,
+                'warning' => 'La API no proporcionó un conteo validado de ventas únicas; se conserva el conteo de operaciones por departamento.',
+            ];
+        }
+
+        $countsByDepartment = collect();
+        $selectedDepartment = $this->canonicalDepartmentName((string) ($data['selectedDepartment'] ?? ''));
+        if ($selectedDepartment !== '') {
+            $countsByDepartment->put($selectedDepartment, (float) ($data['summary']['cantidadVentas'] ?? 0));
+        } else {
+            $departments = $departmentGroups
+                ->pluck('departamento')
+                ->map(fn ($department): string => $this->canonicalDepartmentName((string) $department))
+                ->filter(fn (string $department): bool => in_array($department, self::DASHBOARD_DEPARTMENTS, true))
+                ->unique()
+                ->values();
+            $months = collect($data['selectedMonths'] ?? [])->map(fn ($month): int => (int) $month)->values();
+            $selectedServices = collect($data['selectedServices'] ?? [])->map(fn ($service): string => trim((string) $service))->filter()->values();
+
+            if ($departments->isNotEmpty() && $months->isNotEmpty()) {
+                $filters = [];
+                foreach ($departments as $department) {
+                    foreach ($months as $month) {
+                        $filter = [
+                            'mes' => $month,
+                            'anio' => (int) ($data['anio'] ?? now()->year),
+                            'limite' => (int) ($data['limite'] ?? 200),
+                            'excluirGruposConteo' => ['contratos', 'eca_internacional'],
+                            'regionalConteo' => $department,
+                        ];
+                        if ($selectedServices->isNotEmpty()) {
+                            $filter['servicios'] = $selectedServices->all();
+                        }
+                        $filters[] = $filter;
+                    }
+                }
+
+                try {
+                    $results = $this->reports->servicesBatch($filters, (bool) ($data['refreshReports'] ?? false));
+                    $states = [];
+                    foreach ($results as $result) {
+                        $filter = (array) ($result['filter'] ?? []);
+                        $department = $this->canonicalDepartmentName((string) ($filter['regionalConteo'] ?? ''));
+                        if ($department === '') {
+                            continue;
+                        }
+
+                        $state = $states[$department] ?? [
+                            'unique' => 0.0,
+                            'included' => 0.0,
+                            'uniqueComplete' => true,
+                            'includedComplete' => true,
+                            'months' => 0,
+                        ];
+                        $report = is_array($result['report'] ?? null) ? $result['report'] : [];
+                        $hasUniqueCount = ($result['error'] ?? null) === null
+                            && (bool) data_get($report, 'meta.conteoVentasUnicas', false);
+                        if ($hasUniqueCount) {
+                            $state['unique'] += (float) data_get($report, 'resumen.cantidadVentas', 0);
+                            $state['months']++;
+                            if (isset($report['resumen']['cantidadVentasIncluidasEnTotalVendido'], $report['resumen']['cantidadVentasNoIncluidasEnTotalVendido'])) {
+                                $state['included'] += (float) $report['resumen']['cantidadVentasIncluidasEnTotalVendido'];
+                            } else {
+                                $state['includedComplete'] = false;
+                            }
+                        } else {
+                            $state['uniqueComplete'] = false;
+                            $state['includedComplete'] = false;
+                        }
+                        $states[$department] = $state;
+                    }
+
+                    foreach ($departments as $department) {
+                        $state = $states[$department] ?? null;
+                        if (! is_array($state)
+                            || ! $state['uniqueComplete']
+                            || $state['months'] !== $months->count()) {
+                            continue;
+                        }
+
+                        $countsByDepartment->put(
+                            $department,
+                            $state['includedComplete'] ? $state['included'] : $state['unique']
+                        );
+                    }
+                } catch (\Throwable $exception) {
+                    $this->logDetailError($exception, null, (int) ($months->first() ?? 0), (int) ($data['anio'] ?? now()->year));
+                }
+            }
+        }
+
+        $alignedGroups = $departmentGroups->map(function (array $group) use ($countsByDepartment): array {
+            $department = $this->canonicalDepartmentName((string) ($group['departamento'] ?? ''));
+            if ($countsByDepartment->has($department)) {
+                $group['cantidadVentas'] = (float) $countsByDepartment->get($department);
+            }
+
+            return $group;
+        })->values();
+        $expectedDepartmentCount = $selectedDepartment !== ''
+            ? (int) $departmentGroups->contains(fn (array $group): bool => $this->canonicalDepartmentName((string) ($group['departamento'] ?? '')) === $selectedDepartment)
+            : $departmentGroups->pluck('departamento')
+                ->map(fn ($department): string => $this->canonicalDepartmentName((string) $department))
+                ->filter(fn (string $department): bool => in_array($department, self::DASHBOARD_DEPARTMENTS, true))
+                ->unique()
+                ->count();
+        $alignedDepartmentCount = $countsByDepartment->keys()->intersect(
+            $departmentGroups->pluck('departamento')->map(fn ($department): string => $this->canonicalDepartmentName((string) $department))
+        )->count();
+        $warning = $expectedDepartmentCount > $alignedDepartmentCount
+            ? 'No se pudo validar el conteo único de ventas para todos los departamentos; en los departamentos pendientes se conserva el conteo de operaciones.'
+            : null;
+
+        return ['groups' => $alignedGroups, 'warning' => $warning];
+    }
+
     private function cashierFlowReceivableDepartmentBreakdown(
         Collection $receivableServices,
         array $months,
@@ -2940,6 +3266,7 @@ class FinancialReportController extends Controller
         $pendingByDepartment = collect();
         $pendingByService = collect();
         $collectedByService = collect();
+        $collectedQrByService = collect();
         $billedByService = collect();
         $invoicers = collect();
         $detailCountsByService = collect();
@@ -2951,6 +3278,7 @@ class FinancialReportController extends Controller
                 'pendingByDepartment' => $pendingByDepartment,
                 'pendingByService' => $pendingByService,
                 'collectedByService' => $collectedByService,
+                'collectedQrByService' => $collectedQrByService,
                 'billedByService' => $billedByService,
                 'invoicers' => $invoicers,
                 'errors' => $errors,
@@ -3054,6 +3382,13 @@ class FinancialReportController extends Controller
                 $collectedAmount = $movement instanceof CashierFlowReceivableMovement
                     ? min($amount, max(0, (float) $movement->monto))
                     : 0.0;
+                if ($collectedAmount > 0 && $movement instanceof CashierFlowReceivableMovement
+                    && $this->cashierFlowPaymentMethod($row) === 'qr') {
+                    $collectedQrByService->put(
+                        $serviceName,
+                        (float) $collectedQrByService->get($serviceName, 0) + $collectedAmount
+                    );
+                }
                 $pendingAmount = max(0, $amount - $collectedAmount);
                 $pendingByService->put($serviceName, (float) $pendingByService->get($serviceName, 0) + $pendingAmount);
                 $collectedByService->put($serviceName, (float) $collectedByService->get($serviceName, 0) + $collectedAmount);
@@ -3122,6 +3457,7 @@ class FinancialReportController extends Controller
         if (! $complete) {
             $pendingByService = collect();
             $collectedByService = collect();
+            $collectedQrByService = collect();
             $billedByService = collect();
             foreach ($receivableServices as $service) {
                 $serviceName = (string) ($service['servicio'] ?? '');
@@ -3148,6 +3484,7 @@ class FinancialReportController extends Controller
             'pendingByDepartment' => $pendingByDepartment,
             'pendingByService' => $pendingByService,
             'collectedByService' => $collectedByService,
+            'collectedQrByService' => $collectedQrByService,
             'billedByService' => $billedByService,
             'invoicers' => $invoicers->sortByDesc('totalNoCobrado')->values(),
             'errors' => $errors->unique()->values(),
@@ -4203,6 +4540,14 @@ class FinancialReportController extends Controller
 
         if ($this->isEcaInternationalService($service)) {
             return 'Servicio ECA Internacional';
+        }
+
+        if (str_contains($normalizedService, 'CERTIFICADA')) {
+            return 'Servicio Certificadas';
+        }
+
+        if (str_contains($normalizedService, 'CERTIFICADO')) {
+            return 'Servicio Certificado';
         }
 
         foreach (self::SERVICE_GROUPS as $groupName => $subservices) {

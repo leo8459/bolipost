@@ -33,6 +33,7 @@ use App\Http\Controllers\FacturacionCartController;
 use App\Http\Controllers\FacturacionQrMonitorController;
 use App\Http\Controllers\FacturaFirmaPdfController;
 use App\Http\Controllers\FinancialReportController;
+use App\Http\Controllers\IngresosVentanillasController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\IndicadorController;
 use App\Http\Controllers\MalencaminadoController;
@@ -251,6 +252,24 @@ Route::post('/dir-financiera/flujo-cajero/movimiento/devolver-por-cobrar', [Fina
 Route::get('/dir-financiera/flujo-cajero/reporte-ejecutivo.pdf', [FinancialReportController::class, 'cashierFlowReport'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.financiera.flujo-cajero.pdf');
+Route::get('/dir-financiera/ingresos-ventanillas', [IngresosVentanillasController::class, 'cashierFlow'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.financiera.ingresos-ventanillas');
+Route::get('/dashboard/ingresos-ventanillas-importes', [IngresosVentanillasController::class, 'cashierFlowDashboardAmounts'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.financiera.ingresos-ventanillas.dashboard-amounts');
+Route::post('/dir-financiera/ingresos-ventanillas/movimiento/cobro-realizado', [IngresosVentanillasController::class, 'markCashierFlowMovementCollected'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.financiera.ingresos-ventanillas.movimiento.cobro-realizado');
+Route::post('/dir-financiera/ingresos-ventanillas/movimiento/devolver-por-cobrar', [IngresosVentanillasController::class, 'returnCashierFlowMovementToPending'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.financiera.ingresos-ventanillas.movimiento.devolver-por-cobrar');
+Route::get('/dir-financiera/ingresos-ventanillas/reporte-ejecutivo.pdf', [IngresosVentanillasController::class, 'cashierFlowReport'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.financiera.ingresos-ventanillas.pdf');
+Route::get('/dir-financiera/ingresos-ventanillas/detalle', [IngresosVentanillasController::class, 'serviceDetail'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.financiera.ingresos-ventanillas.detalle');
 Route::get('/conciliacion/facturado', [FinancialReportController::class, 'invoicedContracts'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.conciliacion.facturado');

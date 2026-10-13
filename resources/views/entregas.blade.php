@@ -575,7 +575,7 @@
                     <a href="{{ route('entregas.export.excel', request()->query()) }}" class="btn btn-success" data-entregas-download="excel">
                         <i class="fas fa-file-excel mr-1"></i> Exportar Excel por departamento
                     </a>
-                    <a href="{{ route('entregas.export.pdf', request()->query()) }}" class="btn btn-danger" data-entregas-download="pdf">
+                    <a href="{{ route('entregas.export.pdf', request()->query()) }}" class="btn btn-danger" data-entregas-download="pdf" data-pdf-modal-ignore>
                         <i class="fas fa-file-pdf mr-1"></i> Descargar PDF ejecutivo
                     </a>
                     <span class="text-muted ml-md-2">
@@ -744,7 +744,10 @@
                     try {
                         var response = await fetch(link.href, {
                             credentials: 'same-origin',
-                            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-Pdf-Modal-Ignore': 'true'
+                            }
                         });
 
                         var contentType = (response.headers.get('Content-Type') || '').toLowerCase();

@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="utf-8">
-    <title>Reporte ejecutivo de flujo de cajero</title>
+    <title>Reporte ejecutivo de ingresos</title>
     <style>
         @page { margin: 17mm 13mm 17mm; }
         * { box-sizing: border-box; }
@@ -22,7 +22,7 @@
         .scope-note { margin: 0 0 10px; padding: 8px 10px; border: 1px solid #efd47b; border-left: 4px solid #f5b800; background: #fff9e6; color: #5f5230; }
         .audit-warning { margin: 0 0 10px; padding: 8px 10px; border: 1px solid #e3a7a7; border-left: 4px solid #bb3333; background: #fff1f1; color: #7b2525; }
         .metrics { margin-bottom: 10px; border-collapse: separate; border-spacing: 4px 0; }
-        .metrics td { width: 16.66%; padding: 8px 6px; border: 1px solid #d7e0e9; border-top: 3px solid #f5b800; }
+        .metrics td { width: 20%; padding: 8px 6px; border: 1px solid #d7e0e9; border-top: 3px solid #f5b800; }
         .metric-value { display: block; margin-top: 2px; color: #123f73; font-size: 13px; font-weight: bold; }
         .section-title { margin: 12px 0 6px; padding-bottom: 3px; border-bottom: 2px solid #f5b800; color: #123f73; font-size: 11.5px; text-transform: uppercase; }
         .executive-box { padding: 9px 11px; border: 1px solid #cbd8e6; background: #f4f8fc; }
@@ -61,6 +61,9 @@
         $logoData = is_file($logoPath) ? base64_encode(file_get_contents($logoPath)) : null;
         $totalAmount = (float) ($summary['totalMontoVendido'] ?? $summary['totalMonto'] ?? 0);
         $totalSales = (float) ($summary['cantidadVentas'] ?? 0);
+        $totalCollectedReportAmount = (float) ($totalReportAmountIncludingReceivables ?? $totalReportIncome ?? $totalAmount);
+        $incomeWithoutContractsEca = (float) ($summary['totalSinContratosEca'] ?? $summary['totalMontoVendido'] ?? $summary['totalMonto'] ?? 0);
+        $incomeContractsEca = $totalCollectedReportAmount - $incomeWithoutContractsEca;
     @endphp
 
     <div class="footer">
@@ -83,7 +86,7 @@
     </table>
 
     <div class="title-block">
-        <h1 class="title">Reporte ejecutivo de flujo de cajero</h1>
+        <h1 class="title">Reporte ejecutivo de ingresos</h1>
         <div class="subtitle">Ingresos por departamento, cajero y servicio</div>
     </div>
 
@@ -111,116 +114,22 @@
 
     <table class="metrics">
         <tr>
-            <td><span class="label">Ingresos recaudados (incluye Contratos y ECA)</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format((float) ($totalReportAmountIncludingReceivables ?? $totalReportIncome ?? $totalAmount), 2) }}</span></td>
-            <td><span class="label">Total vendido sin Contratos ni ECA</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format((float) ($summary['totalSinContratosEca'] ?? $summary['totalMontoVendido'] ?? $summary['totalMonto'] ?? 0), 2) }}</span></td>
-            <td><span class="label">{{ ($includedSalesCountFromApi ?? false) ? 'Ventas incluidas en el total' : 'Operaciones registradas' }}</span><span class="metric-value">{{ \App\Support\BolivianNumber::format($totalSales) }}</span></td>
+            <td><span class="label">Ingresos recaudados (sin Contratos ni ECA)</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format($incomeWithoutContractsEca, 2) }}</span></td>
+            <td><span class="label">Ingresos Contratos y ECA</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format($incomeContractsEca, 2) }}</span></td>
+            <td><span class="label">Total recaudado</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format($totalCollectedReportAmount, 2) }}</span></td>
+            <td><span class="label">Promedio diario</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format((float) ($averageDailyIncome ?? 0), 2) }}</span></td>
             <td><span class="label">Cajeros</span><span class="metric-value">{{ \App\Support\BolivianNumber::format($cashierRows->count()) }}</span></td>
-            <td><span class="label">Promedio de ingresos recaudados por día (lun-sáb)</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format((float) ($averageDailyIncome ?? 0), 2) }}</span></td>
         </tr>
     </table>
 
     <h2 class="section-title">Resumen ejecutivo</h2>
     <div class="executive-box">
-        @if($includedSalesCountFromApi ?? false)
-            <p>Operaciones registradas (sin facturas anuladas): {{ \App\Support\BolivianNumber::format($summary['cantidadOperacionesRegistradas']) }}.
-                Incluidas en el total vendido: {{ \App\Support\BolivianNumber::format($summary['cantidadVentasIncluidasEnTotalVendido']) }}.
-                Sin aporte al total vendido: {{ \App\Support\BolivianNumber::format($summary['cantidadVentasNoIncluidasEnTotalVendido']) }}.</p>
-        @endif
-        @if($totalSales > 0 || ($totalReportAmountIncludingReceivables ?? $totalReportIncome ?? 0) > 0)
-            <p>En <span class="highlight">{{ $periodLabel }}</span> se registraron <span class="highlight">{{ \App\Support\BolivianNumber::format($totalSales) }} ventas realizadas</span>. Los ingresos recaudados, incluida la facturación de Contratos y ECA, sumaron <span class="highlight">Bs {{ \App\Support\BolivianNumber::format((float) ($totalReportAmountIncludingReceivables ?? $totalReportIncome ?? $totalAmount), 2) }}</span>; sin Contratos ni ECA fueron <span class="highlight">Bs {{ \App\Support\BolivianNumber::format((float) ($summary['totalSinContratosEca'] ?? $summary['totalMonto'] ?? 0), 2) }}</span>.</p>
-            <p>La facturación de Contratos y ECA forma parte de los ingresos recaudados y se atribuye al usuario que la generó.</p>
-            <p>Fuera del total vendido, incluidas las facturas anuladas: Bs {{ \App\Support\BolivianNumber::format((float) ($summary['totalMontoNoIncluidoEnTotalVendido'] ?? 0), 2) }}. De ese monto, Bs {{ \App\Support\BolivianNumber::format((float) ($summary['totalMontoAnulado'] ?? 0), 2) }} corresponden a facturas anuladas, que no forman parte de los ingresos.</p>
-            @if($topCashier)
-            <p>El cajero con mayores ingresos recaudados, incluida la facturación de Contratos y ECA, fue <span class="highlight">{{ $topCashier['usuarioNombre'] }}</span>, con <span class="highlight">Bs {{ \App\Support\BolivianNumber::format((float) ($topCashier['totalIngresosIncluyendoPorCobrar'] ?? $topCashier['totalIngresos'] ?? $topCashier['totalMonto']), 2) }}</span>.</p>
-            @endif
-            @if($topService)
-                <p>El grupo de servicio de mayor aporte fue <span class="highlight">{{ $topService['servicio'] }}</span>, con <span class="highlight">Bs {{ \App\Support\BolivianNumber::format((float) ($topService['totalMontoVendido'] ?? $topService['totalMonto']), 2) }}</span>.</p>
-            @endif
-        @else
-            <p>No se encontraron ingresos para los criterios seleccionados.</p>
-        @endif
+        <p><strong>Mejor cajero (quien recaudó más):</strong> @if($topCashier) {{ $topCashier['usuarioNombre'] }} — Bs {{ \App\Support\BolivianNumber::format((float) ($topCashier['totalIngresosIncluyendoPorCobrar'] ?? $topCashier['totalIngresos'] ?? $topCashier['totalMonto']), 2) }} @else Sin datos @endif</p>
+        <p><strong>Mejor servicio:</strong> @if($topService) {{ $topService['servicio'] }} — Bs {{ \App\Support\BolivianNumber::format((float) ($topService['totalMontoVendido'] ?? $topService['totalMonto'] ?? 0), 2) }} @else Sin datos @endif</p>
+        <p><strong>Cantidad de ventas:</strong> {{ \App\Support\BolivianNumber::format($totalSales) }}</p>
+        <p><strong>Total de anulaciones:</strong> Bs {{ \App\Support\BolivianNumber::format((float) ($summary['totalMontoAnulado'] ?? 0), 2) }}</p>
+        <p><strong>QR ANULADOS:</strong> Bs {{ \App\Support\BolivianNumber::format((float) ($summary['totalMontoNoIncluidoEnTotalVendido'] ?? 0), 2) }}</p>
     </div>
-
-    @php
-        $receivableReportRows = collect($receivableServices ?? []);
-        $receivableBilledAmount = (float) $receivableReportRows->sum('totalMonto');
-        $receivableCollectedAmount = (float) $receivableReportRows->sum('_montoCobrado');
-        $receivablePendingAmount = (float) ($cashierFlowReceivablePendingAmount ?? $receivableReportRows->sum('_montoPendiente'));
-    @endphp
-    <h2 class="section-title">Contratos y ECA no cobrados</h2>
-    <p class="muted">Importes de Contratos y ECA Internacional facturados durante el periodo, separados de las ventas de ventanilla. @if(!$cashierFlowCollectionsOmittedByDepartment)El saldo pendiente resta los cobros aceptados registrados.@else Los cobros aceptados se omiten del desglose porque el filtro de departamento no permite atribuirlos a una regional.@endif</p>
-    <table class="sheet">
-        <thead>
-            <tr>
-                <th style="width: 42%">Servicio</th>
-                <th style="width: 14%" class="right">Ventas</th>
-                <th style="width: 15%" class="right">Facturado</th>
-                <th style="width: 14%" class="right">Cobrado</th>
-                <th style="width: 15%" class="right">No cobrado</th>
-            </tr>
-        </thead>
-        <tbody>
-            @forelse($receivableReportRows as $receivableService)
-                @php($isContractReceivable = \Illuminate\Support\Str::startsWith((string) ($receivableService['servicio'] ?? ''), 'Servicio Contratos'))
-                <tr>
-                    <td class="strong">{{ $isContractReceivable ? 'Contratos' : ($receivableService['servicio'] ?? '-') }}
-                        @if($isContractReceivable)<br><span class="muted">{{ $receivableService['servicio'] }}</span>@endif
-                    </td>
-                    <td class="right">{{ \App\Support\BolivianNumber::format((float) ($receivableService['cantidadVentas'] ?? 0)) }}</td>
-                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($receivableService['totalMonto'] ?? 0), 2) }}</td>
-                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($receivableService['_montoCobrado'] ?? 0), 2) }}</td>
-                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($receivableService['_montoPendiente'] ?? $receivableService['totalMonto'] ?? 0), 2) }}</td>
-                </tr>
-            @empty
-                <tr><td colspan="5" class="center muted">No se encontraron facturas de Contratos ni ECA para el periodo seleccionado.</td></tr>
-            @endforelse
-            @if($receivableReportRows->isNotEmpty())
-                <tr>
-                    <td colspan="2" class="strong">TOTAL CONTRATOS Y ECA</td>
-                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format($receivableBilledAmount, 2) }}</td>
-                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format($receivableCollectedAmount, 2) }}</td>
-                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format($receivablePendingAmount, 2) }}</td>
-                </tr>
-            @endif
-        </tbody>
-    </table>
-
-    <h3 class="section-title page-break">Facturadores de Contratos y ECA</h3>
-    <p class="muted">Usuario que facturó, departamento asignado y montos facturados, cobrados y pendientes.</p>
-    <table class="sheet">
-        <thead>
-            <tr>
-                <th style="width: 22%">Facturado por</th>
-                <th style="width: 15%">Departamento</th>
-                <th style="width: 23%">Servicio</th>
-                <th style="width: 14%" class="right">Facturado</th>
-                <th style="width: 13%" class="right">Cobrado</th>
-                <th style="width: 13%" class="right">No cobrado</th>
-            </tr>
-        </thead>
-        <tbody>
-            @forelse(($cashierFlowReceivableInvoicers ?? collect()) as $receivableInvoicer)
-                <tr>
-                    <td class="strong">{{ $receivableInvoicer['facturadoPor'] ?? 'USUARIO SIN IDENTIFICAR' }}</td>
-                    <td>{{ $receivableInvoicer['departamento'] ?? 'SIN REGIONAL ASIGNADA' }}</td>
-                    <td>{{ $receivableInvoicer['servicio'] ?? '-' }}</td>
-                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($receivableInvoicer['totalFacturado'] ?? 0), 2) }}</td>
-                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($receivableInvoicer['totalCobrado'] ?? 0), 2) }}</td>
-                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($receivableInvoicer['totalNoCobrado'] ?? 0), 2) }}</td>
-                </tr>
-            @empty
-                <tr><td colspan="6" class="center muted">No hay facturadores de Contratos o ECA para el periodo y departamento seleccionados.</td></tr>
-            @endforelse
-            @if(collect($cashierFlowReceivableInvoicers ?? [])->isNotEmpty())
-                <tr>
-                    <td colspan="3" class="strong">TOTAL</td>
-                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) collect($cashierFlowReceivableInvoicers)->sum('totalFacturado'), 2) }}</td>
-                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) collect($cashierFlowReceivableInvoicers)->sum('totalCobrado'), 2) }}</td>
-                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) collect($cashierFlowReceivableInvoicers)->sum('totalNoCobrado'), 2) }}</td>
-                </tr>
-            @endif
-        </tbody>
-    </table>
 
     <h2 class="section-title">Resumen por departamento</h2>
 <table class="sheet">
@@ -228,7 +137,7 @@
         <tr>
             <th style="width: 23%">Departamento</th>
             <th style="width: 10%" class="right">Cajeros</th>
-            <th style="width: 12%" class="right">Operaciones</th>
+            <th style="width: 12%" class="right">Facturados</th>
             <th style="width: 12%" class="right">Paquetes</th>
             <th style="width: 17%" class="right">Promedio de ingresos recaudados/día</th>
             <th style="width: 26%" class="right">Ingresos recaudados</th>
@@ -251,7 +160,7 @@
             <tr>
                 <td class="strong">TOTAL GENERAL</td>
                 <td class="right strong">{{ \App\Support\BolivianNumber::format((float) $cashierDepartmentGroups->sum('cantidadCajeros')) }}</td>
-                <td class="right strong">{{ \App\Support\BolivianNumber::format((float) $cashierDepartmentGroups->sum('cantidadVentas')) }}</td>
+                <td class="right strong">{{ \App\Support\BolivianNumber::format((float) ($summary['cantidadVentas'] ?? $cashierDepartmentGroups->sum('cantidadVentas'))) }}</td>
                 <td class="right strong">{{ \App\Support\BolivianNumber::format((float) $cashierDepartmentGroups->sum('totalCantidad'), 2) }}</td>
                 <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) $cashierDepartmentGroups->sum('promedioGeneradoDiario'), 2) }}</td>
                 <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) $cashierDepartmentGroups->sum('totalIngresos'), 2) }}</td>
@@ -259,7 +168,10 @@
         @endif
     </tbody>
 </table>
-<p class="muted">Los cajeros asignados a varias regionales aparecen en una sección propia para evitar duplicar sus ingresos.</p>
+<p class="muted">Los subtotales por departamento y el total general usan ventas únicas. Las filas de cajeros muestran facturados por servicio y pueden solaparse si una venta incluye varios servicios. Los cajeros asignados a varias regionales aparecen en una sección propia para evitar duplicar sus ingresos.</p>
+@if(!empty($cashierFlowDepartmentSalesCountWarning))
+    <p class="muted">{{ $cashierFlowDepartmentSalesCountWarning }}</p>
+@endif
 
 @foreach($cashierDepartmentGroups as $departmentGroup)
     <div class="department-page">
@@ -280,7 +192,7 @@
                 <tr>
                     <th style="width: 4%" class="center">Pos.</th>
                     <th style="width: 25%">Cajero</th>
-                    <th style="width: 10%" class="right">Operaciones</th>
+                    <th style="width: 10%" class="right">Facturados</th>
                     <th style="width: 11%" class="right">Paquetes</th>
                     <th style="width: 14%" class="right">Promedio de ingresos recaudados/día</th>
                     <th style="width: 12%" class="right">QR</th>
@@ -315,27 +227,74 @@
     </div>
 @endforeach
 <h2 class="section-title">Ingresos por servicio</h2>
+<p class="muted">VENTANILLAS muestra ventas únicas; los conteos por servicio pueden solaparse cuando una venta incluye varios servicios. Cobrado + Cobrado QR = Total recaudado; las anulaciones y los saldos por cobrar no se incluyen.</p>
     <table class="sheet">
         <thead>
             <tr>
-                <th style="width: 6%">Pos.</th>
-                <th style="width: 39%">Grupo de servicio</th>
-                <th style="width: 15%" class="right">Operaciones por servicio</th>
-                <th style="width: 18%" class="right">Cantidad de paquetes</th>
-                <th style="width: 22%" class="right">Total vendido</th>
+                <th style="width: 5%">Pos.</th>
+                <th style="width: 27%">Grupo de servicio</th>
+                <th style="width: 11%" class="right">Operaciones por servicio</th>
+                <th style="width: 12%" class="right">Cantidad de paquetes</th>
+                <th style="width: 12%" class="right">Cobrado</th>
+                <th style="width: 11%" class="right">Cobrado QR</th>
+                <th style="width: 13%" class="right">Total recaudado</th>
+                <th style="width: 9%" class="right">Por cobrar</th>
             </tr>
         </thead>
         <tbody>
             @forelse($serviceGroups as $group)
+                @php($groupNumber = $loop->iteration)
                 <tr>
-                    <td class="center strong">{{ $loop->iteration }}</td>
+                    <td class="center strong">{{ $groupNumber }}</td>
                     <td class="strong">{{ $group['servicio'] }}</td>
                     <td class="right">{{ \App\Support\BolivianNumber::format((float) $group['cantidadVentas']) }}</td>
                     <td class="right">{{ \App\Support\BolivianNumber::format((float) $group['totalCantidad'], 2) }}</td>
-                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($group['totalMontoVendido'] ?? $group['totalMonto']), 2) }}</td>
+                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($group['totalMontoCobrado'] ?? 0), 2) }}</td>
+                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($group['totalMontoCobradoQr'] ?? 0), 2) }}</td>
+                    <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($group['totalMontoRecaudado'] ?? 0), 2) }}</td>
+                    <td class="right money">@if(($group['servicio'] ?? '') === 'Contratos')Bs {{ \App\Support\BolivianNumber::format((float) ($group['totalMontoPorCobrar'] ?? 0), 2) }}@else—@endif</td>
                 </tr>
+                @foreach($group['_children'] ?? [] as $child)
+                    @php($childNumber = $loop->iteration)
+                    @if(($group['servicio'] ?? '') === 'VENTANILLAS')
+                        <tr>
+                            <td class="center muted">{{ $groupNumber }}.{{ $childNumber }}</td>
+                            <td style="padding-left: 20px" class="strong">{{ $child['servicio'] }}</td>
+                            <td class="right">{{ \App\Support\BolivianNumber::format((float) ($child['cantidadVentas'] ?? 0)) }}</td>
+                            <td class="right">{{ \App\Support\BolivianNumber::format((float) ($child['totalCantidad'] ?? 0), 2) }}</td>
+                            <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($child['totalMontoCobrado'] ?? 0), 2) }}</td>
+                            <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($child['totalMontoCobradoQr'] ?? 0), 2) }}</td>
+                            <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($child['totalMontoRecaudado'] ?? 0), 2) }}</td>
+                            <td class="right">—</td>
+                        </tr>
+                        @foreach($child['_children'] ?? [] as $service)
+                            @php($serviceNumber = $loop->iteration)
+                            <tr>
+                                <td class="center muted">{{ $groupNumber }}.{{ $childNumber }}.{{ $serviceNumber }}</td>
+                                <td style="padding-left: 38px">{{ $service['servicio'] ?? '-' }}</td>
+                                <td class="right">{{ \App\Support\BolivianNumber::format((float) ($service['cantidadVentas'] ?? 0)) }}</td>
+                                <td class="right">{{ \App\Support\BolivianNumber::format((float) ($service['totalCantidad'] ?? 0), 2) }}</td>
+                                <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($service['totalMontoCobrado'] ?? 0), 2) }}</td>
+                                <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($service['totalMontoCobradoQr'] ?? 0), 2) }}</td>
+                                <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($service['totalMontoRecaudado'] ?? 0), 2) }}</td>
+                                <td class="right">—</td>
+                            </tr>
+                        @endforeach
+                    @else
+                        <tr>
+                            <td class="center muted">{{ $groupNumber }}.{{ $childNumber }}</td>
+                            <td style="padding-left: 20px">{{ $child['servicio'] ?? '-' }}</td>
+                            <td class="right">{{ \App\Support\BolivianNumber::format((float) ($child['cantidadVentas'] ?? 0)) }}</td>
+                            <td class="right">{{ \App\Support\BolivianNumber::format((float) ($child['totalCantidad'] ?? 0), 2) }}</td>
+                            <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($child['totalMontoCobrado'] ?? 0), 2) }}</td>
+                            <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($child['totalMontoCobradoQr'] ?? 0), 2) }}</td>
+                            <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($child['totalMontoRecaudado'] ?? 0), 2) }}</td>
+                            <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) ($child['totalMontoPorCobrar'] ?? $child['_montoPendiente'] ?? 0), 2) }}</td>
+                        </tr>
+                    @endif
+                @endforeach
             @empty
-                <tr><td colspan="5" class="center muted">Sin información por servicio.</td></tr>
+                <tr><td colspan="8" class="center muted">Sin información por servicio.</td></tr>
             @endforelse
         </tbody>
     </table>

@@ -477,10 +477,17 @@ $config = [
                     'can' => 'reportes.scope',
                 ],
                 [
-                    'text' => 'Flujo de cajero',
+                    'text' => 'Ingresos',
                     'can' => 'dashboard.financiera.flujo-cajero',
                     'required_parent_can' => 'dashboard.dir-financiera',
                     'url' => '/dir-financiera/flujo-cajero',
+                    'icon' => 'fas fa-cash-register',
+                ],
+                [
+                    'text' => 'Ingresos Ventanillas',
+                    'can' => 'dashboard.financiera.flujo-cajero',
+                    'required_parent_can' => 'dashboard.dir-financiera',
+                    'url' => '/dir-financiera/ingresos-ventanillas',
                     'icon' => 'fas fa-cash-register',
                 ],
                 [
