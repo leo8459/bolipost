@@ -410,7 +410,7 @@
                             loadingModal.setAttribute('aria-hidden', 'false');
                             document.body.classList.add('report-is-loading');
                         }
-                        setProgress(0, 'Conectando con el servidor…', 'Iniciando las consultas del reporte');
+                        setProgress(0, 'Conectando con el servidor…', 'Preparando las consultas del reporte');
                         if (submitButton) {
                             submitButton.disabled = true;
                             submitButton.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Filtrando...';
@@ -444,13 +444,13 @@
                                     receivedProgress = true;
                                     var detail = Number(message.total) > 0
                                         ? 'Consultas completadas: ' + Number(message.completed || 0) + ' de ' + Number(message.total)
-                                        : (Number(message.percent) >= 80 ? 'Consolidando resultados del reporte' : 'Preparando las consultas del reporte');
+                                        : (Number(message.percent) >= 80 ? 'Preparando los resultados para mostrarlos' : 'Preparando las consultas del reporte');
                                     setProgress(message.percent, message.stage, detail);
                                     return;
                                 }
                                 if (message.type === 'complete') {
                                     reportHtml = typeof message.html === 'string' ? message.html : '';
-                                    setProgress(100, 'Reporte completado', 'Resultados listos');
+                                    setProgress(100, 'Reporte completado', 'Mostrando los resultados del filtro');
                                     return;
                                 }
                                 if (message.type === 'error') {

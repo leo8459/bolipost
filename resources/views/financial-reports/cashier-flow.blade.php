@@ -336,6 +336,7 @@
         'action' => route('dashboard.financiera.flujo-cajero'),
         'showLimit' => true,
         'showDepartmentFilter' => true,
+        'enableProgressStream' => true,
         'departmentOptions' => $departmentOptions,
         'selectedDepartment' => $selectedDepartment,
         'filterTitle' => 'Prepare el reporte de ingresos',

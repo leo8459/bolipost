@@ -114,9 +114,9 @@
 
     <table class="metrics">
         <tr>
-            <td><span class="label">Ingresos recaudados (sin Contratos ni ECA)</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format($incomeWithoutContractsEca, 2) }}</span></td>
-            <td><span class="label">Ingresos Contratos y ECA</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format($incomeContractsEca, 2) }}</span></td>
-            <td><span class="label">Total recaudado</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format($totalCollectedReportAmount, 2) }}</span></td>
+            <td><span class="label">Ingresos recaudados por ventanilla</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format($incomeWithoutContractsEca, 2) }}</span></td>
+            <td><span class="label">Ingresos contratos</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format($incomeContractsEca, 2) }}</span></td>
+            <td><span class="label">Total de ingresos</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format($totalCollectedReportAmount, 2) }}</span></td>
             <td><span class="label">Promedio diario</span><span class="metric-value">Bs {{ \App\Support\BolivianNumber::format((float) ($averageDailyIncome ?? 0), 2) }}</span></td>
             <td><span class="label">Cajeros</span><span class="metric-value">{{ \App\Support\BolivianNumber::format($cashierRows->count()) }}</span></td>
         </tr>
@@ -124,23 +124,25 @@
 
     <h2 class="section-title">Resumen ejecutivo</h2>
     <div class="executive-box">
-        <p><strong>Mejor cajero (quien recaudó más):</strong> @if($topCashier) {{ $topCashier['usuarioNombre'] }} — Bs {{ \App\Support\BolivianNumber::format((float) ($topCashier['totalIngresosIncluyendoPorCobrar'] ?? $topCashier['totalIngresos'] ?? $topCashier['totalMonto']), 2) }} @else Sin datos @endif</p>
-        <p><strong>Mejor servicio:</strong> @if($topService) {{ $topService['servicio'] }} — Bs {{ \App\Support\BolivianNumber::format((float) ($topService['totalMontoVendido'] ?? $topService['totalMonto'] ?? 0), 2) }} @else Sin datos @endif</p>
-        <p><strong>Cantidad de ventas:</strong> {{ \App\Support\BolivianNumber::format($totalSales) }}</p>
-        <p><strong>Total de anulaciones:</strong> Bs {{ \App\Support\BolivianNumber::format((float) ($summary['totalMontoAnulado'] ?? 0), 2) }}</p>
-        <p><strong>QR ANULADOS:</strong> Bs {{ \App\Support\BolivianNumber::format((float) ($summary['totalMontoNoIncluidoEnTotalVendido'] ?? 0), 2) }}</p>
+        <p><strong>Mejor cajero:</strong> @if($topCashier) {{ $topCashier['usuarioNombre'] }} — Bs {{ \App\Support\BolivianNumber::format((float) ($topCashier['totalIngresosIncluyendoPorCobrar'] ?? $topCashier['totalIngresos'] ?? $topCashier['totalMonto']), 2) }} @else Sin datos @endif</p>
+        <p><strong>Mayor ingreso:</strong> @if($topService) {{ $topService['servicio'] }} — Bs {{ \App\Support\BolivianNumber::format((float) ($topService['totalMontoVendido'] ?? $topService['totalMonto'] ?? 0), 2) }} @else Sin datos @endif</p>
+        <p><strong>Facturas emitidas:</strong> {{ \App\Support\BolivianNumber::format($totalSales) }}</p>
+        <p><strong>Facturas anuladas:</strong> {{ \App\Support\BolivianNumber::format((float) ($summary['cantidadFacturasAnuladas'] ?? 0)) }}</p>
+        <p><strong>QR ANULADOS:</strong> {{ \App\Support\BolivianNumber::format((float) ($summary['cantidadQrAnulados'] ?? 0)) }}</p>
     </div>
 
     <h2 class="section-title">Resumen por departamento</h2>
 <table class="sheet">
     <thead>
         <tr>
-            <th style="width: 23%">Departamento</th>
-            <th style="width: 10%" class="right">Cajeros</th>
-            <th style="width: 12%" class="right">Facturados</th>
-            <th style="width: 12%" class="right">Paquetes</th>
-            <th style="width: 17%" class="right">Promedio de ingresos recaudados/día</th>
-            <th style="width: 26%" class="right">Ingresos recaudados</th>
+            <th style="width: 15%">Departamento</th>
+            <th style="width: 8%" class="right">Cantidad de cajeros</th>
+            <th style="width: 9%" class="right">Cantidad de facturas</th>
+            <th style="width: 9%" class="right">Cantidad de paquetes</th>
+            <th style="width: 14%" class="right">Promedio de ingresos recaudados/día</th>
+            <th style="width: 13%" class="right">Generado por QR</th>
+            <th style="width: 13%" class="right">Generado en efectivo</th>
+            <th style="width: 19%" class="right">Total recaudado</th>
         </tr>
     </thead>
     <tbody>
@@ -151,10 +153,12 @@
                 <td class="right">{{ \App\Support\BolivianNumber::format($departmentGroup['cantidadVentas']) }}</td>
                 <td class="right">{{ \App\Support\BolivianNumber::format($departmentGroup['totalCantidad'], 2) }}</td>
                 <td class="right money">Bs {{ \App\Support\BolivianNumber::format($departmentGroup['promedioGeneradoDiario'], 2) }}</td>
+                <td class="right money">Bs {{ \App\Support\BolivianNumber::format(collect($departmentGroup['cajeros'])->sum(fn ($cashier) => (float) data_get($cashier, 'paymentMethods.qr.totalMonto', 0)), 2) }}</td>
+                <td class="right money">Bs {{ \App\Support\BolivianNumber::format(collect($departmentGroup['cajeros'])->sum(fn ($cashier) => (float) data_get($cashier, 'paymentMethods.efectivo.totalMonto', 0)), 2) }}</td>
                 <td class="right money">Bs {{ \App\Support\BolivianNumber::format($departmentGroup['totalIngresos'], 2) }}</td>
             </tr>
         @empty
-            <tr><td colspan="6" class="center muted">No hay información por cajero para los filtros seleccionados.</td></tr>
+            <tr><td colspan="8" class="center muted">No hay información por cajero para los filtros seleccionados.</td></tr>
         @endforelse
         @if($cashierDepartmentGroups->isNotEmpty())
             <tr>
@@ -163,6 +167,8 @@
                 <td class="right strong">{{ \App\Support\BolivianNumber::format((float) ($summary['cantidadVentas'] ?? $cashierDepartmentGroups->sum('cantidadVentas'))) }}</td>
                 <td class="right strong">{{ \App\Support\BolivianNumber::format((float) $cashierDepartmentGroups->sum('totalCantidad'), 2) }}</td>
                 <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) $cashierDepartmentGroups->sum('promedioGeneradoDiario'), 2) }}</td>
+                <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) $cashierDepartmentGroups->sum(fn ($departmentGroup) => collect($departmentGroup['cajeros'])->sum(fn ($cashier) => (float) data_get($cashier, 'paymentMethods.qr.totalMonto', 0))), 2) }}</td>
+                <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) $cashierDepartmentGroups->sum(fn ($departmentGroup) => collect($departmentGroup['cajeros'])->sum(fn ($cashier) => (float) data_get($cashier, 'paymentMethods.efectivo.totalMonto', 0))), 2) }}</td>
                 <td class="right money">Bs {{ \App\Support\BolivianNumber::format((float) $cashierDepartmentGroups->sum('totalIngresos'), 2) }}</td>
             </tr>
         @endif

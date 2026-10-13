@@ -107,7 +107,7 @@ class IngresosVentanillasController extends Controller
         ));
 
         if ($progressCallback !== null) {
-            $progressCallback(97, 'Dibujando el reporte…', 0, 0);
+            $progressCallback(97, 'Preparando la vista del reporte…', 0, 0);
         }
 
         return view('financial-reports.ingresos-ventanillas', $data);
@@ -308,7 +308,7 @@ class IngresosVentanillasController extends Controller
             progressCallback: $progressCallback
         );
         if ($progressCallback !== null) {
-            $progressCallback(83, 'Conciliando anulaciones y movimientos…', 0, 0);
+            $progressCallback(83, 'Revisando facturas anuladas y pagos…', 0, 0);
         }
         $receivableRows = collect($data['receivableServices']);
         $invoicePeriodMovements = collect();
@@ -347,7 +347,7 @@ class IngresosVentanillasController extends Controller
             ->unique()
             ->values();
         if ($progressCallback !== null) {
-            $progressCallback(87, 'Revisando anulaciones del periodo…', 0, 0);
+            $progressCallback(87, 'Cuadrando los importes anulados…', 0, 0);
         }
         $cancelledByService = $cancelledInvoices
             ->reject(fn (array $invoice): bool => $this->isCashierFlowReceivableService((string) ($invoice['_servicio'] ?? '')))
@@ -402,7 +402,7 @@ class IngresosVentanillasController extends Controller
             $data['cashierFlowReceivablePendingAmount'] = (float) $data['receivableServices']->sum('_montoPendiente');
         }
         if ($progressCallback !== null) {
-            $progressCallback(91, 'Consolidando ingresos por servicio…', 0, 0);
+            $progressCallback(91, 'Consolidando cajeros, servicios y montos…', 0, 0);
         }
         $collectedServiceRows = $this->buildCollectedReceivableServiceRows($invoicePeriodMovements->groupBy('servicio'));
         $data['serviceGroups'] = $this->buildCashierFlowServiceGroups(
@@ -471,7 +471,7 @@ class IngresosVentanillasController extends Controller
         }
 
         if ($progressCallback !== null) {
-            $progressCallback(95, 'Preparando los resultados del reporte…', 0, 0);
+            $progressCallback(95, 'Consolidando cajeros, servicios y montos…', 0, 0);
         }
 
         return $data;

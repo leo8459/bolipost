@@ -95,10 +95,79 @@ class FinancialReportController extends Controller
         @set_time_limit(180);
         @ini_set('max_execution_time', '180');
 
+        if ($request->boolean('stream')) {
+            return $this->streamCashierFlowView($request);
+        }
+
         return view('financial-reports.cashier-flow', $this->buildCashierFlowData($request));
     }
 
-    private function buildCashierFlowData(Request $request, bool $includeCashierBreakdown = true): array
+    private function streamCashierFlowView(Request $request)
+    {
+        @set_time_limit(180);
+        @ini_set('max_execution_time', '180');
+        @ini_set('zlib.output_compression', '0');
+
+        return response()->stream(function () use ($request): void {
+            $send = function (array $message): void {
+                echo json_encode($message, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)."\n";
+                if (ob_get_level() > 0) {
+                    @ob_flush();
+                }
+                flush();
+            };
+
+            $send([
+                'type' => 'progress',
+                'percent' => 2,
+                'stage' => 'Iniciando las consultas del reporte…',
+                'completed' => 0,
+                'total' => 0,
+            ]);
+
+            try {
+                // The stream flag is transport-only; keep it out of the rendered page and its links.
+                $request->query->remove('stream');
+                $progressCallback = function (int $percent, string $stage, int $completed = 0, int $total = 0) use ($send): void {
+                    $send([
+                        'type' => 'progress',
+                        'percent' => min(96, max(2, $percent)),
+                        'stage' => $stage,
+                        'completed' => max(0, $completed),
+                        'total' => max(0, $total),
+                    ]);
+                };
+
+                $data = $this->buildCashierFlowData($request, true, $progressCallback);
+                $send([
+                    'type' => 'progress',
+                    'percent' => 98,
+                    'stage' => 'Preparando la vista del reporte…',
+                    'completed' => 0,
+                    'total' => 0,
+                ]);
+                $html = view('financial-reports.cashier-flow', $data)->render();
+                $send(['type' => 'page', 'html' => $html]);
+            } catch (\Throwable $exception) {
+                report($exception);
+                $send([
+                    'type' => 'error',
+                    'message' => 'No se pudo completar el filtrado. Intente nuevamente.',
+                ]);
+            }
+        }, 200, [
+            'Content-Type' => 'application/x-ndjson; charset=UTF-8',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            'X-Accel-Buffering' => 'no',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    private function buildCashierFlowData(
+        Request $request,
+        bool $includeCashierBreakdown = true,
+        ?Closure $progressCallback = null
+    ): array
     {
         $data = $this->buildServicesReportData(
             $request,
@@ -110,8 +179,12 @@ class FinancialReportController extends Controller
             cacheReports: true,
             showReceivablesSeparately: true,
             includeAnnulledDetails: true,
-            loadAllReceivablesOutsideServiceFilter: true
+            loadAllReceivablesOutsideServiceFilter: true,
+            progressCallback: $progressCallback
         );
+        if ($progressCallback !== null) {
+            $progressCallback(80, 'Revisando facturas anuladas y pagos…');
+        }
         $receivableRows = collect($data['receivableServices']);
         $invoicePeriodMovements = collect();
         if ($includeCashierBreakdown && Schema::hasTable('cashier_flow_receivable_movements') && $data['selectedDepartment'] === '') {
@@ -142,6 +215,9 @@ class FinancialReportController extends Controller
                 : (string) $invoice['_dedupeKey'])
             ->sortByDesc('fecha')
             ->values();
+        if ($progressCallback !== null) {
+            $progressCallback(86, 'Cuadrando los importes anulados…');
+        }
         $data['summary']['totalMontoAnulado'] = (float) $cancelledInvoices
             ->reject(fn (array $invoice): bool => $this->isCashierFlowReceivableService((string) ($invoice['_servicio'] ?? '')))
             ->sum('monto');
@@ -250,6 +326,10 @@ class FinancialReportController extends Controller
             );
             $data['cashierDepartmentGroups'] = $departmentSalesAlignment['groups'];
             $data['cashierFlowDepartmentSalesCountWarning'] = $departmentSalesAlignment['warning'];
+        }
+
+        if ($progressCallback !== null) {
+            $progressCallback(96, 'Consolidando cajeros, servicios y montos…');
         }
 
         return $data;
@@ -428,6 +508,19 @@ class FinancialReportController extends Controller
         $periodCancelledInvoices = $invoiceAudit['invoices'];
         $summaryCancelledInvoices = $periodCancelledInvoices
             ->reject(fn (array $invoice): bool => $this->isCashierFlowReceivableService((string) $invoice['_servicio']));
+        $countDistinctInvoices = function (Collection $invoices): int {
+            return $invoices
+                ->map(fn (array $invoice): string => filled($invoice['_ventaId'] ?? null)
+                    ? 'venta:'.trim((string) $invoice['_ventaId'])
+                    : (filled($invoice['_dedupeKey'] ?? null) ? 'detalle:'.(string) $invoice['_dedupeKey'] : ''))
+                ->filter()
+                ->unique()
+                ->count();
+        };
+        $data['summary']['cantidadFacturasAnuladas'] = $countDistinctInvoices($summaryCancelledInvoices);
+        $data['summary']['cantidadQrAnulados'] = $countDistinctInvoices(
+            $summaryCancelledInvoices->filter(fn (array $invoice): bool => $this->cashierFlowPaymentMethod($invoice) === 'qr')
+        );
         $data['services'] = $this->subtractCancelledInvoicesFromServices(
             collect($data['services']),
             $summaryCancelledInvoices,

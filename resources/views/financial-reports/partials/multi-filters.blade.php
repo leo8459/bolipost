@@ -39,7 +39,7 @@
         <i class="fas fa-chevron-down report-filter-chevron" aria-hidden="true"></i>
     </summary>
 
-    <form method="GET" action="{{ $action }}" class="report-filter-form" data-max-services="{{ $maxSelectedServices ?? 200 }}">
+    <form method="GET" action="{{ $action }}" class="report-filter-form" data-max-services="{{ $maxSelectedServices ?? 200 }}" data-report-progress-stream="{{ ($enableProgressStream ?? false) ? 'true' : 'false' }}">
         @if($soloContratos ?? false)
             <input type="hidden" name="solo_contratos" value="1">
         @endif
@@ -278,6 +278,7 @@
                     var noResults = form.querySelector('.service-no-results');
                     var loadingModal = document.querySelector('[data-report-loading-modal]');
                     var submitButton = form.querySelector('.report-submit');
+                    var useProgressStream = form.dataset.reportProgressStream === 'true';
                     var maxServices = parseInt(form.dataset.maxServices || '200', 10);
                     var serviceLimitWarning = form.querySelector('[data-service-limit-warning]');
 
@@ -339,6 +340,101 @@
                         search.dispatchEvent(new Event('input'));
                         search.focus();
                     });
+
+                    function submitWithProgress() {
+                        var targetUrl = new URL(form.action || window.location.href, window.location.href);
+                        targetUrl.search = '';
+                        new FormData(form).forEach(function (value, key) {
+                            targetUrl.searchParams.append(key, value);
+                        });
+                        var finalUrl = new URL(targetUrl.toString());
+                        finalUrl.searchParams.delete('stream');
+                        targetUrl.searchParams.set('stream', '1');
+
+                        var progressBlock = loadingModal ? loadingModal.querySelector('[data-report-progress-block]') : null;
+                        var progressStage = loadingModal ? loadingModal.querySelector('[data-report-progress-stage]') : null;
+                        var progressPercent = loadingModal ? loadingModal.querySelector('[data-report-progress-percent]') : null;
+                        var progressDetail = loadingModal ? loadingModal.querySelector('[data-report-progress-detail]') : null;
+                        var progressTrack = loadingModal ? loadingModal.querySelector('[data-report-progress]') : null;
+                        var progressBar = loadingModal ? loadingModal.querySelector('[data-report-progress-bar]') : null;
+                        var latestProgress = 0;
+
+                        function setProgress(percent, stage, detail) {
+                            var nextProgress = Math.max(latestProgress, Math.min(100, Math.max(0, Number(percent) || 0)));
+                            latestProgress = nextProgress;
+                            if (progressBar) progressBar.style.width = nextProgress + '%';
+                            if (progressTrack) progressTrack.setAttribute('aria-valuenow', String(Math.round(nextProgress)));
+                            if (progressPercent) progressPercent.textContent = Math.round(nextProgress) + '%';
+                            if (progressStage && stage) progressStage.textContent = stage;
+                            if (progressDetail && detail) progressDetail.textContent = detail;
+                        }
+
+                        function handleMessage(message) {
+                            if (message.type === 'progress') {
+                                var detail = Number(message.total) > 0
+                                    ? 'Consultas completadas: ' + Number(message.completed || 0) + ' de ' + Number(message.total)
+                                    : Number(message.percent) >= 80
+                                        ? 'Preparando los resultados para mostrarlos'
+                                        : 'Preparando las consultas del reporte';
+                                setProgress(message.percent, message.stage, detail);
+                                return false;
+                            }
+                            if (message.type === 'error') {
+                                throw new Error(message.message || 'No se pudo completar el filtrado.');
+                            }
+                            if (message.type === 'page' && typeof message.html === 'string') {
+                                setProgress(100, 'Reporte completado', 'Mostrando los resultados del filtro');
+                                window.history.pushState({}, '', finalUrl.pathname + finalUrl.search + finalUrl.hash);
+                                window.onpopstate = function () { window.location.reload(); };
+                                document.open();
+                                document.write(message.html);
+                                document.close();
+                                return true;
+                            }
+                            return false;
+                        }
+
+                        (async function () {
+                            try {
+                                var response = await fetch(targetUrl.toString(), {
+                                    credentials: 'same-origin',
+                                    cache: 'no-store',
+                                    headers: { 'Accept': 'application/x-ndjson' }
+                                });
+                                var responseType = (response.headers.get('Content-Type') || '').toLowerCase();
+                                if (!response.ok || !responseType.includes('application/x-ndjson') || !response.body) {
+                                    throw new Error('El servidor devolvió una respuesta inesperada.');
+                                }
+
+                                var reader = response.body.getReader();
+                                var decoder = new TextDecoder();
+                                var pendingText = '';
+                                var pageLoaded = false;
+                                while (!pageLoaded) {
+                                    var part = await reader.read();
+                                    pendingText += decoder.decode(part.value || new Uint8Array(), { stream: !part.done });
+                                    var lineBreak = pendingText.indexOf('\n');
+                                    while (lineBreak >= 0) {
+                                        var line = pendingText.slice(0, lineBreak).trim();
+                                        pendingText = pendingText.slice(lineBreak + 1);
+                                        if (line) pageLoaded = handleMessage(JSON.parse(line)) || pageLoaded;
+                                        lineBreak = pendingText.indexOf('\n');
+                                    }
+                                    if (part.done) break;
+                                }
+
+                                if (!pageLoaded && pendingText.trim()) {
+                                    pageLoaded = handleMessage(JSON.parse(pendingText.trim()));
+                                }
+                                if (!pageLoaded) throw new Error('La respuesta terminó antes de cargar el reporte.');
+                            } catch (error) {
+                                if (progressStage) progressStage.textContent = 'Reintentando la carga del reporte…';
+                                if (progressDetail) progressDetail.textContent = error.message;
+                                window.location.assign(finalUrl.toString());
+                            }
+                        })();
+                    }
+
                     form.addEventListener('submit', function (event) {
                         var selectedServiceCount = serviceInputs.filter(function (input) { return input.checked; }).length;
                         if (selectedServiceCount > maxServices) {
@@ -360,7 +456,7 @@
                             var progressBlock = loadingModal.querySelector('[data-report-progress-block]');
                             if (loadingTitle) loadingTitle.textContent = 'Filtrando datos';
                             if (loadingMessage) loadingMessage.textContent = 'Espere por favor, estamos preparando su reporte.';
-                            if (progressBlock) progressBlock.hidden = true;
+                            if (progressBlock) progressBlock.hidden = !useProgressStream;
                             loadingModal.classList.add('is-visible');
                             loadingModal.setAttribute('aria-hidden', 'false');
                             document.body.classList.add('report-is-loading');
@@ -368,6 +464,11 @@
                         if (submitButton) {
                             submitButton.disabled = true;
                             submitButton.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Filtrando...';
+                        }
+
+                        if (useProgressStream) {
+                            event.preventDefault();
+                            submitWithProgress();
                         }
                     });
                     refresh();
