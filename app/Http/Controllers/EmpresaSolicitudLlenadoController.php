@@ -56,7 +56,8 @@ class EmpresaSolicitudLlenadoController extends Controller
                         });
                 });
             })
-            ->orderBy('name')
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->paginate(100)
             ->withQueryString();
 
