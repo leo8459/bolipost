@@ -169,6 +169,7 @@
                                 <th>Reporte</th>
                                 <th>Estado</th>
                                 <th>Fecha de recojo</th>
+                                <th>Fecha de creación</th>
                                 <th class="tp-actions-column">Acciones</th>
                             </tr>
                         </thead>
@@ -256,6 +257,12 @@
                                             @endif
                                         </div>
                                     </td>
+                                    <td>
+                                        <div class="tp-updated">
+                                            <strong>{{ $paquete->created_at ? \Illuminate\Support\Carbon::parse($paquete->created_at)->format('d/m/Y') : '-' }}</strong>
+                                            <small>{{ $paquete->created_at ? \Illuminate\Support\Carbon::parse($paquete->created_at)->format('H:i') : '' }}</small>
+                                        </div>
+                                    </td>
                                     <td class="text-right tp-actions-column">
                                         <div class="tp-row-actions">
                                             @include('partials.rastreo-eventos-button', [
@@ -288,7 +295,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="9" class="text-center text-muted py-5">No hay paquetes con los filtros seleccionados.</td>
+                                    <td colspan="10" class="text-center text-muted py-5">No hay paquetes con los filtros seleccionados.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -307,9 +314,10 @@
                                     @endif
                                     <small>CN-33: {{ $paquete->cod_especial ?: '-' }}</small>
                                 </div>
-                                <span class="tp-card-date" title="Fecha de recojo">Recojo:
-                                    {{ $paquete->fecha_recojo ? \Illuminate\Support\Carbon::parse($paquete->fecha_recojo)->format('d/m/Y') : '-' }}
-                                </span>
+                                <div class="tp-card-dates">
+                                    <span class="tp-card-date" title="Fecha de recojo">Recojo: {{ $paquete->fecha_recojo ? \Illuminate\Support\Carbon::parse($paquete->fecha_recojo)->format('d/m/Y') : '-' }}</span>
+                                    <span class="tp-card-date" title="Fecha de creación">Creación: {{ $paquete->created_at ? \Illuminate\Support\Carbon::parse($paquete->created_at)->format('d/m/Y H:i') : '-' }}</span>
+                                </div>
                             </div>
                             <div class="tp-package-route">
                                 <span><small>Origen</small>{{ $paquete->origen ?: '-' }}</span>
@@ -1028,6 +1036,12 @@
             }
             .tp-card-date {
                 white-space:nowrap;
+            }
+            .tp-card-dates {
+                display:flex;
+                flex-direction:column;
+                align-items:flex-end;
+                gap:4px;
             }
             .tp-package-route {
                 display:grid;

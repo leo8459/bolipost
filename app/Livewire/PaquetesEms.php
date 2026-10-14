@@ -423,9 +423,6 @@ class PaquetesEms extends Component
         $query = Servicio::query();
         if ($this->isCreateEms) {
             if ($this->editingId) {
-                if (! $this->tarifario_version_id) {
-                    return $query;
-                }
                 $versionId = (string) $this->tarifario_version_id;
             } else {
                 $versionId = AppSetting::getValue(self::TARIFARIO_VERSION_SETTING);
@@ -447,6 +444,18 @@ class PaquetesEms extends Component
         }
 
         return $query;
+    }
+
+    protected function serviciosDelTarifarioPadreVigenteQuery(): Builder
+    {
+        $query = Servicio::query();
+        $padreId = AppSetting::getValue(self::TARIFARIO_PADRE_SETTING);
+
+        if ($padreId === null || trim((string) $padreId) === '') {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->where('tarifario_padre_id', (int) $padreId);
     }
 
     protected function validarServicioDisponible(): void
@@ -2865,9 +2874,6 @@ class PaquetesEms extends Component
         $paquete = PaqueteEms::query()->with('formulario')->findOrFail($id);
         $formulario = $paquete->formulario;
 
-        if (empty($this->servicios)) {
-            $this->servicios = Servicio::orderBy('nombre_servicio')->get();
-        }
         if (empty($this->destinos)) {
             $this->loadDestinos();
         }
@@ -2899,6 +2905,8 @@ class PaquetesEms extends Component
         $this->servicio_id = optional($paquete->tarifario)->servicio_id;
         if ($this->isCreateEms) {
             $this->servicios = $this->serviciosDisponiblesQuery()->orderBy('nombre_servicio')->get();
+        } else {
+            $this->servicios = $this->serviciosDelTarifarioPadreVigenteQuery()->orderBy('nombre_servicio')->get();
         }
         $this->destino_id = optional($paquete->tarifario)->destino_id;
         $this->auto_codigo = false;
