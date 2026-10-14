@@ -609,6 +609,14 @@ class AclPermissionRegistry
             'users.empresas',
             'feature.users.empresas.manage',
         ],
+        'empresa.solicitud-llenado.update-responses' => [
+            'users.empresas',
+            'feature.users.empresas.manage',
+        ],
+        'empresa.solicitud-llenado.update-response' => [
+            'users.empresas',
+            'feature.users.empresas.manage',
+        ],
         'users.empresas.excel' => [
             'users.empresas.excel',
             'users.empresas',

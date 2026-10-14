@@ -24,6 +24,17 @@
             <button type="button" class="close" data-dismiss="alert" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>
         </div>
     @endif
+    @if ($errors->responseEdit->any())
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <strong>No se pudo guardar la respuesta.</strong>
+            <ul class="mb-0 mt-1">
+                @foreach ($errors->responseEdit->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+            <button type="button" class="close" data-dismiss="alert" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>
+        </div>
+    @endif
 
     <div class="row mb-3">
         <div class="col-sm-4 col-lg-3 mb-2">
@@ -52,12 +63,40 @@
                 <label for="buscar" class="sr-only">Buscar empresa o usuario</label>
                 <input id="buscar" type="search" name="buscar" value="{{ $search }}" class="form-control mr-2 mb-2 mb-sm-0"
                     placeholder="Empresa, nombre, alias o correo" style="min-width: 280px">
+                <label for="empresa_id" class="sr-only">Filtrar por empresa</label>
+                <select id="empresa_id" name="empresa_id" class="form-control mr-2 mb-2 mb-sm-0" style="min-width: 220px">
+                    <option value="">Todas las empresas</option>
+                    @foreach ($companies as $company)
+                        <option value="{{ $company->id }}" @selected($companyId === (int) $company->id)>
+                            {{ $company->nombre }}{{ $company->sigla ? ' · '.$company->sigla : '' }}
+                        </option>
+                    @endforeach
+                </select>
+                <label for="respuesta" class="sr-only">Filtrar por respuesta</label>
+                <select id="respuesta" name="respuesta" class="form-control mr-2 mb-2 mb-sm-0">
+                    <option value="">Todos los estados</option>
+                    <option value="respondidas" @selected($responseStatus === 'respondidas')>Respondidas</option>
+                    <option value="pendientes" @selected($responseStatus === 'pendientes')>Pendientes</option>
+                    <option value="sin_solicitud" @selected($responseStatus === 'sin_solicitud')>Sin solicitud</option>
+                    <option value="ubicacion_registrada" @selected($responseStatus === 'ubicacion_registrada')>Ubicación registrada</option>
+                </select>
                 <button class="btn btn-outline-primary mr-2" type="submit"><i class="fas fa-search mr-1"></i>Buscar</button>
-                @if ($search !== '')
+                @if ($search !== '' || $companyId > 0 || $responseStatus !== '')
                     <a class="btn btn-outline-secondary" href="{{ route('empresa.solicitud-llenado.index') }}">Limpiar</a>
                 @endif
             </form>
+            <form method="POST" action="{{ route('empresa.solicitud-llenado.send', request()->only('buscar', 'empresa_id', 'respuesta')) }}" id="send-location-request-form">
+                @csrf
+            </form>
+            <form method="POST" action="{{ route('empresa.solicitud-llenado.update-responses', request()->only('buscar', 'empresa_id', 'respuesta')) }}" id="save-all-responses-form">
+                @csrf
+                @method('PATCH')
+            </form>
             <div class="d-flex flex-wrap mt-3">
+                <button type="submit" form="save-all-responses-form" class="btn btn-success mr-2 mb-2 mb-sm-0" id="save-all-responses-button">
+                    <i class="fas fa-save mr-1"></i>Guardar todos los cambios
+                    <span class="badge badge-light ml-1" id="unsaved-response-count">0</span>
+                </button>
                 <button type="submit" form="send-location-request-form" class="btn btn-primary mr-2 mb-2 mb-sm-0" id="send-location-request-button" @disabled($users->isEmpty())>
                     <i class="fas fa-paper-plane mr-1"></i>Enviar solicitud a seleccionados
                 </button>
@@ -67,9 +106,7 @@
             </div>
         </div>
 
-        <form method="POST" action="{{ route('empresa.solicitud-llenado.send', request()->only('buscar')) }}" id="send-location-request-form">
-            @csrf
-            <div class="table-responsive">
+        <div class="table-responsive">
                 <table class="table table-hover table-striped mb-0">
                     <thead>
                         <tr>
@@ -77,21 +114,35 @@
                             <th>Usuario</th>
                             <th>Empresa</th>
                             <th>Municipio / provincia</th>
-                            <th>Estado de solicitud</th>
+                            <th>Respuesta / solicitud</th>
+                            <th>Guardar</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse ($users as $user)
                             @php
-                                $needsProvince = trim((string) $user->provincia_origen) === '';
+                                $hasProvince = trim((string) $user->provincia_origen) !== '';
                                 $responded = (bool) $user->empresa_ubicacion_respondida_at;
+                                $canRequest = ! $hasProvince && ! $responded;
                                 $pending = (bool) $user->empresa_ubicacion_solicitada_at && ! $responded;
+                                $defaultResponseType = $hasProvince ? 'ubicacion' : ($responded ? 'capital' : 'sin_respuesta');
+                                $oldUpdate = old('updates.'.$user->id);
+                                $restoreInlineEdit = $errors->responseEdit->any() && (
+                                    (string) old('user_id') === (string) $user->id || is_array($oldUpdate)
+                                );
+                                $responseType = $restoreInlineEdit
+                                    ? old('updates.'.$user->id.'.respuesta_tipo', old('respuesta_tipo', $defaultResponseType))
+                                    : $defaultResponseType;
+                                $locationValue = $restoreInlineEdit
+                                    ? old('updates.'.$user->id.'.ubicacion', old('ubicacion', ''))
+                                    : $user->provincia_origen;
+                                $editFormId = 'edit-response-form-'.$user->id;
                             @endphp
-                            <tr>
+                            <tr data-user-id="{{ $user->id }}">
                                 <td class="text-center align-middle">
-                                    <input type="checkbox" name="user_ids[]" value="{{ $user->id }}" class="user-select"
-                                        aria-label="Seleccionar {{ $user->name }}" @disabled(! $needsProvince)
-                                        title="{{ $needsProvince ? '' : 'Ya tiene provincia origen registrada' }}">
+                                    <input type="checkbox" form="send-location-request-form" name="user_ids[]" value="{{ $user->id }}" class="user-select"
+                                        aria-label="Seleccionar {{ $user->name }}" @disabled(! $canRequest)
+                                        title="{{ $hasProvince ? 'Ya tiene provincia origen registrada' : ($responded ? 'Ya respondió la solicitud' : '') }}">
                                 </td>
                                 <td class="align-middle">
                                     <strong>{{ $user->name }}</strong><br>
@@ -106,16 +157,21 @@
                                     @endif
                                 </td>
                                 <td class="align-middle">
-                                    @if (filled($user->provincia_origen))
-                                        {{ $user->provincia_origen }}
-                                    @elseif ($user->empresa_ubicacion_capital)
-                                        <span class="text-muted">Ciudad capital</span>
-                                    @else
-                                        <span class="text-muted">Sin registrar</span>
-                                    @endif
+                                    <input type="text" class="form-control form-control-sm text-uppercase inline-location-input"
+                                        form="{{ $editFormId }}" name="ubicacion" maxlength="255" autocomplete="off"
+                                        value="{{ $locationValue }}" data-original-location="{{ $user->provincia_origen }}"
+                                        aria-label="Municipio o provincia de {{ $user->name }}"
+                                        placeholder="Municipio o provincia">
                                 </td>
                                 <td class="align-middle">
-                                    @if (! $needsProvince)
+                                    <select class="form-control form-control-sm inline-response-type" form="{{ $editFormId }}"
+                                        name="respuesta_tipo" required data-original-type="{{ $defaultResponseType }}"
+                                        aria-label="Respuesta de {{ $user->name }}">
+                                        <option value="sin_respuesta" @selected($responseType === 'sin_respuesta')>Sin respuesta</option>
+                                        <option value="ubicacion" @selected($responseType === 'ubicacion')>Municipio / provincia</option>
+                                        <option value="capital" @selected($responseType === 'capital')>Ciudad capital</option>
+                                    </select>
+                                    @if ($hasProvince)
                                         <span class="badge badge-info">Provincia registrada</span>
                                     @elseif ($responded)
                                         <span class="badge badge-success">Respondió</span>
@@ -129,18 +185,32 @@
                                         <span class="badge badge-secondary">Sin solicitud</span>
                                     @endif
                                 </td>
+                                <td class="align-middle text-nowrap">
+                                    <form method="POST" id="{{ $editFormId }}"
+                                        action="{{ route('empresa.solicitud-llenado.update-response', array_merge(['user' => $user->id], request()->only('buscar', 'empresa_id', 'respuesta'))) }}">
+                                        @csrf
+                                        @method('PATCH')
+                                        <input type="hidden" name="user_id" value="{{ $user->id }}">
+                                        <button type="submit" class="btn btn-sm btn-primary">
+                                            <i class="fas fa-save mr-1"></i>Guardar
+                                        </button>
+                                    </form>
+                                </td>
                             </tr>
                         @empty
-                            <tr><td colspan="5" class="text-center text-muted py-4">No se encontraron usuarios de empresa.</td></tr>
+                            <tr><td colspan="6" class="text-center text-muted py-4">No se encontraron usuarios de empresa.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
-            </div>
+        </div>
 
-            <div class="card-footer bg-white d-flex flex-wrap align-items-center justify-content-between">
-                <div class="ml-auto">{{ $users->links() }}</div>
-            </div>
-        </form>
+        <div class="card-footer bg-white d-flex flex-wrap align-items-center justify-content-between">
+            <small class="text-muted">
+                Mostrando {{ $users->firstItem() ?? 0 }}–{{ $users->lastItem() ?? 0 }} de {{ number_format($users->total(), 0, ',', '.') }} usuarios
+                (100 por página)
+            </small>
+            <div class="ml-auto">{{ $users->links() }}</div>
+        </div>
     </div>
 
     <div class="request-confirmation" id="request-confirmation" aria-hidden="true">
@@ -371,6 +441,81 @@
 @section('js')
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            const saveAllForm = document.getElementById('save-all-responses-form');
+            const saveAllButton = document.getElementById('save-all-responses-button');
+            const unsavedResponseCount = document.getElementById('unsaved-response-count');
+            const responseRows = Array.from(document.querySelectorAll('tbody tr[data-user-id]'));
+
+            const rowHasUnsavedChanges = (row) => {
+                const responseType = row.querySelector('.inline-response-type');
+                const locationInput = row.querySelector('.inline-location-input');
+                if (!responseType || !locationInput) return false;
+
+                const originalType = responseType.dataset.originalType || 'sin_respuesta';
+                const originalLocation = (locationInput.dataset.originalLocation || '').trim();
+                return responseType.value !== originalType
+                    || (responseType.value === 'ubicacion' && locationInput.value.trim() !== originalLocation);
+            };
+
+            const changedResponseRows = () => responseRows.filter(rowHasUnsavedChanges);
+            const refreshUnsavedResponseCount = () => {
+                const count = changedResponseRows().length;
+                if (unsavedResponseCount) unsavedResponseCount.textContent = String(count);
+                if (saveAllButton) saveAllButton.disabled = count === 0;
+            };
+
+            document.querySelectorAll('.inline-response-type').forEach((select) => {
+                const syncLocationField = () => {
+                    const row = select.closest('tr');
+                    const locationInput = row?.querySelector('.inline-location-input');
+                    const needsLocation = select.value === 'ubicacion';
+                    if (locationInput) {
+                        locationInput.disabled = !needsLocation;
+                        locationInput.required = needsLocation;
+                    }
+                };
+
+                select.addEventListener('change', () => {
+                    syncLocationField();
+                    refreshUnsavedResponseCount();
+                });
+                syncLocationField();
+            });
+
+            document.querySelectorAll('.inline-location-input').forEach((input) => {
+                input.addEventListener('input', refreshUnsavedResponseCount);
+            });
+
+            refreshUnsavedResponseCount();
+
+            saveAllForm?.addEventListener('submit', function (event) {
+                const changedRows = changedResponseRows();
+                if (changedRows.length === 0) {
+                    event.preventDefault();
+                    return;
+                }
+
+                saveAllForm.querySelectorAll('.generated-response-field').forEach((field) => field.remove());
+                changedRows.forEach((row) => {
+                    const userId = row.dataset.userId;
+                    const responseType = row.querySelector('.inline-response-type')?.value;
+                    const location = row.querySelector('.inline-location-input')?.value ?? '';
+                    const addHiddenField = (name, value) => {
+                        const field = document.createElement('input');
+                        field.type = 'hidden';
+                        field.name = name;
+                        field.value = value;
+                        field.className = 'generated-response-field';
+                        saveAllForm.appendChild(field);
+                    };
+
+                    addHiddenField(`updates[${userId}][respuesta_tipo]`, responseType);
+                    if (responseType === 'ubicacion') {
+                        addHiddenField(`updates[${userId}][ubicacion]`, location);
+                    }
+                });
+            });
+
             const selectAll = document.getElementById('select-visible-users');
             const checkboxes = Array.from(document.querySelectorAll('.user-select:not(:disabled)'));
             const form = document.getElementById('send-location-request-form');

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Empresa;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,10 +16,34 @@ class EmpresaSolicitudLlenadoController extends Controller
     public function index(Request $request): View
     {
         $search = trim((string) $request->query('buscar', ''));
+        $companyId = $request->integer('empresa_id');
+        $responseStatus = (string) $request->query('respuesta', '');
+        $responseStatuses = ['respondidas', 'pendientes', 'sin_solicitud', 'ubicacion_registrada'];
+        if (! in_array($responseStatus, $responseStatuses, true)) {
+            $responseStatus = '';
+        }
+
+        $companies = Empresa::query()
+            ->whereIn('id', User::query()->whereNotNull('empresa_id')->select('empresa_id')->distinct())
+            ->orderBy('nombre')
+            ->get(['id', 'nombre', 'sigla', 'codigo_cliente']);
+        if ($companyId > 0 && ! $companies->contains('id', $companyId)) {
+            $companyId = 0;
+        }
 
         $users = User::query()
             ->whereNotNull('empresa_id')
             ->with('empresa:id,nombre,sigla,codigo_cliente')
+            ->when($companyId > 0, fn ($query) => $query->where('empresa_id', $companyId))
+            ->when($responseStatus === 'respondidas', fn ($query) => $query->whereNotNull('empresa_ubicacion_respondida_at'))
+            ->when($responseStatus === 'pendientes', fn ($query) => $query
+                ->whereNotNull('empresa_ubicacion_solicitada_at')
+                ->whereNull('empresa_ubicacion_respondida_at'))
+            ->when($responseStatus === 'sin_solicitud', fn ($query) => $query
+                ->whereNull('empresa_ubicacion_solicitada_at')
+                ->whereNull('empresa_ubicacion_respondida_at'))
+            ->when($responseStatus === 'ubicacion_registrada', fn ($query) => $query
+                ->whereRaw("TRIM(COALESCE(provincia_origen, '')) <> ''"))
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($query) use ($search): void {
                     $query->where('name', 'like', '%'.$search.'%')
@@ -32,7 +57,7 @@ class EmpresaSolicitudLlenadoController extends Controller
                 });
             })
             ->orderBy('name')
-            ->paginate(25)
+            ->paginate(100)
             ->withQueryString();
 
         $baseQuery = User::query()->whereNotNull('empresa_id');
@@ -41,6 +66,9 @@ class EmpresaSolicitudLlenadoController extends Controller
         return view('empresa.solicitud_llenado.index', [
             'users' => $users,
             'search' => $search,
+            'companies' => $companies,
+            'companyId' => $companyId,
+            'responseStatus' => $responseStatus,
             'totalUsers' => (clone $baseQuery)->count(),
             'eligibleUsers' => (clone $withoutProvinceQuery)->whereNull('empresa_ubicacion_respondida_at')->count(),
             'pendingUsers' => (clone $withoutProvinceQuery)->whereNotNull('empresa_ubicacion_solicitada_at')
@@ -71,11 +99,10 @@ class EmpresaSolicitudLlenadoController extends Controller
 
         $targetUsers = User::query()
             ->whereNotNull('empresa_id')
-            ->whereRaw("TRIM(COALESCE(provincia_origen, '')) = ''");
+            ->whereRaw("TRIM(COALESCE(provincia_origen, '')) = ''")
+            ->whereNull('empresa_ubicacion_respondida_at');
         if (! $sendToAll) {
             $targetUsers->whereIn('id', $validated['user_ids']);
-        } else {
-            $targetUsers->whereNull('empresa_ubicacion_respondida_at');
         }
 
         $targetCount = (clone $targetUsers)->count();
@@ -84,7 +111,7 @@ class EmpresaSolicitudLlenadoController extends Controller
         }
 
         if (! $sendToAll && $targetCount !== count($validated['user_ids'])) {
-            return redirect()->back()->with('error', 'La solicitud solo se puede enviar a usuarios sin provincia origen registrada.');
+            return redirect()->back()->with('error', 'La solicitud solo se puede enviar a usuarios sin provincia origen que aún no respondieron.');
         }
 
         $now = now();
@@ -99,8 +126,142 @@ class EmpresaSolicitudLlenadoController extends Controller
         });
 
         return redirect()
-            ->route('empresa.solicitud-llenado.index', $request->only('buscar'))
+            ->route('empresa.solicitud-llenado.index', $request->only('buscar', 'empresa_id', 'respuesta'))
             ->with('success', 'Solicitud enviada a '.$targetCount.' usuario(s) de empresa.');
+    }
+
+    public function updateResponse(Request $request, User $user): RedirectResponse
+    {
+        abort_unless($user->empresa_id, 404);
+
+        $validated = $request->validateWithBag('responseEdit', [
+            'respuesta_tipo' => ['required', Rule::in(['sin_respuesta', 'ubicacion', 'capital'])],
+            'ubicacion' => ['nullable', 'required_if:respuesta_tipo,ubicacion', 'string', 'max:255'],
+        ], [
+            'ubicacion.required_if' => 'Escribe el municipio o la provincia.',
+        ]);
+
+        $now = now();
+        if ($validated['respuesta_tipo'] === 'sin_respuesta') {
+            $user->provincia_origen = null;
+            $user->empresa_ubicacion_capital = false;
+            $user->empresa_ubicacion_respondida_at = null;
+        } elseif ($validated['respuesta_tipo'] === 'capital') {
+            $user->provincia_origen = null;
+            $user->empresa_ubicacion_capital = true;
+            if (! $user->empresa_ubicacion_respondida_at) {
+                $user->empresa_ubicacion_respondida_at = $now;
+            }
+        } else {
+            $location = trim((string) ($validated['ubicacion'] ?? ''));
+            $location = function_exists('mb_strtoupper') ? mb_strtoupper($location, 'UTF-8') : strtoupper($location);
+            $location = preg_replace('/\\s+/', ' ', $location) ?: '';
+
+            if ($location === '') {
+                throw ValidationException::withMessages([
+                    'ubicacion' => 'Escribe el municipio o la provincia.',
+                ])->errorBag('responseEdit');
+            }
+
+            $user->provincia_origen = $location;
+            $user->empresa_ubicacion_capital = false;
+            if (! $user->empresa_ubicacion_respondida_at) {
+                $user->empresa_ubicacion_respondida_at = $now;
+            }
+        }
+
+        $user->save();
+
+        return redirect()
+            ->route('empresa.solicitud-llenado.index', $request->only('buscar', 'empresa_id', 'respuesta'))
+            ->with('success', 'La respuesta de '.$user->name.' fue actualizada.');
+    }
+
+    public function updateResponses(Request $request): RedirectResponse
+    {
+        $validated = $request->validateWithBag('responseEdit', [
+            'updates' => ['required', 'array', 'min:1'],
+            'updates.*' => ['required', 'array'],
+            'updates.*.respuesta_tipo' => ['required', Rule::in(['sin_respuesta', 'ubicacion', 'capital'])],
+            'updates.*.ubicacion' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $updates = $validated['updates'];
+        $userIds = array_keys($updates);
+        foreach ($userIds as $userId) {
+            if (! ctype_digit((string) $userId) || (int) $userId < 1) {
+                throw ValidationException::withMessages([
+                    'updates' => 'La lista contiene un usuario no válido.',
+                ])->errorBag('responseEdit');
+            }
+        }
+
+        $users = User::query()
+            ->whereNotNull('empresa_id')
+            ->whereIn('id', $userIds)
+            ->get()
+            ->keyBy('id');
+
+        if ($users->count() !== count($updates)) {
+            return redirect()->back()->with('error', 'Uno o más usuarios ya no pertenecen a una empresa activa.');
+        }
+
+        $normalizedUpdates = [];
+        foreach ($updates as $userId => $data) {
+            $location = null;
+            if ($data['respuesta_tipo'] === 'ubicacion') {
+                $location = trim((string) ($data['ubicacion'] ?? ''));
+                $location = function_exists('mb_strtoupper') ? mb_strtoupper($location, 'UTF-8') : strtoupper($location);
+                $location = preg_replace('/\s+/', ' ', $location) ?: '';
+
+                if ($location === '') {
+                    throw ValidationException::withMessages([
+                        'updates.'.$userId.'.ubicacion' => 'Escribe el municipio o la provincia.',
+                    ])->errorBag('responseEdit');
+                }
+            }
+
+            $normalizedUpdates[$userId] = [
+                'respuesta_tipo' => $data['respuesta_tipo'],
+                'ubicacion' => $location,
+            ];
+        }
+
+        $now = now();
+        DB::transaction(function () use ($normalizedUpdates, $users, $now): void {
+            foreach ($normalizedUpdates as $userId => $data) {
+                $user = $users->get($userId);
+                if (! $user) {
+                    continue;
+                }
+
+                if ($data['respuesta_tipo'] === 'sin_respuesta') {
+                    $user->provincia_origen = null;
+                    $user->empresa_ubicacion_capital = false;
+                    $user->empresa_ubicacion_respondida_at = null;
+                } elseif ($data['respuesta_tipo'] === 'capital') {
+                    $user->provincia_origen = null;
+                    $user->empresa_ubicacion_capital = true;
+                    if (! $user->empresa_ubicacion_respondida_at) {
+                        $user->empresa_ubicacion_respondida_at = $now;
+                    }
+                } else {
+                    $user->provincia_origen = $data['ubicacion'];
+                    $user->empresa_ubicacion_capital = false;
+                    if (! $user->empresa_ubicacion_respondida_at) {
+                        $user->empresa_ubicacion_respondida_at = $now;
+                    }
+                }
+
+                $user->save();
+            }
+        });
+
+        $savedCount = count($normalizedUpdates);
+
+        return redirect()
+            ->route('empresa.solicitud-llenado.index', $request->only('buscar', 'empresa_id', 'respuesta'))
+            ->with('success', 'Se guardaron los cambios de '.$savedCount.' usuario(s).');
     }
 
     public function respond(Request $request): RedirectResponse

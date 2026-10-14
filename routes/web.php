@@ -416,6 +416,10 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
         ->name('empresa.solicitud-llenado.index');
     Route::post('/empresa/solicitud-llenado', [EmpresaSolicitudLlenadoController::class, 'send'])
         ->name('empresa.solicitud-llenado.send');
+    Route::patch('/empresa/solicitud-llenado/respuestas', [EmpresaSolicitudLlenadoController::class, 'updateResponses'])
+        ->name('empresa.solicitud-llenado.update-responses');
+    Route::patch('/empresa/solicitud-llenado/{user}/respuesta', [EmpresaSolicitudLlenadoController::class, 'updateResponse'])
+        ->name('empresa.solicitud-llenado.update-response');
     Route::get('users/excel', [UserController::class, 'excel'])->name('users.excel');
     Route::get('users/pdf', [UserController::class, 'pdf'])->name('users.pdf');
     Route::get('users/empresas/excel', [UserController::class, 'empresasExcel'])->name('users.empresas.excel');
