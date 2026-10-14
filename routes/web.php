@@ -23,6 +23,7 @@ use App\Http\Controllers\DeliveryImageController;
 use App\Http\Controllers\DespachoController;
 use App\Http\Controllers\DestinoController;
 use App\Http\Controllers\EmpresaController;
+use App\Http\Controllers\EmpresaSolicitudLlenadoController;
 use App\Http\Controllers\EstadoController;
 use App\Http\Controllers\EventoController;
 use App\Http\Controllers\EventosAuditoriaController;
@@ -345,6 +346,8 @@ Route::get('/mis-ventas/{cart}/ticket', [MisVentasController::class, 'ticket'])
     ->middleware(['auth', 'internal.only', 'verified'])
     ->name('mis-ventas.ticket');
 Route::middleware(['auth', 'internal.only', 'verified'])->group(function () {
+    Route::post('/empresa/solicitud-llenado/responder', [EmpresaSolicitudLlenadoController::class, 'respond'])
+        ->name('empresa.solicitud-llenado.responder');
     Route::get('/alertas-empresa/{alertaEmpresa}/portada', [AlertaEmpresaController::class, 'portada'])
         ->name('alertas-empresa.portada');
     Route::get('/alertas-empresa/{alertaEmpresa}/pdf', [AlertaEmpresaController::class, 'pdf'])
@@ -409,6 +412,10 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::delete('/users/{user}/ips-link', [UserIpsLinkController::class, 'destroy'])->name('users.ips-links.destroy');
     Route::get('/ingresos', [UserLoginLogController::class, 'index'])->name('ingresos.index');
     Route::get('/users/empresas', [UserController::class, 'empresas'])->name('users.empresas');
+    Route::get('/empresa/solicitud-llenado', [EmpresaSolicitudLlenadoController::class, 'index'])
+        ->name('empresa.solicitud-llenado.index');
+    Route::post('/empresa/solicitud-llenado', [EmpresaSolicitudLlenadoController::class, 'send'])
+        ->name('empresa.solicitud-llenado.send');
     Route::get('users/excel', [UserController::class, 'excel'])->name('users.excel');
     Route::get('users/pdf', [UserController::class, 'pdf'])->name('users.pdf');
     Route::get('users/empresas/excel', [UserController::class, 'empresasExcel'])->name('users.empresas.excel');

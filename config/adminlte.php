@@ -1282,6 +1282,12 @@ $config = [
                             'icon' => 'fas fa-building',
                         ],
                         [
+                            'text' => 'Mandar solicitud de llenado a empresas',
+                            'url' => 'empresa/solicitud-llenado',
+                            'icon' => 'fas fa-clipboard-list',
+                            'can' => 'users.empresas',
+                        ],
+                        [
                             'text' => 'Empresas',
                             'url' => 'empresas',
                             'icon' => 'fas fa-building',

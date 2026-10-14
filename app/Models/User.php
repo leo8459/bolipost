@@ -85,6 +85,9 @@ class User extends Authenticatable
         'password' => 'hashed',
         'regionales' => 'array',
         'auto_baja_empresa_at' => 'datetime',
+        'empresa_ubicacion_solicitada_at' => 'datetime',
+        'empresa_ubicacion_respondida_at' => 'datetime',
+        'empresa_ubicacion_capital' => 'boolean',
     ];
 
     public function regionalesLista(): array

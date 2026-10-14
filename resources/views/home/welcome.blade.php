@@ -23,6 +23,15 @@
 @stop
 
 @section('content')
+    @php
+        $locationRequestUser = auth()->user();
+        $showCompanyLocationRequest = $locationRequestUser
+            && $locationRequestUser->empresa_id
+            && trim((string) $locationRequestUser->provincia_origen) === ''
+            && $locationRequestUser->empresa_ubicacion_solicitada_at
+            && ! $locationRequestUser->empresa_ubicacion_respondida_at;
+    @endphp
+
     <div class="welcome-hub">
         @unless($isEmpresaUser)
         @include('dashboard.partials.alerts')
@@ -75,6 +84,10 @@
             </div>
         </div>
     </div>
+
+    @if ($showCompanyLocationRequest)
+        @include('empresa.solicitud_llenado.modal')
+    @endif
 @stop
 
 @section('css')

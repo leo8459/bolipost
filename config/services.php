@@ -55,10 +55,6 @@ return [
         'ssl_verify' => (bool) env('SITRA_IPS_SSL_VERIFY', false),
     ],
 
-    'solicitudes_sync' => [
-        'base_url' => env('SOLICITUDES_SYNC_BASE_URL', 'https://gescon.correos.gob.bo:8459/'),
-    ],
-
     'paquetes_ordinarios_api' => [
         'base_url' => env('PAQUETES_ORDINARIOS_API_BASE_URL', 'https://admin.correos.gob.bo:8101/api'),
         'token' => env('PAQUETES_ORDINARIOS_API_TOKEN'),
