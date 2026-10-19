@@ -748,49 +748,18 @@ $config = [
             'active' => ['internacional/*'],
             'submenu' => [
                 [
-                    'text' => 'Recorrido nacional',
-                    'icon' => 'fas fa-route',
+                    'text' => 'Mi Almacén',
+                    'icon' => 'fas fa-warehouse',
                     'can' => 'internacional.section',
-                    'active' => [
-                        'internacional/recepcion-cambio',
-                        'internacional/despacho-nacional',
-                        'internacional/saca-nacional',
-                        'internacional/recepcion-oficina',
-                    ],
+                    'active' => ['internacional/almacen/por-entregar*', 'internacional/recepcion-oficina*'],
                     'submenu' => [
                         [
-                            'text' => '1. Recibir en cambio',
-                            'url' => 'internacional/recepcion-cambio',
-                            'icon' => 'fas fa-plane-arrival',
-                            'can' => 'internacional.section',
-                            'active' => ['internacional/recepcion-cambio*'],
-                        ],
-                        [
-                            'text' => '2. Registrar despacho',
-                            'url' => 'internacional/despacho-nacional',
-                            'icon' => 'fas fa-truck-loading',
-                            'can' => 'internacional.section',
-                            'active' => ['internacional/despacho-nacional*'],
-                        ],
-                        [
-                            'text' => '3. Asociar a saca nacional',
-                            'url' => 'internacional/saca-nacional',
-                            'icon' => 'fas fa-envelope-open-text',
-                            'can' => 'internacional.section',
-                            'active' => ['internacional/saca-nacional*'],
-                        ],
-                        [
-                            'text' => '4. Recibir en destino',
+                            'text' => 'Recibir paquetes en destino',
                             'url' => 'internacional/recepcion-oficina',
                             'icon' => 'fas fa-box',
                             'can' => 'internacional.section',
                             'active' => ['internacional/recepcion-oficina*'],
                         ],
-                    ],
-                ],
-                [
-                    'text' => 'Almacén',
-                    'submenu' => [
                         [
                             'text' => 'Por entregar',
                             'url' => 'internacional/almacen/por-entregar',
@@ -798,12 +767,20 @@ $config = [
                             'can' => 'internacional.warehouse',
                             'active' => ['internacional/almacen/por-entregar*'],
                         ],
+                    ],
+                ],
+                [
+                    'text' => 'Mis paquetes',
+                    'icon' => 'fas fa-user-circle',
+                    'can' => 'internacional.warehouse',
+                    'active' => ['internacional/almacen/asignados-a-mi*', 'internacional/almacen/entregados-por-mi*'],
+                    'submenu' => [
                         [
-                            'text' => 'Entregados',
-                            'url' => 'internacional/almacen/entregados',
-                            'icon' => 'fas fa-check-circle',
+                            'text' => 'Asignados a mí',
+                            'url' => 'internacional/almacen/asignados-a-mi',
+                            'icon' => 'fas fa-motorcycle',
                             'can' => 'internacional.warehouse',
-                            'active' => ['internacional/almacen/entregados'],
+                            'active' => ['internacional/almacen/asignados-a-mi*'],
                         ],
                         [
                             'text' => 'Entregados por mí',
@@ -813,9 +790,20 @@ $config = [
                             'active' => ['internacional/almacen/entregados-por-mi'],
                         ],
                     ],
-                    'icon' => 'fas fa-warehouse',
-                    'can' => 'internacional.warehouse',
-                    'active' => ['internacional/almacen*'],
+                ],
+                [
+                    'text' => 'Recibir y abrir saca',
+                    'url' => 'internacional/sacas/recibir',
+                    'icon' => 'fas fa-inbox',
+                    'can' => 'internacional.section',
+                    'active' => ['internacional/sacas/*', 'internacional/recepcion-cambio*'],
+                ],
+                [
+                    'text' => 'Clasificar y despachar',
+                    'url' => 'internacional/despacho-nacional',
+                    'icon' => 'fas fa-route',
+                    'can' => 'internacional.section',
+                    'active' => ['internacional/despacho-nacional*', 'internacional/saca-nacional*'],
                 ],
                 [
                     'text' => 'Rezago y devoluciones',
@@ -830,6 +818,13 @@ $config = [
                     'icon' => 'fas fa-boxes',
                     'can' => 'internacional.section',
                     'active' => ['internacional/todos*'],
+                ],
+                [
+                    'text' => 'Entregados en la oficina',
+                    'url' => 'internacional/almacen/entregados',
+                    'icon' => 'fas fa-check-circle',
+                    'can' => 'internacional.warehouse',
+                    'active' => ['internacional/almacen/entregados'],
                 ],
             ],
         ],
@@ -1593,13 +1588,24 @@ if ($reportesIndex !== null && $reportesAgrupados !== []) {
     ));
 }
 
-$sortMenuItems = static function (array $items) use (&$sortMenuItems): array {
+$sortMenuItems = static function (array $items, bool $preserveOrder = false) use (&$sortMenuItems): array {
     foreach ($items as &$item) {
         if (isset($item['submenu']) && is_array($item['submenu'])) {
-            $item['submenu'] = $sortMenuItems($item['submenu']);
+            $item['submenu'] = $sortMenuItems(
+                $item['submenu'],
+                in_array(($item['text'] ?? null), [
+                    'Internacional',
+                    'Recibir y abrir saca',
+                    'Clasificar y despachar',
+                ], true)
+            );
         }
     }
     unset($item);
+
+    if ($preserveOrder) {
+        return array_values($items);
+    }
 
     $sortKey = static function (array $item): string {
         $label = (string) ($item['text'] ?? $item['header'] ?? '');

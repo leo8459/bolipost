@@ -16,6 +16,8 @@ class UserIpsLink extends Model
         'ips_office_cd',
         'ips_office_fcd',
         'ips_office_name',
+        'delivery_agent_cd',
+        'delivery_agent_full_cd',
         'ipsweb',
         'restrict_user_offices',
         'active',

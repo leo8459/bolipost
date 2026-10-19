@@ -35,6 +35,7 @@ use App\Http\Controllers\FacturacionQrMonitorController;
 use App\Http\Controllers\FacturaFirmaPdfController;
 use App\Http\Controllers\FinancialReportController;
 use App\Http\Controllers\IngresosVentanillasController;
+use App\Http\Controllers\IpsReceptacleIncidentController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\IndicadorController;
 use App\Http\Controllers\MalencaminadoController;
@@ -407,6 +408,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::get('/users/ips-links', [UserIpsLinkController::class, 'index'])->name('users.ips-links.index');
     Route::post('/users/{user}/ips-link', [UserIpsLinkController::class, 'store'])->name('users.ips-links.store');
+    Route::put('/users/{user}/ips-link/delivery-agent', [UserIpsLinkController::class, 'updateDeliveryAgent'])->name('users.ips-links.delivery-agent.update');
     Route::post('/users/{user}/ips-user', [UserIpsLinkController::class, 'createIpsUser'])->name('users.ips-links.create-user');
     Route::post('/users/{user}/ips-link/verify', [UserIpsLinkController::class, 'verify'])->name('users.ips-links.verify');
     Route::delete('/users/{user}/ips-link', [UserIpsLinkController::class, 'destroy'])->name('users.ips-links.destroy');
@@ -583,28 +585,56 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/todos-paquetes', [TodosPaquetesController::class, 'index'])->name('todos-paquetes.index');
     Route::redirect('/paquetes-ips', '/ips', 301)->name('paquetes-ips.index');
     Route::get('/ips', [PaquetesIpsController::class, 'index'])->name('ips.index')->block(120, 10);
+    Route::get('/internacional/sacas/{paso}', [PaquetesIpsController::class, 'receptacleWorkbench'])
+        ->where('paso', 'recibir|abrir')->middleware('can:internacional.section')->name('internacional.sacas');
+    Route::post('/internacional/sacas/{paso}/operar', [PaquetesIpsController::class, 'operateReceptacle'])
+        ->where('paso', 'recibir|abrir')->middleware('can:internacional.workflow.operate')->name('internacional.sacas.operate')->block(120, 10);
+    Route::post('/internacional/sacas/{codigo}/incidencias', [IpsReceptacleIncidentController::class, 'store'])
+        ->where('codigo', '[A-Za-z0-9-]{1,35}')
+        ->middleware('can:internacional.workflow.operate')->name('internacional.sacas.incidents.store')->block(120, 10);
+    Route::post('/internacional/sacas/{codigo}/incidencias/{note}/transmitir', [IpsReceptacleIncidentController::class, 'markSent'])
+        ->where(['codigo' => '[A-Za-z0-9-]{1,35}', 'note' => '[0-9]+'])
+        ->middleware('can:internacional.workflow.operate')->name('internacional.sacas.incidents.sent')->block(120, 10);
+    Route::post('/internacional/sacas/{codigo}/incidencias/{note}/resolver', [IpsReceptacleIncidentController::class, 'resolve'])
+        ->where(['codigo' => '[A-Za-z0-9-]{1,35}', 'note' => '[0-9]+'])
+        ->middleware('can:internacional.workflow.operate')->name('internacional.sacas.incidents.resolve')->block(120, 10);
+    Route::get('/internacional/sacas/{codigo}/incidencias/{note}/imprimir', [IpsReceptacleIncidentController::class, 'print'])
+        ->where(['codigo' => '[A-Za-z0-9-]{1,35}', 'note' => '[0-9]+'])
+        ->middleware('can:internacional.section')->name('internacional.sacas.incidents.print');
+    Route::get('/internacional/sacas/{codigo}/incidencias/{note}/evidencia/{index}', [IpsReceptacleIncidentController::class, 'evidence'])
+        ->where(['codigo' => '[A-Za-z0-9-]{1,35}', 'note' => '[0-9]+', 'index' => '[0-9]+'])
+        ->middleware('can:internacional.section')->name('internacional.sacas.incidents.evidence');
     Route::get('/internacional/{section}', [PaquetesIpsController::class, 'index'])
-        ->where('section', 'almacen|inventario|rezago|todos|recepcion-cambio|despacho-nacional|saca-nacional|recepcion-oficina')
-        ->name('internacional.section');
+        ->where('section', 'almacen|inventario|rezago|todos|recepcion-cambio|despacho-nacional|saca-nacional|recepcion-oficina|cartero|salida-reparto|disponible-retiro|intento-entrega')
+        ->middleware('can:internacional.section')->name('internacional.section');
     Route::get('/internacional/almacen/{warehouseView}', [PaquetesIpsController::class, 'warehouse'])
-        ->where('warehouseView', 'por-entregar|entregados|entregados-por-mi')
-        ->name('internacional.warehouse');
+        ->where('warehouseView', 'por-entregar|asignados-a-mi|entregados|entregados-por-mi')
+        ->middleware('can:internacional.warehouse')->name('internacional.warehouse');
+    Route::post('/internacional/almacen/mi-reparto/seleccionados', [PaquetesIpsController::class, 'addMyDeliverySelection'])
+        ->middleware('can:internacional.selection.add')->name('internacional.my-delivery.selection.add')->block(120, 10);
+    Route::delete('/internacional/almacen/mi-reparto/seleccionados/{codigo}', [PaquetesIpsController::class, 'removeMyDeliverySelection'])
+        ->where('codigo', '[A-Za-z0-9-]{1,35}')
+        ->middleware('can:internacional.selection.remove')->name('internacional.my-delivery.selection.remove')->block(120, 10);
+    Route::post('/internacional/almacen/mi-reparto/operar', [PaquetesIpsController::class, 'operateMyDelivery'])
+        ->middleware('can:internacional.operate')->name('internacional.my-delivery.operate')->block(120, 10);
     Route::post('/internacional/almacen/seleccionados', [PaquetesIpsController::class, 'addDeliverySelection'])
-        ->name('internacional.selection.add')->block(120, 10);
+        ->middleware('can:internacional.selection.add')->name('internacional.selection.add')->block(120, 10);
     Route::delete('/internacional/almacen/seleccionados/{codigo}', [PaquetesIpsController::class, 'removeDeliverySelection'])
         ->where('codigo', '[A-Za-z0-9-]{1,35}')
-        ->name('internacional.selection.remove')->block(120, 10);
+        ->middleware('can:internacional.selection.remove')->name('internacional.selection.remove')->block(120, 10);
     Route::post('/internacional/almacen/operar', [PaquetesIpsController::class, 'operateDelivery'])
-        ->name('internacional.operate')->block(120, 10);
+        ->middleware('can:internacional.operate')->name('internacional.operate')->block(120, 10);
     Route::post('/internacional/{section}/seleccionados', [PaquetesIpsController::class, 'addInternationalSelection'])
-        ->where('section', 'recepcion-cambio|despacho-nacional|saca-nacional|recepcion-oficina')
-        ->name('internacional.workflow.selection.add')->block(120, 10);
+        ->where('section', 'recepcion-cambio|despacho-nacional|saca-nacional|recepcion-oficina|cartero|salida-reparto|disponible-retiro|intento-entrega')
+        ->middleware('can:internacional.workflow.selection.add')->name('internacional.workflow.selection.add')->block(120, 10);
     Route::delete('/internacional/{section}/seleccionados/{codigo}', [PaquetesIpsController::class, 'removeInternationalSelection'])
-        ->where(['section' => 'recepcion-cambio|despacho-nacional|saca-nacional|recepcion-oficina', 'codigo' => '[A-Za-z0-9-]{1,35}'])
-        ->name('internacional.workflow.selection.remove')->block(120, 10);
+        ->where(['section' => 'recepcion-cambio|despacho-nacional|saca-nacional|recepcion-oficina|cartero|salida-reparto|disponible-retiro|intento-entrega', 'codigo' => '[A-Za-z0-9-]{1,35}'])
+        ->middleware('can:internacional.workflow.selection.remove')->name('internacional.workflow.selection.remove')->block(120, 10);
     Route::post('/internacional/{section}/operar', [PaquetesIpsController::class, 'operateInternational'])
-        ->where('section', 'recepcion-cambio|despacho-nacional|saca-nacional|recepcion-oficina')
-        ->name('internacional.workflow.operate')->block(120, 10);
+        ->where('section', 'recepcion-cambio|despacho-nacional|saca-nacional|recepcion-oficina|cartero|salida-reparto|disponible-retiro|intento-entrega')
+        ->middleware('can:internacional.workflow.operate')->name('internacional.workflow.operate')->block(120, 10);
+    Route::post('/internacional/recepcion-cambio/registrar-envio', [PaquetesIpsController::class, 'createInboundPackage'])
+        ->middleware('can:internacional.workflow.operate')->name('internacional.inbound.create')->block(120, 10);
     Route::post('/ips/seleccionados', [PaquetesIpsController::class, 'addSelection'])->name('ips.selection.add')->block(120, 10);
     Route::post('/ips/operar', [PaquetesIpsController::class, 'operate'])->name('ips.operate')->block(120, 10);
     Route::delete('/ips/seleccionados/{codigo}', [PaquetesIpsController::class, 'removeSelection'])->where('codigo', '[A-Za-z0-9-]{1,35}')->name('ips.selection.remove')->block(120, 10);

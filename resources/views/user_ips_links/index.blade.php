@@ -22,6 +22,9 @@
     @if($ipsError)
         <div class="alert alert-warning">{{ $ipsError }}</div>
     @endif
+    @if($deliveryAgentCatalogError)
+        <div class="alert alert-warning">No fue posible cargar el catálogo de carteros de SITRA. Puedes volver a intentar la asignación más tarde.</div>
+    @endif
     @if(isset($errors) && $errors->any())
         <div class="alert alert-danger">{{ $errors->first() }}</div>
     @endif
@@ -95,6 +98,28 @@
                                             <div><strong>{{ $link->label() }}</strong></div>
                                             <div class="text-muted small">PID {{ $link->ips_user_pid }} · {{ $link->ips_office_name ?: 'Sin oficina IPS' }}</div>
                                             <div class="text-muted small">Verificado {{ optional($link->last_verified_at)->format('Y-m-d H:i') ?: 'sin fecha' }}</div>
+                                            @if($link->ips_office_cd)
+                                                @php($officeAgents = $deliveryAgentsByOffice[$link->ips_office_cd] ?? [])
+                                                <form method="POST" action="{{ route('users.ips-links.delivery-agent.update', $user) }}" class="mt-2">
+                                                    @csrf
+                                                    @method('PUT')
+                                                    <label for="delivery-agent-{{ $user->id }}" class="small font-weight-bold mb-1">Cartero asignado a esta cuenta</label>
+                                                    <select id="delivery-agent-{{ $user->id }}" name="delivery_agent_full_cd" class="form-control form-control-sm" @disabled($deliveryAgentCatalogError && empty($officeAgents))>
+                                                        <option value="">Cuenta de operador (sin cartero)</option>
+                                                        @if($link->delivery_agent_full_cd && !collect($officeAgents)->contains(fn ($agent) => (string) data_get($agent, 'DELIVERY_AGENT_FULL_CD') === (string) $link->delivery_agent_full_cd))
+                                                            <option value="{{ $link->delivery_agent_full_cd }}" selected>Código {{ $link->delivery_agent_cd }} (no aparece en el catálogo activo)</option>
+                                                        @endif
+                                                        @foreach($officeAgents as $agent)
+                                                            @php($agentFullCode = (string) data_get($agent, 'DELIVERY_AGENT_FULL_CD'))
+                                                            <option value="{{ $agentFullCode }}" @selected((string) $link->delivery_agent_full_cd === $agentFullCode)>{{ data_get($agent, 'DELIVERY_AGENT_NM') }} · {{ $agentFullCode }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                    <button class="btn btn-sm btn-outline-primary mt-1" type="submit">Guardar cartero</button>
+                                                    <div class="text-muted small mt-1">Esta cuenta verá los envíos asignados a ese cartero.</div>
+                                                </form>
+                                            @else
+                                                <div class="small text-warning mt-2">Asigna una oficina IPS antes de vincular un cartero.</div>
+                                            @endif
                                         @else
                                             <span class="badge badge-warning">Pendiente</span>
                                             <div class="text-muted small">Puede vincular un PID existente o crear usuario IPS tipo operador.</div>

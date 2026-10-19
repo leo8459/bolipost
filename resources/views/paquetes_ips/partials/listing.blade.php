@@ -4,8 +4,9 @@
                 <form method="GET" action="{{ $listingUrl ?? route('ips.index') }}" class="ips-search">
                     <label for="ips-code" class="sr-only">Código de seguimiento o identificador local exacto</label>
                     <input id="ips-code" type="search" name="q" maxlength="35" value="{{ $search }}" placeholder="Escanea o escribe un código…" class="form-control" autocomplete="off">
+                    @if($preferredReceptaclePid ?? null)<input type="hidden" name="receptacle_pid" value="{{ $preferredReceptaclePid }}">@endif
                     <button class="btn btn-primary"><i class="fas fa-search mr-1"></i>Buscar</button>
-                    @if($search)<a href="{{ $listingUrl ?? route('ips.index') }}" class="btn btn-light">Limpiar</a>@endif
+                    @if($search)<a href="{{ $listingClearUrl ?? $listingUrl ?? route('ips.index') }}" class="btn btn-light">Limpiar</a>@endif
                 </form>
                 @if($workflowHint ?? null)<p class="ips-footnote px-3 pt-0" role="note">{{ $workflowHint }}</p>@endif
                 @unless($isInternationalPage ?? false)
@@ -28,11 +29,11 @@
                                 <td>{{ $package['office_name'] ?: 'Sin oficina' }}@if($package['next_office_name'])<small>→ {{ $package['next_office_name'] }}</small>@endif</td>
                                 <td>{{ $package['weight_kg'] !== null ? number_format($package['weight_kg'], 3, ',', '.') . ' kg' : 'Sin peso' }}<small>Clase {{ $package['mail_class'] ?: 'no registrada' }}</small></td>
                                 <td>{{ match((string)($package['dutiable_ind'] ?? '')) {'Y','1'=>'Sí','N','0'=>'No',default=>'No registrado'} }}</td>
-                                <td><span class="badge badge-{{ $package['stage']['tone'] }}">{{ $package['stage']['label'] }}</span><small>{{ !empty($package['event_at_local']) ? \Illuminate\Support\Carbon::parse($package['event_at_local'])->format('d/m/Y H:i') : 'Hora local no informada' }}</small>@unless($workflowAction ?? null)<small>Evento {{ $package['operational_event_cd'] }}</small>@endunless</td>
+                                <td><span class="badge badge-{{ $package['stage']['tone'] }}">{{ $package['stage']['label'] }}</span><small>{{ !empty($package['event_at_local']) ? \Illuminate\Support\Carbon::parse($package['event_at_local'])->format('d/m/Y H:i') : 'Hora local no informada' }}</small></td>
                                 <td>
                                     @if($readOnly ?? false)<span class="text-muted">Solo consulta</span>
                                     @elseif(isset($selection[$package['codigo']]))<span class="text-success"><i class="fas fa-check"></i> En bandeja</span>
-                                    @elseif(($deliveryOnly ?? false) && !in_array('EMI', $package['allowed_actions'] ?? [], true))<span class="text-muted">No habilitado para baja</span>
+                                    @elseif(($deliveryOnly ?? false) && empty(array_intersect(array_keys($deliveryActionLabels), $package['allowed_actions'] ?? [])))<span class="text-muted">Sin paso de distribución habilitado</span>
                                     @elseif(($workflowAction ?? null) && !in_array($workflowAction, $package['allowed_actions'] ?? [], true))<span class="text-muted">No habilitado para este paso</span>
                                     @elseif(!($workflowAction ?? null) && !($deliveryOnly ?? false) && !empty($package['allowed_actions']) && empty(array_intersect($package['allowed_actions'], array_keys($actions))))<span class="text-muted">Continúa desde Internacional</span>
                                     @elseif(empty($package['allowed_actions']) && strtoupper($search) !== strtoupper($package['codigo']))<span class="text-muted" title="Este paquete no tiene movimientos pendientes">Histórico</span>
@@ -46,15 +47,9 @@
                 @unless($error)<div class="ips-pagination"><span>Página {{ $packages->currentPage() }} de {{ $packages->lastPage() }}</span>{{ $packages->links() }}</div>@endunless
             </section>
             @if($workflowAction ?? null)
-                <p class="ips-footnote">{{ match($workflowAction) {
-                    'EMR' => 'Busca el código exacto y confirma únicamente los envíos que llegaron físicamente a la oficina de cambio.',
-                    'EDN' => 'Elige la siguiente oficina permitida para la ruta. No escribas una oficina manualmente.',
-                    'EIB' => 'Vincula el envío a una saca abierta compatible con su destino y clase postal.',
-                    'EMG' => 'Confirma la llegada física a la oficina de destino indicada por la ruta.',
-                    default => ''
-                } }}</p>
+                <p class="ips-footnote">Cada paquete conserva su propio evento e historial IPS; trabaja en lotes compatibles.</p>
             @elseif($deliveryOnly ?? false)
-                <p class="ips-footnote">Los paquetes en Aduana solo se dan de baja si el operador confirma que ya fueron devueltos físicamente y entregados al destinatario. En ese caso se registran ambos eventos en orden.</p>
+                <p class="ips-footnote">Los envíos bajo gestión de Aduana se procesan en Gestión aduanera. Aquí se registran solo movimientos de distribución habilitados por IPS.</p>
             @else
                 <p class="ips-footnote">La etapa se obtiene del historial IPS. Un paquete retornado de aduana aún no equivale a un despacho. La oficina de destino se muestra cuando IPS la registra.</p>
             @endif

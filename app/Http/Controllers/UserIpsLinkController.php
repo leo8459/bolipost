@@ -7,6 +7,7 @@ use App\Models\UserIpsLink;
 use App\Services\SitraIpsClient;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
@@ -44,6 +45,8 @@ class UserIpsLinkController extends Controller
         $users = $query->paginate(25)->appends($request->query());
         $ipsUsers = [];
         $ipsError = null;
+        $deliveryAgentsByOffice = [];
+        $deliveryAgentCatalogError = false;
 
         try {
             $search = $filters['ips_q'] ?? $filters['q'] ?? '';
@@ -58,10 +61,33 @@ class UserIpsLinkController extends Controller
             $ipsError = 'No fue posible consultar usuarios IPS.';
         }
 
+        foreach ($users as $user) {
+            $officeCd = (int) ($user->ipsLink?->ips_office_cd ?? 0);
+            if ($officeCd === 0 || isset($deliveryAgentsByOffice[$officeCd])) {
+                continue;
+            }
+
+            try {
+                $deliveryAgentsByOffice[$officeCd] = Cache::remember(
+                    'sitra:ips:delivery-agents:v1:office:'.$officeCd,
+                    now()->addMinutes(5),
+                    fn () => collect($ips->deliveryCatalog($officeCd)['delivery_agents'] ?? [])
+                        ->map(fn ($agent) => (array) $agent)
+                        ->all()
+                );
+            } catch (\Throwable $exception) {
+                report($exception);
+                $deliveryAgentCatalogError = true;
+                $deliveryAgentsByOffice[$officeCd] = [];
+            }
+        }
+
         return view('user_ips_links.index', [
             'users' => $users,
             'ipsUsers' => $ipsUsers,
             'ipsError' => $ipsError,
+            'deliveryAgentsByOffice' => $deliveryAgentsByOffice,
+            'deliveryAgentCatalogError' => $deliveryAgentCatalogError,
             'filters' => $filters,
         ]);
     }
@@ -129,6 +155,42 @@ class UserIpsLinkController extends Controller
             ]);
     }
 
+    public function updateDeliveryAgent(Request $request, User $user, SitraIpsClient $ips)
+    {
+        $link = $user->ipsLink;
+        abort_unless($link && $link->active && $link->ips_office_cd !== null, 409, 'Vincula primero un usuario IPS activo con oficina asignada.');
+
+        $data = $request->validate([
+            'delivery_agent_full_cd' => ['nullable', 'string', 'max:25', 'regex:/^[A-Za-z0-9]{1,25}$/'],
+        ]);
+        $agentFullCode = strtoupper(trim((string) ($data['delivery_agent_full_cd'] ?? '')));
+
+        if ($agentFullCode === '') {
+            $link->delivery_agent_cd = null;
+            $link->delivery_agent_full_cd = null;
+            $link->save();
+
+            return back()->with('success', 'Se quitó la vinculación con el cartero IPS.');
+        }
+
+        $agents = $ips->deliveryCatalog((int) $link->ips_office_cd)['delivery_agents'] ?? [];
+        $agent = collect($agents)->first(fn ($candidate) => strtoupper(trim((string) data_get($candidate, 'DELIVERY_AGENT_FULL_CD'))) === $agentFullCode);
+        abort_unless($agent, 422, 'Selecciona un cartero activo de la regional de esta oficina.');
+        abort_if(
+            UserIpsLink::query()->where('active', true)->where('delivery_agent_full_cd', $agentFullCode)->where('user_id', '<>', $user->id)->exists(),
+            409,
+            'Ese cartero ya está vinculado a otra cuenta de Bolipost.'
+        );
+
+        $link->delivery_agent_cd = $this->normalizeDeliveryAgentCode(data_get($agent, 'DELIVERY_AGENT_CD'));
+        $link->delivery_agent_full_cd = $agentFullCode;
+        $link->save();
+
+        Cache::forget('sitra:ips:delivery-agents:v1:office:'.$link->ips_office_cd);
+
+        return back()->with('success', 'Cartero IPS vinculado a la cuenta de Bolipost.');
+    }
+
     public function destroy(int $user)
     {
         $user = User::withTrashed()->findOrFail($user);
@@ -139,6 +201,17 @@ class UserIpsLinkController extends Controller
 
     private function saveLink(User $user, array $ipsUser): UserIpsLink
     {
+        $existingLink = $user->ipsLink;
+        $officeCd = $ipsUser['office_cd'] ?? null;
+        $deliveryAgentCd = $existingLink
+            && (int) ($existingLink->ips_office_cd ?? 0) === (int) ($officeCd ?? 0)
+                ? $existingLink->delivery_agent_cd
+                : null;
+        $deliveryAgentFullCd = $existingLink
+            && (int) ($existingLink->ips_office_cd ?? 0) === (int) ($officeCd ?? 0)
+                ? $existingLink->delivery_agent_full_cd
+                : null;
+
         return UserIpsLink::query()->updateOrCreate(
             ['user_id' => $user->id],
             [
@@ -149,6 +222,8 @@ class UserIpsLinkController extends Controller
                 'ips_office_cd' => $ipsUser['office_cd'] ?? null,
                 'ips_office_fcd' => $ipsUser['office_fcd'] ?? null,
                 'ips_office_name' => $ipsUser['office_name'] ?? null,
+                'delivery_agent_cd' => $deliveryAgentCd,
+                'delivery_agent_full_cd' => $deliveryAgentFullCd,
                 'ipsweb' => (bool) ($ipsUser['ipsweb'] ?? false),
                 'restrict_user_offices' => (bool) ($ipsUser['restrict_user_offices'] ?? false),
                 'active' => true,
@@ -156,5 +231,12 @@ class UserIpsLinkController extends Controller
                 'last_snapshot' => $ipsUser,
             ],
         );
+    }
+
+    private function normalizeDeliveryAgentCode(mixed $code): string
+    {
+        $code = strtoupper(trim((string) $code));
+
+        return ctype_digit($code) ? str_pad($code, 2, '0', STR_PAD_LEFT) : $code;
     }
 }

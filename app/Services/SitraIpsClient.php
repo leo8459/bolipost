@@ -40,18 +40,43 @@ class SitraIpsClient
             ->throw()->json();
     }
 
-    public function deliveryCatalog(): array
+    public function deliveryCatalog(int $office): array
     {
         return $this->client()
-            ->get($this->url('/api/v1/ips/catalogos/entrega'))
+            ->get($this->url('/api/v1/ips/catalogos/entrega'), ['office_cd' => $office])
             ->throw()
             ->json('data');
+    }
+
+    public function catalog(?int $office = null): array
+    {
+        return $this->client()
+            ->get($this->url('/api/v1/ips/catalogos'), array_filter(['office_cd' => $office]))
+            ->throw()
+            ->json('data');
+    }
+
+    public function createPackage(array $data): array
+    {
+        return $this->client()
+            ->withHeaders(['Idempotency-Key' => $data['idempotency_key']])
+            ->post($this->url('/api/v1/ips/paquetes'), $data)
+            ->throw()
+            ->json();
     }
 
     public function package(string $codigo, ?int $office = null): array
     {
         return $this->client()->get($this->url('/api/v1/ips/paquetes/'.rawurlencode(strtoupper($codigo))), array_filter(['office_cd' => $office]))
             ->throw()->json('data');
+    }
+
+    public function receptacle(string $codigo, int $office): array
+    {
+        return $this->client()->get(
+            $this->url('/api/v1/ips/envases/'.rawurlencode(strtoupper($codigo))),
+            ['office_cd' => $office]
+        )->throw()->json('data');
     }
 
     public function deliver(string $codigo, array $data): array
@@ -67,6 +92,14 @@ class SitraIpsClient
         return $this->client()
             ->withHeaders(['Idempotency-Key' => $data['idempotency_key']])
             ->post($this->url('/api/v1/ips/paquetes/'.rawurlencode(strtoupper($codigo)).'/eventos'), $data)
+            ->throw()->json();
+    }
+
+    public function receptacleEvent(string $codigo, array $data): array
+    {
+        return $this->client()
+            ->withHeaders(['Idempotency-Key' => $data['idempotency_key']])
+            ->post($this->url('/api/v1/ips/envases/'.rawurlencode(strtoupper($codigo)).'/eventos'), $data)
             ->throw()->json();
     }
 
