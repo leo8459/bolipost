@@ -746,8 +746,8 @@
                 $mensajeAvisoRecojo = 'Aduana requiere una gestión para tu envío. Revisa las indicaciones antes de acudir a una oficina.';
             } else {
                 $mensajeAvisoRecojo = $departamento
-                    ? 'Tu envío está en revisión aduanera en ' . $departamento . '. Debes pasar por Aduana para completar tus trámites.'
-                    : 'Tu envío está en revisión aduanera. Debes pasar por Aduana para completar tus trámites.';
+                    ? 'Tu envío está en revisión aduanera en ' . $departamento . '. Pasa por nuestras oficinas para completar tu trámite y recoger tu paquete.'
+                    : 'Tu envío está en revisión aduanera. Pasa por nuestras oficinas para completar tu trámite y recoger tu paquete.';
             }
 
             if ($gestionAduanaRequerida && $departamento && isset($contactosRegional[$departamento])) {
