@@ -322,7 +322,8 @@ class FinancialReportController extends Controller
             );
             $departmentSalesAlignment = $this->alignCashierFlowDepartmentSalesCounts(
                 $data['cashierDepartmentGroups'],
-                $data
+                $data,
+                $progressCallback
             );
             $data['cashierDepartmentGroups'] = $departmentSalesAlignment['groups'];
             $data['cashierFlowDepartmentSalesCountWarning'] = $departmentSalesAlignment['warning'];
@@ -1810,7 +1811,7 @@ class FinancialReportController extends Controller
 
     public function invoicedContracts(Request $request)
     {
-        $data = $this->buildServicesReportData($request, true);
+        $data = $this->buildServicesReportData($request, true, cacheReports: true);
 
         $data['rows'] = $this->buildInvoiceRows(
             $request,
@@ -1901,11 +1902,11 @@ class FinancialReportController extends Controller
             ->unique()
             ->values();
         $hasServiceFilter = array_key_exists('servicios', $validated) || $legacyService !== '';
-        $loadCatalogForProgress = $hasServiceFilter;
         $loadReceivablesForProgress = $loadAllReceivablesOutsideServiceFilter
             && $showReceivablesSeparately
             && $hasServiceFilter
             && $requestedServices->isNotEmpty();
+        $loadCatalogForProgress = $hasServiceFilter && ! $loadReceivablesForProgress;
         $progressWorkTotal = $selectedMonths->count()
             + ($loadCatalogForProgress ? $selectedMonths->count() : 0)
             + ($loadReceivablesForProgress ? $selectedMonths->count() : 0);
@@ -1965,7 +1966,8 @@ class FinancialReportController extends Controller
         $summaryReportFilters = $reportFilters;
         unset($summaryReportFilters['incluirDetalleAnuladas'], $summaryReportFilters['regionalDetalle']);
         $batchReports = null;
-        if ($cacheReports && $selectedMonths->count() > 1 && $progressCallback === null) {
+        $batchReceivableReports = null;
+        if ($cacheReports && ($selectedMonths->count() > 1 || $loadReceivablesForProgress)) {
             try {
                 $filters = $selectedMonths->map(fn (int $month): array => [
                     'mes' => $month,
@@ -1973,8 +1975,36 @@ class FinancialReportController extends Controller
                     'limite' => $limit,
                     ...$reportFilters,
                 ])->all();
-                $batchReports = collect($this->reports->servicesBatch($filters, $refresh))
+                if ($loadReceivablesForProgress) {
+                    $receivableFilters = $reportFilters;
+                    unset($receivableFilters['servicios'], $receivableFilters['excluirGruposConteo']);
+                    foreach ($selectedMonths as $month) {
+                        $filters[] = [
+                            'mes' => $month,
+                            'anio' => $year,
+                            'limite' => $limit,
+                            ...$receivableFilters,
+                            '_receivables' => true,
+                        ];
+                    }
+                }
+                $batchResults = collect($this->reports->servicesBatch(
+                    $filters,
+                    $refresh,
+                    function (array $filter) use ($advanceReportProgress): void {
+                        if (empty($filter['_receivables'])) {
+                            $advanceReportProgress('Consultando ventas del mes '.$filter['mes']);
+                        }
+                    }
+                ));
+                $batchReports = $batchResults
+                    ->reject(fn (array $result): bool => (bool) ($result['filter']['_receivables'] ?? false))
                     ->keyBy(fn (array $result): int => (int) ($result['filter']['mes'] ?? 0));
+                if ($loadReceivablesForProgress) {
+                    $batchReceivableReports = $batchResults
+                        ->filter(fn (array $result): bool => (bool) ($result['filter']['_receivables'] ?? false))
+                        ->keyBy(fn (array $result): int => (int) ($result['filter']['mes'] ?? 0));
+                }
             } catch (\Throwable) {
                 // La consulta individual conserva el manejo de errores por mes.
             }
@@ -2117,12 +2147,14 @@ class FinancialReportController extends Controller
                 $errors->push("No se pudo cargar el resumen del mes {$month}: {$exception->getMessage()}");
                 $this->logDetailError($exception, null, $month, $year);
             }
-            $advanceReportProgress("Consultando ventas del mes {$month}");
+            if ($batchReports === null) {
+                $advanceReportProgress("Consultando ventas del mes {$month}");
+            }
         }
 
         // Las opciones deben incluir servicios ausentes de la selección actual.
         // La consulta filtrada sigue siendo la fuente de los importes y conteos.
-        if ($hasServiceFilter) {
+        if ($loadCatalogForProgress) {
             foreach ($selectedMonths as $month) {
                 try {
                     $catalog = $this->reports->services($month, $year, 200, true, $refresh);
@@ -2149,14 +2181,22 @@ class FinancialReportController extends Controller
 
             foreach ($selectedMonths as $month) {
                 try {
-                    $receivableReport = $this->reports->services(
-                        (int) $month,
-                        $year,
-                        $limit,
-                        $cacheReports,
-                        $refresh,
-                        $receivableReportFilters
-                    );
+                    if ($batchReceivableReports !== null) {
+                        $result = $batchReceivableReports->get($month);
+                        if ($result === null || ($result['error'] ?? null) !== null) {
+                            throw new \RuntimeException($result['error'] ?? 'No se recibio el resumen de Contratos y ECA del mes.');
+                        }
+                        $receivableReport = (array) ($result['report'] ?? []);
+                    } else {
+                        $receivableReport = $this->reports->services(
+                            (int) $month,
+                            $year,
+                            $limit,
+                            $cacheReports,
+                            $refresh,
+                            $receivableReportFilters
+                        );
+                    }
                 } catch (\Throwable $exception) {
                     if ($includeAnnulledDetails) {
                         $annulledDetailErrors->push("No se pudo obtener el detalle optimizado de anulaciones de Contratos y ECA del mes {$month}: {$exception->getMessage()}. Se conserva el resumen financiero.");
@@ -2199,6 +2239,9 @@ class FinancialReportController extends Controller
 
                 foreach ((array) ($receivableReport['servicios'] ?? []) as $row) {
                     $name = trim((string) ($row['servicio'] ?? ''));
+                    if ($name !== '') {
+                        $serviceOptions->put(mb_strtoupper($name, 'UTF-8'), $name);
+                    }
                     if ($name === '' || ! $this->isCashierFlowReceivableService($name)) {
                         continue;
                     }
@@ -2857,23 +2900,38 @@ class FinancialReportController extends Controller
         Collection $errors
     ): LengthAwarePaginator {
         $rows = collect();
+        $filters = $services->flatMap(fn (string $serviceName) => $months->map(
+            fn (int $month): array => ['servicio' => $serviceName, 'mes' => $month, 'anio' => $year]
+        ))->values()->all();
 
-        foreach ($services as $serviceName) {
-            foreach ($months as $month) {
-                try {
-                    $report = $this->reports->serviceDetail((string) $serviceName, (int) $month, $year);
-                    $detail = (array) ($report['servicio'] ?? []);
-                    $rows->push(...collect($detail['rows'] ?? [])->map(fn ($row) => [
-                        ...(array) $row,
-                        '_servicio' => $serviceName,
-                        '_mes' => (int) $month,
-                        '_mes_servicio' => $this->monthFromDescription((string) ($row['descripcion'] ?? '')) ?? (int) $month,
-                    ])->all());
-                } catch (\Throwable $exception) {
-                    $errors->push("No se pudo cargar {$serviceName} para el mes {$month}: {$exception->getMessage()}");
-                    $this->logDetailError($exception, (string) $serviceName, (int) $month, $year);
-                }
+        try {
+            $results = $this->reports->serviceDetailsBatch($filters, true, $request->boolean('actualizar'));
+        } catch (\Throwable $exception) {
+            $results = array_map(fn (array $filter): array => [
+                'filter' => $filter,
+                'report' => null,
+                'error' => $exception->getMessage(),
+            ], $filters);
+        }
+
+        foreach ($results as $result) {
+            $filter = (array) ($result['filter'] ?? []);
+            $serviceName = (string) ($filter['servicio'] ?? 'Servicio');
+            $month = (int) ($filter['mes'] ?? 0);
+            if (($result['error'] ?? null) !== null) {
+                $errors->push("No se pudo cargar {$serviceName} para el mes {$month}: {$result['error']}");
+                $this->logDetailError(new \RuntimeException((string) $result['error']), $serviceName, $month, $year);
+
+                continue;
             }
+
+            $detail = (array) data_get($result, 'report.servicio', []);
+            $rows->push(...collect($detail['rows'] ?? [])->map(fn ($row) => [
+                ...(array) $row,
+                '_servicio' => $serviceName,
+                '_mes' => $month,
+                '_mes_servicio' => $this->monthFromDescription((string) ($row['descripcion'] ?? '')) ?? $month,
+            ])->all());
         }
 
         $rows = $rows->sortByDesc('fecha')->values();
@@ -3225,7 +3283,11 @@ class FinancialReportController extends Controller
      *
      * @return array{groups: Collection, warning: ?string}
      */
-    private function alignCashierFlowDepartmentSalesCounts(Collection $departmentGroups, array $data): array
+    private function alignCashierFlowDepartmentSalesCounts(
+        Collection $departmentGroups,
+        array $data,
+        ?Closure $progressCallback = null
+    ): array
     {
         if ($departmentGroups->isEmpty()) {
             return ['groups' => $departmentGroups, 'warning' => null];
@@ -3271,7 +3333,25 @@ class FinancialReportController extends Controller
                 }
 
                 try {
-                    $results = $this->reports->servicesBatch($filters, (bool) ($data['refreshReports'] ?? false));
+                    $completed = 0;
+                    $total = count($filters);
+                    $results = $this->reports->servicesBatch(
+                        $filters,
+                        (bool) ($data['refreshReports'] ?? false),
+                        function (array $filter) use (&$completed, $total, $progressCallback): void {
+                            if ($progressCallback === null) {
+                                return;
+                            }
+                            $completed++;
+                            $percent = 91 + (int) round(3 * $completed / max(1, $total));
+                            $progressCallback(
+                                $percent,
+                                'Validando ventas por departamento: '.$filter['regionalConteo'],
+                                $completed,
+                                $total
+                            );
+                        }
+                    );
                     $states = [];
                     foreach ($results as $result) {
                         $filter = (array) ($result['filter'] ?? []);

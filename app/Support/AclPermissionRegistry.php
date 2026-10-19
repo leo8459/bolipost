@@ -584,6 +584,9 @@ class AclPermissionRegistry
         'dashboard.financiera.ingresos-ventanillas.movimiento.cobro-realizado' => [
             'dashboard.financiera.flujo-cajero',
         ],
+        'dashboard.financiera.ingresos-ventanillas.movimientos.cobro-realizado' => [
+            'dashboard.financiera.flujo-cajero',
+        ],
         'dashboard.financiera.ingresos-ventanillas.dashboard-amounts' => [
             'dashboard.financiera.flujo-cajero',
         ],
@@ -2064,6 +2067,7 @@ class AclPermissionRegistry
             'dashboard.financiera.ingresos-ventanillas' => 'Ventana: Ingresos Ventanillas',
             'dashboard.financiera.ingresos-ventanillas.movimiento.cobro-realizado' => 'Acción: Marcar movimiento cobrado en Ingresos Ventanillas',
             'dashboard.financiera.ingresos-ventanillas.movimiento.devolver-por-cobrar' => 'Acción: Devolver movimiento a Por cobrar en Ingresos Ventanillas',
+            'dashboard.financiera.ingresos-ventanillas.movimientos.cobro-realizado' => 'Accion: Marcar varios movimientos cobrados en Ingresos Ventanillas',
             'dashboard.financiera.ingresos-ventanillas.pdf' => 'Exportar PDF: Reporte ejecutivo de Ingresos Ventanillas',
             'dashboard.financiera.ingresos-ventanillas.detalle' => 'Detalle modal: Ingresos Ventanillas',
             'dashboard.financiera.ventas-servicios.detalle' => 'Detalle modal: Ingresos',

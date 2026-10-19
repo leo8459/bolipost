@@ -79,9 +79,19 @@
         .flow-detail-classification-filters { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 1.25rem; }
         .flow-detail-classification-button { display: flex; flex-direction: column; align-items: flex-start; min-width: 190px; padding: .55rem .8rem; text-align: left; }
         .flow-detail-classification-button small { opacity: .85; }
+        .flow-detail-payment-filters { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: .75rem 0 1rem; padding: .7rem .85rem; border: 1px solid #d5e2f0; border-radius: 8px; background: #f8fbff; }
+        .flow-detail-payment-filters > strong { color: #102a43; margin-right: .25rem; }
+        .flow-detail-payment-button { display: flex; flex-direction: column; align-items: flex-start; min-width: 170px; padding: .5rem .75rem; text-align: left; }
+        .flow-detail-payment-button small { opacity: .85; }
         .flow-detail-list-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .5rem; margin-bottom: .75rem; }
         .flow-detail-list-heading h5 { color: #102a43; font-size: 1.3rem; font-weight: 700; }
         .flow-detail-list-heading span { font-weight: 600; }
+        .flow-detail-collection-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem 1rem; margin: 0 0 1rem; padding: .8rem 1rem; border: 1px solid #b7c9db; border-radius: 8px; background: #f3f7fc; }
+        .flow-detail-collection-toolbar label, .flow-detail-select-label { color: #102a43; font-weight: 600; }
+        .flow-detail-collection-toolbar input[type="checkbox"], .flow-detail-select-label input[type="checkbox"] { width: 18px; height: 18px; vertical-align: middle; margin-right: .3rem; }
+        .flow-collection-date-row { display: grid; grid-template-columns: minmax(0, 1fr) 190px; align-items: center; gap: 1rem; border: 1px solid #d5e2f0; border-radius: 8px; padding: .8rem 1rem; margin-top: .65rem; }
+        .flow-collection-date-row strong, .flow-collection-date-row small { display: block; overflow-wrap: anywhere; }
+        .flow-collection-date-row input { min-height: 44px; }
         .flow-detail-item { border: 1px solid #b7c9db; border-radius: 9px; padding: 1rem 1.15rem; margin-bottom: .85rem; background: #fff; }
         .flow-detail-item:nth-of-type(even) { background: #f8fbff; }
         .flow-detail-item-heading { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: .5rem 1rem; margin-bottom: .8rem; }
@@ -100,6 +110,7 @@
             .flow-detail-dialog { width: calc(100% - 1rem); margin: .5rem auto; }
             .flow-detail-modal .modal-body { max-height: calc(100vh - 145px); padding: .85rem; }
             .flow-detail-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .flow-collection-date-row { grid-template-columns: 1fr; }
         }
         @media (max-width: 480px) {
             .flow-detail-fields { grid-template-columns: 1fr; }
@@ -185,11 +196,152 @@
             var detailBody = detailModal.querySelector('[data-flow-detail-body]');
             var detailTitle = detailModal.querySelector('[data-flow-detail-title]');
             var detailStatus = detailModal.querySelector('[data-flow-detail-status]');
+            var refreshDetailButton = detailModal.querySelector('[data-flow-detail-refresh]');
+            var collectionCancelButton = detailModal.querySelector('[data-flow-collection-cancel]');
+            var collectionSubmitButton = detailModal.querySelector('[data-flow-collection-submit]');
             var activeRequest = null;
             var requestId = 0;
             var currentUrl = '';
+            var detailPageTitle = '';
+            var savedDetail = null;
+            var savedDetailScroll = 0;
+
+            function setCollectionStage(active) {
+                refreshDetailButton.classList.toggle('d-none', active);
+                collectionCancelButton.classList.toggle('d-none', !active);
+                collectionSubmitButton.classList.toggle('d-none', !active);
+                detailTitle.textContent = active ? 'Fecha de cobro' : detailPageTitle;
+            }
+
+            function localToday() {
+                var today = new Date();
+                var month = String(today.getMonth() + 1).padStart(2, '0');
+                var day = String(today.getDate()).padStart(2, '0');
+                return today.getFullYear() + '-' + month + '-' + day;
+            }
+
+            function updateCollectionSelection() {
+                var toolbar = detailBody.querySelector('[data-flow-collection-toolbar]');
+                if (!toolbar) {
+                    return;
+                }
+                var checkboxes = Array.from(detailBody.querySelectorAll('[data-flow-select-movement]'));
+                var checkedCount = checkboxes.filter(function (checkbox) { return checkbox.checked; }).length;
+                toolbar.querySelector('[data-flow-selected-count]').textContent = checkedCount + ' seleccionados';
+                toolbar.querySelector('[data-flow-collect-selected]').disabled = checkedCount === 0;
+                var selectAll = toolbar.querySelector('[data-flow-select-all-page]');
+                selectAll.checked = checkboxes.length > 0 && checkedCount === checkboxes.length;
+                selectAll.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
+            }
+
+            function openCollectionStage(clickedCard) {
+                var toolbar = detailBody.querySelector('[data-flow-collection-toolbar]');
+                if (!toolbar) {
+                    return;
+                }
+                var cards = Array.from(detailBody.querySelectorAll('[data-flow-select-movement]:checked')).map(function (checkbox) {
+                    return checkbox.closest('[data-flow-movement-key]');
+                }).filter(Boolean);
+                if (clickedCard && !cards.includes(clickedCard)) {
+                    cards.push(clickedCard);
+                }
+                cards = cards.filter(function (card, index, all) {
+                    return card.dataset.flowMovementKey && all.findIndex(function (item) {
+                        return item.dataset.flowMovementKey === card.dataset.flowMovementKey;
+                    }) === index;
+                });
+                if (!cards.length) {
+                    return;
+                }
+
+                var form = document.createElement('form');
+                form.id = 'flow-collection-form';
+                form.method = 'POST';
+                form.action = detailModal.dataset.collectionAction;
+                toolbar.querySelectorAll('[data-flow-collection-context]').forEach(function (source) {
+                    var input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = source.name;
+                    input.value = source.value;
+                    form.appendChild(input);
+                });
+
+                var instructions = document.createElement('p');
+                instructions.className = 'mb-3';
+                instructions.textContent = 'Indique la fecha de cobro de cada movimiento. Puede asignar una fecha diferente a cada uno.';
+                form.appendChild(instructions);
+
+                var masterLabel = document.createElement('label');
+                masterLabel.className = 'font-weight-bold';
+                masterLabel.textContent = 'Aplicar una fecha a todos';
+                masterLabel.htmlFor = 'flow-collection-master-date';
+                var masterDate = document.createElement('input');
+                masterDate.type = 'date';
+                masterDate.id = 'flow-collection-master-date';
+                masterDate.className = 'form-control flow-collection-date-master mb-3';
+                masterDate.value = localToday();
+                masterLabel.appendChild(masterDate);
+                form.appendChild(masterLabel);
+
+                cards.forEach(function (card, index) {
+                    var row = document.createElement('div');
+                    row.className = 'flow-collection-date-row';
+                    var description = document.createElement('div');
+                    var title = document.createElement('strong');
+                    title.textContent = card.dataset.flowService;
+                    var subtitle = document.createElement('small');
+                    subtitle.className = 'text-muted';
+                    subtitle.textContent = 'Mes ' + card.dataset.flowMonth + ' · Venta ' + card.dataset.flowSale + ' · Detalle ' + card.dataset.flowDetail + ' · ' + card.dataset.flowAmount;
+                    description.appendChild(title);
+                    description.appendChild(subtitle);
+                    row.appendChild(description);
+
+                    var dateLabel = document.createElement('label');
+                    dateLabel.className = 'mb-0 font-weight-bold';
+                    dateLabel.textContent = 'Fecha de cobro';
+                    var dateInput = document.createElement('input');
+                    dateInput.type = 'date';
+                    dateInput.required = true;
+                    dateInput.className = 'form-control mt-1';
+                    dateInput.name = 'movimientos[' + index + '][fecha_cobro]';
+                    dateInput.value = masterDate.value;
+                    dateLabel.appendChild(dateInput);
+                    row.appendChild(dateLabel);
+
+                    [
+                        ['movement_key', card.dataset.flowMovementKey],
+                        ['servicio_cobro', card.dataset.flowService],
+                        ['mes_cobro', card.dataset.flowMonth]
+                    ].forEach(function (field) {
+                        var hidden = document.createElement('input');
+                        hidden.type = 'hidden';
+                        hidden.name = 'movimientos[' + index + '][' + field[0] + ']';
+                        hidden.value = field[1];
+                        row.appendChild(hidden);
+                    });
+                    form.appendChild(row);
+                });
+
+                masterDate.addEventListener('change', function () {
+                    form.querySelectorAll('[name$="[fecha_cobro]"]').forEach(function (dateInput) {
+                        dateInput.value = masterDate.value;
+                    });
+                });
+
+                savedDetailScroll = detailBody.scrollTop;
+                savedDetail = document.createDocumentFragment();
+                while (detailBody.firstChild) {
+                    savedDetail.appendChild(detailBody.firstChild);
+                }
+                detailBody.replaceChildren(form);
+                detailBody.scrollTop = 0;
+                setCollectionStage(true);
+                detailStatus.textContent = 'Seleccione la fecha de cobro para los movimientos.';
+            }
 
             function loadDetail(url, focusSearch) {
+                savedDetail = null;
+                setCollectionStage(false);
                 if (activeRequest) {
                     activeRequest.abort();
                 }
@@ -213,6 +365,9 @@
                         return;
                     }
                     detailBody.innerHTML = html;
+                    var loadedUrl = new URL(url, window.location.href);
+                    loadedUrl.searchParams.delete('actualizar');
+                    currentUrl = loadedUrl.toString();
                     if (focusSearch) {
                         var searchInput = detailBody.querySelector('[data-flow-detail-search]');
                         if (searchInput) {
@@ -243,7 +398,8 @@
                         return;
                     }
                     event.preventDefault();
-                    detailTitle.textContent = trigger.dataset.flowDetailTitle;
+                    detailPageTitle = trigger.dataset.flowDetailTitle;
+                    detailTitle.textContent = detailPageTitle;
                     var url = new URL(trigger.href, window.location.href);
                     url.searchParams.set('modal', '1');
                     window.jQuery(detailModal).modal('show');
@@ -252,6 +408,41 @@
             });
 
             detailModal.addEventListener('click', function (event) {
+                var collectOneButton = event.target.closest('[data-flow-collect-one]');
+                if (collectOneButton) {
+                    openCollectionStage(collectOneButton.closest('[data-flow-movement-key]'));
+                    return;
+                }
+
+                var collectSelectedButton = event.target.closest('[data-flow-collect-selected]');
+                if (collectSelectedButton) {
+                    openCollectionStage(null);
+                    return;
+                }
+
+                var selectAllButton = event.target.closest('[data-flow-select-all-page]');
+                if (selectAllButton) {
+                    detailBody.querySelectorAll('[data-flow-select-movement]').forEach(function (checkbox) {
+                        checkbox.checked = selectAllButton.checked;
+                    });
+                    updateCollectionSelection();
+                    return;
+                }
+
+                var cancelCollectionButton = event.target.closest('[data-flow-collection-cancel]');
+                if (cancelCollectionButton && currentUrl) {
+                    if (savedDetail) {
+                        detailBody.replaceChildren(savedDetail);
+                        savedDetail = null;
+                        setCollectionStage(false);
+                        detailBody.scrollTop = savedDetailScroll;
+                        detailStatus.textContent = 'Detalle cargado.';
+                    } else {
+                        loadDetail(currentUrl);
+                    }
+                    return;
+                }
+
                 var classificationButton = event.target.closest('[data-flow-detail-classification]');
                 if (classificationButton && currentUrl) {
                     var classificationUrl = new URL(currentUrl, window.location.href);
@@ -264,6 +455,22 @@
                     classificationUrl.searchParams.delete('page');
                     classificationUrl.searchParams.delete('actualizar');
                     loadDetail(classificationUrl.toString());
+                    return;
+                }
+
+                var paymentStatusButton = event.target.closest('[data-flow-detail-payment]');
+                if (paymentStatusButton && currentUrl) {
+                    var statusUrl = new URL(currentUrl, window.location.href);
+                    var status = paymentStatusButton.dataset.flowDetailPayment;
+                    statusUrl.searchParams.delete('solo_cobrados');
+                    if (status === 'todos') {
+                        statusUrl.searchParams.delete('estado_cobro');
+                    } else {
+                        statusUrl.searchParams.set('estado_cobro', status);
+                    }
+                    statusUrl.searchParams.delete('page');
+                    statusUrl.searchParams.delete('actualizar');
+                    loadDetail(statusUrl.toString());
                     return;
                 }
 
@@ -298,6 +505,12 @@
                 }
             });
 
+            detailModal.addEventListener('change', function (event) {
+                if (event.target.matches('[data-flow-select-movement]')) {
+                    updateCollectionSelection();
+                }
+            });
+
             detailModal.addEventListener('submit', function (event) {
                 var searchForm = event.target.closest('[data-flow-detail-search-form]');
                 if (!searchForm) {
@@ -325,6 +538,7 @@
                     activeRequest.abort();
                 }
                 detailBody.innerHTML = '';
+                savedDetail = null;
                 detailStatus.textContent = '';
             });
         });
@@ -351,6 +565,7 @@
     <div class="alert alert-info border-0 shadow-sm">
         <i class="fas fa-info-circle mr-1"></i>
         <strong>Criterio del reporte:</strong> El reporte incluye la facturación de Contratos. Registre cada cobro o devolución desde el detalle del movimiento.
+        <div class="small mt-1">La facturación se reutiliza durante {{ max(1, (int) ceil(config('services.facturacion_reports.cache_active_seconds', 900) / 60)) }} minutos en el mes actual y {{ max(1, (int) ceil(config('services.facturacion_reports.cache_closed_seconds', 86400) / 3600)) }} horas en los meses anteriores. Pulse <strong>Actualizar datos</strong> para consultar nuevamente. Los cobros registrados se consultan en cada carga.</div>
     </div>
 
     @if(collect($cashierFlowReceivableDepartmentErrors ?? [])->isNotEmpty())
@@ -890,7 +1105,7 @@
         </div>
     </div>
 
-    <div class="modal fade flow-detail-modal" id="flow-detail-modal" tabindex="-1" role="dialog" aria-labelledby="flow-detail-modal-title" aria-hidden="true">
+    <div class="modal fade flow-detail-modal" id="flow-detail-modal" data-collection-action="{{ route('dashboard.financiera.ingresos-ventanillas.movimientos.cobro-realizado') }}" tabindex="-1" role="dialog" aria-labelledby="flow-detail-modal-title" aria-hidden="true">
         <div class="modal-dialog flow-detail-dialog" role="document">
             <div class="modal-content">
                 <div class="modal-header">
@@ -909,6 +1124,10 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-primary" data-flow-detail-refresh>
                         <i class="fas fa-sync-alt mr-1" aria-hidden="true"></i> Actualizar detalle
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary d-none" data-flow-collection-cancel>Cancelar</button>
+                    <button type="submit" form="flow-collection-form" class="btn btn-success d-none" data-flow-collection-submit>
+                        <i class="fas fa-check mr-1" aria-hidden="true"></i> Confirmar cobro
                     </button>
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
                 </div>

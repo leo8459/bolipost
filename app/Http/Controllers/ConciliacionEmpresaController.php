@@ -193,7 +193,8 @@ class ConciliacionEmpresaController extends Controller
             $factura = $this->buscarFacturaContratos(
                 (string) $data['factura_venta_id'],
                 (int) $data['facturado_mes'],
-                (int) $data['facturado_anio']
+                (int) $data['facturado_anio'],
+                true
             );
         } catch (\Throwable $exception) {
             report($exception);
@@ -502,25 +503,31 @@ class ConciliacionEmpresaController extends Controller
         ])->with('success', 'Pago confirmado para '.$conciliacion->empresa?->nombre.'.');
     }
 
-    private function buscarFacturaContratos(string $ventaId, int $mes, int $anio): ?array
+    private function buscarFacturaContratos(string $ventaId, int $mes, int $anio, bool $refresh = false): ?array
     {
-        return $this->facturasContratos($mes, $anio)
+        return $this->facturasContratos($mes, $anio, $refresh)
             ->first(fn (array $row) => (string) ($row['ventaId'] ?? '') === $ventaId);
     }
 
-    private function facturasContratos(int $mes, int $anio)
+    private function facturasContratos(int $mes, int $anio, bool $refresh = false)
     {
-        $servicios = collect($this->facturacion->services($mes, $anio, 200)['servicios'] ?? [])
+        $servicios = collect($this->facturacion->services($mes, $anio, 200, true, $refresh)['servicios'] ?? [])
             ->pluck('servicio')
             ->filter(fn ($servicio) => str_contains(mb_strtolower((string) $servicio), 'contrato'));
 
-        $facturas = collect();
-        foreach ($servicios as $servicio) {
-            $rows = (array) (($this->facturacion->serviceDetail((string) $servicio, $mes, $anio)['servicio'] ?? [])['rows'] ?? []);
-            foreach ($rows as $row) {
-                $facturas->push((array) $row);
-            }
+        $filters = $servicios->map(fn (string $servicio): array => [
+            'servicio' => $servicio,
+            'mes' => $mes,
+            'anio' => $anio,
+        ])->all();
+        $results = $this->facturacion->serviceDetailsBatch($filters, true, $refresh);
+        $failed = collect($results)->first(fn (array $result): bool => ($result['error'] ?? null) !== null);
+        if ($failed !== null) {
+            throw new \RuntimeException((string) $failed['error']);
         }
+        $facturas = collect($results)
+            ->flatMap(fn (array $result) => data_get($result, 'report.servicio.rows', []))
+            ->map(fn ($row): array => (array) $row);
 
         return $facturas
             ->filter(fn (array $row) => filled($row['ventaId'] ?? null))

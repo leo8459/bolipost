@@ -381,7 +381,8 @@ class IngresosVentanillasController extends Controller
                 $data['selectedMonths'],
                 $data['anio'],
                 $invoicePeriodMovements,
-                $data['selectedDepartment']
+                $data['selectedDepartment'],
+                (bool) ($data['refreshReports'] ?? false)
             );
             $data['cashierFlowReceivableDepartmentErrors'] = $receivableDepartmentBreakdown['errors'];
             $data['cashierFlowReceivableDepartmentAmounts'] = $receivableDepartmentBreakdown['pendingByDepartment'];
@@ -464,7 +465,8 @@ class IngresosVentanillasController extends Controller
             $data['cashierDepartmentGroups'] = $this->buildCashierDepartmentGroups($data['cashierRows']);
             $departmentSalesAlignment = $this->alignCashierFlowDepartmentSalesCounts(
                 $data['cashierDepartmentGroups'],
-                $data
+                $data,
+                $progressCallback
             );
             $data['cashierDepartmentGroups'] = $departmentSalesAlignment['groups'];
             $data['cashierFlowDepartmentSalesCountWarning'] = $departmentSalesAlignment['warning'];
@@ -1380,17 +1382,40 @@ class IngresosVentanillasController extends Controller
             return collect();
         }
 
-        $movements = CashierFlowReceivableMovement::query()
-            ->where('cobro_activo', true)
-            ->whereYear('cobrado_at', $year)
-            ->where(function ($query) use ($months): void {
-                $query->whereMonth('cobrado_at', $months[0]);
-                foreach (array_slice($months, 1) as $month) {
-                    $query->orWhereMonth('cobrado_at', $month);
+        $query = CashierFlowReceivableMovement::query()->where('cobro_activo', true);
+        if (Schema::hasColumn('cashier_flow_receivable_movements', 'fecha_cobro')) {
+            $query->where(function ($query) use ($months, $year): void {
+                foreach ($months as $index => $month) {
+                    $dateFilter = function ($dateQuery) use ($year, $month): void {
+                        $dateQuery->where(function ($query) use ($year, $month): void {
+                            $query->whereNotNull('fecha_cobro')
+                                ->whereYear('fecha_cobro', $year)
+                                ->whereMonth('fecha_cobro', $month);
+                        })->orWhere(function ($query) use ($year, $month): void {
+                            $query->whereNull('fecha_cobro')
+                                ->whereYear('cobrado_at', $year)
+                                ->whereMonth('cobrado_at', $month);
+                        });
+                    };
+
+                    if ($index === 0) {
+                        $query->where($dateFilter);
+                    } else {
+                        $query->orWhere($dateFilter);
+                    }
                 }
-            })
-            ->orderBy('cobrado_at')
-            ->get();
+            })->orderByRaw('COALESCE(fecha_cobro, DATE(cobrado_at))');
+        } else {
+            $query->whereYear('cobrado_at', $year)
+                ->where(function ($query) use ($months): void {
+                    $query->whereMonth('cobrado_at', $months[0]);
+                    foreach (array_slice($months, 1) as $month) {
+                        $query->orWhereMonth('cobrado_at', $month);
+                    }
+                })
+                ->orderBy('cobrado_at');
+        }
+        $movements = $query->get();
 
         return $this->enrichCashierFlowCollectedMovements($movements);
     }
@@ -1657,6 +1682,144 @@ class IngresosVentanillasController extends Controller
         return $this->updateCashierFlowMovementStatus($request, true);
     }
 
+    public function markCashierFlowMovementsCollected(Request $request)
+    {
+        $validated = $request->validate([
+            'anio' => ['required', 'integer', 'between:2000,'.(now()->year + 3)],
+            'movimientos' => ['required', 'array', 'min:1', 'max:200'],
+            'movimientos.*.movement_key' => ['required', 'string', 'distinct', 'regex:/^[a-f0-9]{64}$/'],
+            'movimientos.*.servicio_cobro' => ['required', 'string', 'max:180'],
+            'movimientos.*.mes_cobro' => ['required', 'integer', 'between:1,12'],
+            'movimientos.*.fecha_cobro' => ['required', 'date_format:Y-m-d'],
+            'filtro_meses' => ['nullable', 'array', 'min:1', 'max:12'],
+            'filtro_meses.*' => ['required', 'integer', 'distinct', 'between:1,12'],
+            'filtro_anio' => ['nullable', 'integer', 'between:2000,'.(now()->year + 3)],
+            'filtro_limite' => ['nullable', 'integer', 'between:1,200'],
+            'filtro_departamento' => ['nullable', 'string', 'max:120'],
+            'filtro_servicios' => ['nullable', 'array', 'max:'.self::MAX_SERVICE_FILTER_ITEMS],
+            'filtro_servicios.*' => ['string', 'distinct', 'max:180'],
+        ]);
+
+        $filterYear = (int) ($validated['filtro_anio'] ?? $validated['anio']);
+        $filterMonths = collect($validated['filtro_meses'] ?? collect($validated['movimientos'])->pluck('mes_cobro'))
+            ->map(fn ($month): int => (int) $month)->unique()->sort()->values()->all();
+        $redirectFilters = [
+            'servicios' => $validated['filtro_servicios'] ?? [],
+            'meses' => $filterMonths,
+            'anio' => $filterYear,
+            'limite' => (int) ($validated['filtro_limite'] ?? 200),
+            'departamento' => $this->canonicalDepartmentName((string) ($validated['filtro_departamento'] ?? '')),
+        ];
+        $backToFlow = fn () => redirect()->route('dashboard.financiera.ingresos-ventanillas', $redirectFilters);
+
+        if ($redirectFilters['departamento'] !== '') {
+            return $backToFlow()->with('ingresosVentanillasError', 'Quita el filtro de departamento antes de registrar cobros desde el detalle.');
+        }
+        if (! Schema::hasTable('cashier_flow_receivable_movements') || ! Schema::hasColumn('cashier_flow_receivable_movements', 'fecha_cobro')) {
+            return $backToFlow()->with('ingresosVentanillasError', 'Falta preparar el registro de fechas de cobro. Ejecuta las migraciones de la aplicacion.');
+        }
+
+        $movementInputs = collect($validated['movimientos'])->map(function (array $input): array {
+            $input['servicio_cobro'] = trim((string) $input['servicio_cobro']);
+            abort_unless($this->isCashierFlowReceivableService($input['servicio_cobro']), 404);
+
+            return $input;
+        });
+        $reportsByServiceMonth = [];
+        foreach ($movementInputs->groupBy(fn (array $input): string => $input['servicio_cobro'].'|'.$input['mes_cobro']) as $groupKey => $monthInputs) {
+            [$serviceName, $month] = explode('|', $groupKey, 2);
+            try {
+                $report = $this->reports->serviceDetail($serviceName, (int) $month, (int) $validated['anio'], true, true);
+            } catch (\Throwable $exception) {
+                $this->logDetailError($exception, $serviceName, (int) $month, (int) $validated['anio']);
+
+                return $backToFlow()->with('ingresosVentanillasError', 'No se pudo actualizar uno de los movimientos. Vuelve a abrir el detalle e intentalo nuevamente.');
+            }
+
+            $reportsByServiceMonth[$groupKey] = $this->attachCashierFlowMovementKeys(
+                collect(($report['servicio']['rows'] ?? []))->map(fn ($row): array => [
+                    ...(array) $row,
+                    '_servicio' => $serviceName,
+                    '_mes' => (int) $month,
+                ]),
+                (int) $validated['anio']
+            )->keyBy('_movementKey');
+        }
+
+        $verifiedMovements = [];
+        foreach ($movementInputs as $input) {
+            $groupKey = $input['servicio_cobro'].'|'.$input['mes_cobro'];
+            $row = $reportsByServiceMonth[$groupKey]->get($input['movement_key']);
+            if (! $row || $this->isCancelledCashierFlowInvoice($row)) {
+                return $backToFlow()->with('ingresosVentanillasError', 'Uno de los movimientos ya no esta disponible para cobrar. Actualiza el detalle e intentalo nuevamente.');
+            }
+
+            $amount = round((float) ($row['totalLinea'] ?? 0), 2);
+            if ($amount <= 0) {
+                return $backToFlow()->with('ingresosVentanillasError', 'Uno de los movimientos no tiene un importe positivo para registrar como cobrado.');
+            }
+
+            $verifiedMovements[] = [$input, $row, $amount];
+        }
+
+        $collectedCount = 0;
+        $alreadyCollectedCount = 0;
+        DB::transaction(function () use ($verifiedMovements, $validated, $request, &$collectedCount, &$alreadyCollectedCount): void {
+            foreach ($verifiedMovements as [$input, $row, $amount]) {
+                $collection = CashierFlowReceivableMovement::query()
+                    ->where('movement_key', $input['movement_key'])
+                    ->lockForUpdate()
+                    ->first();
+                if ($collection?->cobro_activo) {
+                    $alreadyCollectedCount++;
+                    continue;
+                }
+
+                $invoiceUser = (array) ($row['usuario'] ?? []);
+                $attributes = [
+                    'servicio' => $input['servicio_cobro'],
+                    'anio' => (int) $validated['anio'],
+                    'mes' => (int) $input['mes_cobro'],
+                    'venta_id' => isset($row['ventaId']) ? mb_substr((string) $row['ventaId'], 0, 180) : null,
+                    'detalle_id' => isset($row['detalleId']) ? mb_substr((string) $row['detalleId'], 0, 180) : null,
+                    'facturado_por_id' => isset($invoiceUser['id']) ? mb_substr((string) $invoiceUser['id'], 0, 80) : null,
+                    'facturado_por_nombre' => isset($invoiceUser['nombre']) ? mb_substr(trim((string) $invoiceUser['nombre']), 0, 180) : null,
+                    'facturado_por_email' => isset($invoiceUser['email']) ? mb_substr(trim((string) $invoiceUser['email']), 0, 180) : null,
+                    'facturado_por_alias' => isset($invoiceUser['alias']) ? mb_substr(trim((string) $invoiceUser['alias']), 0, 180) : null,
+                    'codigo_orden' => isset($row['codigoOrden']) ? mb_substr((string) $row['codigoOrden'], 0, 180) : null,
+                    'codigo_seguimiento' => isset($row['codigoSeguimiento']) ? mb_substr((string) $row['codigoSeguimiento'], 0, 180) : null,
+                    'fecha' => isset($row['fecha']) ? mb_substr((string) $row['fecha'], 0, 80) : null,
+                    'descripcion' => isset($row['descripcion']) ? (string) $row['descripcion'] : null,
+                    'monto' => $amount,
+                    'cantidad_paquetes' => round((float) ($row['cantidad'] ?? 0), 2),
+                    'cobro_activo' => true,
+                    'fecha_cobro' => $input['fecha_cobro'],
+                    'cobrado_por' => $request->user()?->id,
+                    'cobrado_at' => now(),
+                ];
+
+                if ($collection) {
+                    $collection->forceFill($attributes)->save();
+                } else {
+                    CashierFlowReceivableMovement::query()->create([
+                        'movement_key' => $input['movement_key'],
+                        ...$attributes,
+                    ]);
+                }
+                $collectedCount++;
+            }
+        });
+
+        $message = $collectedCount > 0
+            ? $collectedCount.' movimiento(s) cobrado(s) con la fecha indicada.'
+            : 'Los movimientos seleccionados ya estaban marcados como cobrados.';
+        if ($alreadyCollectedCount > 0 && $collectedCount > 0) {
+            $message .= ' '.$alreadyCollectedCount.' ya estaban cobrados y no se modificaron.';
+        }
+
+        return $backToFlow()->with('ingresosVentanillasSuccess', $message);
+    }
+
     public function returnCashierFlowMovementToPending(Request $request)
     {
         return $this->updateCashierFlowMovementStatus($request, false);
@@ -1666,6 +1829,7 @@ class IngresosVentanillasController extends Controller
     {
         $validated = $request->validate([
             'movement_key' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/'],
+            'fecha_cobro' => ['nullable', 'date_format:Y-m-d'],
             'servicio_cobro' => ['required', 'string', 'max:180'],
             'mes_cobro' => ['required', 'integer', 'between:1,12'],
             'anio' => ['required', 'integer', 'between:2000,'.(now()->year + 3)],
@@ -1703,7 +1867,7 @@ class IngresosVentanillasController extends Controller
         $month = (int) $validated['mes_cobro'];
         $year = (int) $validated['anio'];
         try {
-            $report = $this->reports->serviceDetail($serviceName, $month, $year, true, false);
+            $report = $this->reports->serviceDetail($serviceName, $month, $year, true, true);
         } catch (\Throwable $exception) {
             $this->logDetailError($exception, $serviceName, $month, $year);
 
@@ -1757,6 +1921,7 @@ class IngresosVentanillasController extends Controller
                 'monto' => $movementAmount,
                 'cantidad_paquetes' => round((float) ($row['cantidad'] ?? 0), 2),
                 'cobro_activo' => true,
+                'fecha_cobro' => $validated['fecha_cobro'] ?? now()->toDateString(),
                 'cobrado_por' => $request->user()?->id,
                 'cobrado_at' => now(),
             ];
@@ -1889,11 +2054,11 @@ class IngresosVentanillasController extends Controller
             ->unique()
             ->values();
         $hasServiceFilter = array_key_exists('servicios', $validated) || $legacyService !== '';
-        $loadCatalogForProgress = $hasServiceFilter;
         $loadReceivablesForProgress = $loadAllReceivablesOutsideServiceFilter
             && $showReceivablesSeparately
             && $hasServiceFilter
             && $requestedServices->isNotEmpty();
+        $loadCatalogForProgress = $hasServiceFilter && ! $loadReceivablesForProgress;
         $progressWorkTotal = $selectedMonths->count()
             + ($loadCatalogForProgress ? $selectedMonths->count() : 0)
             + ($loadReceivablesForProgress ? $selectedMonths->count() : 0);
@@ -1953,7 +2118,8 @@ class IngresosVentanillasController extends Controller
         $summaryReportFilters = $reportFilters;
         unset($summaryReportFilters['incluirDetalleAnuladas'], $summaryReportFilters['regionalDetalle']);
         $batchReports = null;
-        if ($cacheReports && $selectedMonths->count() > 1 && $progressCallback === null) {
+        $batchReceivableReports = null;
+        if ($cacheReports && ($selectedMonths->count() > 1 || $loadReceivablesForProgress)) {
             try {
                 $filters = $selectedMonths->map(fn (int $month): array => [
                     'mes' => $month,
@@ -1961,8 +2127,36 @@ class IngresosVentanillasController extends Controller
                     'limite' => $limit,
                     ...$reportFilters,
                 ])->all();
-                $batchReports = collect($this->reports->servicesBatch($filters, $refresh))
+                if ($loadReceivablesForProgress) {
+                    $receivableFilters = $reportFilters;
+                    unset($receivableFilters['servicios'], $receivableFilters['excluirGruposConteo']);
+                    foreach ($selectedMonths as $month) {
+                        $filters[] = [
+                            'mes' => $month,
+                            'anio' => $year,
+                            'limite' => $limit,
+                            ...$receivableFilters,
+                            '_receivables' => true,
+                        ];
+                    }
+                }
+                $batchResults = collect($this->reports->servicesBatch(
+                    $filters,
+                    $refresh,
+                    function (array $filter) use ($advanceReportProgress): void {
+                        if (empty($filter['_receivables'])) {
+                            $advanceReportProgress('Consultando ventas del mes '.$filter['mes']);
+                        }
+                    }
+                ));
+                $batchReports = $batchResults
+                    ->reject(fn (array $result): bool => (bool) ($result['filter']['_receivables'] ?? false))
                     ->keyBy(fn (array $result): int => (int) ($result['filter']['mes'] ?? 0));
+                if ($loadReceivablesForProgress) {
+                    $batchReceivableReports = $batchResults
+                        ->filter(fn (array $result): bool => (bool) ($result['filter']['_receivables'] ?? false))
+                        ->keyBy(fn (array $result): int => (int) ($result['filter']['mes'] ?? 0));
+                }
             } catch (\Throwable) {
                 // La consulta individual conserva el manejo de errores por mes.
             }
@@ -2105,12 +2299,14 @@ class IngresosVentanillasController extends Controller
                 $errors->push("No se pudo cargar el resumen del mes {$month}: {$exception->getMessage()}");
                 $this->logDetailError($exception, null, $month, $year);
             }
-            $advanceReportProgress("Consultando ventas del mes {$month}");
+            if ($batchReports === null) {
+                $advanceReportProgress("Consultando ventas del mes {$month}");
+            }
         }
 
         // Las opciones deben incluir servicios ausentes de la selección actual.
         // La consulta filtrada sigue siendo la fuente de los importes y conteos.
-        if ($hasServiceFilter) {
+        if ($loadCatalogForProgress) {
             foreach ($selectedMonths as $month) {
                 try {
                     $catalog = $this->reports->services($month, $year, 200, true, $refresh);
@@ -2137,14 +2333,22 @@ class IngresosVentanillasController extends Controller
 
             foreach ($selectedMonths as $month) {
                 try {
-                    $receivableReport = $this->reports->services(
-                        (int) $month,
-                        $year,
-                        $limit,
-                        $cacheReports,
-                        $refresh,
-                        $receivableReportFilters
-                    );
+                    if ($batchReceivableReports !== null) {
+                        $result = $batchReceivableReports->get($month);
+                        if ($result === null || ($result['error'] ?? null) !== null) {
+                            throw new \RuntimeException($result['error'] ?? 'No se recibio el resumen de Contratos del mes.');
+                        }
+                        $receivableReport = (array) ($result['report'] ?? []);
+                    } else {
+                        $receivableReport = $this->reports->services(
+                            (int) $month,
+                            $year,
+                            $limit,
+                            $cacheReports,
+                            $refresh,
+                            $receivableReportFilters
+                        );
+                    }
                 } catch (\Throwable $exception) {
                     if ($includeAnnulledDetails) {
                         $annulledDetailErrors->push("No se pudo obtener el detalle optimizado de anulaciones de Contratos del mes {$month}: {$exception->getMessage()}. Se conserva el resumen financiero.");
@@ -2187,6 +2391,9 @@ class IngresosVentanillasController extends Controller
 
                 foreach ((array) ($receivableReport['servicios'] ?? []) as $row) {
                     $name = trim((string) ($row['servicio'] ?? ''));
+                    if ($name !== '') {
+                        $serviceOptions->put(mb_strtoupper($name, 'UTF-8'), $name);
+                    }
                     if ($name === '' || ! $this->isCashierFlowReceivableService($name)) {
                         continue;
                     }
@@ -2498,6 +2705,7 @@ class IngresosVentanillasController extends Controller
             'actualizar' => ['nullable', 'boolean'],
             'buscar' => ['nullable', 'string', 'max:180'],
             'solo_cobrados' => ['nullable', 'boolean'],
+            'estado_cobro' => ['nullable', Rule::in(['todos', 'cobrados', 'no_cobrados'])],
             'clasificacion' => ['nullable', Rule::in(['todos', 'incluido', 'no_incluido', 'qr_anulado', 'anulado', 'sin_clasificar'])],
         ]);
 
@@ -2515,7 +2723,8 @@ class IngresosVentanillasController extends Controller
             ->values();
         $isModal = true;
         $refresh = (bool) ($validated['actualizar'] ?? false);
-        $showCollectedOnly = (bool) ($validated['solo_cobrados'] ?? false);
+        $requestedCollectionStatus = (string) ($validated['estado_cobro'] ?? ((bool) ($validated['solo_cobrados'] ?? false) ? 'cobrados' : 'todos'));
+        $showCollectedOnly = false;
         $classification = (string) ($validated['clasificacion'] ?? 'todos');
         $serviceOptions = $selectedServices->keyBy(fn ($service) => mb_strtoupper($service, 'UTF-8'));
         $errors = collect();
@@ -2649,6 +2858,8 @@ class IngresosVentanillasController extends Controller
             && $selectedServices->every(fn (string $serviceName): bool => $this->isCashierFlowReceivableService($serviceName))
             && trim((string) $request->query('filtro_departamento', '')) === ''
             && Schema::hasTable('cashier_flow_receivable_movements');
+        $collectionStatus = $canManageReceivables ? $requestedCollectionStatus : 'todos';
+        $showCollectedOnly = $collectionStatus === 'cobrados';
         $cashierFlowContext = [
             'services' => collect($request->query('filtro_servicios', []))->filter(fn ($value) => is_string($value))
                 ->map(fn ($value) => trim($value))->filter()->unique()->values()->all(),
@@ -2670,8 +2881,9 @@ class IngresosVentanillasController extends Controller
                 $invoiceUser = (array) ($row['usuario'] ?? []);
                 $row['_cobroRealizado'] = (bool) ($movement?->cobro_activo ?? false);
                 $row['_montoCobrado'] = $row['_cobroRealizado'] ? (float) $movement->monto : 0.0;
-                $row['_fechaCobro'] = $row['_cobroRealizado'] && $movement?->cobrado_at
-                    ? $movement->cobrado_at->timezone(config('app.timezone'))->format('d/m/Y H:i:s')
+                $row['_fechaCobro'] = $row['_cobroRealizado']
+                    ? ($movement?->fecha_cobro?->format('d/m/Y')
+                        ?? $movement?->cobrado_at?->timezone(config('app.timezone'))->format('d/m/Y H:i:s'))
                     : null;
                 $row['_facturadoPor'] = trim((string) (
                     $movement?->facturado_por_nombre
@@ -2689,10 +2901,6 @@ class IngresosVentanillasController extends Controller
             $service['cantidadMovimientosCobrados'] = $paidRows->count();
             $service['cantidadVentasCobradas'] = $paidRows->pluck('ventaId')->filter()->unique()->count();
             $service['totalMontoPendiente'] = max(0, (float) $service['totalMonto'] - $service['totalMontoCobrado']);
-            if ($showCollectedOnly) {
-                $rows = $rows->filter(fn (array $row): bool => ! ($row['_facturaAnulada'] ?? false)
-                    && (bool) ($row['_cobroRealizado'] ?? false))->values();
-            }
         }
 
         $rows = $rows->sortByDesc('fecha')->values();
@@ -2751,6 +2959,35 @@ class IngresosVentanillasController extends Controller
                 'amount' => (float) $matchingRows->sum(fn (array $row): float => (float) ($row['totalLinea'] ?? $row['monto'] ?? 0)),
             ];
         }
+
+        $collectionStatusSummary = [
+            'todos' => [
+                'label' => 'Todos los estados',
+                'count' => $rows->filter(fn (array $row): bool => ! ($row['_facturaAnulada'] ?? false))->count(),
+                'amount' => (float) $rows
+                    ->filter(fn (array $row): bool => ! ($row['_facturaAnulada'] ?? false))
+                    ->sum(fn (array $row): float => (float) ($row['totalLinea'] ?? $row['monto'] ?? 0)),
+            ],
+            'cobrados' => [
+                'label' => 'Ya cobrados',
+                'count' => $rows->filter(fn (array $row): bool => ! ($row['_facturaAnulada'] ?? false) && (bool) ($row['_cobroRealizado'] ?? false))->count(),
+                'amount' => (float) $rows
+                    ->filter(fn (array $row): bool => ! ($row['_facturaAnulada'] ?? false) && (bool) ($row['_cobroRealizado'] ?? false))
+                    ->sum(fn (array $row): float => (float) ($row['_montoCobrado'] ?? 0)),
+            ],
+            'no_cobrados' => [
+                'label' => 'Por cobrar',
+                'count' => $rows->filter(fn (array $row): bool => ! ($row['_facturaAnulada'] ?? false) && ! (bool) ($row['_cobroRealizado'] ?? false))->count(),
+                'amount' => (float) $rows
+                    ->filter(fn (array $row): bool => ! ($row['_facturaAnulada'] ?? false) && ! (bool) ($row['_cobroRealizado'] ?? false))
+                    ->sum(fn (array $row): float => (float) ($row['totalLinea'] ?? $row['monto'] ?? 0)),
+            ],
+        ];
+        if ($collectionStatus === 'cobrados') {
+            $rows = $rows->filter(fn (array $row): bool => ! ($row['_facturaAnulada'] ?? false) && (bool) ($row['_cobroRealizado'] ?? false))->values();
+        } elseif ($collectionStatus === 'no_cobrados') {
+            $rows = $rows->filter(fn (array $row): bool => ! ($row['_facturaAnulada'] ?? false) && ! (bool) ($row['_cobroRealizado'] ?? false))->values();
+        }
         if ($classification !== 'todos') {
             $rows = $classification === 'no_incluido'
                 ? $rows->whereIn('_clasificacionTotalVendido', ['no_incluido', 'qr_anulado', 'anulado'])->values()
@@ -2782,6 +3019,8 @@ class IngresosVentanillasController extends Controller
             'searchTerm' => $searchTerm,
             'classification' => $classification,
             'classificationSummary' => $classificationSummary,
+            'collectionStatus' => $collectionStatus,
+            'collectionStatusSummary' => $collectionStatusSummary,
             'canManageReceivables' => $canManageReceivables,
             'cashierFlowContext' => $cashierFlowContext,
             'showCollectedOnly' => $showCollectedOnly && $canManageReceivables,
@@ -3213,7 +3452,11 @@ class IngresosVentanillasController extends Controller
      *
      * @return array{groups: Collection, warning: ?string}
      */
-    private function alignCashierFlowDepartmentSalesCounts(Collection $departmentGroups, array $data): array
+    private function alignCashierFlowDepartmentSalesCounts(
+        Collection $departmentGroups,
+        array $data,
+        ?Closure $progressCallback = null
+    ): array
     {
         if ($departmentGroups->isEmpty()) {
             return ['groups' => $departmentGroups, 'warning' => null];
@@ -3259,7 +3502,25 @@ class IngresosVentanillasController extends Controller
                 }
 
                 try {
-                    $results = $this->reports->servicesBatch($filters, (bool) ($data['refreshReports'] ?? false));
+                    $completed = 0;
+                    $total = count($filters);
+                    $results = $this->reports->servicesBatch(
+                        $filters,
+                        (bool) ($data['refreshReports'] ?? false),
+                        function (array $filter) use (&$completed, $total, $progressCallback): void {
+                            if ($progressCallback === null) {
+                                return;
+                            }
+                            $completed++;
+                            $percent = 91 + (int) round(3 * $completed / max(1, $total));
+                            $progressCallback(
+                                $percent,
+                                'Validando ventas por departamento: '.$filter['regionalConteo'],
+                                $completed,
+                                $total
+                            );
+                        }
+                    );
                     $states = [];
                     foreach ($results as $result) {
                         $filter = (array) ($result['filter'] ?? []);
@@ -3342,7 +3603,8 @@ class IngresosVentanillasController extends Controller
         array $months,
         int $year,
         Collection $collectedMovements,
-        string $selectedDepartment
+        string $selectedDepartment,
+        bool $refresh = false
     ): array {
         $pendingByDepartment = collect();
         $pendingByService = collect();
@@ -3369,7 +3631,7 @@ class IngresosVentanillasController extends Controller
         $filters = $this->cashierFlowInvoiceDetailFilters($receivableServices, $months, $year);
         $movementsByKey = $collectedMovements->keyBy(fn (CashierFlowReceivableMovement $movement): string => (string) $movement->movement_key);
         try {
-            $results = $this->reports->serviceDetailsBatch($filters, true, false);
+            $results = $this->reports->serviceDetailsBatch($filters, true, $refresh);
         } catch (\Throwable $exception) {
             $results = array_map(fn (array $filter): array => [
                 'filter' => $filter,

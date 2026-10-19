@@ -27,6 +27,7 @@ class CashierFlowReceivableMovement extends Model
         'monto',
         'cantidad_paquetes',
         'cobro_activo',
+        'fecha_cobro',
         'cobrado_por',
         'cobrado_at',
         'devuelto_por',
@@ -39,6 +40,7 @@ class CashierFlowReceivableMovement extends Model
         'monto' => 'decimal:2',
         'cantidad_paquetes' => 'decimal:2',
         'cobro_activo' => 'boolean',
+        'fecha_cobro' => 'date',
         'cobrado_at' => 'datetime',
         'devuelto_at' => 'datetime',
     ];

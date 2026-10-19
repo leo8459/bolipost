@@ -36,6 +36,33 @@
                     @endif
 
                     <div class="card-body">
+                        <form method="GET" action="{{ route('roles.index') }}" class="form-inline mb-3">
+                            <label for="role-search" class="sr-only">Buscar rol</label>
+                            <div class="input-group" style="max-width: 420px; width: 100%;">
+                                <input
+                                    type="search"
+                                    id="role-search"
+                                    name="search"
+                                    class="form-control"
+                                    placeholder="Buscar por nombre de rol..."
+                                    value="{{ $search }}"
+                                >
+                                <div class="input-group-append">
+                                    <button type="submit" class="btn btn-primary">Buscar</button>
+                                </div>
+                            </div>
+                            @if ($search !== '')
+                                <a href="{{ route('roles.index') }}" class="btn btn-outline-secondary ml-2">Limpiar</a>
+                            @endif
+                        </form>
+
+                        <p class="text-muted mb-2">
+                            Mostrando {{ $roles->count() }} de {{ $roles->total() }} rol(es)
+                            @if ($search !== '')
+                                para <strong>{{ $search }}</strong>
+                            @endif
+                        </p>
+
                         <div class="table-responsive">
                             <table class="table table-striped table-hover">
                                 <thead class="thead">

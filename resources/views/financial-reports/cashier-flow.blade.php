@@ -352,6 +352,7 @@
     <div class="alert alert-info border-0 shadow-sm">
         <i class="fas fa-info-circle mr-1"></i>
         <strong>Criterio del reporte:</strong> Contratos y ECA Internacional se muestran por separado. Registra el cobro o la devolución desde cada movimiento de su detalle; los paquetes siguen separados de los totales operativos.
+        <div class="small mt-1">Los datos de facturación se reutilizan durante {{ max(1, (int) ceil(config('services.facturacion_reports.cache_active_seconds', 900) / 60)) }} minutos en el mes actual y {{ max(1, (int) ceil(config('services.facturacion_reports.cache_closed_seconds', 86400) / 3600)) }} horas en los meses anteriores. Usa <strong>Actualizar datos</strong> para consultar nuevamente.</div>
     </div>
 
     @if(collect($cashierFlowReceivableDepartmentErrors ?? [])->isNotEmpty())

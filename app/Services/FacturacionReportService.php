@@ -18,8 +18,7 @@ class FacturacionReportService
         bool $useCache = false,
         bool $refresh = false,
         array $reportFilters = []
-    ): array
-    {
+    ): array {
         $query = $this->serviceQuery($month, $year, $limit, $reportFilters);
         if (! $useCache) {
             return $this->getAllServicePages($query);
@@ -46,12 +45,13 @@ class FacturacionReportService
     }
 
     /**
-     * Consulta mes por mes los reportes que todavía no están en caché.
+     * Consulta los reportes faltantes con concurrencia limitada para no
+     * acumular las esperas de cada mes y regional ni saturar la API.
      *
      * @param  array<int, array{mes: int, anio: int, limite: int}>  $filters
      * @return array<int, array{filter: array, report: ?array, error: ?string}>
      */
-    public function servicesBatch(array $filters, bool $refresh = false): array
+    public function servicesBatch(array $filters, bool $refresh = false, ?callable $onProgress = null): array
     {
         $baseUrl = rtrim((string) config('services.facturacion_reports.base_url'), '/');
         $token = trim((string) config('services.facturacion_reports.token'));
@@ -65,78 +65,105 @@ class FacturacionReportService
 
         $results = [];
         $uncached = [];
+        $cacheKeys = array_map(fn (array $filter): string => $this->summaryCacheKey(
+            (int) ($filter['mes'] ?? 0),
+            (int) ($filter['anio'] ?? 0),
+            (int) ($filter['limite'] ?? 0),
+            $filter
+        ), array_values($filters));
+        $cachedReports = $refresh ? [] : $this->readCachedReports($cacheKeys);
         foreach (array_values($filters) as $index => $filter) {
-            $cached = $refresh ? null : $this->readCachedReport($this->summaryCacheKey(
-                (int) ($filter['mes'] ?? 0),
-                (int) ($filter['anio'] ?? 0),
-                (int) ($filter['limite'] ?? 0),
-                $filter
-            ));
+            $cached = $cachedReports[$cacheKeys[$index]] ?? null;
             if ($cached !== null) {
                 $results[$index] = ['filter' => $filter, 'report' => $cached, 'error' => null];
+                if ($onProgress !== null) {
+                    $onProgress($filter);
+                }
             } else {
                 $uncached[$index] = $filter;
             }
         }
 
-        // Reportes pesados: consultar mes por mes evita saturar la memoria de la API remota.
-        foreach ($uncached as $index => $filter) {
+        $concurrency = max(1, min(6, (int) config('services.facturacion_reports.summary_concurrency', 6)));
+        foreach (array_chunk($uncached, $concurrency, true) as $chunk) {
             try {
-                $query = $this->serviceQuery(
-                    (int) ($filter['mes'] ?? 0),
-                    (int) ($filter['anio'] ?? 0),
-                    (int) ($filter['limite'] ?? 0),
-                    $filter
-                );
-                $client = Http::withToken($token)
-                    ->acceptJson()
-                    ->timeout((int) config('services.facturacion_reports.timeout', 30))
-                    ->connectTimeout((int) config('services.facturacion_reports.connect_timeout', 5))
-                    ->withOptions(['verify' => (bool) config('services.facturacion_reports.ssl_verify', true)]);
-                $serviceReportUrl = $baseUrl.'/ventas/reportes/servicios';
-                $response = ! empty($query['servicios'])
-                    ? $client->post($serviceReportUrl, $query)
-                    : $client->get($serviceReportUrl, $query);
+                $responses = Http::pool(function (Pool $pool) use ($chunk, $baseUrl, $token): array {
+                    $requests = [];
+                    foreach ($chunk as $index => $filter) {
+                        $query = $this->serviceQuery((int) $filter['mes'], (int) $filter['anio'], (int) $filter['limite'], $filter);
+                        $client = $pool->as((string) $index)->withToken($token)->acceptJson()
+                            ->timeout((int) config('services.facturacion_reports.timeout', 30))
+                            ->connectTimeout((int) config('services.facturacion_reports.connect_timeout', 5))
+                            ->withOptions(['verify' => (bool) config('services.facturacion_reports.ssl_verify', true)]);
+                        $requests[] = ! empty($query['servicios'])
+                            ? $client->post($baseUrl.'/ventas/reportes/servicios', $query)
+                            : $client->get($baseUrl.'/ventas/reportes/servicios', $query);
+                    }
+
+                    return $requests;
+                });
             } catch (\Throwable $exception) {
-                $results[$index] = ['filter' => $filter, 'report' => null, 'error' => $exception->getMessage()];
-                continue;
-            }
-
-            if (! $response->successful()) {
-                $results[$index] = [
-                    'filter' => $filter,
-                    'report' => null,
-                    'error' => $this->reportHttpError($response),
-                ];
-                continue;
-            }
-
-            $body = preg_replace('/^\xEF\xBB\xBF/', '', $response->body()) ?? $response->body();
-            $decoded = json_decode($body, true);
-            if (is_array($decoded)) {
-                try {
-                    $decoded = $this->completeServicePages($decoded, $query);
-                } catch (\Throwable $exception) {
+                foreach ($chunk as $index => $filter) {
                     $results[$index] = ['filter' => $filter, 'report' => null, 'error' => $exception->getMessage()];
+                    if ($onProgress !== null) {
+                        $onProgress($filter);
+                    }
+                }
+
+                continue;
+            }
+
+            foreach ($chunk as $index => $filter) {
+                $response = $responses[(string) $index] ?? null;
+                if (! $response instanceof Response || ! $response->successful()) {
+                    $results[$index] = [
+                        'filter' => $filter,
+                        'report' => null,
+                        'error' => $response instanceof Response ? $this->reportHttpError($response) : 'No se pudo conectar con el servicio de reportes de facturación.',
+                    ];
+
                     continue;
                 }
-                $this->storeCachedReport(
-                    $this->summaryCacheKey(
+
+                $body = preg_replace('/^\xEF\xBB\xBF/', '', $response->body()) ?? $response->body();
+                $decoded = json_decode($body, true);
+                if (is_array($decoded)) {
+                    try {
+                        $query = $this->serviceQuery(
+                            (int) ($filter['mes'] ?? 0),
+                            (int) ($filter['anio'] ?? 0),
+                            (int) ($filter['limite'] ?? 0),
+                            $filter
+                        );
+                        $decoded = $this->completeServicePages($decoded, $query);
+                    } catch (\Throwable $exception) {
+                        $results[$index] = ['filter' => $filter, 'report' => null, 'error' => $exception->getMessage()];
+
+                        continue;
+                    }
+                    $this->storeCachedReport(
+                        $this->summaryCacheKey(
+                            (int) ($filter['mes'] ?? 0),
+                            (int) ($filter['anio'] ?? 0),
+                            (int) ($filter['limite'] ?? 0),
+                            $filter
+                        ),
+                        $decoded,
                         (int) ($filter['mes'] ?? 0),
-                        (int) ($filter['anio'] ?? 0),
-                        (int) ($filter['limite'] ?? 0),
-                        $filter
-                    ),
-                    $decoded,
-                    (int) ($filter['mes'] ?? 0),
-                    (int) ($filter['anio'] ?? 0)
-                );
+                        (int) ($filter['anio'] ?? 0)
+                    );
+                }
+                $results[$index] = [
+                    'filter' => $filter,
+                    'report' => is_array($decoded) ? $decoded : null,
+                    'error' => is_array($decoded) ? null : 'El servicio de reportes devolvió una respuesta inválida.',
+                ];
             }
-            $results[$index] = [
-                'filter' => $filter,
-                'report' => is_array($decoded) ? $decoded : null,
-                'error' => is_array($decoded) ? null : 'El servicio de reportes devolvió una respuesta inválida.',
-            ];
+            if ($onProgress !== null) {
+                foreach ($chunk as $filter) {
+                    $onProgress($filter);
+                }
+            }
         }
         ksort($results);
 
@@ -165,13 +192,14 @@ class FacturacionReportService
 
         $results = [];
         $uncached = [];
+        $cacheKeys = array_map(fn (array $filter): string => $this->detailCacheKey(
+            (string) ($filter['servicio'] ?? ''),
+            (int) ($filter['mes'] ?? 0),
+            (int) ($filter['anio'] ?? 0)
+        ), array_values($filters));
+        $cachedReports = $useCache && ! $refresh ? $this->readCachedReports($cacheKeys) : [];
         foreach (array_values($filters) as $index => $filter) {
-            $key = $this->detailCacheKey(
-                (string) ($filter['servicio'] ?? ''),
-                (int) ($filter['mes'] ?? 0),
-                (int) ($filter['anio'] ?? 0)
-            );
-            $cached = $useCache && ! $refresh ? $this->readCachedReport($key) : null;
+            $cached = $cachedReports[$cacheKeys[$index]] ?? null;
             if ($cached !== null) {
                 $results[$index] = ['filter' => $filter, 'report' => $cached, 'error' => null];
             } else {
@@ -434,17 +462,25 @@ class FacturacionReportService
 
     private function readCachedReport(string $key): ?array
     {
-        try {
-            $cached = Cache::get($key);
+        return $this->readCachedReports([$key])[$key] ?? null;
+    }
 
-            return is_array($cached) ? $cached : null;
+    private function readCachedReports(array $keys): array
+    {
+        if ($keys === []) {
+            return [];
+        }
+        try {
+            $cached = Cache::many(array_values(array_unique($keys)));
+
+            return array_filter($cached, 'is_array');
         } catch (\Throwable $exception) {
             Log::warning('No se pudo leer la caché del reporte de facturación.', [
                 'exception' => $exception::class,
                 'message' => $exception->getMessage(),
             ]);
 
-            return null;
+            return [];
         }
     }
 
@@ -455,7 +491,7 @@ class FacturacionReportService
             $isCurrentMonth
                 ? 'services.facturacion_reports.cache_active_seconds'
                 : 'services.facturacion_reports.cache_closed_seconds',
-            $isCurrentMonth ? 60 : 900
+            $isCurrentMonth ? 900 : 86400
         );
 
         try {

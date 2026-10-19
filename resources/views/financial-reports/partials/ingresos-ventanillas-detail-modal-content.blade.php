@@ -77,6 +77,20 @@
         @endif
     @endforeach
 </div>
+@if($canManageReceivables)
+    <div class="flow-detail-payment-filters" role="group" aria-label="Filtrar movimientos por estado de cobro">
+        <strong>Estado del cobro:</strong>
+        @foreach($collectionStatusSummary as $key => $summary)
+            <button type="button"
+                    class="btn flow-detail-payment-button {{ $collectionStatus === $key ? 'btn-primary' : 'btn-outline-success' }}"
+                    data-flow-detail-payment="{{ $key }}"
+                    aria-pressed="{{ $collectionStatus === $key ? 'true' : 'false' }}">
+                <span>{{ $summary['label'] }}</span>
+                <small>{{ \App\Support\BolivianNumber::format((float) $summary['count']) }} movimientos · Bs {{ \App\Support\BolivianNumber::format((float) $summary['amount'], 2) }}</small>
+            </button>
+        @endforeach
+    </div>
+@endif
 <div class="flow-detail-search-help mb-3">El filtro «Fuera del total vendido» incluye los anulados. «QR ANULADOS» muestra los movimientos QR cancelados; «Otros anulados/cancelados» muestra los de otros medios de pago.</div>
 
 <div class="flow-detail-list-heading">
@@ -84,9 +98,32 @@
     <span>{{ \App\Support\BolivianNumber::format($rows->firstItem() ?? 0) }}–{{ \App\Support\BolivianNumber::format($rows->lastItem() ?? 0) }} de {{ \App\Support\BolivianNumber::format($rows->total()) }}</span>
 </div>
 
+@if($canManageReceivables && ! $showCollectedOnly)
+    <div class="flow-detail-collection-toolbar" data-flow-collection-toolbar>
+        <label class="mb-0"><input type="checkbox" data-flow-select-all-page> Seleccionar movimientos visibles</label>
+        <span data-flow-selected-count>0 seleccionados</span>
+        <button type="button" class="btn btn-success" data-flow-collect-selected disabled>
+            <i class="fas fa-hand-holding-usd mr-1" aria-hidden="true"></i> Cobrar seleccionados
+        </button>
+        <div class="d-none" aria-hidden="true">
+            <input type="hidden" data-flow-collection-context name="_token" value="{{ csrf_token() }}">
+            <input type="hidden" data-flow-collection-context name="anio" value="{{ $anio }}">
+            <input type="hidden" data-flow-collection-context name="filtro_anio" value="{{ $cashierFlowContext['year'] }}">
+            <input type="hidden" data-flow-collection-context name="filtro_limite" value="{{ $cashierFlowContext['limit'] }}">
+            <input type="hidden" data-flow-collection-context name="filtro_departamento" value="{{ $cashierFlowContext['department'] }}">
+            @foreach($cashierFlowContext['months'] ?: $rows->pluck('_mes')->unique()->values() as $filterMonth)
+                <input type="hidden" data-flow-collection-context name="filtro_meses[]" value="{{ $filterMonth }}">
+            @endforeach
+            @foreach($cashierFlowContext['services'] as $filterService)
+                <input type="hidden" data-flow-collection-context name="filtro_servicios[]" value="{{ $filterService }}">
+            @endforeach
+        </div>
+    </div>
+@endif
+
 @php($monthNames = [1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril', 5 => 'Mayo', 6 => 'Junio', 7 => 'Julio', 8 => 'Agosto', 9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre'])
 @forelse($rows as $row)
-    <article class="flow-detail-item" aria-label="Movimiento {{ $rows->firstItem() + $loop->index }}">
+    <article class="flow-detail-item" aria-label="Movimiento {{ $rows->firstItem() + $loop->index }}" data-flow-movement-key="{{ $row['_movementKey'] ?? '' }}" data-flow-service="{{ $row['_servicio'] ?? '' }}" data-flow-month="{{ $row['_mes'] ?? '' }}" data-flow-sale="{{ $row['ventaId'] ?? '-' }}" data-flow-detail="{{ $row['detalleId'] ?? '-' }}" data-flow-amount="Bs {{ \App\Support\BolivianNumber::format((float) ($row['totalLinea'] ?? $row['monto'] ?? 0), 2) }}">
         <div class="flow-detail-item-heading">
             <div>
                 <span class="flow-detail-label">Servicio</span>
@@ -102,7 +139,14 @@
             <strong class="flow-detail-amount">Bs {{ \App\Support\BolivianNumber::format((float) ($row['totalLinea'] ?? $row['monto'] ?? 0), 2) }}</strong>
         </div>
         <div class="flow-detail-fields">
-            <div><span class="flow-detail-label">{{ $showCollectedOnly ? 'Fecha de cobro' : 'Fecha' }}</span><strong>{{ $showCollectedOnly ? ($row['_fechaCobro'] ?? '-') : ($row['fecha'] ?? '-') }}</strong></div>
+            @if($showCollectedOnly)
+                <div><span class="flow-detail-label">Fecha de cobro</span><strong>{{ $row['_fechaCobro'] ?? '-' }}</strong></div>
+            @else
+                <div><span class="flow-detail-label">Fecha</span><strong>{{ $row['fecha'] ?? '-' }}</strong></div>
+                @if($row['_cobroRealizado'] ?? false)
+                    <div><span class="flow-detail-label">Fecha de cobro</span><strong>{{ $row['_fechaCobro'] ?? '-' }}</strong></div>
+                @endif
+            @endif
             @if($showCollectedOnly)
                 <div><span class="flow-detail-label">Fecha de factura</span><strong>{{ $row['fecha'] ?? '-' }}</strong></div>
                 <div><span class="flow-detail-label">Facturó</span><strong>{{ $row['_facturadoPor'] ?: 'Sin dato' }}</strong></div>
@@ -148,23 +192,15 @@
                     </form>
                 @elseif(! $showCollectedOnly)
                     <span class="badge badge-warning py-2 px-3 mb-2">Por cobrar</span>
-                    <form method="POST" action="{{ route('dashboard.financiera.ingresos-ventanillas.movimiento.cobro-realizado') }}" class="mb-2" data-confirm-receivable-payment="collect">
-                        @csrf
-                        <input type="hidden" name="movement_key" value="{{ $row['_movementKey'] }}">
-                        <input type="hidden" name="servicio_cobro" value="{{ $row['_servicio'] }}">
-                        <input type="hidden" name="mes_cobro" value="{{ $row['_mes'] }}">
-                        <input type="hidden" name="anio" value="{{ $anio }}">
-                        @foreach($cashierFlowContext['months'] ?: [$row['_mes']] as $filterMonth)
-                            <input type="hidden" name="filtro_meses[]" value="{{ $filterMonth }}">
-                        @endforeach
-                        <input type="hidden" name="filtro_anio" value="{{ $cashierFlowContext['year'] }}">
-                        <input type="hidden" name="filtro_limite" value="{{ $cashierFlowContext['limit'] }}">
-                        <input type="hidden" name="filtro_departamento" value="{{ $cashierFlowContext['department'] }}">
-                        @foreach($cashierFlowContext['services'] as $filterService)
-                            <input type="hidden" name="filtro_servicios[]" value="{{ $filterService }}">
-                        @endforeach
-                        <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-hand-holding-usd mr-1"></i> Cobro realizado</button>
-                    </form>
+                    <div class="d-flex align-items-center flex-wrap mb-2">
+                        <label class="flow-detail-select-label mb-2 mr-3">
+                            <input type="checkbox" data-flow-select-movement aria-label="Seleccionar movimiento para cobro">
+                            Seleccionar
+                        </label>
+                        <button type="button" class="btn btn-success btn-sm mb-2" data-flow-collect-one>
+                            <i class="fas fa-hand-holding-usd mr-1"></i> Cobro realizado
+                        </button>
+                    </div>
                 @endif
             </div>
         @elseif($canManageReceivables)

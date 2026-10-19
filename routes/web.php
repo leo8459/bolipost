@@ -263,6 +263,9 @@ Route::get('/dashboard/ingresos-ventanillas-importes', [IngresosVentanillasContr
 Route::post('/dir-financiera/ingresos-ventanillas/movimiento/cobro-realizado', [IngresosVentanillasController::class, 'markCashierFlowMovementCollected'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.financiera.ingresos-ventanillas.movimiento.cobro-realizado');
+Route::post('/dir-financiera/ingresos-ventanillas/movimientos/cobro-realizado', [IngresosVentanillasController::class, 'markCashierFlowMovementsCollected'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('dashboard.financiera.ingresos-ventanillas.movimientos.cobro-realizado');
 Route::post('/dir-financiera/ingresos-ventanillas/movimiento/devolver-por-cobrar', [IngresosVentanillasController::class, 'returnCashierFlowMovementToPending'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('dashboard.financiera.ingresos-ventanillas.movimiento.devolver-por-cobrar');

@@ -50,6 +50,11 @@
                             <i class="fas fa-filter mr-1"></i> Mostrar
                         </button>
                     </div>
+                    <div class="col-sm-4 col-md-3">
+                        <button type="submit" name="actualizar" value="1" class="btn btn-outline-primary btn-block">
+                            <i class="fas fa-sync-alt mr-1"></i> Actualizar datos
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>

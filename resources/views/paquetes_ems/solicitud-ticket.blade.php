@@ -429,7 +429,7 @@
                 <div class="data-grid">
                     <div class="field full payment-status">
                         <span class="label">Forma de pago</span>
-                        <span class="value">{{ $solicitud->pago_destinatario ? 'Pagar en destino' : 'Pagado' }}</span>
+                        <span class="value">{{ $solicitud->forma_pago_label }}</span>
                     </div>
                     <div class="field full">
                         <span class="label">Contenido</span>

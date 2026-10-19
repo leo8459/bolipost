@@ -11,13 +11,17 @@ use Spatie\Permission\Models\Role;
 
 class RoleController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $search = trim((string) $request->query('search', ''));
+
         $roles = Role::query()
             ->where('guard_name', 'web')
+            ->when($search !== '', fn ($query) => $query->where('name', 'like', '%'.$search.'%'))
             ->withCount('permissions')
             ->orderBy('name')
-            ->paginate(20);
+            ->paginate(100)
+            ->withQueryString();
 
         $roleIds = $roles->getCollection()->pluck('id');
 
@@ -52,7 +56,7 @@ class RoleController extends Controller
             })
         );
 
-        return view('role.index', compact('roles'))
+        return view('role.index', compact('roles', 'search'))
             ->with('i', (request()->input('page', 1) - 1) * $roles->perPage());
     }
 

@@ -29,6 +29,7 @@ class SolicitudCliente extends Model
         'precio',
         'paquete_muy_grande',
         'pago_destinatario',
+        'forma_pago',
         'servicio_extra_id',
         'nombre_remitente',
         'nombre_envia',
@@ -55,6 +56,16 @@ class SolicitudCliente extends Model
         'pago_destinatario' => 'boolean',
         'envio_cn33' => 'datetime',
     ];
+
+    public function getFormaPagoLabelAttribute(): string
+    {
+        return match ($this->attributes['forma_pago'] ?? null) {
+            'origen' => 'Pagar en origen',
+            'destino' => 'Pagar en destino',
+            'pagado' => 'Pagado',
+            default => $this->pago_destinatario ? 'Pagar en destino' : 'Pagado',
+        };
+    }
 
     public function cliente(): BelongsTo
     {

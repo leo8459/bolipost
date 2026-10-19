@@ -170,14 +170,14 @@
                         <div class="modal-body">
                             <p class="text-muted small"><span class="text-danger">*</span> Selecciona la forma de pago para guardar tu solicitud.</p>
                             <div class="solicitud-payment mb-3">
-                                <label for="pago_destinatario">Forma de pago <span class="text-danger">*</span></label>
-                                <select id="pago_destinatario" name="pago_destinatario" class="form-control @error('pago_destinatario') is-invalid @enderror" aria-describedby="pago-ayuda" required disabled>
+                                <label for="forma_pago">Forma de pago <span class="text-danger">*</span></label>
+                                <select id="forma_pago" name="forma_pago" class="form-control @error('forma_pago') is-invalid @enderror" aria-describedby="pago-ayuda" required disabled>
                                     <option value="">Selecciona una opci&oacute;n...</option>
-                                    <option value="0" @selected((string) old('pago_destinatario') === '0')>Pagado</option>
-                                    <option value="1" @selected((string) old('pago_destinatario') === '1')>Pagar en destino</option>
+                                    <option value="origen" @selected(old('forma_pago') === 'origen')>Pagar en origen</option>
+                                    <option value="destino" @selected(old('forma_pago') === 'destino')>Pagar en destino</option>
                                 </select>
-                                <small class="form-text text-muted" id="pago-ayuda">Pagado: el env&iacute;o ya fue pagado. Pagar en destino: el destinatario paga al recibir.</small>
-                                @error('pago_destinatario')
+                                <small class="form-text text-muted" id="pago-ayuda">Pagar en origen: se paga en la ventanilla de origen al momento del recojo. Pagar en destino: se paga en la ventanilla de destino al recibir el env&iacute;o.</small>
+                                @error('forma_pago')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                             </div>
@@ -241,7 +241,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const precioSolicitud = document.getElementById('precio_solicitud');
     const quoteUrl = @json(route('clientes.solicitudes.quote'));
     const form = document.getElementById('solicitud-form');
-    const pagoSelect = document.getElementById('pago_destinatario');
+    const pagoSelect = document.getElementById('forma_pago');
     const modal = $('#resumen-solicitud-modal');
     const confirmarButton = document.getElementById('confirmar-solicitud');
     let confirmado = false;

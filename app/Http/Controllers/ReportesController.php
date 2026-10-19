@@ -70,13 +70,32 @@ class ReportesController extends Controller
         }
 
         $base = DB::query()->fromSub($union, 'movement_history');
-        $summary = (clone $base)
-            ->select('service')
-            ->selectRaw('COUNT(*) as movements')
-            ->selectRaw('COUNT(DISTINCT code) as packages')
-            ->groupBy('service')
-            ->get()
-            ->keyBy('service');
+        if ($search === '') {
+            $summary = collect();
+            foreach ([
+                ['Contratos', 'eventos_contrato'],
+                ['EMS', 'eventos_ems'],
+            ] as [$label, $table]) {
+                if (($service === 'contrato' && $label !== 'Contratos') || ($service === 'ems' && $label !== 'EMS')) {
+                    continue;
+                }
+                $summaryQuery = DB::table($table)
+                    ->when($from, fn (Builder $query) => $query->where('created_at', '>=', Carbon::parse($from, 'America/La_Paz')->startOfDay()->setTimezone(config('app.timezone'))))
+                    ->when($to, fn (Builder $query) => $query->where('created_at', '<=', Carbon::parse($to, 'America/La_Paz')->endOfDay()->setTimezone(config('app.timezone'))));
+                $summary->put($label, $summaryQuery
+                    ->selectRaw('COUNT(*) as movements')
+                    ->selectRaw('COUNT(DISTINCT codigo) as packages')
+                    ->first());
+            }
+        } else {
+            $summary = (clone $base)
+                ->select('service')
+                ->selectRaw('COUNT(*) as movements')
+                ->selectRaw('COUNT(DISTINCT code) as packages')
+                ->groupBy('service')
+                ->get()
+                ->keyBy('service');
+        }
         $movements = (clone $base)
             ->orderByDesc('moved_at')
             ->orderByDesc('movement_id')
@@ -167,7 +186,12 @@ class ReportesController extends Controller
                 'ems.updated_at',
             ]);
 
-        $summaryRows = (clone $query)->get();
+        $summary = (clone $query)
+            ->select([])
+            ->selectRaw('COUNT(*) as total_oficiales')
+            ->selectRaw('COALESCE(SUM(COALESCE(ems.peso, 0)), 0) as peso_total')
+            ->selectRaw('COALESCE(SUM(COALESCE(ems.precio, 0)), 0) as precio_total')
+            ->first();
         $envios = (clone $query)
             ->orderByDesc('ems.created_at')
             ->orderByDesc('ems.id')
@@ -183,9 +207,9 @@ class ReportesController extends Controller
             'destino' => $destino,
             'origenOptions' => $origenOptions,
             'destinoOptions' => $destinoOptions,
-            'totalOficiales' => $summaryRows->count(),
-            'pesoTotal' => (float) $summaryRows->sum('peso'),
-            'precioTotal' => (float) $summaryRows->sum('precio'),
+            'totalOficiales' => (int) ($summary->total_oficiales ?? 0),
+            'pesoTotal' => (float) ($summary->peso_total ?? 0),
+            'precioTotal' => (float) ($summary->precio_total ?? 0),
         ]);
     }
 
@@ -223,7 +247,9 @@ class ReportesController extends Controller
 
     private function buildCommercialBaseRows(Request $request): array
     {
-        $selectedModules = $this->resolveSelectedModules('general', $request);
+        $selectedModules = $request->attributes->get('_commercial_skip_package_modules')
+            ? []
+            : $this->resolveSelectedModules('general', $request);
         [$from, $to] = $this->resolveDateRange($request);
         $selectedMonths = $this->resolveSelectedMonthFilters($request);
         $monthDateRanges = $this->buildMonthDateRanges($selectedMonths);
@@ -736,20 +762,40 @@ class ReportesController extends Controller
         @ini_set('memory_limit', '1024M');
         $request->query->set('limit', 'all');
 
-        $baseRequest = $request->duplicate();
-        $baseRequest->query->remove('lineas');
-        $baseRequest->query->set('limit', 'all');
-
-        $data = $this->buildCommercialBaseRows($baseRequest);
         $selectedLines = collect((array) $request->query('lineas', []))
             ->map(fn ($value) => strtoupper(trim((string) $value)))
             ->filter()
             ->unique()
             ->values()
             ->all();
+        $baseRequest = $request->duplicate();
+        $baseRequest->query->remove('lineas');
+        $baseRequest->query->set('limit', 'all');
+        if ($selectedLines !== []) {
+            $moduleByLine = [
+                'PAQUETES EMS' => 'ems',
+                'PAQUETES CONTRATOS' => 'contrato',
+                'PAQUETES CERTI' => 'certi',
+                'PAQUETES ORDI' => 'ordi',
+            ];
+            $modules = collect($selectedLines)
+                ->map(fn (string $line): ?string => $moduleByLine[$line] ?? null)
+                ->filter()
+                ->values();
+            if ($modules->isEmpty()) {
+                $baseRequest->attributes->set('_commercial_skip_package_modules', true);
+            } else {
+                $baseRequest->query->set('modules', $modules->all());
+            }
+        }
 
+        $data = $this->buildCommercialBaseRows($baseRequest);
+
+        $solicitudRows = $selectedLines === [] || in_array('DELIVERY EXPRESS', $selectedLines, true)
+            ? $this->fetchCommercialSolicitudRows($request)
+            : collect();
         $rows = $this->filterRowsWithoutCanceled(
-            collect($data['rows'] ?? [])->concat($this->fetchCommercialSolicitudRows($request))
+            collect($data['rows'] ?? [])->concat($solicitudRows)
         )
             ->map(function (array $row) {
                 $line = $this->resolveCommercialLine((string) ($row['servicio'] ?? ''), (string) ($row['modulo_key'] ?? ''));

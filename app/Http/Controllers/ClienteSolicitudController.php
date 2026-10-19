@@ -105,7 +105,7 @@ class ClienteSolicitudController extends Controller
             'telefono_destinatario' => ['nullable', 'string', 'max:50'],
             'direccion_recojo' => ['required', 'string', 'max:255'],
             'direccion_entrega' => ['required', 'string', 'max:255'],
-            'pago_destinatario' => ['required', 'in:0,1'],
+            'forma_pago' => ['required', 'in:origen,destino'],
         ]);
 
         try {
@@ -139,7 +139,8 @@ class ClienteSolicitudController extends Controller
             'cantidad' => (int) $data['cantidad'],
             'peso' => null,
             'precio' => (float) $tarifarioTiktoker->peso1,
-            'pago_destinatario' => (bool) $data['pago_destinatario'],
+            'forma_pago' => $data['forma_pago'],
+            'pago_destinatario' => $data['forma_pago'] === 'destino',
             'nombre_remitente' => $this->upper($data['nombre_remitente']),
             'nombre_envia' => null,
             'carnet' => trim((string) $data['carnet']),
