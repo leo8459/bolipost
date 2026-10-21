@@ -15,6 +15,7 @@ use App\Models\VehicleLogSession;
 use App\Models\VehicleLogStageEvent;
 use App\Models\VehicleOperationAlert;
 use App\Services\MaintenanceAlertService;
+use App\Support\LocationRecordingSchedule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -52,6 +53,14 @@ class MobileUtilityController extends Controller
             'gps_mocked' => 'nullable|boolean',
             'sent_at' => 'nullable|date',
         ]);
+
+        if (! LocationRecordingSchedule::allowsRecording()) {
+            return response()->json([
+                'message' => 'Ubicacion ignorada: el registro esta habilitado de 08:30 a 20:00 (hora de Bolivia).',
+                'recorded' => false,
+                'vehicle_id' => (int) $payload['vehicle_id'],
+            ], 202);
+        }
 
         $lat = $this->asFloat($payload['latitude'] ?? $payload['lat'] ?? null);
         $lng = $this->asFloat($payload['longitude'] ?? $payload['lng'] ?? null);

@@ -1056,11 +1056,31 @@
                 </button>
             </div>
             <div class="mt-2 mt-md-0 text-md-right">
-                <span class="badge badge-danger">{{ $cashierFlowCancelledInvoices->count() }} facturas</span>
                 <div class="font-weight-bold text-danger mt-1">Total: Bs {{ \App\Support\BolivianNumber::format((float) $cashierFlowCancelledInvoices->sum('monto'), 2) }}</div>
             </div>
         </div>
         <div class="card-body p-0" id="cashier-cancelled-invoices-content">
+            @php($cancelledDepartmentCounts = collect($cashierFlowCancelledInvoiceDepartmentCounts ?? []))
+            <div class="p-3 border-bottom bg-light">
+                <div class="row align-items-center">
+                    <div class="col-md-3 mb-3 mb-md-0">
+                        <div class="border-left border-danger pl-3">
+                            <div class="small text-muted text-uppercase">Total de facturas anuladas</div>
+                            <div class="h3 text-danger font-weight-bold mb-0">{{ \App\Support\BolivianNumber::format((float) ($cashierFlowCancelledInvoiceCount ?? 0)) }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-9">
+                        <div class="small text-muted text-uppercase mb-2">Facturas anuladas por departamento</div>
+                        @forelse($cancelledDepartmentCounts as $department => $count)
+                            <span class="badge badge-light border px-3 py-2 mr-2 mb-2">
+                                {{ $department }}: <strong>{{ \App\Support\BolivianNumber::format((float) $count) }}</strong>
+                            </span>
+                        @empty
+                            <span class="text-muted">No se registran anulaciones para el periodo seleccionado.</span>
+                        @endforelse
+                    </div>
+                </div>
+            </div>
             @if($cashierFlowCancellationLookupErrors->isNotEmpty())
                 <div class="alert alert-warning rounded-0 mb-0" role="status">
                     <strong>Consulta incompleta:</strong> no se pudo verificar el estado de {{ $cashierFlowCancellationLookupErrors->count() }} detalle(s). Algunas facturas canceladas podrían no aparecer.

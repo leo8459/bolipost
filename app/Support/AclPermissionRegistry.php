@@ -594,9 +594,11 @@ class AclPermissionRegistry
             'dashboard.financiera.flujo-cajero',
         ],
         'dashboard.financiera.ingresos-ventanillas' => [
+            'dashboard.financiera.ingresos-ventanillas',
             'dashboard.financiera.flujo-cajero',
         ],
         'dashboard.financiera.ingresos-ventanillas.detalle' => [
+            'dashboard.financiera.ingresos-ventanillas',
             'dashboard.financiera.flujo-cajero',
         ],
         'users.empresas' => [

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\ChasquiLocationService;
+use App\Support\LocationRecordingSchedule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -51,6 +52,13 @@ class ChasquiLocationApiController extends Controller
             'gps_mocked' => ['nullable', 'boolean'],
             'sent_at' => ['nullable', 'date'],
         ]);
+
+        if (! LocationRecordingSchedule::allowsRecording()) {
+            return response()->json([
+                'message' => 'Ubicacion ignorada: el registro esta habilitado de 08:30 a 20:00 (hora de Bolivia).',
+                'recorded' => false,
+            ], 202);
+        }
 
         /** @var User $user */
         $user = $request->user();

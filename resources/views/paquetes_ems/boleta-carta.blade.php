@@ -239,7 +239,8 @@
     $direccion = (string) ($paquete->direccion ?? optional($paquete->formulario)->direccion ?? '');
     $referencia = (string) ($paquete->referencia ?? optional($paquete->formulario)->referencia ?? '');
     $servicio = (string) (optional(optional($paquete->tarifario)->servicio)->nombre_servicio ?? $paquete->tipo_correspondencia ?? '');
-    $servicioEspecial = (string) ($paquete->servicio_especial ?? '');
+    $servicioEspecial = strtoupper(trim((string) ($paquete->servicio_especial ?? optional($paquete->formulario)->servicio_especial ?? '')));
+    $mostrarServicioEspecial = in_array($servicioEspecial, ['IDA Y VUELTA', 'POR COBRAR'], true);
     $cantidad = $paquete->cantidad !== null && $paquete->cantidad !== '' ? (string) $paquete->cantidad : '-';
     $peso = $paquete->peso !== null && $paquete->peso !== '' ? \App\Support\BolivianNumber::format((float) $paquete->peso, 3, '.', '') . ' kg' : '-';
     $precio = $paquete->precio !== null && $paquete->precio !== '' ? \App\Support\BolivianNumber::format((float) $paquete->precio, 2, '.', '') . ' Bs' : '-';
@@ -315,7 +316,9 @@
             <div class="grid">
                 <div class="col">
                     <div class="row"><div class="label">Contenido</div><div class="value">{{ $contenido ?: '-' }}</div></div>
-                    <div class="row"><div class="label">Servicio esp.</div><div class="value">{{ $servicioEspecial ?: '-' }}</div></div>
+                    @if($mostrarServicioEspecial)
+                        <div class="row"><div class="label">SERVICIO ESPECIAL</div><div class="value">{{ $servicioEspecial }}</div></div>
+                    @endif
                     <div class="row"><div class="label">Usuario</div><div class="value">{{ $usuario ?: '-' }}</div></div>
                 </div>
                 <div class="col">

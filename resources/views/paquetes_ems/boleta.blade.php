@@ -217,6 +217,8 @@
     $telefonoRemitente = (string) ($paquete->telefono_remitente ?? '');
     $telefonoDestinatario = (string) ($paquete->telefono_destinatario ?? '');
     $contenido = (string) ($paquete->contenido ?? '');
+    $servicioEspecial = strtoupper(trim((string) ($paquete->servicio_especial ?? optional($paquete->formulario)->servicio_especial ?? '')));
+    $mostrarServicioEspecial = in_array($servicioEspecial, ['IDA Y VUELTA', 'POR COBRAR'], true);
     $peso = $paquete->peso !== null && $paquete->peso !== '' ? \App\Support\BolivianNumber::format((float) $paquete->peso, 3, '.', '') . ' kg' : '-';
     $precio = $paquete->precio !== null && $paquete->precio !== '' ? \App\Support\BolivianNumber::format((float) $paquete->precio, 2, '.', '') . ' Bs' : '-';
     $fecha = $paquete->created_at ?? now();
@@ -321,6 +323,12 @@
                 <span class="label">Descripcion</span>
                 <div class="value value-sm">{{ $contenido !== '' ? $contenido : '-' }}</div>
             </div>
+            @if($mostrarServicioEspecial)
+                <div class="section">
+                    <span class="label">SERVICIO ESPECIAL</span>
+                    <div class="value">{{ $servicioEspecial }}</div>
+                </div>
+            @endif
         </div>
 
         <div class="divider"></div>

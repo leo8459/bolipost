@@ -281,6 +281,53 @@ class IngresosVentanillasController extends Controller
                 ->unique()
                 ->count();
         };
+        $allCancelledInvoices = collect($data['cashierFlowCancelledInvoices'] ?? []);
+        $invoicePeople = $allCancelledInvoices->map(fn (array $invoice): array => [
+            'usuarioId' => $invoice['_usuarioId'] ?? '',
+            'usuarioEmail' => $invoice['_usuarioEmail'] ?? '',
+            'usuarioAlias' => $invoice['_usuarioAlias'] ?? '',
+        ]);
+        $invoiceUserDepartments = $this->cashierFlowInvoiceUserDepartments($invoicePeople);
+        $allCancelledInvoices = $allCancelledInvoices->map(function (array $invoice) use ($invoiceUserDepartments): array {
+            $department = $this->canonicalDepartmentName((string) ($invoice['_departamento'] ?? ''));
+            if ($department !== '' && $department !== 'SIN REGIONAL ASIGNADA') {
+                return $invoice;
+            }
+
+            $profileDepartmentKeys = collect([
+                filled($invoice['_usuarioId'] ?? null) ? 'id:'.trim((string) $invoice['_usuarioId']) : null,
+                filled($invoice['_usuarioEmail'] ?? null) ? 'email:'.mb_strtolower(trim((string) $invoice['_usuarioEmail'])) : null,
+                filled($invoice['_usuarioAlias'] ?? null) ? 'user:'.mb_strtolower(trim((string) $invoice['_usuarioAlias'])) : null,
+            ])->filter();
+            $profileDepartmentKey = $profileDepartmentKeys
+                ->first(fn (string $key): bool => $invoiceUserDepartments->has($key));
+            $departments = $profileDepartmentKey !== null
+                ? collect($invoiceUserDepartments->get($profileDepartmentKey, []))
+                    ->map(fn (string $profileDepartment): string => $this->canonicalDepartmentName($profileDepartment))
+                    ->filter()
+                    ->unique()
+                    ->sort()
+                    ->values()
+                : collect();
+
+            if ($departments->count() === 1) {
+                $invoice['_departamento'] = (string) $departments->first();
+            } elseif ($departments->isNotEmpty()) {
+                $invoice['_departamento'] = 'VARIOS DEPARTAMENTOS: '.$departments->implode(', ');
+            }
+
+            return $invoice;
+        })->values();
+        $data['cashierFlowCancelledInvoices'] = $allCancelledInvoices;
+        $data['cashierFlowCancelledInvoiceCount'] = $countDistinctInvoices($allCancelledInvoices);
+        $data['cashierFlowCancelledInvoiceDepartmentCounts'] = $allCancelledInvoices
+            ->groupBy(function (array $invoice): string {
+                $department = $this->canonicalDepartmentName((string) ($invoice['_departamento'] ?? ''));
+
+                return $department !== '' ? $department : 'SIN REGIONAL ASIGNADA';
+            })
+            ->map(fn (Collection $invoices): int => $countDistinctInvoices($invoices))
+            ->sortKeys();
         $data['summary']['cantidadFacturasAnuladas'] = $countDistinctInvoices($summaryCancelledInvoices);
         $data['summary']['cantidadQrAnulados'] = $countDistinctInvoices(
             $summaryCancelledInvoices->filter(fn (array $invoice): bool => $this->cashierFlowPaymentMethod($invoice) === 'qr')
@@ -832,6 +879,15 @@ class IngresosVentanillasController extends Controller
                 $amount = round((float) ($row['totalLinea'] ?? $row['monto'] ?? 0), 2);
                 $serviceName = (string) ($row['_servicio'] ?? '');
                 $month = (int) ($row['_mes'] ?? 0);
+                $department = $this->firstReportTextValue(
+                    $row['departamento'] ?? null,
+                    $row['regional'] ?? null,
+                    $invoiceUser['departamento'] ?? null,
+                    $invoiceUser['regional'] ?? null
+                );
+                if ($department === '' && isset($row['codigosSucursal']) && is_array($row['codigosSucursal'])) {
+                    $department = $this->departmentNameFromRegionalRow($row);
+                }
 
                 return [
                     '_servicio' => $serviceName,
@@ -841,7 +897,7 @@ class IngresosVentanillasController extends Controller
                     '_usuarioId' => $userId,
                     '_usuarioEmail' => $userEmail,
                     '_usuarioAlias' => $userAlias,
-                    '_departamento' => $this->firstReportTextValue($row['regional'] ?? null),
+                    '_departamento' => $department,
                     '_ventaId' => $saleId,
                     '_detalleId' => $detailId,
                     '_cantidad' => round((float) ($row['cantidad'] ?? 0), 2),
@@ -4123,7 +4179,15 @@ class IngresosVentanillasController extends Controller
             return collect();
         }
 
-        $users = User::withTrashed()
+        $userQuery = User::withTrashed();
+        $loadSucursalDepartments = Schema::hasTable('sucursales')
+            && Schema::hasColumn('users', 'sucursal_id')
+            && Schema::hasColumn('sucursales', 'departamento');
+        if ($loadSucursalDepartments) {
+            $userQuery->with('sucursal');
+        }
+
+        $users = $userQuery
             ->where(function ($query) use ($ids, $emails, $aliases, $hasAlias): void {
                 if ($ids->isNotEmpty()) {
                     $query->whereIn('id', $ids->all());
@@ -4146,8 +4210,11 @@ class IngresosVentanillasController extends Controller
                 ->filter()
                 ->unique()
                 ->sort()
-                ->values()
-                ->all();
+                ->values();
+            if ($departments->isEmpty() && $loadSucursalDepartments && filled($user->sucursal?->departamento)) {
+                $departments = collect([$this->canonicalDepartmentName((string) $user->sucursal->departamento)]);
+            }
+            $departments = $departments->all();
 
             $id = trim((string) $user->id);
             $email = mb_strtolower(trim((string) $user->email));
