@@ -55,13 +55,13 @@
         <div class="input-group-prepend">
             <span class="input-group-text"><i class="fas fa-search" aria-hidden="true"></i></span>
         </div>
-        <input type="search" id="flow-detail-search" class="form-control" data-flow-detail-search value="{{ $searchTerm }}" maxlength="180" placeholder="Venta, detalle, descripción, código..." aria-describedby="flow-detail-search-help">
+        <input type="search" id="flow-detail-search" class="form-control" data-flow-detail-search value="{{ $searchTerm }}" maxlength="180" placeholder="Venta, NIT, razón social, detalle, código..." aria-describedby="flow-detail-search-help">
         <div class="input-group-append">
             <button type="button" class="btn btn-outline-secondary" data-flow-detail-clear>Limpiar</button>
             <button type="submit" class="btn btn-primary">Buscar</button>
         </div>
     </div>
-    <div class="flow-detail-search-help" id="flow-detail-search-help">Busca por servicio, número de venta o detalle, descripción, código de orden, código de seguimiento, fecha o monto.</div>
+    <div class="flow-detail-search-help" id="flow-detail-search-help">Busca por servicio, venta, número de documento/NIT, razón social, detalle, descripción, código de orden o seguimiento, fecha o monto.</div>
 </form>
 
 <div class="flow-detail-classification-filters" role="group" aria-label="Filtrar movimientos por clasificación">
@@ -156,13 +156,13 @@
             @if($isCashierFlowReceivableDetail && ! empty($row['_mesServicio']))
                 <div><span class="flow-detail-label">Mes del servicio</span><strong>{{ $monthNames[$row['_mesServicio']] ?? '-' }}</strong></div>
             @endif
-            <div><span class="flow-detail-label">Venta</span><strong>{{ $row['ventaId'] ?? '-' }}</strong></div>
-            <div><span class="flow-detail-label">Detalle</span><strong>{{ $row['detalleId'] ?? '-' }}</strong></div>
+            @php($customerNit = trim((string) ($row['numeroDocumento'] ?? $row['numero_documento'] ?? $row['nit'] ?? $row['documento'] ?? '')))
+            @php($customerCompany = trim((string) ($row['nombreRazonSocial'] ?? $row['razon_social'] ?? $row['razonSocial'] ?? $row['empresa'] ?? '')))
+            <div><span class="flow-detail-label">Número de documento</span><strong>{{ $customerNit !== '' ? $customerNit : 'Sin dato' }}</strong></div>
+            <div><span class="flow-detail-label">Razón social</span><strong>{{ $customerCompany !== '' ? $customerCompany : 'Sin dato' }}</strong></div>
             <div><span class="flow-detail-label">Código de orden</span><strong>{{ $row['codigoOrden'] ?? '-' }}</strong></div>
-            <div><span class="flow-detail-label">Código de seguimiento</span><strong>{{ $row['codigoSeguimiento'] ?? '-' }}</strong></div>
             @if($isCashierFlowReceivableDetail)
                 <div><span class="flow-detail-label">Estado fiscal</span><strong>{{ $row['_estadoFiscal'] !== '' ? $row['_estadoFiscal'] : 'Sin dato' }}</strong></div>
-                <div><span class="flow-detail-label">Estado de pago</span><strong>{{ $row['_estadoPago'] !== '' ? $row['_estadoPago'] : 'Sin dato' }}</strong></div>
             @endif
         </div>
         <div class="flow-detail-description">

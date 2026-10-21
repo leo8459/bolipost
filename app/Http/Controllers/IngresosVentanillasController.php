@@ -2966,6 +2966,19 @@ class IngresosVentanillasController extends Controller
             : 0;
 
         $searchTerm = trim((string) ($validated['buscar'] ?? ''));
+        if ($isCashierFlowReceivableDetail && $searchTerm !== '') {
+            $fiscalDataByTrackingCode = $this->reports->invoiceFiscalDataBatch(
+                $rows->pluck('codigoSeguimiento')->all()
+            );
+            $rows = $rows->map(function (array $row) use ($fiscalDataByTrackingCode): array {
+                $trackingCode = trim((string) ($row['codigoSeguimiento'] ?? ''));
+                $fiscalData = (array) ($fiscalDataByTrackingCode[$trackingCode] ?? []);
+                $row['numero_documento'] = trim((string) ($fiscalData['numero_documento'] ?? ''));
+                $row['razon_social'] = trim((string) ($fiscalData['razon_social'] ?? ''));
+
+                return $row;
+            });
+        }
         if ($searchTerm !== '') {
             $normalizedSearch = mb_strtolower(Str::ascii($searchTerm));
             $rows = $rows->filter(function (array $row) use ($normalizedSearch): bool {
@@ -2976,6 +2989,8 @@ class IngresosVentanillasController extends Controller
                     $row['descripcion'] ?? '',
                     $row['codigoOrden'] ?? '',
                     $row['codigoSeguimiento'] ?? '',
+                    $row['numero_documento'] ?? $row['numeroDocumento'] ?? '',
+                    $row['razon_social'] ?? $row['nombreRazonSocial'] ?? '',
                     $row['fecha'] ?? '',
                     $row['_estadoFiscal'] ?? '',
                     $row['_estadoPago'] ?? '',
@@ -3059,6 +3074,19 @@ class IngresosVentanillasController extends Controller
             $page,
             ['path' => $request->url(), 'query' => $request->except('page', 'actualizar')]
         );
+        if ($isCashierFlowReceivableDetail && $paginatedRows->getCollection()->isNotEmpty()) {
+            $fiscalDataByTrackingCode = $this->reports->invoiceFiscalDataBatch(
+                $paginatedRows->getCollection()->pluck('codigoSeguimiento')->all()
+            );
+            $paginatedRows->setCollection($paginatedRows->getCollection()->map(function (array $row) use ($fiscalDataByTrackingCode): array {
+                $trackingCode = trim((string) ($row['codigoSeguimiento'] ?? ''));
+                $fiscalData = (array) ($fiscalDataByTrackingCode[$trackingCode] ?? []);
+                $row['numero_documento'] = trim((string) ($fiscalData['numero_documento'] ?? ''));
+                $row['razon_social'] = trim((string) ($fiscalData['razon_social'] ?? ''));
+
+                return $row;
+            }));
+        }
 
         $viewData = [
             'mes' => (int) $selectedMonths->first(),
