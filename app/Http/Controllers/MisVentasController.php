@@ -12,6 +12,7 @@ use App\Services\FacturacionCartService;
 use App\Services\SitraIpsClient;
 use App\Services\SitraTrackingDestinationClient;
 use App\Services\SitraTrackingEventsClient;
+use App\Services\TrackingProgressService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -508,11 +509,28 @@ class MisVentasController extends Controller
 
     private function ticketSnapshotHasEligiblePackage(array $snapshot): bool
     {
+        $progressService = app(TrackingProgressService::class);
+
         foreach ((array) data_get($snapshot, 'items', []) as $item) {
-            $text = mb_strtolower(trim((string) (($item['estado'] ?? '') . ' ' . ($item['evento'] ?? ''))));
-            if (str_contains($text, 'ventanilla')
-                || str_contains($text, 'reparto')
-                || str_contains($text, 'entregad')) {
+            $eventText = trim((string) (($item['estado'] ?? '') . ' ' . ($item['evento'] ?? '')));
+            $normalizedEventText = mb_strtolower($eventText);
+            $progress = $progressService->resolve([[
+                'codigo_evento' => $item['evento_cd'] ?? null,
+                'nombre_evento' => $eventText,
+            ]], 'TRACKING');
+            $steps = array_values((array) ($progress['steps'] ?? []));
+            $currentIndex = (int) ($progress['current_index'] ?? -1);
+            $expeditionIndex = collect($steps)
+                ->search(fn ($step) => strcasecmp((string) $step, 'Expedicion') === 0);
+
+            if ($expeditionIndex !== false && $currentIndex >= (int) $expeditionIndex) {
+                return true;
+            }
+
+            // El API puede devolver solo la etiqueta de etapa; estos estados
+            // también confirman que el paquete ya pasó a la fase de entrega.
+            if (str_contains($normalizedEventText, 'aduana')
+                || str_contains($normalizedEventText, 'reparto')) {
                 return true;
             }
         }
