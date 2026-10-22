@@ -43,12 +43,29 @@
         <div class="card-header">
             <h3 class="card-title">Prepara tu env&iacute;o</h3>
         </div>
-        <form id="solicitud-form" method="POST" action="{{ route('clientes.solicitudes.store') }}">
+        <form id="solicitud-form" method="POST" action="{{ route('clientes.solicitudes.store') }}" novalidate>
             @csrf
             <input type="hidden" name="qr_attempt_id" value="{{ (string) \Illuminate\Support\Str::uuid() }}">
             <div class="card-body">
+                <div class="solicitud-wizard-progress" aria-label="Progreso de la solicitud">
+                    <div class="solicitud-wizard-steps">
+                        <button type="button" class="solicitud-wizard-step is-active" data-wizard-nav="0" aria-current="step">
+                            <span class="solicitud-wizard-step-number">1</span><span><strong>Servicio</strong><small>Env&iacute;o y pago</small></span>
+                        </button>
+                        <button type="button" class="solicitud-wizard-step" data-wizard-nav="1">
+                            <span class="solicitud-wizard-step-number">2</span><span><strong>Remitente</strong><small>Datos de recojo</small></span>
+                        </button>
+                        <button type="button" class="solicitud-wizard-step" data-wizard-nav="2">
+                            <span class="solicitud-wizard-step-number">3</span><span><strong>Destinatario</strong><small>Datos de entrega</small></span>
+                        </button>
+                    </div>
+                    <div class="solicitud-wizard-track" role="progressbar" aria-label="Avance del formulario" aria-valuemin="1" aria-valuemax="3" aria-valuenow="1">
+                        <span id="solicitud-wizard-bar"></span>
+                    </div>
+                    <div class="solicitud-wizard-caption" aria-live="polite"><span id="solicitud-wizard-current">Datos del servicio</span><span>Paso <strong id="solicitud-wizard-number">1</strong> de 3</span></div>
+                </div>
                 <p class="text-muted mb-4"><span class="text-danger">*</span> Los campos con asterisco son obligatorios.</p>
-                <div class="solicitud-section mb-4">
+                <div class="solicitud-section mb-4" data-wizard-panel="0">
                     <h5 class="solicitud-section-title"><span class="solicitud-step">1</span>Datos del servicio</h5><p class="text-muted small mb-3">Elige el servicio y las ciudades de tu env&iacute;o.</p>
                     <div class="row">
                         <div class="col-md-6 form-group">
@@ -102,10 +119,99 @@
                                 Si el volumen del paquete es muy grande, se a&ntilde;adir&aacute; un recargo de Bs 10 al precio indicado.
                             </small>
                         </div>
+                        <div class="col-md-6 form-group mb-0">
+                            <label for="forma_pago">Forma de pago <span class="text-danger" aria-hidden="true">*</span></label>
+                            <select name="forma_pago" id="forma_pago" required class="form-control">
+                                <option value="">Selecciona una opci&oacute;n...</option>
+                                <option value="origen" @selected(old('forma_pago') === 'origen')>Pagar en origen</option>
+                                <option value="destino" @selected(old('forma_pago') === 'destino')>Pagar en destino</option>
+                            </select>
+                            <small id="forma-pago-ayuda" class="form-text text-muted" aria-live="polite">Elige d&oacute;nde se realizar&aacute; el pago.</small>
+                        </div>
+                        <div id="datos-facturacion-qr" class="col-12 mt-4" hidden>
+                            <div class="solicitud-billing-card">
+                                <div class="solicitud-billing-heading">
+                                    <span class="solicitud-billing-icon"><i class="fas fa-file-invoice-dollar" aria-hidden="true"></i></span>
+                                    <div>
+                                        <h6 class="mb-1">Datos para generar tu QR</h6>
+                                        <p class="mb-0 text-muted small">Completa los datos de facturaci&oacute;n antes de continuar. La documentaci&oacute;n se detecta mientras escribes el n&uacute;mero.</p>
+                                    </div>
+                                </div>
+                                <div class="row mt-3">
+                                    <div class="col-md-6 form-group">
+                                        <label for="numero_documento">N&uacute;mero de documento <span class="text-danger">*</span></label>
+                                        <input
+                                            type="text"
+                                            id="numero_documento"
+                                            name="numero_documento"
+                                            value="{{ old('numero_documento', $cliente->numero_carnet) }}"
+                                            placeholder="Ej. 1003579028"
+                                            maxlength="80"
+                                            autocomplete="off"
+                                            class="form-control"
+                                        >
+                                    </div>
+                                    <div class="col-md-6 form-group">
+                                        <label for="complemento_documento">Complemento <small class="text-muted font-weight-normal">(opcional)</small></label>
+                                        <input
+                                            type="text"
+                                            id="complemento_documento"
+                                            name="complemento_documento"
+                                            value="{{ old('complemento_documento', $cliente->complemento) }}"
+                                            maxlength="30"
+                                            class="form-control"
+                                        >
+                                    </div>
+                                    <div class="col-md-12 form-group">
+                                        <label for="razon_social">Raz&oacute;n social <span class="text-danger">*</span></label>
+                                        <input
+                                            type="text"
+                                            id="razon_social"
+                                            name="razon_social"
+                                            value="{{ old('razon_social', $cliente->razon_social ?: $cliente->name) }}"
+                                            placeholder="NOMBRE O RAZ&Oacute;N SOCIAL"
+                                            maxlength="255"
+                                            class="form-control text-uppercase"
+                                        >
+                                    </div>
+                                    <div class="col-md-12 form-group">
+                                        <div class="solicitud-email-heading">
+                                            <label for="correo_facturacion" class="mb-0">Correo factura <span class="text-danger">*</span></label>
+                                            <label class="solicitud-email-toggle mb-0" for="editar-correo-facturacion">
+                                                <input type="checkbox" id="editar-correo-facturacion" @checked(old('editar_correo_facturacion'))>
+                                                <span>Editar correo cliente</span>
+                                            </label>
+                                        </div>
+                                        <input
+                                            type="email"
+                                            id="correo_facturacion"
+                                            name="correo_facturacion"
+                                            value="{{ old('correo_facturacion', $cliente->email) }}"
+                                            data-email-perfil="{{ strtolower(trim((string) $cliente->email)) }}"
+                                            maxlength="50"
+                                            autocomplete="email"
+                                            class="form-control"
+                                        >
+                                        <small class="form-text text-muted">Se carga autom&aacute;ticamente desde tu perfil.</small>
+                                    </div>
+                                    <div class="col-md-12 form-group mb-0">
+                                        <label for="tipo_documento">Documentaci&oacute;n <span class="text-danger">*</span></label>
+                                        <input type="hidden" id="tipo_documento_valor" name="tipo_documento" value="{{ old('tipo_documento', $cliente->tipodocumentoidentidad) }}">
+                                        <select id="tipo_documento" class="form-control" disabled aria-disabled="true">
+                                            <option value="">Selecciona</option>
+                                            @foreach ($tiposDocumento as $codigo => $etiqueta)
+                                                <option value="{{ $codigo }}" @selected((string) old('tipo_documento', $cliente->tipodocumentoidentidad) === (string) $codigo)>{{ $etiqueta }}</option>
+                                            @endforeach
+                                        </select>
+                                        <small id="tipo-documento-ayuda" class="form-text text-muted" aria-live="polite">Escribe el n&uacute;mero para detectar el tipo de documento.</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="solicitud-section mb-4">
+                <div class="solicitud-section mb-4" data-wizard-panel="1" hidden>
                     <h5 class="solicitud-section-title"><span class="solicitud-step">2</span>Datos del remitente</h5><p class="text-muted small mb-3">Indica qui&eacute;n env&iacute;a el paquete y d&oacute;nde lo recogemos.</p>
                     <div class="row">
                         <div class="col-md-6 form-group">
@@ -132,7 +238,7 @@
                     </div>
                 </div>
 
-                <div class="solicitud-section">
+                <div class="solicitud-section" data-wizard-panel="2" hidden>
                     <h5 class="solicitud-section-title"><span class="solicitud-step">3</span>Datos del destinatario</h5><p class="text-muted small mb-3">Indica qui&eacute;n recibir&aacute; el paquete y su direcci&oacute;n.</p>
                     <div class="row">
                         <div class="col-md-6 form-group">
@@ -156,10 +262,19 @@
                     </div>
                 </div>
             </div>
-            <div class="card-footer text-right">
-                <button type="submit" class="btn btn-primary">
-                    Revisar solicitud <i class="fas fa-arrow-right ml-1" aria-hidden="true"></i>
+            <div class="card-footer solicitud-wizard-footer">
+                <button type="button" id="solicitud-wizard-back" class="btn btn-outline-secondary" hidden>
+                    <i class="fas fa-arrow-left mr-1" aria-hidden="true"></i>Anterior
                 </button>
+                <div class="solicitud-wizard-footer-actions">
+                    <span id="solicitud-wizard-hint" class="text-muted small d-none d-md-inline">Completa este paso para continuar.</span>
+                    <button type="button" id="solicitud-wizard-next" class="btn btn-primary">
+                        Continuar <i class="fas fa-arrow-right ml-1" aria-hidden="true"></i>
+                    </button>
+                    <button type="submit" id="solicitud-review-button" class="btn btn-primary" hidden>
+                    Revisar solicitud <i class="fas fa-arrow-right ml-1" aria-hidden="true"></i>
+                    </button>
+                </div>
             </div>
             <div class="modal fade" id="resumen-solicitud-modal" tabindex="-1" aria-labelledby="resumen-solicitud-title" aria-hidden="true">
                 <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
@@ -169,7 +284,7 @@
                             <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>
                         </div>
                         <div class="modal-body">
-                            <p class="text-muted">Confirma los datos del env&iacute;o y genera el QR por el total cotizado.</p>
+                            <p id="resumen-solicitud-instruccion" class="text-muted">Confirma los datos del env&iacute;o.</p>
                             <div id="qr-generacion-error" class="alert alert-danger d-none" role="alert"></div>
                             <div id="resumen-solicitud-datos" class="solicitud-summary"></div>
                             <div class="solicitud-total mt-3">
@@ -180,7 +295,7 @@
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Volver a editar</button>
-                            <button type="button" id="generar-qr-button" class="btn btn-primary"><i class="fas fa-qrcode mr-1" aria-hidden="true"></i>Generar QR</button>
+                            <button type="button" id="confirmar-solicitud-button" class="btn btn-primary"><i class="fas fa-qrcode mr-1" aria-hidden="true"></i>Generar QR</button>
                         </div>
                     </div>
                 </div>
@@ -199,6 +314,7 @@
                     </div>
                     <div class="modal-body text-center">
                         <div class="qr-payment-amount">Bs <span id="qr-pago-importe">0.00</span></div>
+                        <div id="qr-pago-registro" class="alert d-none" role="status" aria-live="polite"></div>
                         <div id="qr-pago-imagen-wrap" class="qr-payment-image-wrap d-none">
                             <img id="qr-pago-imagen" alt="C&oacute;digo QR para pagar el env&iacute;o">
                         </div>
@@ -217,6 +333,38 @@
 @push('css')
 <style>
 .solicitud-card { border-radius: 12px; }
+.solicitud-wizard-progress { margin-bottom: 24px; padding: 20px 22px 16px; border: 1px solid #e5eaf1; border-radius: 14px; background: linear-gradient(135deg, #fbfcfe, #f5f8fc); }
+.solicitud-wizard-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.solicitud-wizard-step { display: flex; align-items: center; gap: 11px; min-width: 0; padding: 4px; border: 0; background: transparent; color: #667085; text-align: left; cursor: pointer; }
+.solicitud-wizard-step:disabled { cursor: default; opacity: .72; }
+.solicitud-wizard-step-number { display: inline-flex; flex: 0 0 36px; width: 36px; height: 36px; align-items: center; justify-content: center; border: 2px solid #d7dee8; border-radius: 50%; background: #fff; color: #667085; font-weight: 700; transition: color .2s ease, background .2s ease, border-color .2s ease, transform .2s ease; }
+.solicitud-wizard-step strong, .solicitud-wizard-step small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.solicitud-wizard-step strong { color: #475467; font-size: .93rem; }
+.solicitud-wizard-step small { margin-top: 2px; color: #98a2b3; font-size: .77rem; }
+.solicitud-wizard-step.is-active .solicitud-wizard-step-number { transform: scale(1.06); border-color: #164b8d; background: #164b8d; color: #fff; box-shadow: 0 4px 12px rgba(22, 75, 141, .2); }
+.solicitud-wizard-step.is-active strong { color: #164b8d; }
+.solicitud-wizard-step.is-complete .solicitud-wizard-step-number { border-color: #25845b; background: #25845b; color: #fff; }
+.solicitud-wizard-track { height: 5px; margin: 16px 4px 10px; overflow: hidden; border-radius: 99px; background: #e6ebf2; }
+.solicitud-wizard-track span { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #164b8d, #ffca2c); transition: width .3s ease; }
+.solicitud-wizard-caption { display: flex; justify-content: space-between; color: #667085; font-size: .82rem; }
+.solicitud-wizard-caption strong { color: #164b8d; }
+.solicitud-wizard-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.solicitud-wizard-footer-actions { display: flex; flex: 1; align-items: center; justify-content: flex-end; gap: 14px; }
+.solicitud-section[hidden] { display: none !important; }
+.solicitud-section[data-wizard-panel]:not([hidden]) { animation: solicitud-panel-in .22s ease-out; }
+#datos-facturacion-qr[hidden] { display: none !important; }
+.solicitud-billing-card { padding: 20px; border: 1px solid #dfe7f1; border-radius: 13px; background: #f8fbff; animation: solicitud-panel-in .2s ease-out; }
+.solicitud-billing-heading { display: flex; align-items: center; gap: 12px; }
+.solicitud-billing-heading h6 { color: #174a82; font-size: 1rem; font-weight: 700; }
+.solicitud-billing-icon { display: inline-flex; flex: 0 0 40px; width: 40px; height: 40px; align-items: center; justify-content: center; border-radius: 12px; background: #e5effc; color: #164b8d; font-size: 1rem; }
+.solicitud-billing-card .form-control { border-color: #d9e2ed; background-color: #fff; }
+.solicitud-billing-card .form-control:focus { border-color: #6d9ed5; box-shadow: 0 0 0 .18rem rgba(22, 75, 141, .12); }
+.solicitud-billing-card .form-group { margin-bottom: 16px; }
+.solicitud-email-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.solicitud-email-toggle { display: inline-flex; align-items: center; gap: 7px; color: #164b8d; font-size: .8rem !important; cursor: pointer; }
+.solicitud-email-toggle input { accent-color: #164b8d; }
+.solicitud-billing-card input[readonly] { background: #eef4fb; color: #52647a; }
+@keyframes solicitud-panel-in { from { opacity: .55; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 .solicitud-section { padding: 22px; border: 1px solid #e4e8ee; border-radius: 12px; background: #fff; }
 .solicitud-section-title { display: flex; align-items: center; gap: 10px; font-size: 1.1rem; font-weight: 600; }
 .solicitud-step { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: #fff3cd; color: #735500; font-size: .9rem; }
@@ -241,11 +389,25 @@
 .solicitud-total strong { font-size: 1.2rem; }
 .solicitud-total small { margin-top: 4px; }
 @media (max-width: 575.98px) {
+    .solicitud-wizard-progress { padding: 14px 12px 12px; }
+    .solicitud-wizard-steps { gap: 4px; }
+    .solicitud-wizard-step { flex-direction: column; gap: 5px; padding: 2px; text-align: center; }
+    .solicitud-wizard-step-number { flex-basis: 32px; width: 32px; height: 32px; }
+    .solicitud-wizard-step strong { font-size: .74rem; }
+    .solicitud-wizard-step small { display: none; }
+    .solicitud-wizard-track { margin-top: 12px; }
+    .solicitud-wizard-footer { align-items: stretch; }
+    .solicitud-wizard-footer-actions { width: auto; }
     .solicitud-section { padding: 16px; }
+    .solicitud-billing-card { padding: 15px; }
     .solicitud-summary { grid-template-columns: 1fr; }
     #resumen-solicitud-modal .modal-body, #qr-pago-modal .modal-body { padding: 16px; }
     #resumen-solicitud-modal .modal-footer, #qr-pago-modal .modal-footer { flex-direction: column-reverse; align-items: stretch; }
     #resumen-solicitud-modal .modal-footer .btn, #qr-pago-modal .modal-footer .btn { margin: 4px 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .solicitud-section[data-wizard-panel]:not([hidden]) { animation: none; }
+    .solicitud-wizard-step-number, .solicitud-wizard-track span { transition: none; }
 }
 </style>
 @endpush
@@ -256,6 +418,15 @@ document.addEventListener('DOMContentLoaded', function () {
     const servicioSelect = document.getElementById('servicio_extra_id');
     const origenSelect = document.getElementById('origen');
     const destinoSelect = document.getElementById('destino_id');
+    const formaPagoSelect = document.getElementById('forma_pago');
+    const billingPanel = document.getElementById('datos-facturacion-qr');
+    const billingDocumentNumber = document.getElementById('numero_documento');
+    const billingDocumentComplement = document.getElementById('complemento_documento');
+    const billingDocumentType = document.getElementById('tipo_documento');
+    const billingDocumentTypeValue = document.getElementById('tipo_documento_valor');
+    const billingCompanyName = document.getElementById('razon_social');
+    const billingEmail = document.getElementById('correo_facturacion');
+    const editBillingEmail = document.getElementById('editar-correo-facturacion');
     const direccionInput = document.getElementById('direccion_entrega');
     const precioSolicitud = document.getElementById('precio_solicitud');
     const quoteUrl = @json(route('clientes.solicitudes.quote'));
@@ -263,8 +434,82 @@ document.addEventListener('DOMContentLoaded', function () {
     const form = document.getElementById('solicitud-form');
     const modal = $('#resumen-solicitud-modal');
     const qrModal = $('#qr-pago-modal');
-    const generarQrButton = document.getElementById('generar-qr-button');
+    const confirmarSolicitudButton = document.getElementById('confirmar-solicitud-button');
+    const wizardPanels = Array.from(document.querySelectorAll('[data-wizard-panel]'));
+    const wizardNavButtons = Array.from(document.querySelectorAll('[data-wizard-nav]'));
+    const wizardBackButton = document.getElementById('solicitud-wizard-back');
+    const wizardNextButton = document.getElementById('solicitud-wizard-next');
+    const reviewButton = document.getElementById('solicitud-review-button');
+    const wizardTitles = ['Datos del servicio', 'Datos del remitente', 'Datos del destinatario'];
     let generandoQr = false;
+    let solicitudRegistrada = false;
+    let wizardStep = 0;
+
+    function mostrarPaso(index) {
+        wizardStep = Math.max(0, Math.min(index, wizardPanels.length - 1));
+        wizardPanels.forEach((panel, panelIndex) => {
+            panel.hidden = panelIndex !== wizardStep;
+        });
+        wizardNavButtons.forEach((button, buttonIndex) => {
+            const isActive = buttonIndex === wizardStep;
+            button.disabled = buttonIndex > wizardStep;
+            button.classList.toggle('is-active', isActive);
+            button.classList.toggle('is-complete', buttonIndex < wizardStep);
+            if (isActive) {
+                button.setAttribute('aria-current', 'step');
+            } else {
+                button.removeAttribute('aria-current');
+            }
+        });
+
+        const progress = wizardPanels.length > 1 ? (wizardStep / (wizardPanels.length - 1)) * 100 : 100;
+        document.getElementById('solicitud-wizard-bar').style.width = progress + '%';
+        document.querySelector('.solicitud-wizard-track').setAttribute('aria-valuenow', String(wizardStep + 1));
+        document.getElementById('solicitud-wizard-current').textContent = wizardTitles[wizardStep];
+        document.getElementById('solicitud-wizard-number').textContent = String(wizardStep + 1);
+        wizardBackButton.hidden = wizardStep === 0;
+        wizardNextButton.hidden = wizardStep === wizardPanels.length - 1;
+        reviewButton.hidden = wizardStep !== wizardPanels.length - 1;
+    }
+
+    function validarPaso(index) {
+        const invalidField = wizardPanels[index].querySelector('input:invalid, select:invalid, textarea:invalid');
+        if (!invalidField) return true;
+
+        invalidField.reportValidity();
+        return false;
+    }
+
+    function validarTodosLosPasos() {
+        for (let index = 0; index < wizardPanels.length; index++) {
+            const invalidField = wizardPanels[index].querySelector('input:invalid, select:invalid, textarea:invalid');
+            if (invalidField) {
+                mostrarPaso(index);
+                invalidField.reportValidity();
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    wizardBackButton.addEventListener('click', function () {
+        mostrarPaso(wizardStep - 1);
+    });
+    wizardNextButton.addEventListener('click', function () {
+        if (validarPaso(wizardStep)) mostrarPaso(wizardStep + 1);
+    });
+    wizardNavButtons.forEach(button => {
+        button.addEventListener('click', function () {
+            const targetStep = Number(button.dataset.wizardNav);
+            if (targetStep < wizardStep) {
+                mostrarPaso(targetStep);
+            } else if (targetStep === wizardStep + 1 && validarPaso(wizardStep)) {
+                mostrarPaso(targetStep);
+            }
+        });
+    });
+    mostrarPaso(0);
 
     ['servicio_extra_id', 'origen', 'destino_id', 'cantidad', 'contenido',
         'nombre_remitente', 'carnet', 'direccion_recojo', 'nombre_destinatario',
@@ -277,12 +522,23 @@ document.addEventListener('DOMContentLoaded', function () {
         container.replaceChildren();
         const sections = [
             ['Datos del servicio', [['Servicio', 'servicio_extra_id'], ['Origen', 'origen'],
-                ['Destino', 'destino_id'], ['Cantidad', 'cantidad'], ['Contenido', 'contenido']]],
+                ['Destino', 'destino_id'], ['Cantidad', 'cantidad'], ['Contenido', 'contenido'],
+                ['Forma de pago', 'forma_pago']]],
             ['Datos del remitente', [['Nombre', 'nombre_remitente'], ['Carnet', 'carnet'],
                 ['Teléfono', 'telefono_remitente'], ['Dirección de recojo', 'direccion_recojo']]],
             ['Datos del destinatario', [['Nombre', 'nombre_destinatario'],
                 ['Teléfono', 'telefono_destinatario'], ['Dirección de entrega', 'direccion_entrega']]],
         ];
+        if (formaPagoSelect.value === 'origen') {
+            sections.push(['Datos de facturacion', [
+                ['Documentacion', 'tipo_documento'],
+                ['Numero de documento', 'numero_documento'],
+                ['Complemento', 'complemento_documento'],
+                ['Razon social', 'razon_social'],
+                ['Correo factura', 'correo_facturacion']
+            ]]);
+        }
+
         sections.forEach(([title, fields]) => {
             const section = document.createElement('section');
             section.className = 'solicitud-summary-section';
@@ -292,7 +548,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const list = document.createElement('dl');
             list.className = 'row mb-0';
             fields.forEach(([label, name]) => {
-                const field = form.elements.namedItem(name);
+                const field = name === 'tipo_documento' ? billingDocumentType : form.elements.namedItem(name);
                 const term = document.createElement('dt');
                 term.className = 'col-sm-4';
                 term.textContent = label;
@@ -307,11 +563,90 @@ document.addEventListener('DOMContentLoaded', function () {
             container.append(section);
         });
         document.getElementById('resumen-solicitud-precio').textContent = precioSolicitud.textContent;
+
+        const pagaEnOrigen = formaPagoSelect.value === 'origen';
+        document.getElementById('resumen-solicitud-instruccion').textContent = pagaEnOrigen
+            ? 'Confirma los datos y genera el QR para pagar en origen.'
+            : 'Confirma los datos para registrar la solicitud. No se generará un QR; el pago se realizará en destino.';
+        confirmarSolicitudButton.innerHTML = pagaEnOrigen
+            ? '<i class="fas fa-qrcode mr-1" aria-hidden="true"></i>Generar QR'
+            : '<i class="fas fa-check mr-1" aria-hidden="true"></i>Registrar solicitud';
     }
+
+    function actualizarAyudaFormaPago() {
+        const ayuda = document.getElementById('forma-pago-ayuda');
+        const pagaEnOrigen = formaPagoSelect.value === 'origen';
+        billingPanel.hidden = !pagaEnOrigen;
+        [billingDocumentNumber, billingCompanyName, billingEmail].forEach(field => {
+            field.required = pagaEnOrigen;
+        });
+        ayuda.textContent = formaPagoSelect.value === 'origen'
+            ? 'Se generará un QR para realizar el pago en origen.'
+            : formaPagoSelect.value === 'destino'
+                ? 'La solicitud se registrará sin generar QR; el pago se realizará en destino.'
+                : 'Elige dónde se realizará el pago.';
+    }
+
+    function actualizarComplementoDocumento() {
+        const permiteComplemento = ['1', '2'].includes(billingDocumentType.value);
+        billingDocumentComplement.disabled = !permiteComplemento;
+        billingDocumentComplement.setAttribute('aria-disabled', permiteComplemento ? 'false' : 'true');
+        if (!permiteComplemento) billingDocumentComplement.value = '';
+    }
+
+    // Misma clasificacion por formato que utiliza el carrito de los cajeros.
+    function inferDocumentTypeFromNumber(rawValue) {
+        const value = String(rawValue || '').trim().toUpperCase();
+        if (value === '') return '';
+
+        const compact = value.replace(/\s+/g, '');
+        const digitsOnly = compact.replace(/\D+/g, '');
+        const hasLetters = /[A-Z]/.test(compact);
+
+        if (digitsOnly === '99002' || digitsOnly === '99001') return '5';
+        if (/^\d{9,15}$/.test(compact)) return '5';
+        if (/^(CEX|EXT|E-)/.test(compact)) return '2';
+        if (/^\d{5,8}$/.test(compact)) return '1';
+        if (/^[A-Z0-9]{6,12}$/.test(compact) && hasLetters) return '3';
+
+        return '4';
+    }
+
+    function detectarDocumentacion() {
+        billingDocumentType.value = inferDocumentTypeFromNumber(billingDocumentNumber.value);
+        billingDocumentTypeValue.value = billingDocumentType.value;
+        const tipoAyuda = document.getElementById('tipo-documento-ayuda');
+        const etiqueta = billingDocumentType.selectedOptions[0]?.textContent.trim() || '';
+        tipoAyuda.textContent = billingDocumentType.value
+            ? 'Tipo detectado por formato: ' + etiqueta + '. Se actualiza automaticamente al escribir el numero.'
+            : 'Escribe el numero para detectar el tipo de documento.';
+
+        actualizarComplementoDocumento();
+    }
+
+    function sincronizarCorreoFactura(focus = false) {
+        const emailPerfil = String(billingEmail.dataset.emailPerfil || '').trim().toLowerCase();
+        const permiteEdicion = editBillingEmail.checked;
+        billingEmail.readOnly = !permiteEdicion;
+        billingEmail.setAttribute('aria-readonly', permiteEdicion ? 'false' : 'true');
+
+        if (!permiteEdicion) billingEmail.value = emailPerfil;
+        if (focus && permiteEdicion) billingEmail.focus();
+    }
+
+    formaPagoSelect.addEventListener('change', actualizarAyudaFormaPago);
+    billingDocumentNumber.addEventListener('input', detectarDocumentacion);
+    editBillingEmail.addEventListener('change', function () {
+        sincronizarCorreoFactura(true);
+    });
+    detectarDocumentacion();
+    sincronizarCorreoFactura();
+    actualizarAyudaFormaPago();
 
     form.addEventListener('submit', function (event) {
         event.preventDefault();
-        if (!form.reportValidity()) return;
+        if (solicitudRegistrada) return;
+        if (!validarTodosLosPasos()) return;
         mostrarResumen();
         document.getElementById('qr-generacion-error').classList.add('d-none');
         modal.modal('show');
@@ -320,6 +655,20 @@ document.addEventListener('DOMContentLoaded', function () {
     function mostrarQr(payload) {
         document.getElementById('qr-pago-importe').textContent = payload.amount || '0.00';
         document.getElementById('qr-pago-codigo').textContent = payload.internal_code || '';
+        const registro = document.getElementById('qr-pago-registro');
+        if (payload.solicitud_codigo) {
+            registro.textContent = 'Solicitud ' + payload.solicitud_codigo + ' registrada correctamente.';
+            registro.className = 'alert alert-success';
+            if (payload.registro_aviso) {
+                registro.textContent += ' ' + payload.registro_aviso;
+            }
+        } else if (payload.registro_error) {
+            registro.textContent = 'El QR se generó, pero no se pudo registrar la solicitud: ' + payload.registro_error;
+            registro.className = 'alert alert-danger';
+        } else {
+            registro.textContent = '';
+            registro.className = 'alert d-none';
+        }
 
         const image = String(payload.qr_image || '');
         const imageElement = document.getElementById('qr-pago-imagen');
@@ -340,17 +689,22 @@ document.addEventListener('DOMContentLoaded', function () {
         qrModal.modal('show');
     }
 
-    generarQrButton.addEventListener('click', async function () {
-        if (generandoQr || !form.reportValidity()) return;
+    confirmarSolicitudButton.addEventListener('click', async function () {
+        if (solicitudRegistrada || generandoQr || !validarTodosLosPasos()) return;
+
+        if (formaPagoSelect.value === 'destino') {
+            HTMLFormElement.prototype.submit.call(form);
+            return;
+        }
 
         generandoQr = true;
-        generarQrButton.disabled = true;
-        generarQrButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i>Generando...';
+        confirmarSolicitudButton.disabled = true;
+        confirmarSolicitudButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i>Generando...';
         const errorBox = document.getElementById('qr-generacion-error');
         errorBox.classList.add('d-none');
 
         try {
-            const response = await fetch(qrGenerateUrl, {
+            const qrResponse = await fetch(qrGenerateUrl, {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
@@ -358,14 +712,36 @@ document.addEventListener('DOMContentLoaded', function () {
                 },
                 body: new FormData(form),
             });
-            const payload = await response.json();
-            if (!response.ok) {
-                const validationErrors = payload.errors ? Object.values(payload.errors).flat().join(' ') : '';
-                throw new Error(validationErrors || payload.message || 'No se pudo generar el QR.');
+            const qrPayload = await qrResponse.json();
+            if (!qrResponse.ok) {
+                const validationErrors = qrPayload.errors ? Object.values(qrPayload.errors).flat().join(' ') : '';
+                throw new Error(validationErrors || qrPayload.message || 'No se pudo generar el QR.');
+            }
+
+            try {
+                const saveResponse = await fetch(form.action, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: new FormData(form),
+                });
+                const savePayload = await saveResponse.json();
+                if (!saveResponse.ok) {
+                    const validationErrors = savePayload.errors ? Object.values(savePayload.errors).flat().join(' ') : '';
+                    throw new Error(validationErrors || savePayload.message || 'No se pudo registrar la solicitud.');
+                }
+
+                qrPayload.solicitud_codigo = savePayload.codigo_solicitud || '';
+                qrPayload.registro_aviso = savePayload.warning || '';
+                solicitudRegistrada = true;
+            } catch (saveError) {
+                qrPayload.registro_error = saveError.message || 'No se pudo registrar la solicitud.';
             }
 
             modal.one('hidden.bs.modal', function () {
-                mostrarQr(payload);
+                mostrarQr(qrPayload);
             });
             modal.modal('hide');
         } catch (error) {
@@ -373,8 +749,12 @@ document.addEventListener('DOMContentLoaded', function () {
             errorBox.classList.remove('d-none');
         } finally {
             generandoQr = false;
-            generarQrButton.disabled = false;
-            generarQrButton.innerHTML = '<i class="fas fa-qrcode mr-1" aria-hidden="true"></i>Generar QR';
+            confirmarSolicitudButton.disabled = solicitudRegistrada;
+            if (!solicitudRegistrada) {
+                confirmarSolicitudButton.innerHTML = formaPagoSelect.value === 'origen'
+                    ? '<i class="fas fa-qrcode mr-1" aria-hidden="true"></i>Generar QR'
+                    : '<i class="fas fa-check mr-1" aria-hidden="true"></i>Registrar solicitud';
+            }
         }
     });
 

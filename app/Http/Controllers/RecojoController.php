@@ -899,6 +899,7 @@ class RecojoController extends Controller
 
         $rules = $this->storeRules();
         $rules['tipo_envio'] = 'required|string|in:periurbano,departamental,provincial';
+        $rules['ida_vuelta'] = 'nullable|boolean';
         $rules['provincia'] = [
             'nullable',
             'string',
@@ -911,11 +912,36 @@ class RecojoController extends Controller
         $data = $request->validate($rules, array_merge($this->storeValidationMessages(), [
             'tipo_envio.required' => 'Debe seleccionar el tipo de envio.',
             'tipo_envio.in' => 'El tipo de envio seleccionado no es valido.',
+            'ida_vuelta.boolean' => 'El servicio ida y vuelta seleccionado no es valido.',
             'provincia.required' => 'La provincia es obligatoria cuando el tipo de envio es PROVINCIAL.',
         ]), $this->storeValidationAttributes());
 
+        $contratoVuelta = null;
         try {
-            $contrato = $this->createContratoDesdePayload($data, $user);
+            [$contrato, $contratoVuelta] = DB::transaction(function () use ($data, $user) {
+                $contratoIda = $this->createContratoDesdePayload($data, $user);
+                $contratoRegreso = null;
+
+                if ((bool) ($data['ida_vuelta'] ?? false)) {
+                    $datosRegreso = array_replace($data, [
+                        'nombre_r' => $data['nombre_d'],
+                        'telefono_r' => $data['telefono_d'],
+                        'direccion_r' => $data['direccion'],
+                        'nombre_d' => $data['nombre_r'],
+                        'telefono_d' => $data['telefono_r'],
+                        'direccion' => $data['direccion_r'],
+                    ]);
+
+                    $contratoRegreso = $this->createContratoDesdePayload($datosRegreso, $user, [
+                        'origen' => $contratoIda->destino,
+                        'provincia_origen' => $contratoIda->provincia,
+                        'destino' => $contratoIda->origen,
+                        'provincia' => $contratoIda->provincia_origen,
+                    ]);
+                }
+
+                return [$contratoIda, $contratoRegreso];
+            });
         } catch (\RuntimeException $exception) {
             if ($request->expectsJson()) {
                 return response()->json([
@@ -946,29 +972,47 @@ class RecojoController extends Controller
                 ->with('error', $message);
         }
 
-        $reporteUrl = route('paquetes-contrato.reporte', [
-            'contrato' => $contrato->id,
-            'copias' => $this->normalizeNumeroCopias($data['numero_copias'] ?? null),
-        ], false);
+        $reporteUrls = collect([$contrato, $contratoVuelta])
+            ->filter()
+            ->map(fn (Recojo $item) => route('paquetes-contrato.reporte', [
+                'contrato' => $item->id,
+                'copias' => $this->normalizeNumeroCopias($data['numero_copias'] ?? null),
+            ], false))
+            ->values()
+            ->all();
+        $reporteUrl = $reporteUrls[0];
+        $codigos = collect([$contrato, $contratoVuelta])
+            ->filter()
+            ->pluck('codigo')
+            ->values()
+            ->all();
 
         if ($request->expectsJson()) {
-            session()->flash('success', 'GUARDADO');
+            session()->flash('success', count($reporteUrls) === 2 ? 'GUARDADO: GUIAS DE IDA Y VUELTA' : 'GUARDADO');
             session()->flash('download_reporte_url', $reporteUrl);
+            session()->flash('download_reporte_urls', $reporteUrls);
 
             return response()->json([
-                'message' => 'Paquete creado y confirmado en la base de datos.',
+                'message' => count($reporteUrls) === 2
+                    ? 'Guías de ida y vuelta creadas y confirmadas en la base de datos.'
+                    : 'Paquete creado y confirmado en la base de datos.',
                 'persisted' => true,
                 'contrato_id' => (int) $contrato->id,
                 'codigo' => (string) $contrato->codigo,
+                'contrato_vuelta_id' => $contratoVuelta ? (int) $contratoVuelta->id : null,
+                'codigo_vuelta' => $contratoVuelta ? (string) $contratoVuelta->codigo : null,
+                'codigos' => $codigos,
                 'redirect_url' => route('paquetes-contrato.index', [], false),
                 'reporte_url' => $reporteUrl,
+                'reporte_urls' => $reporteUrls,
             ]);
         }
 
         return redirect()
             ->route('paquetes-contrato.index')
-            ->with('success', 'GUARDADO')
-            ->with('download_reporte_url', $reporteUrl);
+            ->with('success', count($reporteUrls) === 2 ? 'GUARDADO: GUIAS DE IDA Y VUELTA' : 'GUARDADO')
+            ->with('download_reporte_url', $reporteUrl)
+            ->with('download_reporte_urls', $reporteUrls);
     }
 
     public function storePublic(Request $request)
@@ -1601,6 +1645,7 @@ class RecojoController extends Controller
             'direccion' => 'dirección del destinatario',
             'provincia' => 'provincia de destino',
             'peso' => 'peso',
+            'ida_vuelta' => 'servicio ida y vuelta',
             'numero_copias' => 'número de copias',
             'servicio' => 'servicio',
             'mapa' => 'ubicación en el mapa',
@@ -1629,7 +1674,7 @@ class RecojoController extends Controller
         ];
     }
 
-    protected function createContratoDesdePayload(array $data, User $user): Recojo
+    protected function createContratoDesdePayload(array $data, User $user, array $ruta = []): Recojo
     {
         if (empty($user->empresa_id)) {
             throw new \RuntimeException($this->missingEmpresaMessage());
@@ -1646,12 +1691,18 @@ class RecojoController extends Controller
             throw new \RuntimeException('La empresa asociada no tiene codigo_cliente valido.');
         }
 
-        $origen = strtoupper(trim((string) ($user->ciudad ?? '')));
+        $origen = $ruta['origen'] ?? strtoupper(trim((string) ($user->ciudad ?? '')));
         if ($origen === '') {
             $origen = strtoupper(trim((string) ($user->name ?? 'ORIGEN')));
         }
         $origen = $this->normalizeApiOrigen($origen);
-        $provinciaOrigen = $this->normalizeProvinciaOrigenUsuario($user);
+        $provinciaOrigen = array_key_exists('provincia_origen', $ruta)
+            ? $ruta['provincia_origen']
+            : $this->normalizeProvinciaOrigenUsuario($user);
+        $destino = $this->normalizeDepartamentoContrato((string) ($ruta['destino'] ?? $data['destino']));
+        $provinciaDestino = array_key_exists('provincia', $ruta)
+            ? $ruta['provincia']
+            : ($data['provincia'] ?? null);
 
         $estadoSolicitudId = (int) (Estado::query()
             ->whereRaw('trim(upper(nombre_estado)) = ?', ['SOLICITUD'])
@@ -1670,7 +1721,7 @@ class RecojoController extends Controller
         }
 
         $contrato = null;
-        DB::transaction(function () use ($data, $user, $empresa, $codigoCliente, $origen, $provinciaOrigen, $estadoSolicitudId, &$contrato) {
+        DB::transaction(function () use ($data, $user, $empresa, $codigoCliente, $origen, $provinciaOrigen, $destino, $provinciaDestino, $estadoSolicitudId, &$contrato) {
             $correlativo = $this->contratoCodigoService->reservarSiguiente($codigoCliente);
             $codigo = $this->contratoCodigoService->construirCodigo($codigoCliente, $correlativo);
             $empresaIdDetectada = $this->resolveEmpresaIdByCodigo($codigo) ?? (int) $empresa->id;
@@ -1683,8 +1734,8 @@ class RecojoController extends Controller
                 'estados_id' => $estadoSolicitudId,
                 'origen' => $origen,
                 'provincia_origen' => $provinciaOrigen,
-                'destino' => $this->normalizeDepartamentoContrato((string) $data['destino']),
-                'destino_registrado' => $this->normalizeDepartamentoContrato((string) $data['destino']),
+                'destino' => $destino,
+                'destino_registrado' => $destino,
                 'nombre_r' => strtoupper(trim((string) $data['nombre_r'])),
                 'telefono_r' => trim((string) $data['telefono_r']),
                 'contenido' => trim((string) $data['contenido']),
@@ -1694,7 +1745,7 @@ class RecojoController extends Controller
                 'telefono_d' => trim((string) $data['telefono_d']),
                 'direccion_d' => strtoupper(trim((string) $data['direccion'])),
                 'mapa' => ! empty($data['mapa']) ? trim((string) $data['mapa']) : null,
-                'provincia' => ! empty($data['provincia']) ? strtoupper(trim((string) $data['provincia'])) : null,
+                'provincia' => ! empty($provinciaDestino) ? strtoupper(trim((string) $provinciaDestino)) : null,
                 'peso' => $data['peso'] ?? 0,
                 'fecha_recojo' => null,
                 'observacion' => null,

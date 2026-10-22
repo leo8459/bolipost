@@ -94,8 +94,11 @@ class ClienteSolicitudFacturacionService
             'cart_id' => $cartId,
             'modalidad_facturacion' => 'con_datos',
             'canal_emision' => 'qr',
-            'razon_social' => self::ONLINE_CUSTOMER_NAME,
-            'correo_facturacion' => $this->onlineCustomerEmail(),
+            'tipo_documento' => trim((string) $solicitud['tipo_documento']),
+            'numero_documento' => trim((string) $solicitud['numero_documento']),
+            'complemento_documento' => trim((string) ($solicitud['complemento_documento'] ?? '')),
+            'razon_social' => $this->upper((string) $solicitud['razon_social']),
+            'correo_facturacion' => strtolower(trim((string) $solicitud['correo_facturacion'])),
         ]));
 
         $emissionResponse = $this->request('POST', '/cart/emitir', [

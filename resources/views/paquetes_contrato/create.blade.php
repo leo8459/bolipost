@@ -569,6 +569,14 @@
                         </div>
                         </div>
                     </div>
+                    <div class="section-block">
+                        <div class="section-title">Servicio adicional</div>
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" id="idaVueltaInput" name="ida_vuelta" value="1" {{ old('ida_vuelta') ? 'checked' : '' }}>
+                            <label class="custom-control-label font-weight-bold" for="idaVueltaInput">SERVICIO IDA Y VUELTA</label>
+                        </div>
+                        <small class="form-text text-muted">Crea también una segunda guía de regreso, invirtiendo origen, destino, remitente y destinatario.</small>
+                    </div>
                     </div>
 
                     <div class="top-actions" id="formActionsBlock" style="display:none;">
@@ -629,6 +637,12 @@
                 </button>
             </div>
             <div class="modal-body">
+                <div id="idaVueltaModalAviso" class="alert alert-warning border border-warning shadow-sm d-none" role="status" aria-live="polite" hidden>
+                    <div class="h5 font-weight-bold mb-2">SERVICIO IDA Y VUELTA ACTIVADO</div>
+                    <div class="font-weight-bold mb-2">Se generarán 2 guías en esta solicitud:</div>
+                    <div class="mb-1"><span class="badge badge-primary mr-2">GUÍA 1 · IDA</span><span id="rutaGuiaIdaTexto"></span></div>
+                    <div><span class="badge badge-dark mr-2">GUÍA 2 · VUELTA</span><span id="rutaGuiaVueltaTexto"></span></div>
+                </div>
                 <div id="tipoEnvioCopiasAviso" class="alert" role="status">
                     Usted está enviando un envío <strong id="tipoEnvioCopiasTexto"></strong>.
                 </div>
@@ -672,6 +686,10 @@
         const tipoEnvioCopiasTexto = document.getElementById('tipoEnvioCopiasTexto');
         const resumenEnvioCopias = document.getElementById('resumenEnvioCopias');
         const resumenNumeroCopias = document.getElementById('resumenNumeroCopias');
+        const idaVueltaInput = document.getElementById('idaVueltaInput');
+        const idaVueltaModalAviso = document.getElementById('idaVueltaModalAviso');
+        const rutaGuiaIdaTexto = document.getElementById('rutaGuiaIdaTexto');
+        const rutaGuiaVueltaTexto = document.getElementById('rutaGuiaVueltaTexto');
         const numeroCopiasInput = document.getElementById('numeroCopiasInput');
         const numeroCopiasModalSelect = document.getElementById('numeroCopiasModalSelect');
         const confirmarCopiasGuiaBtn = document.getElementById('confirmarCopiasGuiaBtn');
@@ -777,6 +795,9 @@
 
                 creandoPaqueteTitulo.textContent = 'Paquete creado correctamente';
                 creandoPaqueteMensaje.textContent = `Confirmado en la base de datos con el codigo ${payload.codigo}. Preparando la guia...`;
+                if (Array.isArray(payload.codigos) && payload.codigos.length > 1) {
+                    creandoPaqueteMensaje.textContent = "Confirmadas las guias " + payload.codigos.join(" y ") + ". Preparando ambas guias...";
+                }
                 window.location.assign(payload.redirect_url);
             } catch (error) {
                 console.error(error);
@@ -1078,6 +1099,7 @@
             if (!resumenNumeroCopias || !numeroCopiasModalSelect) return;
             const copias = numeroCopiasModalSelect.value || '1';
             resumenNumeroCopias.textContent = `Se imprimirán ${copias} ${copias === '1' ? 'copia' : 'copias'} de la guía.`;
+            if (idaVueltaInput?.checked) resumenNumeroCopias.textContent += ' por cada guia (2 guias en total).';
         };
 
         const actualizarResumenEnvio = () => {
@@ -1108,6 +1130,36 @@
                     ['Peso (kg)', getFieldValue('peso') || 'No especificado'],
                 ]],
             ];
+            if (idaVueltaInput?.checked) {
+                grupos[0][0] = 'Guia de ida - Remitente';
+                grupos[1][0] = 'Guia de ida - Destinatario';
+                grupos[2][0] = 'Guia de ida - Detalle del envio';
+
+                const provinciaDestino = getTipoEnvio() === 'provincial' ? getFieldValue('provincia') : '';
+                const datosVueltaRemitente = [['Origen', getFieldValue('destino')]];
+                if (provinciaDestino) datosVueltaRemitente.push(['Provincia origen', provinciaDestino]);
+                datosVueltaRemitente.push(
+                    ['Nombre', getFieldValue('nombre_d')],
+                    ['Telefono', getFieldValue('telefono_d')],
+                    ['Direccion', getFieldValue('direccion')],
+                );
+                const datosVueltaDestinatario = [
+                    ['Nombre', getFieldValue('nombre_r')],
+                    ['Telefono', getFieldValue('telefono_r')],
+                    ['Destino (departamento)', origenValue],
+                    ['Direccion', getFieldValue('direccion_r')],
+                ];
+                if (provinciaOrigenValue) datosVueltaDestinatario.push(['Provincia destino', provinciaOrigenValue]);
+                grupos.push(
+                    ['Guia de vuelta - Remitente', datosVueltaRemitente],
+                    ['Guia de vuelta - Destinatario', datosVueltaDestinatario],
+                    ['Guia de vuelta - Detalle del envio', [
+                        ['Contenido', getFieldValue('contenido')],
+                        ['Cantidad', getFieldValue('cantidad')],
+                        ['Peso (kg)', getFieldValue('peso') || 'No especificado'],
+                    ]],
+                );
+            }
             grupos.forEach(([titulo, datos]) => {
                 const seccion = document.createElement('section');
                 seccion.className = 'border rounded p-3 mb-3';
@@ -1150,10 +1202,28 @@
                     provincial: { nombre: 'provincial', clase: 'alert-warning' },
                 };
                 const tipoSeleccionado = tiposEnvio[getTipoEnvio()];
+                const idaVueltaActiva = Boolean(idaVueltaInput?.checked);
+                if (idaVueltaModalAviso) {
+                    idaVueltaModalAviso.hidden = !idaVueltaActiva;
+                    idaVueltaModalAviso.classList.toggle('d-none', !idaVueltaActiva);
+                }
+                if (idaVueltaActiva) {
+                    const provinciaDestino = getTipoEnvio() === 'provincial' ? getFieldValue('provincia') : '';
+                    const origenIda = `${origenValue}${provinciaOrigenValue ? ` - ${provinciaOrigenValue}` : ''}`;
+                    const destinoIda = `${getFieldValue('destino')}${provinciaDestino ? ` - ${provinciaDestino}` : ''}`;
+                    if (rutaGuiaIdaTexto) rutaGuiaIdaTexto.textContent = `${origenIda} → ${destinoIda}`;
+                    if (rutaGuiaVueltaTexto) rutaGuiaVueltaTexto.textContent = `${destinoIda} → ${origenIda}`;
+                }
                 if (tipoEnvioCopiasAviso && tipoEnvioCopiasTexto) {
                     tipoEnvioCopiasAviso.hidden = !tipoSeleccionado;
                     tipoEnvioCopiasAviso.className = `alert ${tipoSeleccionado ? tipoSeleccionado.clase : ''}`;
                     tipoEnvioCopiasTexto.textContent = tipoSeleccionado ? tipoSeleccionado.nombre : '';
+                    if (idaVueltaInput?.checked && tipoSeleccionado) tipoEnvioCopiasTexto.textContent += ' y su retorno (2 guias)';
+                }
+                if (confirmarCopiasGuiaBtn) {
+                    confirmarCopiasGuiaBtn.textContent = idaVueltaInput?.checked
+                        ? 'Confirmar y solicitar ambas guias'
+                        : 'Confirmar y solicitar envio';
                 }
                 actualizarResumenEnvio();
                 window.jQuery(copiasGuiaModal).modal('show');

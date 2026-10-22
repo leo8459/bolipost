@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Mail\SolicitudClienteCreadaMail;
+use App\Models\Cliente;
 use App\Models\Destino;
 use App\Models\Estado;
 use App\Models\Origen;
@@ -50,6 +51,7 @@ class ClienteSolicitudController extends Controller
 
         return view('clientes.solicitudes', [
             'cliente' => $cliente,
+            'tiposDocumento' => Cliente::tiposDocumentoIdentidad(),
             'destinos' => Destino::query()->orderBy('nombre_destino')->get(),
             'servicioExtras' => ServicioExtra::query()
                 ->whereIn('id', $servicioExtraIds)
@@ -178,11 +180,26 @@ class ClienteSolicitudController extends Controller
                 'error' => $exception->getMessage(),
             ]);
 
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => $message,
+                    'warning' => 'La solicitud se registro, pero no se pudo enviar el correo automatico.',
+                    'codigo_solicitud' => $solicitud->codigo_solicitud,
+                ], 201);
+            }
+
             return redirect()
                 ->route('clientes.solicitudes.history')
                 ->with('success', $message)
                 ->with('pickup_notice', self::PICKUP_CONFIRMATION_MESSAGE)
                 ->with('warning', 'La solicitud se registro, pero no se pudo enviar el correo automatico. Revisa la configuracion SMTP.');
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => $message,
+                'codigo_solicitud' => $solicitud->codigo_solicitud,
+            ], 201);
         }
 
         return redirect()
@@ -344,6 +361,12 @@ class ClienteSolicitudController extends Controller
 
         $data = $request->validate([
             'qr_attempt_id' => ['required', 'uuid'],
+            'forma_pago' => ['required', 'in:origen'],
+            'tipo_documento' => ['required', 'string', 'max:20', \Illuminate\Validation\Rule::in(array_keys(Cliente::tiposDocumentoIdentidad()))],
+            'numero_documento' => ['required', 'string', 'max:80'],
+            'complemento_documento' => ['nullable', 'string', 'max:30'],
+            'razon_social' => ['required', 'string', 'max:255'],
+            'correo_facturacion' => ['required', 'email', 'max:50'],
             'servicio_extra_id' => ['required', 'integer', 'in:'.implode(',', $servicioExtraIds)],
             'origen' => ['required', 'string'],
             'destino_id' => ['required', 'integer', 'exists:destino,id'],
