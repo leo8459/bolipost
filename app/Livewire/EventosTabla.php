@@ -383,57 +383,8 @@ class EventosTabla extends Component
                 });
             });
 
-        if ($this->tipo === 'contrato' && Schema::hasTable('paquetes_contrato')) {
-            $rutasContrato = DB::table('paquetes_contrato')
-                ->selectRaw('TRIM(UPPER(codigo)) as codigo_normalizado')
-                ->selectRaw("MAX(NULLIF(TRIM(origen), '')) as origen")
-                ->selectRaw("MAX(NULLIF(TRIM(provincia_origen), '')) as provincia_origen")
-                ->selectRaw("MAX(NULLIF(TRIM(destino), '')) as destino")
-                ->selectRaw("MAX(NULLIF(TRIM(provincia), '')) as provincia_destino")
-                ->groupByRaw('TRIM(UPPER(codigo))');
-
-            $registrosQuery
-                ->leftJoinSub($rutasContrato, 'ruta_contrato', function ($join) {
-                    $join->on(
-                        DB::raw('TRIM(UPPER(t.codigo))'),
-                        '=',
-                        'ruta_contrato.codigo_normalizado'
-                    );
-                });
-
-            if ($hasBastionContracts) {
-                $rutasBastion = DB::table('bastion_contratos')
-                    ->selectRaw('TRIM(UPPER(codigo)) as codigo_normalizado')
-                    ->selectRaw("MAX(NULLIF(TRIM(origen), '')) as origen")
-                    ->selectRaw("MAX(NULLIF(TRIM(provincia_origen), '')) as provincia_origen")
-                    ->selectRaw("MAX(NULLIF(TRIM(destino), '')) as destino")
-                    ->selectRaw("MAX(NULLIF(TRIM(provincia), '')) as provincia_destino")
-                    ->groupByRaw('TRIM(UPPER(codigo))');
-
-                $registrosQuery
-                    ->leftJoinSub($rutasBastion, 'ruta_bastion', function ($join) {
-                        $join->on(
-                            DB::raw('TRIM(UPPER(t.codigo))'),
-                            '=',
-                            'ruta_bastion.codigo_normalizado'
-                        );
-                    })
-                    ->addSelect([
-                        DB::raw("COALESCE(NULLIF(ruta_contrato.origen, ''), ruta_bastion.origen) as paquete_origen"),
-                        DB::raw("COALESCE(NULLIF(ruta_contrato.provincia_origen, ''), ruta_bastion.provincia_origen) as paquete_provincia_origen"),
-                        DB::raw("COALESCE(NULLIF(ruta_contrato.destino, ''), ruta_bastion.destino) as paquete_destino"),
-                        DB::raw("COALESCE(NULLIF(ruta_contrato.provincia_destino, ''), ruta_bastion.provincia_destino) as paquete_provincia_destino"),
-                        'u.ciudad as usuario_ciudad',
-                    ]);
-            } else {
-                $registrosQuery->addSelect([
-                    'ruta_contrato.origen as paquete_origen',
-                    'ruta_contrato.provincia_origen as paquete_provincia_origen',
-                    'ruta_contrato.destino as paquete_destino',
-                    'ruta_contrato.provincia_destino as paquete_provincia_destino',
-                    'u.ciudad as usuario_ciudad',
-                ]);
-            }
+        if ($this->tipo === 'contrato') {
+            $registrosQuery->addSelect('u.ciudad as usuario_ciudad');
         }
 
         if ($supportsClienteId) {
@@ -451,12 +402,20 @@ class EventosTabla extends Component
             ->orderByDesc('t.id')
             ->paginate(100);
 
+        $empresaUserIds = [];
+        if ($this->tipo === 'contrato') {
+            $this->attachContratoPageDetails($registros->getCollection(), $hasBastionContracts);
+            $empresaUserIds = $this->empresaUserIdsForCancellationEvents($registros->getCollection());
+        }
+
         $registros->setCollection(
-            $registros->getCollection()->map(function ($registro) {
-                $imagenes = $this->resolveImagesForCodigo((string) ($registro->codigo ?? ''));
-                $registro->imagen_entrega = $imagenes['entrega'];
-                $registro->imagen_devolucion = $imagenes['devolucion'];
-                $registro->imagen = $imagenes['principal'];
+            $registros->getCollection()->map(function ($registro) use ($empresaUserIds) {
+                if ($this->tipo !== 'contrato') {
+                    $imagenes = $this->resolveImagesForCodigo((string) ($registro->codigo ?? ''));
+                    $registro->imagen_entrega = $imagenes['entrega'];
+                    $registro->imagen_devolucion = $imagenes['devolucion'];
+                    $registro->imagen = $imagenes['principal'];
+                }
                 $registro->evento_nombre = CodigoContinuacionEvent::nombreMostrado(
                     (string) ($registro->evento_nombre ?? ''),
                     $registro->codigo_relacionado ?? null
@@ -471,6 +430,17 @@ class EventosTabla extends Component
                 );
 
                 if ($this->tipo === 'contrato') {
+                    $eventoNormalizado = mb_strtolower(Str::ascii((string) ($registro->evento_nombre ?? '')));
+                    $registro->es_cancelacion = str_contains($eventoNormalizado, 'cancel');
+                    $registro->es_cancelacion_empresa = $registro->es_cancelacion
+                        && isset($empresaUserIds[(int) ($registro->user_id ?? 0)]);
+
+                    if ($registro->es_cancelacion_empresa) {
+                        $registro->evento_nombre = 'Envío cancelado por usuario de empresa.';
+                    }
+
+                    $registro->paquete_justificacion = trim((string) ($registro->paquete_justificacion ?? ''));
+
                     $contexto = $this->buildContratoEventContext($registro);
                     $registro->evento_nombre_mostrado = $contexto['evento'];
                     $registro->ubicacion_evento = $contexto['ubicacion'];
@@ -700,6 +670,125 @@ class EventosTabla extends Component
     private function normalizeCodigoCliente(?string $codigo): string
     {
         return preg_replace('/\s+/', '', strtoupper(trim((string) $codigo))) ?? '';
+    }
+
+    private function empresaUserIdsForCancellationEvents($registros): array
+    {
+        $userIds = $registros
+            ->filter(function ($registro): bool {
+                $evento = mb_strtolower(Str::ascii((string) ($registro->evento_nombre ?? '')));
+
+                return str_contains($evento, 'cancel');
+            })
+            ->pluck('user_id')
+            ->filter(fn ($userId) => (int) $userId > 0)
+            ->map(fn ($userId) => (int) $userId)
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($userIds === []) {
+            return [];
+        }
+
+        $assignmentsTable = (string) config('permission.table_names.model_has_roles', 'model_has_roles');
+        $rolesTable = (string) config('permission.table_names.roles', 'roles');
+        $rolePivotKey = (string) (config('permission.column_names.role_pivot_key') ?: 'role_id');
+        $modelKey = (string) (config('permission.column_names.model_morph_key') ?: 'model_id');
+
+        if (! Schema::hasTable($assignmentsTable) || ! Schema::hasTable($rolesTable)) {
+            return [];
+        }
+
+        return DB::table($assignmentsTable . ' as mhr')
+            ->join($rolesTable . ' as r', 'r.id', '=', 'mhr.' . $rolePivotKey)
+            ->whereRaw('LOWER(r.name) = ?', ['empresa'])
+            ->where('mhr.model_type', (new \App\Models\User())->getMorphClass())
+            ->whereIn('mhr.' . $modelKey, $userIds)
+            ->pluck('mhr.' . $modelKey)
+            ->mapWithKeys(fn ($userId) => [(int) $userId => true])
+            ->all();
+    }
+
+    private function attachContratoPageDetails($registros, bool $hasBastionContracts): void
+    {
+        $codigos = $registros
+            ->map(fn ($registro) => mb_strtoupper(trim((string) ($registro->codigo ?? ''))))
+            ->filter(fn ($codigo) => $codigo !== '')
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($codigos === []) {
+            return;
+        }
+
+        $loadRutas = function (string $table, bool $hasJustificacion) use ($codigos) {
+            return DB::table($table)
+                ->selectRaw('UPPER(TRIM(codigo)) as codigo_normalizado')
+                ->selectRaw("MAX(NULLIF(TRIM(origen), '')) as origen")
+                ->selectRaw("MAX(NULLIF(TRIM(provincia_origen), '')) as provincia_origen")
+                ->selectRaw("MAX(NULLIF(TRIM(destino), '')) as destino")
+                ->selectRaw("MAX(NULLIF(TRIM(provincia), '')) as provincia_destino")
+                ->selectRaw($hasJustificacion
+                    ? "MAX(NULLIF(TRIM(justificacion), '')) as justificacion"
+                    : 'CAST(NULL AS VARCHAR) as justificacion')
+                ->whereIn(DB::raw('UPPER(TRIM(codigo))'), $codigos)
+                ->groupByRaw('UPPER(TRIM(codigo))')
+                ->get()
+                ->keyBy('codigo_normalizado');
+        };
+
+        $rutasContrato = Schema::hasTable('paquetes_contrato')
+            ? $loadRutas('paquetes_contrato', Schema::hasColumn('paquetes_contrato', 'justificacion'))
+            : collect();
+        $rutasBastion = $hasBastionContracts
+            ? $loadRutas('bastion_contratos', Schema::hasColumn('bastion_contratos', 'justificacion'))
+            : collect();
+
+        $imagenesPorCodigo = collect();
+        if (
+            Schema::hasTable('paquetes_contrato')
+            && Schema::hasColumn('paquetes_contrato', 'imagen')
+            && Schema::hasTable('cartero')
+        ) {
+            $imagenesPorCodigo = DB::table('paquetes_contrato as p')
+                ->leftJoin('cartero as c', 'c.id_paquetes_contrato', '=', 'p.id')
+                ->selectRaw(
+                    'DISTINCT ON (UPPER(TRIM(p.codigo))) '
+                    . 'UPPER(TRIM(p.codigo)) as codigo_normalizado, '
+                    . 'COALESCE(c.imagen, p.imagen) as entrega, '
+                    . 'c.imagen_devolucion as devolucion'
+                )
+                ->whereIn(DB::raw('UPPER(TRIM(p.codigo))'), $codigos)
+                ->orderByRaw('UPPER(TRIM(p.codigo)), c.updated_at DESC NULLS LAST, c.id DESC, p.id DESC')
+                ->get()
+                ->keyBy('codigo_normalizado');
+        }
+
+        foreach ($registros as $registro) {
+            $codigoNormalizado = mb_strtoupper(trim((string) ($registro->codigo ?? '')));
+            $rutaContrato = $rutasContrato->get($codigoNormalizado);
+            $rutaBastion = $rutasBastion->get($codigoNormalizado);
+
+            foreach ([
+                'origen' => 'paquete_origen',
+                'provincia_origen' => 'paquete_provincia_origen',
+                'destino' => 'paquete_destino',
+                'provincia_destino' => 'paquete_provincia_destino',
+                'justificacion' => 'paquete_justificacion',
+            ] as $field => $property) {
+                $value = trim((string) ($rutaContrato->{$field} ?? ''));
+                $registro->{$property} = $value !== ''
+                    ? $value
+                    : trim((string) ($rutaBastion->{$field} ?? ''));
+            }
+
+            $imagenes = $this->normalizeImageRow($imagenesPorCodigo->get($codigoNormalizado));
+            $registro->imagen_entrega = $imagenes['entrega'];
+            $registro->imagen_devolucion = $imagenes['devolucion'];
+            $registro->imagen = $imagenes['principal'];
+        }
     }
 
     private function resolveImagesForCodigo(string $codigo): array
