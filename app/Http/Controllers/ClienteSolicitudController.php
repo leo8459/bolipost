@@ -343,6 +343,7 @@ class ClienteSolicitudController extends Controller
             ->all();
 
         $data = $request->validate([
+            'qr_attempt_id' => ['required', 'uuid'],
             'servicio_extra_id' => ['required', 'integer', 'in:'.implode(',', $servicioExtraIds)],
             'origen' => ['required', 'string'],
             'destino_id' => ['required', 'integer', 'exists:destino,id'],

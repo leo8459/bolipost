@@ -45,6 +45,7 @@
         </div>
         <form id="solicitud-form" method="POST" action="{{ route('clientes.solicitudes.store') }}">
             @csrf
+            <input type="hidden" name="qr_attempt_id" value="{{ (string) \Illuminate\Support\Str::uuid() }}">
             <div class="card-body">
                 <p class="text-muted mb-4"><span class="text-danger">*</span> Los campos con asterisco son obligatorios.</p>
                 <div class="solicitud-section mb-4">

@@ -8,6 +8,7 @@ use App\Models\ServicioExtra;
 use App\Models\Sucursal;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -24,8 +25,9 @@ class ClienteSolicitudFacturacionService
     ): array {
         $remoteUserId = 'cliente_online_'.$cliente->id;
         $sucursal = $this->resolveSucursal((string) $solicitud['origen']);
-        $code = 'SOLQR-'.Str::upper(Str::random(22));
-        $originId = random_int(100_000_000, 2_000_000_000);
+        $attemptId = Str::lower((string) $solicitud['qr_attempt_id']);
+        $code = 'SOLQR-'.Str::upper(str_replace('-', '', $attemptId));
+        $originId = (int) (hexdec(substr(hash('sha256', $attemptId), 0, 8)) % 1_900_000_000) + 100_000_000;
         $originCity = $this->upper((string) $solicitud['origen']);
         $destinationCity = $this->upper((string) $destino->nombre_destino);
         $serviceName = trim((string) ($servicio->descripcion ?: $servicio->nombre ?: 'Delivery Express'));
@@ -153,10 +155,22 @@ class ClienteSolicitudFacturacionService
 
     private function assertSuccessfulResponse(Response $response, string $path): array
     {
-        $body = $response->json();
+        $body = $this->decodeJsonResponse($response);
         if ($response->successful() && is_array($body) && ($body['ok'] ?? false)) {
             return $body;
         }
+
+        Log::warning('La API de Facturacion devolvio una respuesta inesperada al generar QR.', [
+            'path' => $path,
+            'http_status' => $response->status(),
+            'content_type' => $response->header('Content-Type'),
+            'body_type' => get_debug_type($body),
+            'body_keys' => is_array($body) ? array_slice(array_keys($body), 0, 20) : [],
+            'ok_present' => is_array($body) && array_key_exists('ok', $body),
+            'ok_value' => is_array($body) ? ($body['ok'] ?? null) : null,
+            'success_value' => is_array($body) ? ($body['success'] ?? null) : null,
+            'cart_id_present' => data_get($body, 'cart.id') !== null,
+        ]);
 
         $message = trim((string) (data_get($body, 'message')
             ?? data_get($body, 'mensaje')
@@ -169,11 +183,31 @@ class ClienteSolicitudFacturacionService
         throw new RuntimeException($message);
     }
 
+    private function decodeJsonResponse(Response $response): ?array
+    {
+        $body = $response->json();
+        if (is_array($body)) {
+            return $body;
+        }
+
+        $raw = preg_replace('/^\xEF\xBB\xBF/', '', (string) $response->body());
+        $decoded = json_decode((string) $raw, true);
+
+        return is_array($decoded) ? $decoded : null;
+    }
+
     private function resolveSucursal(string $city): Sucursal
     {
         $normalizedCity = $this->upper($city);
+        $municipioSucursal = match ($normalizedCity) {
+            'SANTA CRUZ' => 'SANTA CRUZ DE LA SIERRA',
+            'CHUQUISACA' => 'SUCRE',
+            'BENI' => 'TRINIDAD',
+            'PANDO' => 'COBIJA',
+            default => $normalizedCity,
+        };
         $sucursal = Sucursal::query()
-            ->whereRaw('trim(upper(municipio)) = ?', [$normalizedCity])
+            ->whereRaw('trim(upper(municipio)) = ?', [$municipioSucursal])
             ->orderBy('codigoSucursal')
             ->orderBy('puntoVenta')
             ->first();
