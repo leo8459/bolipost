@@ -6,6 +6,7 @@ use App\Models\Cliente;
 use App\Models\Destino;
 use App\Models\ServicioExtra;
 use App\Models\Sucursal;
+use App\Models\SolicitudCliente;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -27,7 +28,13 @@ class ClienteSolicitudFacturacionService
         $sucursal = $this->resolveSucursal((string) $solicitud['origen']);
         $attemptId = Str::lower((string) $solicitud['qr_attempt_id']);
         $code = 'SOLQR-'.Str::upper(str_replace('-', '', $attemptId));
-        $originId = (int) (hexdec(substr(hash('sha256', $attemptId), 0, 8)) % 1_900_000_000) + 100_000_000;
+        $originId = $this->qrOriginId($attemptId);
+
+        $existingCart = $this->buscarSolicitudQr($cliente, $attemptId)['cart'] ?? null;
+        if (is_array($existingCart)) {
+            return $this->qrPayloadFromCart($existingCart, $attemptId);
+        }
+
         $originCity = $this->upper((string) $solicitud['origen']);
         $destinationCity = $this->upper((string) $destino->nombre_destino);
         $serviceName = trim((string) ($servicio->descripcion ?: $servicio->nombre ?: 'Delivery Express'));
@@ -56,6 +63,7 @@ class ClienteSolicitudFacturacionService
             'servicios_extra' => [],
             'resumen_origen' => [
                 'tipo' => 'cliente_online',
+                'qr_attempt_id' => $attemptId,
                 'codigo' => $code,
                 'codigo_paquete' => $code,
                 'codigo_detalle_enviado' => $code,
@@ -66,6 +74,8 @@ class ClienteSolicitudFacturacionService
                 'codigo_producto_fiscal' => $productCode,
                 'descripcion_servicio' => $fiscalDescription,
                 'unidad_medida' => 58,
+                'servicio_extra_id' => (int) $servicio->id,
+                'destino_id' => (int) $destino->id,
                 'origen' => $originCity,
                 'destino' => $destinationCity,
                 'cantidad_paquetes' => (int) $solicitud['cantidad'],
@@ -127,10 +137,139 @@ class ClienteSolicitudFacturacionService
         }
 
         return [
+            'cart_id' => $cartId,
+            'transaction_id' => trim((string) ($qrData['transaction_id']
+                ?? $qrData['transactionId']
+                ?? data_get($emissionResponse, 'cart.qr_transaction_id')
+                ?? '')),
+            'payment_status' => trim((string) ($qrData['payment_status']
+                ?? $qrData['paymentStatus']
+                ?? data_get($emissionResponse, 'cart.estado_pago')
+                ?? 'pendiente')),
+            'amount' => round($amount, 2),
             'internal_code' => trim((string) ($qrData['internal_code']
                 ?? data_get($emissionResponse, 'cart.codigo_orden')
                 ?? $code)),
             'qr_image' => $qrImage,
+        ];
+    }
+
+    public function consultarPagoQr(Cliente $cliente, int $cartId): array
+    {
+        $body = $this->request('POST', '/cart/consultar', [
+            'origen_usuario_id' => 'cliente_online_'.$cliente->id,
+            'cart_id' => $cartId,
+            'auto_emit_invoice' => false,
+        ]);
+
+        return $this->normalizarEstadoQr($body);
+    }
+
+    public function buscarSolicitudQr(Cliente $cliente, string $attemptId): array
+    {
+        return $this->request('POST', '/cart/cliente-online', [
+            'origen_usuario_id' => 'cliente_online_'.$cliente->id,
+            'qr_attempt_id' => Str::lower(trim($attemptId)),
+            'origen_id' => $this->qrOriginId(Str::lower(trim($attemptId))),
+        ]);
+    }
+
+    public function listarSolicitudesQr(Cliente $cliente, int $page = 1, int $perPage = 20): array
+    {
+        return $this->request('POST', '/cart/cliente-online', [
+            'origen_usuario_id' => 'cliente_online_'.$cliente->id,
+            'page' => max(1, $page),
+            'per_page' => min(100, max(1, $perPage)),
+        ]);
+    }
+
+    public function vincularSolicitudQr(Cliente $cliente, string $attemptId, SolicitudCliente $solicitud): array
+    {
+        return $this->request('POST', '/cart/cliente-online/vincular', [
+            'origen_usuario_id' => 'cliente_online_'.$cliente->id,
+            'qr_attempt_id' => Str::lower(trim($attemptId)),
+            'origen_id' => $this->qrOriginId(Str::lower(trim($attemptId))),
+            'solicitud_cliente_id' => (int) $solicitud->id,
+            'codigo_solicitud' => (string) $solicitud->codigo_solicitud,
+        ]);
+    }
+
+    public function qrPayloadFromCart(array $cart, string $attemptId): array
+    {
+        $response = (array) data_get($cart, 'respuesta_emision', []);
+        $qrImage = trim((string) (
+            data_get($response, 'image_data')
+            ?? data_get($response, 'qr_url')
+            ?? data_get($response, 'qr_data.image_data')
+            ?? data_get($response, 'qr_data.qr_url')
+            ?? data_get($response, 'image_url')
+            ?? data_get($response, 'items.0.image_data')
+            ?? data_get($response, 'items.0.qr_url')
+            ?? ''
+        ));
+        $amount = (float) data_get($cart, 'total', data_get($cart, 'items.0.total_linea', 0));
+
+        return [
+            'cart_id' => (int) ($cart['id'] ?? 0),
+            'transaction_id' => trim((string) ($cart['qr_transaction_id'] ?? data_get($response, 'transaction_id', ''))),
+            'payment_status' => trim((string) ($cart['estado_pago'] ?? data_get($response, 'payment_status', 'pendiente'))),
+            'amount' => round($amount, 2),
+            'internal_code' => trim((string) ($cart['codigo_orden'] ?? data_get($response, 'internal_code', ''))),
+            'qr_image' => $qrImage,
+            'qr_attempt_id' => Str::lower(trim($attemptId)),
+        ];
+    }
+
+    public function emitirFacturaQrPagada(Cliente $cliente, int $cartId): array
+    {
+        $body = $this->request('POST', '/cart/emitir', [
+            'origen_usuario_id' => 'cliente_online_'.$cliente->id,
+            'cart_id' => $cartId,
+            'modalidad_facturacion' => 'con_datos',
+            'canal_emision' => 'factura_electronica',
+        ]);
+
+        return $this->normalizarEstadoQr($body);
+    }
+
+    private function normalizarEstadoQr(array $body): array
+    {
+        $cart = (array) data_get($body, 'cart', []);
+        $respuesta = (array) data_get($body, 'respuesta', []);
+        $respuestaGuardada = data_get($cart, 'respuesta_emision', []);
+        if (is_string($respuestaGuardada)) {
+            $respuestaGuardada = json_decode($respuestaGuardada, true) ?: [];
+        }
+        $respuestaGuardada = is_array($respuestaGuardada) ? $respuestaGuardada : [];
+
+        $paymentStatus = strtolower(trim((string) (
+            data_get($cart, 'estado_pago')
+            ?? data_get($respuesta, 'estado_pago')
+            ?? data_get($respuesta, 'payment_status')
+            ?? data_get($respuesta, 'paymentStatus')
+            ?? 'pendiente'
+        )));
+        $invoiceStatus = strtoupper(trim((string) (
+            data_get($cart, 'estado_emision')
+            ?? data_get($respuesta, 'estado')
+            ?? data_get($respuestaGuardada, 'estado')
+            ?? 'NO_APLICA'
+        )));
+        $invoiceNumber = trim((string) (
+            data_get($respuesta, 'factura.nroFactura')
+            ?? data_get($respuesta, 'factura.numeroFactura')
+            ?? data_get($respuesta, 'nroFactura')
+            ?? data_get($respuestaGuardada, 'factura.nroFactura')
+            ?? data_get($respuestaGuardada, 'factura.numeroFactura')
+            ?? ''
+        ));
+
+        return [
+            'cart' => $cart,
+            'respuesta' => $respuesta,
+            'payment_status' => $paymentStatus,
+            'invoice_status' => $invoiceStatus,
+            'invoice_number' => $invoiceNumber,
         ];
     }
 
@@ -220,6 +359,11 @@ class ClienteSolicitudFacturacionService
         }
 
         return $sucursal;
+    }
+
+    private function qrOriginId(string $attemptId): int
+    {
+        return (int) (hexdec(substr(hash('sha256', $attemptId), 0, 8)) % 1_900_000_000) + 100_000_000;
     }
 
     private function onlineCustomerEmail(): string

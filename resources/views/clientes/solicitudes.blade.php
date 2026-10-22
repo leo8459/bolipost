@@ -45,7 +45,7 @@
         </div>
         <form id="solicitud-form" method="POST" action="{{ route('clientes.solicitudes.store') }}" novalidate>
             @csrf
-            <input type="hidden" name="qr_attempt_id" value="{{ (string) \Illuminate\Support\Str::uuid() }}">
+            <input type="hidden" name="qr_attempt_id" value="{{ $pendingQr?->qr_attempt_id ?? (string) \Illuminate\Support\Str::uuid() }}">
             <div class="card-body">
                 <div class="solicitud-wizard-progress" aria-label="Progreso de la solicitud">
                     <div class="solicitud-wizard-steps">
@@ -308,12 +308,14 @@
                     <div class="modal-header">
                         <div>
                             <h5 class="modal-title" id="qr-pago-title">QR de pago</h5>
-                            <small class="text-muted">Escanea este c&oacute;digo para pagar tu env&iacute;o.</small>
+                            <small id="qr-pago-instruccion" class="text-muted">Escanea este c&oacute;digo para pagar tu env&iacute;o.</small>
                         </div>
                         <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>
                     </div>
                     <div class="modal-body text-center">
                         <div class="qr-payment-amount">Bs <span id="qr-pago-importe">0.00</span></div>
+                        <div id="qr-pago-estado" class="alert alert-info" role="status" aria-live="polite">Esperando la confirmacion del pago QR...</div>
+                        <div id="qr-pago-factura" class="small text-muted mb-2"></div>
                         <div id="qr-pago-registro" class="alert d-none" role="status" aria-live="polite"></div>
                         <div id="qr-pago-imagen-wrap" class="qr-payment-image-wrap d-none">
                             <img id="qr-pago-imagen" alt="C&oacute;digo QR para pagar el env&iacute;o">
@@ -431,6 +433,13 @@ document.addEventListener('DOMContentLoaded', function () {
     const precioSolicitud = document.getElementById('precio_solicitud');
     const quoteUrl = @json(route('clientes.solicitudes.quote'));
     const qrGenerateUrl = @json(route('clientes.solicitudes.qr.generate'));
+    const qrStatusUrl = @json(route('clientes.solicitudes.qr.status'));
+    const initialPendingQr = @json($pendingQr ? [
+        'amount' => number_format((float) $pendingQr->importe, 2, '.', ''),
+        'internal_code' => $pendingQr->internal_code,
+        'qr_image' => $pendingQr->qr_image,
+        'qr_attempt_id' => $pendingQr->qr_attempt_id,
+    ] : null);
     const form = document.getElementById('solicitud-form');
     const modal = $('#resumen-solicitud-modal');
     const qrModal = $('#qr-pago-modal');
@@ -443,6 +452,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const wizardTitles = ['Datos del servicio', 'Datos del remitente', 'Datos del destinatario'];
     let generandoQr = false;
     let solicitudRegistrada = false;
+    let qrPendienteActivo = Boolean(initialPendingQr);
+    let qrAttemptActivo = initialPendingQr ? initialPendingQr.qr_attempt_id : '';
+    let consultaPagoTimer = null;
+    let consultaPagoEnCurso = false;
     let wizardStep = 0;
 
     function mostrarPaso(index) {
@@ -652,23 +665,141 @@ document.addEventListener('DOMContentLoaded', function () {
         modal.modal('show');
     });
 
-    function mostrarQr(payload) {
+    function nuevoQrAttemptId() {
+        if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, character => {
+            const random = Math.floor(Math.random() * 16);
+            return (character === 'x' ? random : (random & 0x3) | 0x8).toString(16);
+        });
+    }
+
+    function mostrarEstadoPago(message, type = 'info') {
+        const state = document.getElementById('qr-pago-estado');
+        state.textContent = message;
+        state.className = 'alert alert-' + type;
+    }
+
+    function mostrarInstruccionPago(message) {
+        document.getElementById('qr-pago-instruccion').textContent = message;
+    }
+
+    function mostrarFactura(payload) {
+        const invoice = document.getElementById('qr-pago-factura');
+        const status = String(payload.invoice_status || '').toUpperCase();
+        const number = String(payload.invoice_number || '').trim();
+        const labels = {
+            FACTURADA: 'Factura emitida' + (number ? ' N.º ' + number + '.' : '.'),
+            PENDIENTE: 'La factura está pendiente de respuesta fiscal.',
+            PROCESADA: 'La factura está en proceso de emisión.',
+            EMITIENDO: 'La factura se está emitiendo.',
+            EMISION_INCIERTA: 'La emisión de la factura está siendo verificada.',
+            RECHAZADA: 'El pago fue confirmado, pero la factura requiere revisión.',
+            ERROR: 'El pago fue confirmado, pero la factura requiere revisión.',
+            ANULADA: 'El pago fue confirmado, pero la factura figura anulada.',
+        };
+        invoice.textContent = labels[status] || (payload.paid ? 'La factura se está verificando.' : '');
+        if (payload.invoice_error) invoice.textContent += ' ' + payload.invoice_error;
+    }
+
+    function mostrarRegistroSolicitud(payload) {
+        const registro = document.getElementById('qr-pago-registro');
+        registro.replaceChildren();
+        registro.className = payload.solicitud_codigo ? 'alert alert-success' : 'alert alert-info';
+
+        if (payload.solicitud_codigo) {
+            registro.append(document.createTextNode('Envío registrado con código ' + payload.solicitud_codigo + '. '));
+        } else {
+            registro.append(document.createTextNode('Pago confirmado. Registrando los datos del envío…'));
+        }
+
+        if (payload.ticket_url) {
+            const ticket = document.createElement('a');
+            ticket.href = payload.ticket_url;
+            ticket.target = '_blank';
+            ticket.rel = 'noopener noreferrer';
+            ticket.className = 'alert-link';
+            ticket.textContent = 'Descargar ticket';
+            registro.append(document.createTextNode(' '), ticket);
+        }
+
+        if (payload.mail_warning) {
+            registro.append(document.createElement('br'), document.createTextNode(payload.mail_warning));
+        }
+    }
+
+    function programarConsultaPago() {
+        if (consultaPagoTimer) window.clearTimeout(consultaPagoTimer);
+        if (!qrPendienteActivo || !qrAttemptActivo) return;
+        consultaPagoTimer = window.setTimeout(consultarEstadoPago, 3000);
+    }
+
+    async function consultarEstadoPago() {
+        if (!qrPendienteActivo || !qrAttemptActivo || consultaPagoEnCurso) return;
+        consultaPagoEnCurso = true;
+
+        try {
+            const response = await fetch(qrStatusUrl, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: new URLSearchParams({
+                    _token: form.elements.namedItem('_token').value,
+                    qr_attempt_id: qrAttemptActivo,
+                }),
+            });
+            const payload = await response.json();
+            if (!response.ok) throw new Error(payload.message || 'No se pudo consultar el pago.');
+
+            if (payload.payment_status === 'cancelado') {
+                qrPendienteActivo = false;
+                qrAttemptActivo = '';
+                form.elements.namedItem('qr_attempt_id').value = nuevoQrAttemptId();
+                mostrarEstadoPago(payload.message || 'El QR venció o fue cancelado. Puedes generar uno nuevo.', 'warning');
+                mostrarInstruccionPago('Este QR ya no está activo. Puedes cerrar esta ventana y generar otro.');
+                document.getElementById('qr-pago-factura').textContent = '';
+                document.getElementById('qr-pago-imagen-wrap').classList.add('d-none');
+                document.getElementById('qr-pago-sin-imagen').classList.add('d-none');
+                return;
+            }
+
+            if (payload.paid || payload.payment_status === 'pagado') {
+                mostrarEstadoPago(payload.message || 'Pago confirmado. Registrando el envío y la factura.', 'success');
+                mostrarInstruccionPago('Pago confirmado. El QR ya no necesita escanearse.');
+                mostrarFactura(payload);
+                mostrarRegistroSolicitud(payload);
+                solicitudRegistrada = Boolean(payload.solicitud_codigo);
+                document.getElementById('qr-pago-imagen-wrap').classList.add('d-none');
+                document.getElementById('qr-pago-sin-imagen').classList.add('d-none');
+                if (payload.terminal) {
+                    qrPendienteActivo = false;
+                    if (consultaPagoTimer) window.clearTimeout(consultaPagoTimer);
+                    return;
+                }
+            } else {
+                mostrarEstadoPago(payload.message || 'Esperando la confirmación del pago QR.');
+            }
+        } catch (error) {
+            mostrarEstadoPago('No pudimos consultar el pago ahora. Reintentaremos automáticamente en 3 segundos.', 'warning');
+        } finally {
+            consultaPagoEnCurso = false;
+            programarConsultaPago();
+        }
+    }
+
+    function iniciarSeguimientoQr(payload) {
+        qrAttemptActivo = String(payload.qr_attempt_id || '');
+        qrPendienteActivo = Boolean(qrAttemptActivo);
+        if (qrAttemptActivo) form.elements.namedItem('qr_attempt_id').value = qrAttemptActivo;
         document.getElementById('qr-pago-importe').textContent = payload.amount || '0.00';
         document.getElementById('qr-pago-codigo').textContent = payload.internal_code || '';
-        const registro = document.getElementById('qr-pago-registro');
-        if (payload.solicitud_codigo) {
-            registro.textContent = 'Solicitud ' + payload.solicitud_codigo + ' registrada correctamente.';
-            registro.className = 'alert alert-success';
-            if (payload.registro_aviso) {
-                registro.textContent += ' ' + payload.registro_aviso;
-            }
-        } else if (payload.registro_error) {
-            registro.textContent = 'El QR se generó, pero no se pudo registrar la solicitud: ' + payload.registro_error;
-            registro.className = 'alert alert-danger';
-        } else {
-            registro.textContent = '';
-            registro.className = 'alert d-none';
-        }
+        document.getElementById('qr-pago-registro').replaceChildren();
+        document.getElementById('qr-pago-registro').className = 'alert d-none';
+        document.getElementById('qr-pago-factura').textContent = '';
+        mostrarInstruccionPago('Escanea este código para pagar tu envío. Revisaremos el pago cada 3 segundos.');
+        mostrarEstadoPago('Esperando la confirmación del pago QR. Consultaremos el estado cada 3 segundos.');
 
         const image = String(payload.qr_image || '');
         const imageElement = document.getElementById('qr-pago-imagen');
@@ -687,15 +818,28 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         qrModal.modal('show');
+        programarConsultaPago();
     }
 
-    confirmarSolicitudButton.addEventListener('click', async function () {
-        if (solicitudRegistrada || generandoQr || !validarTodosLosPasos()) return;
+    // Si hay un QR pendiente, se conserva y se impide generar otro envío antes de resolverlo.
+    form.addEventListener('submit', function (event) {
+        if (!qrPendienteActivo && !solicitudRegistrada) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        qrModal.modal('show');
+    }, true);
 
-        if (formaPagoSelect.value === 'destino') {
-            HTMLFormElement.prototype.submit.call(form);
+    // El cliente online registra el envío desde el servidor al confirmarse el pago.
+    confirmarSolicitudButton.addEventListener('click', async function (event) {
+        if (formaPagoSelect.value !== 'origen') return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+
+        if (qrPendienteActivo || solicitudRegistrada) {
+            qrModal.modal('show');
             return;
         }
+        if (generandoQr || !validarTodosLosPasos()) return;
 
         generandoQr = true;
         confirmarSolicitudButton.disabled = true;
@@ -704,7 +848,7 @@ document.addEventListener('DOMContentLoaded', function () {
         errorBox.classList.add('d-none');
 
         try {
-            const qrResponse = await fetch(qrGenerateUrl, {
+            const response = await fetch(qrGenerateUrl, {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
@@ -712,36 +856,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 },
                 body: new FormData(form),
             });
-            const qrPayload = await qrResponse.json();
-            if (!qrResponse.ok) {
-                const validationErrors = qrPayload.errors ? Object.values(qrPayload.errors).flat().join(' ') : '';
-                throw new Error(validationErrors || qrPayload.message || 'No se pudo generar el QR.');
-            }
-
-            try {
-                const saveResponse = await fetch(form.action, {
-                    method: 'POST',
-                    headers: {
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest',
-                    },
-                    body: new FormData(form),
-                });
-                const savePayload = await saveResponse.json();
-                if (!saveResponse.ok) {
-                    const validationErrors = savePayload.errors ? Object.values(savePayload.errors).flat().join(' ') : '';
-                    throw new Error(validationErrors || savePayload.message || 'No se pudo registrar la solicitud.');
-                }
-
-                qrPayload.solicitud_codigo = savePayload.codigo_solicitud || '';
-                qrPayload.registro_aviso = savePayload.warning || '';
-                solicitudRegistrada = true;
-            } catch (saveError) {
-                qrPayload.registro_error = saveError.message || 'No se pudo registrar la solicitud.';
+            const payload = await response.json();
+            if (!response.ok) {
+                const validationErrors = payload.errors ? Object.values(payload.errors).flat().join(' ') : '';
+                throw new Error(validationErrors || payload.message || 'No se pudo generar el QR.');
             }
 
             modal.one('hidden.bs.modal', function () {
-                mostrarQr(qrPayload);
+                iniciarSeguimientoQr(payload);
             });
             modal.modal('hide');
         } catch (error) {
@@ -749,14 +871,20 @@ document.addEventListener('DOMContentLoaded', function () {
             errorBox.classList.remove('d-none');
         } finally {
             generandoQr = false;
-            confirmarSolicitudButton.disabled = solicitudRegistrada;
-            if (!solicitudRegistrada) {
-                confirmarSolicitudButton.innerHTML = formaPagoSelect.value === 'origen'
-                    ? '<i class="fas fa-qrcode mr-1" aria-hidden="true"></i>Generar QR'
-                    : '<i class="fas fa-check mr-1" aria-hidden="true"></i>Registrar solicitud';
-            }
+            confirmarSolicitudButton.disabled = false;
+            confirmarSolicitudButton.innerHTML = '<i class="fas fa-qrcode mr-1" aria-hidden="true"></i>Generar QR';
         }
+    }, true);
+
+    confirmarSolicitudButton.addEventListener('click', function () {
+        if (formaPagoSelect.value !== 'destino' || solicitudRegistrada || generandoQr) return;
+        if (!validarTodosLosPasos()) return;
+        HTMLFormElement.prototype.submit.call(form);
     });
+
+    if (initialPendingQr) {
+        iniciarSeguimientoQr(initialPendingQr);
+    }
 
     if (!servicioSelect || !direccionInput) {
         return;

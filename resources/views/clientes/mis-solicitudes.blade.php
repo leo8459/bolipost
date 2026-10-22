@@ -97,6 +97,60 @@
         </div>
     @endif
 
+    @if ($qrHistoryWarning)
+        <div class="alert alert-warning" role="status">{{ $qrHistoryWarning }}</div>
+    @endif
+
+    @if ($pagosQrSinSolicitud->isNotEmpty())
+        <div class="card card-outline card-info">
+            <div class="card-header">
+                <h3 class="card-title">Pagos QR sin env&iacute;o registrado</h3>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>C&oacute;digo de pago</th>
+                                <th>Importe</th>
+                                <th>Estado guardado</th>
+                                <th>Fecha</th>
+                                <th>Acci&oacute;n</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($pagosQrSinSolicitud as $pagoQr)
+                                <tr>
+                                    <td><strong>{{ $pagoQr->internal_code ?: 'Pago QR' }}</strong></td>
+                                    <td>Bs {{ \App\Support\BolivianNumber::format((float) $pagoQr->importe, 2, '.', '') }}</td>
+                                    <td>
+                                        @php
+                                            $estadoPagoQr = strtolower((string) $pagoQr->estado_pago);
+                                            $estadoPagoQrLabel = in_array($estadoPagoQr, ['pagado', 'paid', 'success', 'completed', 'approved', 'confirmed'], true)
+                                                ? 'Pagado'
+                                                : (in_array($estadoPagoQr, ['cancelado', 'cancelled', 'rejected', 'failed', 'expired'], true)
+                                                    ? 'Cancelado'
+                                                    : 'Pendiente');
+                                        @endphp
+                                        <span class="badge badge-{{ $estadoPagoQrLabel === 'Pagado' ? 'success' : ($estadoPagoQrLabel === 'Cancelado' ? 'secondary' : 'warning') }}">
+                                            {{ $estadoPagoQrLabel }}
+                                        </span>
+                                    </td>
+                                    <td>{{ optional($pagoQr->created_at)->format('d/m/Y H:i') }}</td>
+                                    <td>
+                                        <button type="button" class="btn btn-sm btn-outline-primary js-consultar-pago-qr" data-qr-attempt="{{ $pagoQr->qr_attempt_id }}">
+                                            <i class="fas fa-sync-alt mr-1" aria-hidden="true"></i>Consultar estado
+                                        </button>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    @endif
+
     <div class="card card-outline card-warning">
         <div class="card-header">
             <h3 class="card-title">Historial de solicitudes</h3>
@@ -116,7 +170,7 @@
                                 <th>Destino</th>
                                 <th>Estado</th>
                                 <th>Fecha</th>
-                                <th>Comprobante</th>
+                                <th>Comprobante / pago</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -155,6 +209,11 @@
                                         <a href="{{ route('clientes.solicitudes.ticket', $solicitud) }}" class="btn btn-sm btn-outline-primary">
                                             <i class="fas fa-file-pdf mr-1"></i> Descargar PDF
                                         </a>
+                                        @if (!empty($qrAttemptsBySolicitudId[$solicitud->id]))
+                                            <button type="button" class="btn btn-sm btn-outline-success mt-1 js-consultar-pago-qr" data-qr-attempt="{{ $qrAttemptsBySolicitudId[$solicitud->id] }}">
+                                                <i class="fas fa-qrcode mr-1" aria-hidden="true"></i>Ver estado QR
+                                            </button>
+                                        @endif
                                     </td>
                                 </tr>
                             @endforeach
@@ -162,6 +221,33 @@
                     </table>
                 </div>
             @endif
+        </div>
+    </div>
+
+    <div class="modal fade" id="mis-solicitudes-qr-modal" tabindex="-1" role="dialog" aria-labelledby="mis-solicitudes-qr-title" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header bg-light">
+                    <div>
+                        <h5 class="modal-title" id="mis-solicitudes-qr-title">Estado del pago QR</h5>
+                        <small class="text-muted">Consulta actualizada directamente con Facturaci&oacute;n.</small>
+                    </div>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body text-center">
+                    <div class="h4 text-primary mb-3">Bs <span id="mis-solicitudes-qr-importe">0.00</span></div>
+                    <div id="mis-solicitudes-qr-estado" class="alert alert-info" role="status" aria-live="polite">Consultando el estado del pago...</div>
+                    <div id="mis-solicitudes-qr-factura" class="small text-muted mb-2"></div>
+                    <div id="mis-solicitudes-qr-registro" class="alert d-none" role="status" aria-live="polite"></div>
+                    <div id="mis-solicitudes-qr-imagen-wrap" class="mx-auto mb-3 p-2 border rounded d-none" style="max-width: 300px; background: #fff;">
+                        <img id="mis-solicitudes-qr-imagen" class="img-fluid" alt="QR pendiente de pago">
+                    </div>
+                    <small class="text-muted">C&oacute;digo: <span id="mis-solicitudes-qr-codigo"></span></small>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -197,4 +283,139 @@
             });
         </script>
     @endif
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const jquery = window.jQuery;
+            if (!jquery) return;
+
+            const modal = jquery('#mis-solicitudes-qr-modal');
+            if (!modal.length) return;
+
+            const statusUrl = @json(route('clientes.solicitudes.qr.status'));
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+            const stateElement = document.getElementById('mis-solicitudes-qr-estado');
+            const invoiceElement = document.getElementById('mis-solicitudes-qr-factura');
+            const requestElement = document.getElementById('mis-solicitudes-qr-registro');
+            const imageWrap = document.getElementById('mis-solicitudes-qr-imagen-wrap');
+            const imageElement = document.getElementById('mis-solicitudes-qr-imagen');
+            let activeAttempt = '';
+            let pollTimer = null;
+            let requestInProgress = false;
+
+            function setStatus(message, type = 'info') {
+                stateElement.textContent = message;
+                stateElement.className = 'alert alert-' + type;
+            }
+
+            function schedulePoll() {
+                if (pollTimer) window.clearTimeout(pollTimer);
+                if (activeAttempt) pollTimer = window.setTimeout(() => consultStatus(activeAttempt), 3000);
+            }
+
+            function showInvoice(payload) {
+                const status = String(payload.invoice_status || '').toUpperCase();
+                const labels = {
+                    FACTURADA: 'Factura emitida' + (payload.invoice_number ? ' N.º ' + payload.invoice_number : '') + '.',
+                    PENDIENTE: 'La factura está pendiente de respuesta fiscal.',
+                    PROCESADA: 'La factura está en proceso de emisión.',
+                    EMITIENDO: 'La factura se está emitiendo.',
+                    EMISION_INCIERTA: 'La emisión de la factura está siendo verificada.',
+                    RECHAZADA: 'La factura requiere revisión.',
+                    ERROR: 'La factura requiere revisión.',
+                    ANULADA: 'La factura figura anulada.',
+                };
+                invoiceElement.textContent = labels[status] || '';
+                if (payload.invoice_error) invoiceElement.textContent += ' ' + payload.invoice_error;
+            }
+
+            function showRequest(payload) {
+                requestElement.replaceChildren();
+                if (!payload.solicitud_codigo && !payload.ticket_url) {
+                    requestElement.className = 'alert d-none';
+                    return;
+                }
+
+                requestElement.className = 'alert alert-success';
+                const requestCode = payload.solicitud_codigo ? ' con c\u00f3digo ' + payload.solicitud_codigo : '';
+                requestElement.append(document.createTextNode('Env\u00edo registrado' + requestCode + '. '));
+                if (payload.ticket_url) {
+                    const link = document.createElement('a');
+                    link.href = payload.ticket_url;
+                    link.className = 'alert-link';
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.textContent = 'Descargar ticket';
+                    requestElement.append(link);
+                }
+            }
+
+            async function consultStatus(attemptId) {
+                if (!activeAttempt || requestInProgress || activeAttempt !== attemptId) return;
+                requestInProgress = true;
+
+                try {
+                    const response = await fetch(statusUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: new URLSearchParams({ _token: csrfToken, qr_attempt_id: attemptId }),
+                    });
+                    const payload = await response.json();
+                    if (!response.ok) throw new Error(payload.message || 'No se pudo consultar el pago.');
+
+                    document.getElementById('mis-solicitudes-qr-importe').textContent = payload.qr?.amount || '0.00';
+                    document.getElementById('mis-solicitudes-qr-codigo').textContent = payload.qr?.internal_code || '';
+                    showInvoice(payload);
+                    showRequest(payload);
+
+                    if (payload.payment_status === 'pendiente' && payload.qr?.qr_image) {
+                        const image = String(payload.qr.qr_image);
+                        imageElement.src = image.startsWith('data:image/') || image.startsWith('http://') || image.startsWith('https://')
+                            ? image
+                            : 'data:image/png;base64,' + image;
+                        imageWrap.classList.remove('d-none');
+                        setStatus('El pago sigue pendiente. Actualizaremos el estado cada 3 segundos.');
+                    } else {
+                        imageWrap.classList.add('d-none');
+                        imageElement.removeAttribute('src');
+                        setStatus(payload.message || 'Estado del pago actualizado.', payload.payment_status === 'cancelado' ? 'warning' : 'success');
+                    }
+
+                    if (payload.terminal) {
+                        activeAttempt = '';
+                        if (pollTimer) window.clearTimeout(pollTimer);
+                    }
+                } catch (error) {
+                    setStatus(error.message || 'No se pudo consultar el pago. Reintentaremos en 3 segundos.', 'warning');
+                } finally {
+                    requestInProgress = false;
+                    schedulePoll();
+                }
+            }
+
+            document.querySelectorAll('.js-consultar-pago-qr').forEach(button => {
+                button.addEventListener('click', function () {
+                    activeAttempt = button.dataset.qrAttempt || '';
+                    if (pollTimer) window.clearTimeout(pollTimer);
+                    document.getElementById('mis-solicitudes-qr-importe').textContent = '0.00';
+                    document.getElementById('mis-solicitudes-qr-codigo').textContent = '';
+                    invoiceElement.textContent = '';
+                    requestElement.replaceChildren();
+                    requestElement.className = 'alert d-none';
+                    imageWrap.classList.add('d-none');
+                    imageElement.removeAttribute('src');
+                    setStatus('Consultando el estado del pago...', 'info');
+                    modal.modal('show');
+                    if (activeAttempt) consultStatus(activeAttempt);
+                });
+            });
+
+            modal.on('hidden.bs.modal', function () {
+                activeAttempt = '';
+                if (pollTimer) window.clearTimeout(pollTimer);
+            });
+        });
+    </script>
 @endsection

@@ -96,4 +96,5 @@ class SolicitudCliente extends Model
     {
         return $this->belongsTo(Estado::class, 'estado_id');
     }
+
 }
