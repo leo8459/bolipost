@@ -79,6 +79,45 @@ class SitraIpsClient
         )->throw()->json('data');
     }
 
+    public function expectedInboundReceptacles(int $office, int $page = 1, int $perPage = 25): array
+    {
+        return $this->client()
+            ->timeout(max(1, (int) config('services.sitra_ips.read_timeout', 60)))
+            ->get($this->url('/api/v1/ips/envases-pendientes-recepcion'), [
+                'office_cd' => $office,
+                'page' => $page,
+                'per_page' => $perPage,
+            ])
+            ->throw()
+            ->json();
+    }
+
+    public function pendingReceptacleOpenings(int $office, int $page = 1, int $perPage = 25): array
+    {
+        return $this->client()
+            ->timeout(max(1, (int) config('services.sitra_ips.read_timeout', 60)))
+            ->get($this->url('/api/v1/ips/envases-pendientes-apertura'), [
+                'office_cd' => $office,
+                'page' => $page,
+                'per_page' => $perPage,
+            ])
+            ->throw()
+            ->json();
+    }
+
+    public function openedReceptaclesForPackageRegistration(int $office, int $page = 1, int $perPage = 25): array
+    {
+        return $this->client()
+            ->timeout(max(1, (int) config('services.sitra_ips.read_timeout', 60)))
+            ->get($this->url('/api/v1/ips/envases-abiertos-registro-paquetes'), [
+                'office_cd' => $office,
+                'page' => $page,
+                'per_page' => $perPage,
+            ])
+            ->throw()
+            ->json();
+    }
+
     public function deliver(string $codigo, array $data): array
     {
         return $this->client()

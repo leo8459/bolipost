@@ -168,19 +168,8 @@
                             <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>
                         </div>
                         <div class="modal-body">
-                            <p class="text-muted small"><span class="text-danger">*</span> Selecciona la forma de pago para guardar tu solicitud.</p>
-                            <div class="solicitud-payment mb-3">
-                                <label for="forma_pago">Forma de pago <span class="text-danger">*</span></label>
-                                <select id="forma_pago" name="forma_pago" class="form-control @error('forma_pago') is-invalid @enderror" aria-describedby="pago-ayuda" required disabled>
-                                    <option value="">Selecciona una opci&oacute;n...</option>
-                                    <option value="origen" @selected(old('forma_pago') === 'origen')>Pagar en origen</option>
-                                    <option value="destino" @selected(old('forma_pago') === 'destino')>Pagar en destino</option>
-                                </select>
-                                <small class="form-text text-muted" id="pago-ayuda">Pagar en origen: se paga en la ventanilla de origen al momento del recojo. Pagar en destino: se paga en la ventanilla de destino al recibir el env&iacute;o.</small>
-                                @error('forma_pago')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
+                            <p class="text-muted">Confirma los datos del env&iacute;o y genera el QR por el total cotizado.</p>
+                            <div id="qr-generacion-error" class="alert alert-danger d-none" role="alert"></div>
                             <div id="resumen-solicitud-datos" class="solicitud-summary"></div>
                             <div class="solicitud-total mt-3">
                                 <strong id="resumen-solicitud-precio"></strong>
@@ -190,12 +179,37 @@
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Volver a editar</button>
-                            <button type="button" id="confirmar-solicitud" class="btn btn-primary">Confirmar y guardar</button>
+                            <button type="button" id="generar-qr-button" class="btn btn-primary"><i class="fas fa-qrcode mr-1" aria-hidden="true"></i>Generar QR</button>
                         </div>
                     </div>
                 </div>
             </div>
         </form>
+
+        <div class="modal fade" id="qr-pago-modal" tabindex="-1" aria-labelledby="qr-pago-title" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content solicitud-qr-modal">
+                    <div class="modal-header">
+                        <div>
+                            <h5 class="modal-title" id="qr-pago-title">QR de pago</h5>
+                            <small class="text-muted">Escanea este c&oacute;digo para pagar tu env&iacute;o.</small>
+                        </div>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>
+                    </div>
+                    <div class="modal-body text-center">
+                        <div class="qr-payment-amount">Bs <span id="qr-pago-importe">0.00</span></div>
+                        <div id="qr-pago-imagen-wrap" class="qr-payment-image-wrap d-none">
+                            <img id="qr-pago-imagen" alt="C&oacute;digo QR para pagar el env&iacute;o">
+                        </div>
+                        <div id="qr-pago-sin-imagen" class="alert alert-warning d-none" role="status">Facturaci&oacute;n no devolvi&oacute; la imagen del QR.</div>
+                        <small class="text-muted">C&oacute;digo: <span id="qr-pago-codigo"></span></small>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 @endsection
 
@@ -211,7 +225,11 @@
 #resumen-solicitud-modal .modal-header { background: #fff9e8; padding: 20px 24px; }
 #resumen-solicitud-modal .modal-body { padding: 20px 24px; background: #f8fafc; }
 #resumen-solicitud-modal .modal-footer { background: #fff; }
-.solicitud-payment { padding: 16px; border: 1px solid #e8cc79; border-radius: 10px; background: #fff; }
+.solicitud-qr-modal { border-radius: 14px; overflow: hidden; }
+.solicitud-qr-modal .modal-header { background: #fff9e8; }
+.qr-payment-amount { color: #1f4f8f; font-size: 1.8rem; font-weight: 700; margin-bottom: 14px; }
+.qr-payment-image-wrap { margin: 0 auto 16px; width: min(100%, 300px); padding: 12px; background: white; border: 1px solid #e4e8ee; border-radius: 12px; }
+.qr-payment-image-wrap img { display: block; width: 100%; height: auto; }
 .solicitud-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .solicitud-summary-section { padding: 16px; background: #fff; border: 1px solid #e4e8ee; border-radius: 10px; min-width: 0; }
 .solicitud-summary-section:first-child { grid-column: 1 / -1; }
@@ -224,9 +242,9 @@
 @media (max-width: 575.98px) {
     .solicitud-section { padding: 16px; }
     .solicitud-summary { grid-template-columns: 1fr; }
-    #resumen-solicitud-modal .modal-body { padding: 16px; }
-    #resumen-solicitud-modal .modal-footer { flex-direction: column-reverse; align-items: stretch; }
-    #resumen-solicitud-modal .modal-footer .btn { margin: 4px 0; }
+    #resumen-solicitud-modal .modal-body, #qr-pago-modal .modal-body { padding: 16px; }
+    #resumen-solicitud-modal .modal-footer, #qr-pago-modal .modal-footer { flex-direction: column-reverse; align-items: stretch; }
+    #resumen-solicitud-modal .modal-footer .btn, #qr-pago-modal .modal-footer .btn { margin: 4px 0; }
 }
 </style>
 @endpush
@@ -240,11 +258,12 @@ document.addEventListener('DOMContentLoaded', function () {
     const direccionInput = document.getElementById('direccion_entrega');
     const precioSolicitud = document.getElementById('precio_solicitud');
     const quoteUrl = @json(route('clientes.solicitudes.quote'));
+    const qrGenerateUrl = @json(route('clientes.solicitudes.qr.generate'));
     const form = document.getElementById('solicitud-form');
-    const pagoSelect = document.getElementById('forma_pago');
     const modal = $('#resumen-solicitud-modal');
-    const confirmarButton = document.getElementById('confirmar-solicitud');
-    let confirmado = false;
+    const qrModal = $('#qr-pago-modal');
+    const generarQrButton = document.getElementById('generar-qr-button');
+    let generandoQr = false;
 
     ['servicio_extra_id', 'origen', 'destino_id', 'cantidad', 'contenido',
         'nombre_remitente', 'carnet', 'direccion_recojo', 'nombre_destinatario',
@@ -290,21 +309,72 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     form.addEventListener('submit', function (event) {
-        if (confirmado) return;
         event.preventDefault();
+        if (!form.reportValidity()) return;
         mostrarResumen();
-        pagoSelect.disabled = false;
+        document.getElementById('qr-generacion-error').classList.add('d-none');
         modal.modal('show');
     });
-    modal.on('hidden.bs.modal', function () {
-        if (!confirmado) pagoSelect.disabled = true;
-    });
-    confirmarButton.addEventListener('click', function () {
-        if (!form.reportValidity()) return;
-        confirmado = true;
-        confirmarButton.disabled = true;
-        confirmarButton.textContent = 'Guardando...';
-        form.requestSubmit();
+
+    function mostrarQr(payload) {
+        document.getElementById('qr-pago-importe').textContent = payload.amount || '0.00';
+        document.getElementById('qr-pago-codigo').textContent = payload.internal_code || '';
+
+        const image = String(payload.qr_image || '');
+        const imageElement = document.getElementById('qr-pago-imagen');
+        const imageWrap = document.getElementById('qr-pago-imagen-wrap');
+        const noImage = document.getElementById('qr-pago-sin-imagen');
+        if (image) {
+            imageElement.src = image.startsWith('data:image/') || image.startsWith('http://') || image.startsWith('https://')
+                ? image
+                : 'data:image/png;base64,' + image;
+            imageWrap.classList.remove('d-none');
+            noImage.classList.add('d-none');
+        } else {
+            imageElement.removeAttribute('src');
+            imageWrap.classList.add('d-none');
+            noImage.classList.remove('d-none');
+        }
+
+        qrModal.modal('show');
+    }
+
+    generarQrButton.addEventListener('click', async function () {
+        if (generandoQr || !form.reportValidity()) return;
+
+        generandoQr = true;
+        generarQrButton.disabled = true;
+        generarQrButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i>Generando...';
+        const errorBox = document.getElementById('qr-generacion-error');
+        errorBox.classList.add('d-none');
+
+        try {
+            const response = await fetch(qrGenerateUrl, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: new FormData(form),
+            });
+            const payload = await response.json();
+            if (!response.ok) {
+                const validationErrors = payload.errors ? Object.values(payload.errors).flat().join(' ') : '';
+                throw new Error(validationErrors || payload.message || 'No se pudo generar el QR.');
+            }
+
+            modal.one('hidden.bs.modal', function () {
+                mostrarQr(payload);
+            });
+            modal.modal('hide');
+        } catch (error) {
+            errorBox.textContent = error.message || 'No se pudo generar el QR. Intenta nuevamente.';
+            errorBox.classList.remove('d-none');
+        } finally {
+            generandoQr = false;
+            generarQrButton.disabled = false;
+            generarQrButton.innerHTML = '<i class="fas fa-qrcode mr-1" aria-hidden="true"></i>Generar QR';
+        }
     });
 
     if (!servicioSelect || !direccionInput) {

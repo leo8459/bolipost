@@ -9,38 +9,218 @@
     @if($errors->any())<div class="alert alert-danger" role="alert">{{ $errors->first() }}</div>@endif
     @if($isPending)<div class="alert alert-info" role="note">La respuesta está pendiente. Reintentar consulta la misma operación con la misma clave; no crea otro movimiento.</div>@endif
 
-    @php($hasReceptacle = $detail && isset($detail['receptacle']))
+    @php
+        $hasReceptacle = $detail && isset($detail['receptacle']);
+    @endphp
     @if(! ($hasReceptacle))
-        <section class="card border-0 shadow-sm ips-receptacle-search">
-            <div class="card-body">
-                <form method="GET" action="{{ route('internacional.sacas', ['paso' => $paso]) }}" class="ips-receptacle-search__form">
-                    <label class="sr-only" for="sack-code">Marbete de la saca</label>
-                    <input id="sack-code" name="q" class="form-control" maxlength="35" value="{{ $codigo }}" placeholder="Escanea o escribe el marbete de la saca" required autofocus>
-                    <button class="btn btn-warning" type="submit"><i class="fas fa-search mr-1"></i>Buscar</button>
-                </form>
+        @php
+            $queueTitle = match ($activeReceptacleQueue) {
+                'opening' => 'Sacas recibidas pendientes de apertura',
+                'registration' => 'Sacas abiertas para registrar paquetes',
+                default => 'Sacas previstas pendientes de recepción',
+            };
+            $queueDescription = match ($activeReceptacleQueue) {
+                'opening' => 'La recepción ya está registrada en esta oficina. Falta abrir físicamente cada saca.',
+                'registration' => 'Sacas abiertas en esta oficina. Compara los paquetes asociados con la cantidad esperada y continúa su registro.',
+                default => 'Prealertas PREDES dirigidas a esta oficina que aún no tienen registrada la recepción física.',
+            };
+            $queueRows = $receptacleQueueData;
+            $queueTotal = (int) ($receptacleQueueMeta['total'] ?? count($queueRows));
+            $queuePage = max(1, (int) ($receptacleQueueMeta['page'] ?? 1));
+            $queuePerPage = max(1, (int) ($receptacleQueueMeta['per_page'] ?? 25));
+            $queueLastPage = max(1, (int) ceil($queueTotal / $queuePerPage));
+            $queueFirstItem = $queueTotal > 0 ? (($queuePage - 1) * $queuePerPage) + 1 : 0;
+            $queueLastItem = min($queuePage * $queuePerPage, $queueTotal);
+            $queuePageItems = [];
+            $searchStep = in_array($activeReceptacleQueue, ['opening', 'registration'], true) ? 'abrir' : 'recibir';
+            if ($queueLastPage <= 12 && $queueLastPage > 0) {
+                $queuePageItems = range(1, $queueLastPage);
+            } elseif ($queueLastPage > 12) {
+                $queueWindowStart = $queuePage <= 6 ? 1 : ($queuePage >= $queueLastPage - 5 ? $queueLastPage - 9 : $queuePage - 4);
+                $queueWindowEnd = min($queueLastPage - 2, $queueWindowStart + 9);
+                if ($queueWindowStart > 1) {
+                    $queuePageItems = [1, 2];
+                    if ($queueWindowStart > 3) $queuePageItems[] = '…';
+                }
+                $queuePageItems = array_merge($queuePageItems, range($queueWindowStart, $queueWindowEnd));
+                if ($queueWindowEnd < $queueLastPage - 2) $queuePageItems[] = '…';
+                $queuePageItems = array_merge($queuePageItems, [$queueLastPage - 1, $queueLastPage]);
+            }
+        @endphp
+        <section class="card border-0 shadow-sm ips-receptacle-empty-workbench">
+            <header class="ips-receptacle-hero">
+                <div class="ips-receptacle-hero__title">
+                    <small>GESTIÓN INTERNACIONAL</small>
+                    <h1>Recepción de sacas</h1>
+                    <p>{{ $queueDescription }}</p>
+                    <div class="ips-receptacle-hero__office">
+                        <span>Oficina IPS</span>
+                        <strong>{{ $link->ips_office_name ?: 'Oficina asignada' }}</strong>
+                    </div>
+                </div>
+                @if($activeReceptacleQueue === 'registration')
+                    <div class="ips-receptacle-hero-search ips-receptacle-registration-link">
+                        <strong>¿Tienes una saca abierta?</strong>
+                        <span>Escanea cada paquete para registrarlo y asociarlo a su saca.</span>
+                        <a class="btn btn-warning" href="{{ route('internacional.section', ['section' => 'recepcion-cambio']) }}"><i class="fas fa-barcode mr-1" aria-hidden="true"></i>Ir al registro de paquetes</a>
+                    </div>
+                @else
+                    <form method="GET" action="{{ route('internacional.sacas', ['paso' => $searchStep, 'queue' => $activeReceptacleQueue]) }}" class="ips-receptacle-hero-search">
+                        <label for="sack-code">{{ $activeReceptacleQueue === 'opening' ? 'Busca una saca recibida' : 'Escanea la saca que llegó a la oficina' }}</label>
+                        <div class="ips-receptacle-hero-search__controls">
+                            <input id="sack-code" name="q" class="form-control" maxlength="35" value="{{ $codigo }}" placeholder="Marbete de la saca" autocomplete="off" required autofocus>
+                            <button class="btn btn-warning" type="submit"><i class="fas fa-search mr-1" aria-hidden="true"></i>Buscar</button>
+                        </div>
+                        <small>{{ $activeReceptacleQueue === 'opening' ? 'IPS confirmará si esta oficina puede registrar la apertura.' : 'IPS confirmará si esta oficina puede registrar la recepción.' }}</small>
+                    </form>
+                @endif
+            </header>
+
+            <div class="card-body ips-receptacle-empty-body">
+                <nav class="ips-receptacle-queues" aria-label="Etapas de recepción de sacas">
+                    <a class="{{ $activeReceptacleQueue === 'expected' ? 'is-active' : '' }}" href="{{ route('internacional.sacas', ['paso' => 'recibir', 'queue' => 'expected']) }}" @if($activeReceptacleQueue === 'expected') aria-current="page" @endif>
+                        <span>1</span><strong>Por recibir</strong>
+                    </a>
+                    <a class="{{ $activeReceptacleQueue === 'opening' ? 'is-active' : '' }}" href="{{ route('internacional.sacas', ['paso' => 'abrir', 'queue' => 'opening']) }}" @if($activeReceptacleQueue === 'opening') aria-current="page" @endif>
+                        <span>2</span><strong>Pendientes de apertura</strong>
+                    </a>
+                    <a class="{{ $activeReceptacleQueue === 'registration' ? 'is-active' : '' }}" href="{{ route('internacional.sacas', ['paso' => 'abrir', 'queue' => 'registration']) }}" @if($activeReceptacleQueue === 'registration') aria-current="page" @endif>
+                        <span>3</span><strong>Registrar paquetes</strong>
+                    </a>
+                </nav>
+
+                <section class="ips-pending-receptacles" aria-labelledby="pending-receptacles-title">
+                        <div class="ips-pending-receptacles__heading">
+                            <div>
+                                <h2 id="pending-receptacles-title">{{ $queueTitle }} en {{ $pendingReceptacleRegionalLabel }}</h2>
+                                <p>{{ $queueDescription }} Oficina IPS: {{ $link->ips_office_name ?: 'Oficina asignada' }}.</p>
+                            </div>
+                            <span class="badge badge-primary">{{ $queueTotal }} sacas</span>
+                        </div>
+
+                        @if($receptacleQueueError)
+                            <div class="alert alert-warning mb-0" role="status">{{ $receptacleQueueError }}</div>
+                        @endif
+                        @if(count($queueRows))
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0 ips-pending-receptacles__table">
+                                    @if($activeReceptacleQueue === 'expected')
+                                        <thead><tr><th>Marbete</th><th>Despacho</th><th>Origen</th><th>Paquetes en prealerta</th><th>Acción</th></tr></thead>
+                                    @elseif($activeReceptacleQueue === 'opening')
+                                        <thead><tr><th>Marbete</th><th>Recepción registrada</th><th>Espera</th><th>Peso</th><th>Paquetes declarados</th><th>Acción</th></tr></thead>
+                                    @else
+                                        <thead><tr><th>Marbete</th><th>Apertura registrada</th><th>Peso</th><th>Paquetes registrados / esperados</th><th>Estado</th><th>Acción</th></tr></thead>
+                                    @endif
+                                    <tbody>
+                                        @foreach($queueRows as $receptacleRow)
+                                            <tr>
+                                                <td><strong>{{ $receptacleRow['codigo'] ?? 'Sin código' }}</strong></td>
+                                                @if($activeReceptacleQueue === 'expected')
+                                                    <td>{{ $receptacleRow['despacho'] ?: 'Sin despacho' }}
+                                                        @if(!empty($receptacleRow['dispatch_closed_at']))
+                                                            <small class="ips-pending-receptacles__count-source">Prealerta cerrada el {{ \Illuminate\Support\Carbon::parse($receptacleRow['dispatch_closed_at'])->timezone('America/La_Paz')->format('d/m/Y') }} · hace {{ \Illuminate\Support\Carbon::parse($receptacleRow['dispatch_closed_at'])->diffInDays(now()) }} días</small>
+                                                        @endif
+                                                    </td>
+                                                    <td>{{ $receptacleRow['origin_ctci'] ?: '—' }}</td>
+                                                    <td><strong>{{ $receptacleRow['items_count'] ?? 'No informados' }}</strong>
+                                                        @if(!empty($receptacleRow['items_count_source']))<small class="ips-pending-receptacles__count-source">{{ $receptacleRow['items_count_source'] }}</small>@endif
+                                                    </td>
+                                                    <td><a class="btn btn-sm btn-outline-primary" href="{{ route('internacional.sacas', ['paso' => 'recibir', 'queue' => 'expected', 'q' => $receptacleRow['codigo']]) }}"><i class="fas fa-inbox mr-1" aria-hidden="true"></i>Registrar recepción</a></td>
+                                                @elseif($activeReceptacleQueue === 'opening')
+                                                    <td>{{ !empty($receptacleRow['event_at']) ? \Illuminate\Support\Carbon::parse($receptacleRow['event_at'])->timezone('America/La_Paz')->format('d/m/Y H:i') : '—' }}</td>
+                                                    <td>{{ !empty($receptacleRow['event_at']) ? \Illuminate\Support\Carbon::parse($receptacleRow['event_at'])->diffInDays(now()) . ' días' : '—' }}</td>
+                                                    <td>{{ is_numeric($receptacleRow['weight_kg'] ?? null) ? number_format((float) $receptacleRow['weight_kg'], 3, ',', '.') . ' kg' : '—' }}</td>
+                                                    <td><strong>{{ $receptacleRow['items_count'] ?? 'No informados' }}</strong>
+                                                        @if(!empty($receptacleRow['items_count_source']))<small class="ips-pending-receptacles__count-source">{{ $receptacleRow['items_count_source'] }}</small>@endif
+                                                    </td>
+                                                    <td><a class="btn btn-sm btn-outline-primary" href="{{ route('internacional.sacas', ['paso' => 'abrir', 'queue' => 'opening', 'q' => $receptacleRow['codigo']]) }}"><i class="fas fa-box-open mr-1" aria-hidden="true"></i>Revisar y abrir</a></td>
+                                                @else
+                                                    <td>{{ !empty($receptacleRow['event_at']) ? \Illuminate\Support\Carbon::parse($receptacleRow['event_at'])->timezone('America/La_Paz')->format('d/m/Y H:i') : '—' }}</td>
+                                                    <td>{{ is_numeric($receptacleRow['weight_kg'] ?? null) ? number_format((float) $receptacleRow['weight_kg'], 3, ',', '.') . ' kg' : '—' }}</td>
+                                                    <td><strong>{{ $receptacleRow['registered_items_count'] }}</strong> / {{ $receptacleRow['declared_items_count'] ?? 'Sin cantidad esperada' }}
+                                                        @if(!empty($receptacleRow['items_count_source']))<small class="ips-pending-receptacles__count-source">{{ $receptacleRow['items_count_source'] }}</small>@endif
+                                                    </td>
+                                                    <td><span class="badge {{ $receptacleRow['registration_status'] === 'Conteo alcanzado' ? 'badge-success' : ($receptacleRow['registration_status'] === 'Revisar diferencia' ? 'badge-warning' : 'badge-info') }}">{{ $receptacleRow['registration_status'] }}</span>
+                                                        @if($receptacleRow['remaining_items_count'] !== null && $receptacleRow['remaining_items_count'] > 0)<small class="ips-pending-receptacles__count-source">Faltan {{ $receptacleRow['remaining_items_count'] }}</small>@endif
+                                                    </td>
+                                                    <td><a class="btn btn-sm btn-outline-primary" href="{{ route('internacional.section', ['section' => 'recepcion-cambio', 'receptacle_pid' => $receptacleRow['id']]) }}"><i class="fas fa-barcode mr-1" aria-hidden="true"></i>Registrar paquetes</a></td>
+                                                    @endif
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                            <nav class="ips-pending-receptacles__pagination" aria-label="Paginación de sacas pendientes">
+                                <span>Mostrando {{ $queueFirstItem }} a {{ $queueLastItem }} de {{ $queueTotal }} sacas</span>
+                                @if($queueLastPage > 1)
+                                    <div class="ips-pending-receptacles__page-links">
+                                        @if($queuePage > 1)
+                                            <a class="btn btn-sm btn-outline-primary" href="{{ route('internacional.sacas', ['paso' => $searchStep, 'queue' => $activeReceptacleQueue, 'page' => $queuePage - 1]) }}" aria-label="Página anterior">&lsaquo;</a>
+                                        @endif
+                                        @if($queuePage <= 1)
+                                            <span class="btn btn-sm btn-outline-primary disabled" aria-disabled="true" aria-label="Página anterior">&lsaquo;</span>
+                                        @endif
+                                        @foreach($queuePageItems as $queuePageItem)
+                                            @if($queuePageItem === '…')
+                                                <span class="ips-pending-receptacles__ellipsis" aria-hidden="true">…</span>
+                                            @endif
+                                            @if($queuePageItem !== '…')
+                                                <a class="btn btn-sm {{ $queuePageItem === $queuePage ? 'btn-warning' : 'btn-outline-primary' }}" href="{{ route('internacional.sacas', ['paso' => $searchStep, 'queue' => $activeReceptacleQueue, 'page' => $queuePageItem]) }}" @if($queuePageItem === $queuePage) aria-current="page" @endif>{{ $queuePageItem }}</a>
+                                            @endif
+                                        @endforeach
+                                        @if($queuePage < $queueLastPage)
+                                            <a class="btn btn-sm btn-outline-primary" href="{{ route('internacional.sacas', ['paso' => $searchStep, 'queue' => $activeReceptacleQueue, 'page' => $queuePage + 1]) }}" aria-label="Página siguiente">&rsaquo;</a>
+                                        @endif
+                                        @if($queuePage >= $queueLastPage)
+                                            <span class="btn btn-sm btn-outline-primary disabled" aria-disabled="true" aria-label="Página siguiente">&rsaquo;</span>
+                                        @endif
+                                    </div>
+                                @endif
+                            </nav>
+                        @endif
+                        @if(!$receptacleQueueError && !count($queueRows))
+                            <div class="ips-receptacle-empty-state" role="status">
+                                <span aria-hidden="true"><i class="fas fa-check"></i></span>
+                                <div>
+                                    @if($activeReceptacleQueue === 'expected')
+                                        <strong>No hay sacas PREDES pendientes de recepción</strong>
+                                        <p>Las sacas dirigidas a esta oficina aparecerán cuando IPS tenga una prealerta PREDES sin evento de recepción local.</p>
+                                    @elseif($activeReceptacleQueue === 'opening')
+                                        <strong>No hay sacas recibidas pendientes de apertura</strong>
+                                        <p>Las sacas recibidas en esta oficina aparecerán aquí hasta que registres su apertura física.</p>
+                                    @else
+                                        <strong>No hay sacas abiertas disponibles</strong>
+                                        <p>Al abrir una saca en esta oficina, aparecerá aquí el avance de paquetes asociados y esperados.</p>
+                                    @endif
+                                </div>
+                            </div>
+                        @endif
+                </section>
             </div>
         </section>
     @endif
 
     @if($hasReceptacle)
-        @php($receptacle = $detail['receptacle'])
-        @php($items = $detail['items'] ?? [])
-        @php($linkedItemsCount = (int) ($detail['linked_items_count'] ?? count($items)))
-        @php($declaredItemsCount = $receptacle['items_count'] ?? null)
-        @php($canReceiveHere = in_array('RECEPTACLE_RECEIVE', $receptacle['allowed_actions'] ?? [], true))
-        @php($canOpenHere = in_array('RECEPTACLE_OPEN', $receptacle['allowed_actions'] ?? [], true))
-        @php($isReceivedClosed = (int) $receptacle['state_cd'] === 22 && in_array((int) $receptacle['event_cd'], [130, 133], true))
-        @php($isSentClosed = (int) $receptacle['state_cd'] === 22 && (int) $receptacle['event_cd'] === 132)
-        @php($isPhysicallyOpened = (int) $receptacle['state_cd'] === 20 && (int) $receptacle['event_cd'] === 131)
-        @php($isCurrentReceptacleOffice = (int) ($receptacle['office_cd'] ?? 0) === (int) $link->ips_office_cd)
-        @php($operationStep = !$isPending && $paso === 'recibir' && $canOpenHere ? 'abrir' : $paso)
-        @php($showOpenAction = !$isPending && $operationStep === 'abrir' && $isReceivedClosed && $isCurrentReceptacleOffice && $canOpenHere)
-        @php($showReceiveAction = !$isPending && $operationStep === 'recibir' && $canReceiveHere)
-        @php($showPackageAction = $isPhysicallyOpened && $isCurrentReceptacleOffice)
-        @php($receiveExpectedEventCode = $isPending ? (int) $expectedReceptacleEventCode : 0)
-        @php($receiveEventCode = $receiveExpectedEventCode === 132 || (int) $receptacle['event_cd'] === 132 ? 133 : 130)
-        @php($operationEventCode = $operationStep === 'abrir' ? 131 : $receiveEventCode)
-        @php($receptionRecorded = $isReceivedClosed || $isPhysicallyOpened)
+        @php
+            $receptacle = $detail['receptacle'];
+            $items = $detail['items'] ?? [];
+            $linkedItemsCount = (int) ($detail['linked_items_count'] ?? count($items));
+            $declaredItemsCount = $receptacle['items_count'] ?? null;
+            $canReceiveHere = in_array('RECEPTACLE_RECEIVE', $receptacle['allowed_actions'] ?? [], true);
+            $canOpenHere = in_array('RECEPTACLE_OPEN', $receptacle['allowed_actions'] ?? [], true);
+            $isReceivedClosed = (int) $receptacle['state_cd'] === 22 && in_array((int) $receptacle['event_cd'], [130, 133], true);
+            $isSentClosed = (int) $receptacle['state_cd'] === 22 && (int) $receptacle['event_cd'] === 132;
+            $isPhysicallyOpened = (int) $receptacle['state_cd'] === 20 && (int) $receptacle['event_cd'] === 131;
+            $isCurrentReceptacleOffice = (int) ($receptacle['office_cd'] ?? 0) === (int) $link->ips_office_cd;
+            $operationStep = !$isPending && $paso === 'recibir' && $canOpenHere ? 'abrir' : $paso;
+            $showOpenAction = !$isPending && $operationStep === 'abrir' && $isReceivedClosed && $isCurrentReceptacleOffice && $canOpenHere;
+            $showReceiveAction = !$isPending && $operationStep === 'recibir' && $canReceiveHere;
+            $showPackageAction = $isPhysicallyOpened && $isCurrentReceptacleOffice;
+            $receiveExpectedEventCode = $isPending ? (int) $expectedReceptacleEventCode : 0;
+            $receiveEventCode = $receiveExpectedEventCode === 132 || (int) $receptacle['event_cd'] === 132 ? 133 : 130;
+            $operationEventCode = $operationStep === 'abrir' ? 131 : $receiveEventCode;
+            $receptionRecorded = $isReceivedClosed || $isPhysicallyOpened;
+        @endphp
 
         <div class="mt-3 ips-receptacle-layout">
             <main class="w-100">
@@ -203,6 +383,52 @@
 @section('css')
 <style>
 .ips-receptacle-page{color:#294c72}
+.ips-receptacle-empty-workbench{overflow:hidden;border:1px solid #dce6f1;border-radius:12px}
+.ips-receptacle-hero{display:grid;grid-template-columns:minmax(260px,.85fr) minmax(420px,1.15fr);align-items:center;gap:28px;padding:22px 26px;background:#24538e;color:#fff}
+.ips-receptacle-hero__title{min-width:0}
+.ips-receptacle-hero__title>small{display:block;margin-bottom:4px;color:rgba(255,255,255,.78);font-size:.68rem;font-weight:800;letter-spacing:.09em}
+.ips-receptacle-hero__title h1{margin:0;color:#fff;font-size:1.35rem;font-weight:800}
+.ips-receptacle-hero__title p{margin:5px 0 0;color:rgba(255,255,255,.86);font-size:.82rem}
+.ips-receptacle-hero__office{display:inline-flex;align-items:center;gap:8px;max-width:100%;margin-top:12px;padding:6px 10px;border:1px solid rgba(255,255,255,.3);border-radius:18px;background:rgba(255,255,255,.08)}
+.ips-receptacle-hero__office span{color:rgba(255,255,255,.76);font-size:.68rem}
+.ips-receptacle-hero__office strong{max-width:280px;overflow:hidden;color:#fff;font-size:.75rem;text-overflow:ellipsis;white-space:nowrap}
+.ips-receptacle-hero-search{min-width:0}
+.ips-receptacle-hero-search>label{display:block;margin:0 0 7px;color:#fff;font-size:.8rem;font-weight:700}
+.ips-receptacle-hero-search__controls{display:flex;align-items:stretch;gap:8px}
+.ips-receptacle-hero-search__controls .form-control{flex:1 1 auto;width:auto;min-width:0;height:44px;padding:9px 13px;border:1px solid #d9e2ed;border-radius:8px;font-size:.9rem}
+.ips-receptacle-hero-search__controls .btn{flex:0 0 auto;min-height:44px;padding:9px 18px;font-weight:700;white-space:nowrap}
+.ips-receptacle-hero-search>small{display:block;margin-top:7px;color:rgba(255,255,255,.78);font-size:.72rem}
+.ips-receptacle-empty-body{padding:16px 20px 18px}
+.ips-receptacle-empty-flow{margin:0 0 12px}
+.ips-receptacle-empty-flow li.is-current strong{font-weight:800}
+.ips-receptacle-empty-state{display:flex;align-items:center;gap:11px;padding:12px 14px;border:1px dashed #cbd9e8;border-radius:8px;background:#fff;color:#71839a}
+.ips-receptacle-empty-state>span{display:grid;flex:0 0 34px;height:34px;place-items:center;border-radius:8px;background:#eef3f8;color:#7890a9}
+.ips-receptacle-empty-state strong{display:block;color:#526b85;font-size:.8rem}
+.ips-receptacle-empty-state p{margin:2px 0 0;font-size:.74rem}
+.ips-receptacle-registration-link{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.ips-receptacle-registration-link>strong{color:#fff;font-size:.9rem}
+.ips-receptacle-registration-link>span{color:rgba(255,255,255,.82);font-size:.76rem}
+.ips-receptacle-queues{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 15px}
+.ips-receptacle-queues a{display:flex;align-items:center;gap:9px;min-width:0;padding:10px 12px;border:1px solid #dce6f1;border-radius:8px;background:#fff;color:#526b85;text-decoration:none}
+.ips-receptacle-queues a>span{display:grid;flex:0 0 26px;height:26px;place-items:center;border-radius:50%;background:#edf2f7;color:#627c98;font-size:.72rem;font-weight:800}
+.ips-receptacle-queues a>strong{font-size:.78rem}
+.ips-receptacle-queues a.is-active{border-color:#24538e;background:#24538e;color:#fff}
+.ips-receptacle-queues a.is-active>span{background:#fff;color:#24538e}
+.ips-pending-receptacles{padding-top:4px}
+.ips-pending-receptacles__heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.ips-pending-receptacles__heading h2{margin:0;color:#24496f;font-size:.95rem;font-weight:800}
+.ips-pending-receptacles__heading p{margin:3px 0 0;color:#71839a;font-size:.75rem}
+.ips-pending-receptacles__heading .badge{flex:0 0 auto;padding:7px 9px}
+.ips-pending-receptacles__table{font-size:.82rem}
+.ips-pending-receptacles__table thead th{border-top:0;background:#eef2f7;color:#526b85;font-size:.72rem;white-space:nowrap}
+.ips-pending-receptacles__table td{vertical-align:middle}
+.ips-pending-receptacles__table td strong{color:#24538e}
+.ips-pending-receptacles__count-source{display:block;color:#71839a;font-size:.7rem;margin-top:2px}
+.ips-pending-receptacles__pagination{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:10px;color:#71839a;font-size:.74rem}
+.ips-pending-receptacles__page-links{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.ips-pending-receptacles__page-links .btn{min-width:34px;padding:.25rem .55rem}
+.ips-pending-receptacles__page-links .btn-warning{color:#173f70}
+.ips-pending-receptacles__ellipsis{padding:0 3px;color:#71839a}
 .ips-receptacle-toolbar{display:flex;align-items:center;gap:14px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #edf1f5}
 .ips-receptacle-toolbar__title{display:flex;flex:0 0 175px;flex-direction:column;gap:3px}
 .ips-receptacle-toolbar__title small{color:#72839a;font-size:.62rem;font-weight:800;letter-spacing:.08em}
@@ -267,6 +493,9 @@
 .ips-receptacle-next-note strong{color:#355777;font-size:.78rem}
 .ips-receptacle-next-note span{color:#6c8096;font-size:.72rem;line-height:1.4}
 @media(max-width:767.98px){.ips-receptacle-flow{grid-template-columns:1fr;gap:9px}.ips-receptacle-next-step{align-items:stretch;flex-direction:column}.ips-receptacle-next-step__action{flex:1 1 auto;max-width:none}}
+@media(max-width:991.98px){.ips-receptacle-hero{grid-template-columns:1fr;gap:18px}}
+@media(max-width:575.98px){.ips-receptacle-hero{padding:18px 16px}.ips-receptacle-hero-search__controls{align-items:stretch;flex-direction:column}.ips-receptacle-hero-search__controls .btn{width:100%}.ips-receptacle-empty-body{padding:13px}.ips-receptacle-queues{grid-template-columns:1fr}.ips-receptacle-queues a{padding:8px 10px}}
+@media(max-width:575.98px){.ips-pending-receptacles__heading{align-items:flex-start;flex-direction:column}.ips-pending-receptacles__pagination{align-items:flex-start;flex-direction:column}}
 @media(min-width:992px){.ips-receptacle-stats .ips-receptacle-stat+.ips-receptacle-stat{border-left:1px solid #e2eaf2}}
 @media(max-width:991.98px){.ips-receptacle-stats .ips-receptacle-stat:nth-child(even){border-left:1px solid #e2eaf2}.ips-receptacle-stats .ips-receptacle-stat:nth-child(n+3){margin-top:8px;padding-top:8px;border-top:1px solid #e2eaf2}}
 @media(max-width:767.98px){.ips-receptacle-toolbar{flex-wrap:wrap;gap:9px}.ips-receptacle-toolbar__title{flex:1 1 auto}.ips-receptacle-toolbar__search{order:3;flex:1 1 100%}.ips-receptacle-toolbar__actions{margin-left:auto}}

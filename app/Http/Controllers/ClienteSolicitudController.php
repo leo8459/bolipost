@@ -9,6 +9,7 @@ use App\Models\Origen;
 use App\Models\ServicioExtra;
 use App\Models\SolicitudCliente;
 use App\Models\TarifarioTiktoker;
+use App\Services\ClienteSolicitudFacturacionService;
 use App\Support\SolicitudCode;
 use App\Support\TiktokerEvent;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -330,5 +331,76 @@ class ClienteSolicitudController extends Controller
         return response()->json([
             'precio' => number_format((float) $tarifario->peso1, 2, '.', ''),
         ]);
+    }
+
+    public function generateQr(Request $request, ClienteSolicitudFacturacionService $facturacion): JsonResponse
+    {
+        $servicioExtraIds = TarifarioTiktoker::query()
+            ->whereNotNull('servicio_extra_id')
+            ->distinct()
+            ->pluck('servicio_extra_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $data = $request->validate([
+            'servicio_extra_id' => ['required', 'integer', 'in:'.implode(',', $servicioExtraIds)],
+            'origen' => ['required', 'string'],
+            'destino_id' => ['required', 'integer', 'exists:destino,id'],
+            'cantidad' => ['required', 'integer', 'min:1'],
+            'contenido' => ['required', 'string'],
+            'nombre_remitente' => ['required', 'string', 'max:255'],
+            'carnet' => ['required', 'string', 'max:255'],
+            'telefono_remitente' => ['nullable', 'string', 'max:50'],
+            'nombre_destinatario' => ['required', 'string', 'max:255'],
+            'telefono_destinatario' => ['nullable', 'string', 'max:50'],
+            'direccion_recojo' => ['required', 'string', 'max:255'],
+            'direccion_entrega' => ['required', 'string', 'max:255'],
+        ]);
+
+        try {
+            $cliente = Auth::guard('cliente')->user();
+            $destino = Destino::query()->find((int) $data['destino_id']);
+            $servicioExtra = ServicioExtra::query()->find((int) $data['servicio_extra_id']);
+            if (! $destino || ! $servicioExtra) {
+                return response()->json(['message' => 'El servicio o destino seleccionado ya no está disponible.'], 422);
+            }
+
+            $tarifario = $this->resolveTarifarioTiktoker(
+                (int) $data['servicio_extra_id'],
+                (string) $data['origen'],
+                (int) $data['destino_id']
+            );
+            $amount = round((float) $tarifario->peso1, 2);
+            if ($amount <= 0) {
+                return response()->json(['message' => 'La tarifa calculada no permite generar un QR.'], 422);
+            }
+
+            $qr = $facturacion->generarQr($cliente, $data, $servicioExtra, $destino, $amount);
+
+            return response()->json([
+                'amount' => number_format($amount, 2, '.', ''),
+                'currency' => 'BOB',
+                'internal_code' => $qr['internal_code'],
+                'qr_image' => $qr['qr_image'],
+            ]);
+        } catch (\RuntimeException $exception) {
+            Log::warning('No se pudo preparar la facturacion del QR para el cliente online.', [
+                'cliente_id' => Auth::guard('cliente')->id(),
+                'error' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'No se pudo generar el QR en este momento. Intenta nuevamente.',
+            ], 502);
+        } catch (\Throwable $exception) {
+            Log::error('No se pudo generar el QR para el cliente online.', [
+                'cliente_id' => Auth::guard('cliente')->id(),
+                'error' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'No se pudo generar el QR en Facturación. Intenta nuevamente.',
+            ], 502);
+        }
     }
 }

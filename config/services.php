@@ -53,6 +53,10 @@ return [
         'timeout' => (int) env('SITRA_IPS_TIMEOUT', env('TRACKING_SQLSERVER_TIMEOUT', 15)),
         'read_timeout' => (int) env('SITRA_IPS_READ_TIMEOUT', 60),
         'ssl_verify' => (bool) env('SITRA_IPS_SSL_VERIFY', false),
+        'office_regional_by_fcd' => [
+            'BOLPBA' => 'LA PAZ',
+            'BOSRZA' => 'SANTA CRUZ',
+        ],
     ],
 
     'paquetes_ordinarios_api' => [

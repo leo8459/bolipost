@@ -254,6 +254,21 @@ class PaquetesIpsController extends Controller
         return ctype_digit($code) ? str_pad($code, 2, '0', STR_PAD_LEFT) : $code;
     }
 
+    private function normalizeRegionalName(?string $regional): string
+    {
+        $normalized = Str::upper(Str::ascii(trim((string) $regional)));
+        $normalized = preg_replace('/[^A-Z0-9]+/', ' ', $normalized) ?? '';
+        $normalized = trim(preg_replace('/\s+/', ' ', $normalized) ?? '');
+
+        return match ($normalized) {
+            'SANTA CRUZ DE LA SIERRA' => 'SANTA CRUZ',
+            'CHUQUISACA' => 'SUCRE',
+            'BENI' => 'TRINIDAD',
+            'PANDO' => 'COBIJA',
+            default => $normalized,
+        };
+    }
+
     private function operationNavigation(?string $section, ?string $warehouseView, ?string $receptacleStep = null): array
     {
         $group = null;
@@ -924,15 +939,43 @@ class PaquetesIpsController extends Controller
     public function receptacleWorkbench(Request $request, SitraIpsClient $ips, string $paso)
     {
         [$link] = $this->context($request, 'receptacle_'.$paso);
+        $assignedRegionalNames = collect(method_exists($request->user(), 'regionalesLista') ? $request->user()->regionalesLista() : [])
+            ->map(fn ($regional) => strtoupper(trim((string) $regional)))
+            ->filter()
+            ->unique()
+            ->values();
+        $assignedRegionalKeys = $assignedRegionalNames
+            ->map(fn ($regional) => $this->normalizeRegionalName($regional))
+            ->filter()
+            ->unique()
+            ->values();
+        $officeFcd = strtoupper(trim((string) $link->ips_office_fcd));
+        $officeRegional = config('services.sitra_ips.office_regional_by_fcd.'.$officeFcd);
+        if (! $officeRegional) {
+            $officeName = strtoupper(trim((string) $link->ips_office_name));
+            $officeRegional = $assignedRegionalNames->first(fn ($regional) => str_contains($officeName, $regional));
+        }
+        $officeRegionalKey = $this->normalizeRegionalName($officeRegional);
+        $regionalMatchesOffice = $assignedRegionalNames->isEmpty()
+            || ($officeRegionalKey !== '' && $assignedRegionalKeys->contains($officeRegionalKey));
+        $pendingReceptacleRegionalLabel = $officeRegional
+            ?: ($assignedRegionalNames->isNotEmpty() ? $assignedRegionalNames->implode(', ') : 'Sin regional asignada');
         $filters = $request->validate([
             'q' => ['nullable', 'string', 'max:35', 'regex:/^[A-Za-z0-9-]+$/'],
+            'page' => ['nullable', 'integer', 'min:1', 'max:100000'],
+            'queue' => ['nullable', 'in:expected,opening,registration'],
         ]);
         $codigo = strtoupper(trim($filters['q'] ?? ''));
+        $page = (int) ($filters['page'] ?? 1);
+        $activeReceptacleQueue = $filters['queue'] ?? ($paso === 'abrir' ? 'opening' : 'expected');
         $pendingKey = 'ips_receptacle_pending:'.$request->user()->id.':'.$paso.':'.$codigo;
         $pendingPayload = $request->session()->get($pendingKey);
         $detail = null;
         $error = null;
-        if ($codigo !== '') {
+        $receptacleQueueData = [];
+        $receptacleQueueMeta = ['page' => $page, 'per_page' => 25, 'total' => 0, 'has_more' => false];
+        $receptacleQueueError = null;
+        if ($codigo !== '' && $activeReceptacleQueue !== 'registration') {
             try {
                 $detail = $ips->receptacle($codigo, (int) $link->ips_office_cd);
                 $requiredAction = $paso === 'recibir' ? 'RECEPTACLE_RECEIVE' : 'RECEPTACLE_OPEN';
@@ -960,6 +1003,25 @@ class PaquetesIpsController extends Controller
                 report($e);
                 $error = 'No se pudo consultar IPS. No se registró ningún evento.';
             }
+        } else {
+            if (! $regionalMatchesOffice) {
+                $receptacleQueueError = 'La oficina IPS vinculada no corresponde a ninguna de tus regionales asignadas. No se consultó el listado.';
+            } else {
+                try {
+                    $payload = match ($activeReceptacleQueue) {
+                        'expected' => $ips->expectedInboundReceptacles((int) $link->ips_office_cd, $page, 25),
+                        'opening' => $ips->pendingReceptacleOpenings((int) $link->ips_office_cd, $page, 25),
+                        default => $ips->openedReceptaclesForPackageRegistration((int) $link->ips_office_cd, $page, 25),
+                    };
+                    $receptacleQueueData = (array) ($payload['data'] ?? []);
+                    $receptacleQueueMeta = (array) ($payload['meta'] ?? $receptacleQueueMeta);
+                } catch (RequestException $e) {
+                    $receptacleQueueError = $e->response->json('message') ?? 'No se pudo consultar esta lista de trabajo IPS.';
+                } catch (\Throwable $e) {
+                    report($e);
+                    $receptacleQueueError = 'No se pudo consultar esta lista de trabajo IPS.';
+                }
+            }
         }
         $title = $paso === 'recibir' ? 'Recibir saca internacional' : 'Registrar apertura de saca';
         $description = $paso === 'recibir'
@@ -979,7 +1041,7 @@ class PaquetesIpsController extends Controller
 
         [$operationGroups, $operationGroup, $activeOperationTab] = $this->operationNavigation(null, null, $paso);
 
-        return view('paquetes_ips.receptacle', compact('paso', 'codigo', 'detail', 'error', 'title', 'description', 'link', 'idempotencyKey', 'expectedReceptacleEventCode', 'isPending', 'operationGroups', 'operationGroup', 'activeOperationTab', 'incidents'));
+        return view('paquetes_ips.receptacle', compact('paso', 'codigo', 'detail', 'error', 'title', 'description', 'link', 'idempotencyKey', 'expectedReceptacleEventCode', 'isPending', 'operationGroups', 'operationGroup', 'activeOperationTab', 'incidents', 'activeReceptacleQueue', 'receptacleQueueData', 'receptacleQueueMeta', 'receptacleQueueError', 'pendingReceptacleRegionalLabel'));
     }
 
     public function operateReceptacle(Request $request, SitraIpsClient $ips, string $paso)
