@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\Cliente;
-use App\Models\ClienteSolicitudQr;
 use App\Models\Destino;
 use App\Models\ServicioExtra;
 use App\Models\Sucursal;
@@ -26,30 +25,36 @@ class ClienteSolicitudFacturacionService
         Destino $destino,
         float $amount
     ): array {
-        return Cache::lock('cliente-qr:'.$solicitud['qr_attempt_id'], 120)->block(5, function () use ($cliente, $solicitud, $servicio, $destino, $amount): array {
-            $qr = ClienteSolicitudQr::where('attempt_id', $solicitud['qr_attempt_id'])->first();
-            if ($qr) {
-                if ((int) $qr->cliente_id !== (int) $cliente->id || $qr->solicitud_data != $solicitud) {
-                    throw new RuntimeException('El intento de QR pertenece a otros datos. Inicia una nueva solicitud.');
+        $attemptId = Str::lower((string) $solicitud['qr_attempt_id']);
+
+        return Cache::lock('cliente-qr:'.$cliente->id.':'.$attemptId, 120)->block(5, function () use ($cliente, $solicitud, $servicio, $destino, $amount, $attemptId): array {
+            $existingCart = $this->buscarSolicitudQr($cliente, $attemptId)['cart'] ?? null;
+            if (is_array($existingCart)) {
+                $this->assertClienteOnlineCartAmount($existingCart, $amount, $attemptId);
+                $existingPaymentStatus = strtolower(trim((string) ($existingCart['estado_pago'] ?? 'pendiente')));
+                $existingCreatedAt = trim((string) ($existingCart['created_at'] ?? ''));
+                if (in_array($existingPaymentStatus, ['pagado', 'paid', 'success', 'completed', 'approved', 'confirmed'], true)) {
+                    throw new RuntimeException('Este intento QR ya fue pagado. Revisa el resultado en Mis solicitudes.');
                 }
-                if ($qr->expires_at->isPast() || $qr->status === 'cancelled') {
-                    throw new RuntimeException('El QR ha vencido. Inicia una nueva solicitud.');
+                if (in_array($existingPaymentStatus, ['cancelado', 'cancelled', 'canceled', 'rejected', 'failed', 'expired'], true)) {
+                    throw new RuntimeException('El QR anterior fue cancelado. Recarga el formulario para iniciar un nuevo intento.');
                 }
-                return $qr->toArray();
+                if ($existingPaymentStatus === 'pendiente'
+                    && $existingCreatedAt !== ''
+                    && \Illuminate\Support\Carbon::parse($existingCreatedAt)->lte(now()->subHours(48))) {
+                    throw new RuntimeException('El QR de este intento venció después de 48 horas. Recarga el formulario para iniciar un nuevo intento.');
+                }
+                if ($this->cartHasIssuedQr($existingCart)) {
+                    $qr = $this->qrPayloadFromCart($existingCart, $attemptId);
+                    if ($qr['qr_image'] === '') {
+                        throw new RuntimeException('El intento ya fue emitido en Facturacion, pero no contiene una imagen QR recuperable. Consulta el estado desde Mis solicitudes.');
+                    }
+
+                    return $qr;
+                }
             }
 
-            $result = $this->generarQrRemoto($cliente, $solicitud, $servicio, $destino, $amount);
-            $generatedAt = now();
-            $qr = ClienteSolicitudQr::create(array_merge($result, [
-                'attempt_id' => $solicitud['qr_attempt_id'],
-                'cliente_id' => $cliente->id,
-                'solicitud_data' => $solicitud,
-                'amount' => $amount,
-                'generated_at' => $generatedAt,
-                'expires_at' => $generatedAt->copy()->addHours(48),
-            ]));
-
-            return $qr->toArray();
+            return $this->generarQrRemoto($cliente, $solicitud, $servicio, $destino, $amount);
         });
     }
 
@@ -65,11 +70,6 @@ class ClienteSolicitudFacturacionService
         $attemptId = Str::lower((string) $solicitud['qr_attempt_id']);
         $code = 'SOLQR-'.Str::upper(str_replace('-', '', $attemptId));
         $originId = $this->qrOriginId($attemptId);
-
-        $existingCart = $this->buscarSolicitudQr($cliente, $attemptId)['cart'] ?? null;
-        if (is_array($existingCart)) {
-            return $this->qrPayloadFromCart($existingCart, $attemptId);
-        }
 
         $originCity = $this->upper((string) $solicitud['origen']);
         $destinationCity = $this->upper((string) $destino->nombre_destino);
@@ -135,6 +135,8 @@ class ClienteSolicitudFacturacionService
         if ($cartId <= 0) {
             throw new RuntimeException('Facturación no devolvió el identificador del carrito.');
         }
+        $cart = (array) data_get($itemResponse, 'cart', []);
+        $this->assertClienteOnlineCartAmount($cart, $amount, $attemptId);
 
         $this->request('PUT', '/cart/billing', array_merge($identity, [
             'cart_id' => $cartId,
@@ -153,6 +155,11 @@ class ClienteSolicitudFacturacionService
             'modalidad_facturacion' => 'con_datos',
             'canal_emision' => 'qr',
         ]);
+
+        $emittedCart = (array) data_get($emissionResponse, 'cart', []);
+        if ($emittedCart !== []) {
+            $this->assertClienteOnlineCartAmount($emittedCart, $amount, $attemptId);
+        }
 
         $qrData = (array) (data_get($emissionResponse, 'respuesta.respuesta')
             ?? data_get($emissionResponse, 'respuesta')
@@ -182,7 +189,7 @@ class ClienteSolicitudFacturacionService
                 ?? $qrData['paymentStatus']
                 ?? data_get($emissionResponse, 'cart.estado_pago')
                 ?? 'pendiente')),
-            'amount' => round($amount, 2),
+            'amount' => round((float) data_get($emittedCart, 'total', $amount), 2),
             'internal_code' => trim((string) ($qrData['internal_code']
                 ?? data_get($emissionResponse, 'cart.codigo_orden')
                 ?? $code)),
@@ -190,15 +197,61 @@ class ClienteSolicitudFacturacionService
         ];
     }
 
+    private function assertClienteOnlineCartAmount(array $cart, float $expectedAmount, string $attemptId): void
+    {
+        $items = array_values((array) ($cart['items'] ?? []));
+        $cartAmount = round((float) ($cart['total'] ?? 0), 2);
+        $lineAmount = round((float) data_get($items, '0.total_linea', 0), 2);
+        $storedAttemptId = Str::lower(trim((string) data_get($items, '0.resumen_origen.qr_attempt_id', '')));
+
+        if (count($items) !== 1
+            || abs($cartAmount - round($expectedAmount, 2)) >= 0.01
+            || abs($lineAmount - round($expectedAmount, 2)) >= 0.01
+            || $storedAttemptId !== Str::lower($attemptId)) {
+            Log::error('El carrito de cliente online no coincide con la cotizacion antes de emitir el QR.', [
+                'cart_id' => $cart['id'] ?? null,
+                'qr_attempt_id' => $attemptId,
+                'expected_amount' => round($expectedAmount, 2),
+                'cart_amount' => $cartAmount,
+                'line_amount' => $lineAmount,
+                'items_count' => count($items),
+                'stored_attempt_id' => $storedAttemptId,
+            ]);
+
+            throw new RuntimeException('El total del carrito de Facturacion no coincide con el precio cotizado. No se genero el QR; vuelve a consultar el precio e intenta otra vez.');
+        }
+    }
+
+    private function cartHasIssuedQr(array $cart): bool
+    {
+        $cartState = Str::lower(trim((string) ($cart['estado'] ?? '')));
+
+        return trim((string) ($cart['qr_transaction_id'] ?? '')) !== ''
+            || in_array($cartState, ['pendiente_pago', 'emitido'], true);
+    }
+
     public function consultarPagoQr(Cliente $cliente, int $cartId): array
     {
+        return $this->consultarPagoQrPorUsuario('cliente_online_'.$cliente->id, $cartId);
+    }
+
+    public function consultarPagoQrPorUsuario(string $originUserId, int $cartId): array
+    {
         $body = $this->request('POST', '/cart/consultar', [
-            'origen_usuario_id' => 'cliente_online_'.$cliente->id,
+            'origen_usuario_id' => trim($originUserId),
             'cart_id' => $cartId,
             'auto_emit_invoice' => false,
         ]);
 
         return $this->normalizarEstadoQr($body);
+    }
+
+    public function listarQrClienteOnlinePendientes(int $afterId = 0, int $perPage = 100): array
+    {
+        return $this->request('POST', '/cart/cliente-online/pendientes', [
+            'after_id' => max(0, $afterId),
+            'per_page' => min(100, max(1, $perPage)),
+        ]);
     }
 
     public function buscarSolicitudQr(Cliente $cliente, string $attemptId): array
@@ -278,13 +331,19 @@ class ClienteSolicitudFacturacionService
         }
         $respuestaGuardada = is_array($respuestaGuardada) ? $respuestaGuardada : [];
 
-        $paymentStatus = strtolower(trim((string) (
+        $rawPaymentStatus = strtolower(trim((string) (
             data_get($cart, 'estado_pago')
             ?? data_get($respuesta, 'estado_pago')
             ?? data_get($respuesta, 'payment_status')
             ?? data_get($respuesta, 'paymentStatus')
-            ?? 'pendiente'
+            ?? ''
         )));
+        $knownPaymentStatuses = [
+            'pagado', 'paid', 'success', 'successful', 'succeeded', 'completed', 'approved', 'confirmed',
+            'pendiente', 'pending', 'holding', 'unpaid', 'no_pagado',
+            'cancelado', 'cancelled', 'canceled', 'rejected', 'failed', 'failure', 'expired', 'error',
+        ];
+        $paymentStatus = $rawPaymentStatus !== '' ? $rawPaymentStatus : 'pendiente';
         $invoiceStatus = strtoupper(trim((string) (
             data_get($cart, 'estado_emision')
             ?? data_get($respuesta, 'estado')
@@ -304,6 +363,7 @@ class ClienteSolicitudFacturacionService
             'cart' => $cart,
             'respuesta' => $respuesta,
             'payment_status' => $paymentStatus,
+            'payment_status_confirmed' => in_array($rawPaymentStatus, $knownPaymentStatuses, true),
             'invoice_status' => $invoiceStatus,
             'invoice_number' => $invoiceNumber,
         ];

@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 use App\Models\Estado;
 
 class SolicitudCliente extends Model
@@ -71,11 +70,6 @@ class SolicitudCliente extends Model
     public function cliente(): BelongsTo
     {
         return $this->belongsTo(Cliente::class);
-    }
-
-    public function pagoQr(): HasOne
-    {
-        return $this->hasOne(ClienteSolicitudQr::class, 'solicitud_id');
     }
 
     public function servicio(): BelongsTo

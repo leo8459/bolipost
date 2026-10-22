@@ -45,7 +45,8 @@
         </div>
         <form id="solicitud-form" method="POST" action="{{ route('clientes.solicitudes.store') }}" novalidate>
             @csrf
-            <input type="hidden" name="qr_attempt_id" value="{{ $pendingQr?->qr_attempt_id ?? (string) \Illuminate\Support\Str::uuid() }}">
+            <input type="hidden" name="qr_attempt_id" value="{{ (string) \Illuminate\Support\Str::uuid() }}">
+            <input type="hidden" name="precio_cotizado" id="precio_cotizado" value="">
             <div class="card-body">
                 <div class="solicitud-wizard-progress" aria-label="Progreso de la solicitud">
                     <div class="solicitud-wizard-steps">
@@ -438,7 +439,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const quoteUrl = @json(route('clientes.solicitudes.quote'));
     const qrGenerateUrl = @json(route('clientes.solicitudes.qr.generate'));
     const qrStatusUrl = @json(route('clientes.solicitudes.qr.status'));
-    const initialPendingQr = @json($pendingQrPayload);
     const form = document.getElementById('solicitud-form');
     const modal = $('#resumen-solicitud-modal');
     const qrModal = $('#qr-pago-modal');
@@ -451,8 +451,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const wizardTitles = ['Datos del servicio', 'Datos del remitente', 'Datos del destinatario'];
     let generandoQr = false;
     let solicitudRegistrada = false;
-    let qrPendienteActivo = Boolean(initialPendingQr);
-    let qrAttemptActivo = initialPendingQr ? initialPendingQr.qr_attempt_id : '';
+    let qrPendienteActivo = false;
+    let qrAttemptActivo = '';
     let consultaPagoTimer = null;
     let consultaPagoEnCurso = false;
     let wizardStep = 0;
@@ -847,6 +847,12 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
         if (generandoQr || !validarTodosLosPasos()) return;
+        if (!precioCotizado.value) {
+            const errorBox = document.getElementById('qr-generacion-error');
+            errorBox.textContent = 'Espera a que se calcule el precio antes de generar el QR.';
+            errorBox.classList.remove('d-none');
+            return;
+        }
 
         generandoQr = true;
         confirmarSolicitudButton.disabled = true;
@@ -865,6 +871,11 @@ document.addEventListener('DOMContentLoaded', function () {
             });
             const payload = await response.json();
             if (!response.ok) {
+                if (payload.precio_actual) {
+                    const actual = Number(payload.precio_actual);
+                    setPrecio('La tarifa cambió. Nuevo precio: Bs ' + actual.toFixed(2) + '. Revísalo antes de confirmar.', 'warning', actual);
+                    mostrarResumen();
+                }
                 const validationErrors = payload.errors ? Object.values(payload.errors).flat().join(' ') : '';
                 throw new Error(validationErrors || payload.message || 'No se pudo generar el QR.');
             }
@@ -888,10 +899,6 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!validarTodosLosPasos()) return;
         HTMLFormElement.prototype.submit.call(form);
     });
-
-    if (initialPendingQr) {
-        iniciarSeguimientoQr(initialPendingQr, false);
-    }
 
     if (!servicioSelect || !direccionInput) {
         return;
@@ -933,18 +940,24 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    function setPrecio(message, type) {
+    const precioCotizado = document.getElementById('precio_cotizado');
+    let quoteSequence = 0;
+
+    function setPrecio(message, type, amount = '') {
         if (!precioSolicitud) return;
 
+        precioCotizado.value = amount === '' ? '' : Number(amount).toFixed(2);
         precioSolicitud.textContent = message;
         precioSolicitud.className = 'alert border mb-0 py-2 alert-' + type;
         document.getElementById('resumen-solicitud-precio').textContent = message;
     }
 
     async function cotizarSolicitud() {
+        const requestSequence = ++quoteSequence;
         const servicioId = servicioSelect.value;
         const origen = origenSelect?.value || '';
         const destinoId = destinoSelect?.value || '';
+        const selectionKey = [servicioId, origen, destinoId].join('|');
 
         if (!servicioId || !origen || !destinoId) {
             setPrecio('Seleccione el servicio, origen y destino para conocer el precio.', 'light');
@@ -967,12 +980,23 @@ document.addEventListener('DOMContentLoaded', function () {
             });
             const payload = await response.json();
 
+            if (requestSequence !== quoteSequence
+                || selectionKey !== [servicioSelect.value, origenSelect?.value || '', destinoSelect?.value || ''].join('|')) {
+                return;
+            }
+
             if (!response.ok) {
                 throw new Error(payload.message || 'No se pudo calcular el precio.');
             }
 
-            setPrecio('Precio: Bs ' + payload.precio + '.', 'success');
+            const amount = Number(payload.precio);
+            if (!Number.isFinite(amount) || amount <= 0) {
+                throw new Error('La tarifa recibida no es válida.');
+            }
+
+            setPrecio('Precio: Bs ' + amount.toFixed(2) + '.', 'success', amount);
         } catch (error) {
+            if (requestSequence !== quoteSequence) return;
             setPrecio(error.message || 'No se pudo calcular el precio.', 'warning');
         }
     }

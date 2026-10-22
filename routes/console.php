@@ -34,7 +34,9 @@ Schedule::command('contracts:cancel-expired-pickups')
     ->hourly()
     ->withoutOverlapping();
 
-Schedule::command('clientes:sync-qr')->everyMinute()->withoutOverlapping();
+Schedule::command('clientes:sync-qr')
+    ->everyMinute()
+    ->withoutOverlapping();
 
 Schedule::call(static function (): void {
     DB::table('window_load_metrics')->where('measured_at', '<', now()->subDays(90))->delete();
