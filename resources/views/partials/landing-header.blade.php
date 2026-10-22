@@ -76,11 +76,6 @@
                         Cerrar sesión
                     </button>
                 </form>
-            @else
-                <a class="btn btn-client-login-cta" href="{{ route('clientes.login', absolute: false) }}">
-                    <span class="btn-client-login-cta__eyebrow">Clientes</span>
-                    <span class="btn-client-login-cta__label">Iniciar sesi&oacute;n</span>
-                </a>
             @endif
             <a class="btn btn-home-shipping" href="{{ route('preregistros.public.create') }}" target="_blank" rel="noopener noreferrer">
                 <span class="btn-home-shipping__eyebrow">Preenv&iacute;o</span>
