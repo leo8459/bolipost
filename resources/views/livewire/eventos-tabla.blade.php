@@ -530,6 +530,12 @@
                                     <td><span class="pill-id">{{ $registro->codigo }}</span></td>
                                     <td>
                                         {{ $registro->evento_nombre_mostrado ?? $registro->evento_nombre ?? ('#' . $registro->evento_id) }}
+                                        @if ($config['table'] === 'eventos_contrato' && !empty($registro->es_cancelacion))
+                                            <div class="small text-muted mt-1">
+                                                <strong>Justificaci&oacute;n:</strong>
+                                                {{ $registro->paquete_justificacion !== '' ? $registro->paquete_justificacion : 'Sin justificación registrada' }}
+                                            </div>
+                                        @endif
                                         @if (!empty($registro->es_bastion))
                                             <span class="badge badge-warning ml-1">Bastión</span>
                                         @endif
@@ -581,7 +587,7 @@
                                             @endphp
                                             @if ($eventoImagenUrl)
                                                 <a href="{{ $eventoImagenOpenUrl }}" target="_blank" rel="noopener" title="Ver imagen">
-                                                    <img src="{{ $eventoImagenUrl }}" alt="Foto de entrega" class="evento-foto-thumb">
+                                                    <img src="{{ $eventoImagenUrl }}" alt="Foto de entrega" class="evento-foto-thumb" loading="lazy">
                                                 </a>
                                                 <div class="mt-1">
                                                     <a href="{{ $eventoImagenDownloadUrl }}" class="btn btn-xs btn-outline-success">Descargar</a>
@@ -606,7 +612,7 @@
                                             @endphp
                                             @if ($eventoImagenDevolucionUrl)
                                                 <a href="{{ $eventoImagenDevolucionOpenUrl }}" target="_blank" rel="noopener" title="Ver imagen">
-                                                    <img src="{{ $eventoImagenDevolucionUrl }}" alt="Foto de devolucion" class="evento-foto-thumb">
+                                                    <img src="{{ $eventoImagenDevolucionUrl }}" alt="Foto de devolucion" class="evento-foto-thumb" loading="lazy">
                                                 </a>
                                                 <div class="mt-1">
                                                     <a href="{{ $eventoImagenDevolucionDownloadUrl }}" class="btn btn-xs btn-outline-success">Descargar</a>
