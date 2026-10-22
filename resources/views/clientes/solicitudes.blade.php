@@ -285,6 +285,10 @@
                         </div>
                         <div class="modal-body">
                             <p id="resumen-solicitud-instruccion" class="text-muted">Confirma los datos del env&iacute;o.</p>
+                            <div id="resumen-solicitud-pago" class="alert alert-info" role="status" aria-live="polite">
+                                <strong id="resumen-solicitud-pago-titulo">Forma de pago</strong>
+                                <div id="resumen-solicitud-pago-detalle" class="small mt-1"></div>
+                            </div>
                             <div id="qr-generacion-error" class="alert alert-danger d-none" role="alert"></div>
                             <div id="resumen-solicitud-datos" class="solicitud-summary"></div>
                             <div class="solicitud-total mt-3">
@@ -295,7 +299,7 @@
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Volver a editar</button>
-                            <button type="button" id="confirmar-solicitud-button" class="btn btn-primary"><i class="fas fa-qrcode mr-1" aria-hidden="true"></i>Generar QR</button>
+                            <button type="button" id="confirmar-solicitud-button" class="btn btn-primary"><i class="fas fa-qrcode mr-1" aria-hidden="true"></i>Generar QR y pagar</button>
                         </div>
                     </div>
                 </div>
@@ -434,12 +438,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const quoteUrl = @json(route('clientes.solicitudes.quote'));
     const qrGenerateUrl = @json(route('clientes.solicitudes.qr.generate'));
     const qrStatusUrl = @json(route('clientes.solicitudes.qr.status'));
-    const initialPendingQr = @json($pendingQr ? [
-        'amount' => number_format((float) $pendingQr->importe, 2, '.', ''),
-        'internal_code' => $pendingQr->internal_code,
-        'qr_image' => $pendingQr->qr_image,
-        'qr_attempt_id' => $pendingQr->qr_attempt_id,
-    ] : null);
+    const initialPendingQr = @json($pendingQrPayload);
     const form = document.getElementById('solicitud-form');
     const modal = $('#resumen-solicitud-modal');
     const qrModal = $('#qr-pago-modal');
@@ -578,11 +577,19 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('resumen-solicitud-precio').textContent = precioSolicitud.textContent;
 
         const pagaEnOrigen = formaPagoSelect.value === 'origen';
+        const pagoTitulo = document.getElementById('resumen-solicitud-pago-titulo');
+        const pagoDetalle = document.getElementById('resumen-solicitud-pago-detalle');
+        const pagoResumen = document.getElementById('resumen-solicitud-pago');
+        pagoResumen.className = `alert ${pagaEnOrigen ? 'alert-primary' : 'alert-warning'}`;
+        pagoTitulo.textContent = pagaEnOrigen ? 'Pagar en origen' : 'Pagar en destino';
+        pagoDetalle.textContent = pagaEnOrigen
+            ? 'Al confirmar, se generará el QR para pagar en origen. La solicitud se registrará cuando se confirme el pago.'
+            : 'La solicitud se registrará ahora. El pago se realizará en destino y no se generará un QR en este paso.';
         document.getElementById('resumen-solicitud-instruccion').textContent = pagaEnOrigen
-            ? 'Confirma los datos y genera el QR para pagar en origen.'
-            : 'Confirma los datos para registrar la solicitud. No se generará un QR; el pago se realizará en destino.';
+            ? 'Revisa el importe y los datos antes de generar el QR.'
+            : 'Revisa los datos antes de registrar la solicitud.';
         confirmarSolicitudButton.innerHTML = pagaEnOrigen
-            ? '<i class="fas fa-qrcode mr-1" aria-hidden="true"></i>Generar QR'
+            ? '<i class="fas fa-qrcode mr-1" aria-hidden="true"></i>Generar QR y pagar'
             : '<i class="fas fa-check mr-1" aria-hidden="true"></i>Registrar solicitud';
     }
 
@@ -789,7 +796,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    function iniciarSeguimientoQr(payload) {
+    function iniciarSeguimientoQr(payload, abrirModal = true) {
         qrAttemptActivo = String(payload.qr_attempt_id || '');
         qrPendienteActivo = Boolean(qrAttemptActivo);
         if (qrAttemptActivo) form.elements.namedItem('qr_attempt_id').value = qrAttemptActivo;
@@ -817,13 +824,13 @@ document.addEventListener('DOMContentLoaded', function () {
             noImage.classList.remove('d-none');
         }
 
-        qrModal.modal('show');
+        if (abrirModal) qrModal.modal('show');
         programarConsultaPago();
     }
 
     // Si hay un QR pendiente, se conserva y se impide generar otro envío antes de resolverlo.
     form.addEventListener('submit', function (event) {
-        if (!qrPendienteActivo && !solicitudRegistrada) return;
+        if (!solicitudRegistrada) return;
         event.preventDefault();
         event.stopImmediatePropagation();
         qrModal.modal('show');
@@ -872,7 +879,7 @@ document.addEventListener('DOMContentLoaded', function () {
         } finally {
             generandoQr = false;
             confirmarSolicitudButton.disabled = false;
-            confirmarSolicitudButton.innerHTML = '<i class="fas fa-qrcode mr-1" aria-hidden="true"></i>Generar QR';
+            confirmarSolicitudButton.innerHTML = '<i class="fas fa-qrcode mr-1" aria-hidden="true"></i>Generar QR y pagar';
         }
     }, true);
 
@@ -883,7 +890,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     if (initialPendingQr) {
-        iniciarSeguimientoQr(initialPendingQr);
+        iniciarSeguimientoQr(initialPendingQr, false);
     }
 
     if (!servicioSelect || !direccionInput) {

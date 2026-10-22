@@ -139,7 +139,7 @@
                                     <td>{{ optional($pagoQr->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
                                         <button type="button" class="btn btn-sm btn-outline-primary js-consultar-pago-qr" data-qr-attempt="{{ $pagoQr->qr_attempt_id }}">
-                                            <i class="fas fa-sync-alt mr-1" aria-hidden="true"></i>Consultar estado
+                                            <i class="fas fa-qrcode mr-1" aria-hidden="true"></i>Ver QR
                                         </button>
                                     </td>
                                 </tr>

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Mail\SolicitudClienteCreadaMail;
 use App\Models\Cliente;
+use App\Models\ClienteSolicitudQr;
 use App\Models\Destino;
 use App\Models\Estado;
 use App\Models\Origen;
@@ -84,9 +85,17 @@ class ClienteSolicitudController extends Controller
             ->distinct()
             ->pluck('servicio_extra_id');
 
+        $pendingQrPayload = $pendingQr ? [
+            'amount' => number_format((float) $pendingQr->importe, 2, '.', ''),
+            'internal_code' => $pendingQr->internal_code,
+            'qr_image' => $pendingQr->qr_image,
+            'qr_attempt_id' => $pendingQr->qr_attempt_id,
+        ] : null;
+
         return view('clientes.solicitudes', [
             'cliente' => $cliente,
             'pendingQr' => $pendingQr,
+            'pendingQrPayload' => $pendingQrPayload,
             'tiposDocumento' => Cliente::tiposDocumentoIdentidad(),
             'destinos' => Destino::query()->orderBy('nombre_destino')->get(),
             'servicioExtras' => ServicioExtra::query()
@@ -103,6 +112,7 @@ class ClienteSolicitudController extends Controller
 
         $solicitudes = SolicitudCliente::query()
             ->with([
+                'pagoQr',
                 'estadoRegistro:id,nombre_estado',
                 'servicioExtra:id,nombre,descripcion',
                 'destino:id,nombre_destino',
@@ -575,6 +585,19 @@ class ClienteSolicitudController extends Controller
                     'invoice_status' => $invoiceStatus,
                 ], 503);
             }
+        }
+
+        if ($solicitud) {
+            ClienteSolicitudQr::where('attempt_id', $attemptId)
+                ->where('cliente_id', $cliente->id)
+                ->whereNull('solicitud_id')
+                ->update([
+                    'solicitud_id' => $solicitud->id,
+                    'status' => 'paid',
+                    'paid_at' => now(),
+                    'checked_at' => now(),
+                    'updated_at' => now(),
+                ]);
         }
 
         $invoiceStatus = strtoupper(trim((string) ($cart['estado_emision'] ?? $invoiceStatus)));

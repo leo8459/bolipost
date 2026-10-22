@@ -3,12 +3,14 @@
 namespace App\Services;
 
 use App\Models\Cliente;
+use App\Models\ClienteSolicitudQr;
 use App\Models\Destino;
 use App\Models\ServicioExtra;
 use App\Models\Sucursal;
 use App\Models\SolicitudCliente;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -18,6 +20,40 @@ class ClienteSolicitudFacturacionService
     private const ONLINE_CUSTOMER_NAME = 'CLIENTE ONLINE';
 
     public function generarQr(
+        Cliente $cliente,
+        array $solicitud,
+        ServicioExtra $servicio,
+        Destino $destino,
+        float $amount
+    ): array {
+        return Cache::lock('cliente-qr:'.$solicitud['qr_attempt_id'], 120)->block(5, function () use ($cliente, $solicitud, $servicio, $destino, $amount): array {
+            $qr = ClienteSolicitudQr::where('attempt_id', $solicitud['qr_attempt_id'])->first();
+            if ($qr) {
+                if ((int) $qr->cliente_id !== (int) $cliente->id || $qr->solicitud_data != $solicitud) {
+                    throw new RuntimeException('El intento de QR pertenece a otros datos. Inicia una nueva solicitud.');
+                }
+                if ($qr->expires_at->isPast() || $qr->status === 'cancelled') {
+                    throw new RuntimeException('El QR ha vencido. Inicia una nueva solicitud.');
+                }
+                return $qr->toArray();
+            }
+
+            $result = $this->generarQrRemoto($cliente, $solicitud, $servicio, $destino, $amount);
+            $generatedAt = now();
+            $qr = ClienteSolicitudQr::create(array_merge($result, [
+                'attempt_id' => $solicitud['qr_attempt_id'],
+                'cliente_id' => $cliente->id,
+                'solicitud_data' => $solicitud,
+                'amount' => $amount,
+                'generated_at' => $generatedAt,
+                'expires_at' => $generatedAt->copy()->addHours(48),
+            ]));
+
+            return $qr->toArray();
+        });
+    }
+
+    private function generarQrRemoto(
         Cliente $cliente,
         array $solicitud,
         ServicioExtra $servicio,
