@@ -238,6 +238,43 @@
                     <div class="h4 text-primary mb-3">Bs <span id="mis-solicitudes-qr-importe">0.00</span></div>
                     <div id="mis-solicitudes-qr-estado" class="alert alert-info" role="status" aria-live="polite">Consultando el estado del pago...</div>
                     <div id="mis-solicitudes-qr-factura" class="small text-muted mb-2"></div>
+                    <div id="mis-solicitudes-qr-factura-editor" class="d-none text-left border rounded p-3 mb-3">
+                        <div class="alert alert-warning py-2">
+                            El pago está confirmado, pero la factura no pudo emitirse. Revisa tus datos fiscales y vuelve a intentarlo; no se generará otro cobro.
+                        </div>
+                        <form id="mis-solicitudes-qr-factura-form">
+                            <div class="form-group">
+                                <label for="mis-qr-tipo-documento">Tipo de documento</label>
+                                <select id="mis-qr-tipo-documento" name="tipo_documento" class="form-control" required>
+                                    @foreach (\App\Models\Cliente::tiposDocumentoIdentidad() as $tipoDocumentoId => $tipoDocumentoLabel)
+                                        <option value="{{ $tipoDocumentoId }}">{{ $tipoDocumentoLabel }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group col-md-7">
+                                    <label for="mis-qr-numero-documento">N&uacute;mero de documento</label>
+                                    <input id="mis-qr-numero-documento" name="numero_documento" class="form-control" maxlength="80" required>
+                                </div>
+                                <div class="form-group col-md-5">
+                                    <label for="mis-qr-complemento">Complemento</label>
+                                    <input id="mis-qr-complemento" name="complemento_documento" class="form-control" maxlength="30">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="mis-qr-razon-social">Raz&oacute;n social</label>
+                                <input id="mis-qr-razon-social" name="razon_social" class="form-control" maxlength="255" required>
+                            </div>
+                            <div class="form-group mb-2">
+                                <label for="mis-qr-correo-factura">Correo de factura</label>
+                                <input id="mis-qr-correo-factura" name="correo_facturacion" type="email" class="form-control" maxlength="50" required>
+                            </div>
+                            <div id="mis-solicitudes-qr-factura-error" class="alert alert-danger d-none" role="alert"></div>
+                            <button id="mis-solicitudes-qr-factura-submit" type="submit" class="btn btn-warning btn-block">
+                                <i class="fas fa-file-invoice mr-1" aria-hidden="true"></i>Guardar datos y reintentar factura
+                            </button>
+                        </form>
+                    </div>
                     <div id="mis-solicitudes-qr-registro" class="alert d-none" role="status" aria-live="polite"></div>
                     <div id="mis-solicitudes-qr-imagen-wrap" class="mx-auto mb-3 p-2 border rounded d-none" style="max-width: 300px; background: #fff;">
                         <img id="mis-solicitudes-qr-imagen" class="img-fluid" alt="QR pendiente de pago">
@@ -292,13 +329,19 @@
             if (!modal.length) return;
 
             const statusUrl = @json(route('clientes.solicitudes.qr.status'));
+            const retryInvoiceUrl = @json(route('clientes.solicitudes.qr.invoice.retry'));
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
             const stateElement = document.getElementById('mis-solicitudes-qr-estado');
             const invoiceElement = document.getElementById('mis-solicitudes-qr-factura');
             const requestElement = document.getElementById('mis-solicitudes-qr-registro');
             const imageWrap = document.getElementById('mis-solicitudes-qr-imagen-wrap');
             const imageElement = document.getElementById('mis-solicitudes-qr-imagen');
+            const invoiceEditor = document.getElementById('mis-solicitudes-qr-factura-editor');
+            const invoiceForm = document.getElementById('mis-solicitudes-qr-factura-form');
+            const invoiceFormError = document.getElementById('mis-solicitudes-qr-factura-error');
+            const invoiceFormSubmit = document.getElementById('mis-solicitudes-qr-factura-submit');
             let activeAttempt = '';
+            let currentAttempt = '';
             let pollTimer = null;
             let requestInProgress = false;
 
@@ -326,6 +369,15 @@
                 };
                 invoiceElement.textContent = labels[status] || '';
                 if (payload.invoice_error) invoiceElement.textContent += ' ' + payload.invoice_error;
+                invoiceEditor.classList.toggle('d-none', !payload.invoice_retry_allowed || !payload.paid);
+                if (payload.invoice_retry_allowed && payload.paid) {
+                    const billing = payload.billing_data || {};
+                    invoiceForm.elements.namedItem('tipo_documento').value = billing.tipo_documento || '1';
+                    invoiceForm.elements.namedItem('numero_documento').value = billing.numero_documento || '';
+                    invoiceForm.elements.namedItem('complemento_documento').value = billing.complemento_documento || '';
+                    invoiceForm.elements.namedItem('razon_social').value = billing.razon_social || '';
+                    invoiceForm.elements.namedItem('correo_facturacion').value = billing.correo_facturacion || '';
+                }
             }
 
             function showRequest(payload) {
@@ -408,10 +460,13 @@
             document.querySelectorAll('.js-consultar-pago-qr').forEach(button => {
                 button.addEventListener('click', function () {
                     activeAttempt = button.dataset.qrAttempt || '';
+                    currentAttempt = activeAttempt;
                     if (pollTimer) window.clearTimeout(pollTimer);
                     document.getElementById('mis-solicitudes-qr-importe').textContent = button.dataset.qrAmount || '—';
                     document.getElementById('mis-solicitudes-qr-codigo').textContent = button.dataset.qrCode || '';
                     invoiceElement.textContent = '';
+                    invoiceEditor.classList.add('d-none');
+                    invoiceFormError.classList.add('d-none');
                     requestElement.replaceChildren();
                     requestElement.className = 'alert d-none';
                     imageWrap.classList.add('d-none');
@@ -422,8 +477,44 @@
                 });
             });
 
+            invoiceForm.addEventListener('submit', async function (event) {
+                event.preventDefault();
+                if (!currentAttempt || requestInProgress) return;
+                requestInProgress = true;
+                invoiceFormSubmit.disabled = true;
+                invoiceFormError.classList.add('d-none');
+                setStatus('Guardando los datos y reintentando la factura. El pago no se volverá a cobrar...', 'info');
+
+                try {
+                    const formData = new FormData(invoiceForm);
+                    formData.set('_token', csrfToken);
+                    formData.set('qr_attempt_id', currentAttempt);
+                    const response = await fetch(retryInvoiceUrl, {
+                        method: 'POST',
+                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                        body: new URLSearchParams(formData),
+                    });
+                    const payload = await response.json();
+                    if (!response.ok) throw new Error(payload.message || 'No se pudo reintentar la factura.');
+
+                    showInvoice(payload);
+                    showRequest(payload);
+                    setStatus(payload.message || 'Se actualizaron los datos fiscales y se reintentó la factura.', 'success');
+                    activeAttempt = currentAttempt;
+                    schedulePoll();
+                } catch (error) {
+                    invoiceFormError.textContent = error.message || 'No se pudo reintentar la factura.';
+                    invoiceFormError.classList.remove('d-none');
+                    setStatus('El pago sigue confirmado. No vuelvas a pagar; puedes corregir los datos e intentarlo nuevamente.', 'warning');
+                } finally {
+                    requestInProgress = false;
+                    invoiceFormSubmit.disabled = false;
+                }
+            });
+
             modal.on('hidden.bs.modal', function () {
                 activeAttempt = '';
+                currentAttempt = '';
                 if (pollTimer) window.clearTimeout(pollTimer);
             });
         });

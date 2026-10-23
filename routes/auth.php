@@ -40,6 +40,8 @@ Route::middleware(['cliente.guard', 'auth:cliente', 'cliente.acl.sync', 'route.p
             ->name('clientes.solicitudes.qr.generate');
         Route::post('clientes/solicitudes/pago-qr/estado', [ClienteSolicitudController::class, 'checkQrStatus'])
             ->name('clientes.solicitudes.qr.status');
+        Route::post('clientes/solicitudes/pago-qr/factura/reintentar', [ClienteSolicitudController::class, 'retryQrInvoiceWithBillingData'])
+            ->name('clientes.solicitudes.qr.invoice.retry');
         Route::get('clientes/solicitudes/cotizar', [ClienteSolicitudController::class, 'quote'])
             ->name('clientes.solicitudes.quote');
         Route::get('clientes/mis-solicitudes', [ClienteSolicitudController::class, 'history'])

@@ -30,7 +30,7 @@ class ClienteSolicitudFacturacionService
         return Cache::lock('cliente-qr:'.$cliente->id.':'.$attemptId, 120)->block(5, function () use ($cliente, $solicitud, $servicio, $destino, $amount, $attemptId): array {
             $existingCart = $this->buscarSolicitudQr($cliente, $attemptId)['cart'] ?? null;
             if (is_array($existingCart)) {
-                $this->assertClienteOnlineCartAmount($existingCart, $amount, $attemptId);
+                $this->assertClienteOnlineCartAmount($existingCart, $amount, $attemptId, (int) $solicitud['cantidad']);
                 $existingPaymentStatus = strtolower(trim((string) ($existingCart['estado_pago'] ?? 'pendiente')));
                 $existingCreatedAt = trim((string) ($existingCart['created_at'] ?? ''));
                 if (in_array($existingPaymentStatus, ['pagado', 'paid', 'success', 'completed', 'approved', 'confirmed'], true)) {
@@ -136,7 +136,7 @@ class ClienteSolicitudFacturacionService
             throw new RuntimeException('Facturación no devolvió el identificador del carrito.');
         }
         $cart = (array) data_get($itemResponse, 'cart', []);
-        $this->assertClienteOnlineCartAmount($cart, $amount, $attemptId);
+        $this->assertClienteOnlineCartAmount($cart, $amount, $attemptId, (int) $solicitud['cantidad']);
 
         $this->request('PUT', '/cart/billing', array_merge($identity, [
             'cart_id' => $cartId,
@@ -158,7 +158,7 @@ class ClienteSolicitudFacturacionService
 
         $emittedCart = (array) data_get($emissionResponse, 'cart', []);
         if ($emittedCart !== []) {
-            $this->assertClienteOnlineCartAmount($emittedCart, $amount, $attemptId);
+            $this->assertClienteOnlineCartAmount($emittedCart, $amount, $attemptId, (int) $solicitud['cantidad']);
         }
 
         $qrData = (array) (data_get($emissionResponse, 'respuesta.respuesta')
@@ -231,14 +231,18 @@ class ClienteSolicitudFacturacionService
         ];
     }
 
-    private function assertClienteOnlineCartAmount(array $cart, float $expectedAmount, string $attemptId): void
+    private function assertClienteOnlineCartAmount(array $cart, float $expectedAmount, string $attemptId, int $expectedPackageCount): void
     {
         $items = array_values((array) ($cart['items'] ?? []));
         $cartAmount = round((float) ($cart['total'] ?? 0), 2);
         $lineAmount = round((float) data_get($items, '0.total_linea', 0), 2);
+        $billingQuantity = (int) data_get($items, '0.cantidad', 0);
+        $packageCount = (int) data_get($items, '0.resumen_origen.cantidad_paquetes', 0);
         $storedAttemptId = Str::lower(trim((string) data_get($items, '0.resumen_origen.qr_attempt_id', '')));
 
         if (count($items) !== 1
+            || $billingQuantity !== 1
+            || $packageCount !== $expectedPackageCount
             || abs($cartAmount - round($expectedAmount, 2)) >= 0.01
             || abs($lineAmount - round($expectedAmount, 2)) >= 0.01
             || $storedAttemptId !== Str::lower($attemptId)) {
@@ -248,11 +252,15 @@ class ClienteSolicitudFacturacionService
                 'expected_amount' => round($expectedAmount, 2),
                 'cart_amount' => $cartAmount,
                 'line_amount' => $lineAmount,
+                'billing_quantity' => $billingQuantity,
+                'expected_billing_quantity' => 1,
+                'package_count' => $packageCount,
+                'expected_package_count' => $expectedPackageCount,
                 'items_count' => count($items),
                 'stored_attempt_id' => $storedAttemptId,
             ]);
 
-            throw new RuntimeException('El total del carrito de Facturacion no coincide con el precio cotizado. No se genero el QR; vuelve a consultar el precio e intenta otra vez.');
+            throw new RuntimeException('El carrito de Facturacion no coincide con la solicitud: debe tener un solo servicio facturable, el importe cotizado y la cantidad de paquetes correcta. No se genero el QR; vuelve a consultar el precio e intenta otra vez.');
         }
     }
 
@@ -367,6 +375,37 @@ class ClienteSolicitudFacturacionService
         ]);
 
         return $this->normalizarEstadoQr($body);
+    }
+
+    public function corregirDatosYReintentarFacturaQrPagada(Cliente $cliente, array $cart, array $billing): array
+    {
+        $cartId = (int) ($cart['id'] ?? 0);
+        if ($cartId <= 0) {
+            throw new RuntimeException('El pago QR no tiene un carrito válido en Facturación.');
+        }
+
+        $billingPayload = [
+            'origen_usuario_id' => 'cliente_online_'.$cliente->id,
+            'cart_id' => $cartId,
+            'origen_usuario_nombre' => (string) (($cart['origen_usuario_nombre'] ?? null) ?: self::ONLINE_CUSTOMER_NAME),
+            'origen_usuario_email' => (string) (($cart['origen_usuario_email'] ?? null) ?: $this->onlineCustomerEmail()),
+            'origen_usuario_alias' => (string) (($cart['origen_usuario_alias'] ?? null) ?: self::ONLINE_CUSTOMER_NAME),
+            'modalidad_facturacion' => 'con_datos',
+            'canal_emision' => 'qr',
+            'tipo_documento' => trim((string) $billing['tipo_documento']),
+            'numero_documento' => trim((string) $billing['numero_documento']),
+            'complemento_documento' => trim((string) ($billing['complemento_documento'] ?? '')),
+            'razon_social' => $this->upper((string) $billing['razon_social']),
+            'correo_facturacion' => strtolower(trim((string) $billing['correo_facturacion'])),
+        ];
+        foreach (['origen_usuario_carnet', 'origen_sucursal_id', 'origen_sucursal_codigo', 'origen_sucursal_nombre'] as $field) {
+            if (filled($cart[$field] ?? null)) {
+                $billingPayload[$field] = (string) $cart[$field];
+            }
+        }
+        $this->request('PUT', '/cart/billing', $billingPayload);
+
+        return $this->emitirFacturaQrPagada($cliente, $cartId);
     }
 
     private function normalizarEstadoQr(array $body): array
