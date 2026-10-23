@@ -134,6 +134,15 @@
                             </select>
                             <small id="forma-pago-ayuda" class="form-text text-muted" aria-live="polite">Elige d&oacute;nde se realizar&aacute; el pago.</small>
                         </div>
+                        <div class="col-md-6 form-group mb-0">
+                            <label for="tipo_pago">Tipo de pago <span class="text-danger" aria-hidden="true">*</span></label>
+                            <select name="tipo_pago" id="tipo_pago" required class="form-control">
+                                <option value="">Selecciona una opci&oacute;n...</option>
+                                <option value="qr" @selected(old('tipo_pago') === 'qr')>QR</option>
+                                <option value="efectivo" @selected(old('tipo_pago') === 'efectivo')>Efectivo</option>
+                            </select>
+                            <small id="tipo-pago-ayuda" class="form-text text-muted" aria-live="polite">Elige si pagar&aacute;s con QR o en efectivo.</small>
+                        </div>
                         <div id="datos-facturacion-qr" class="col-12 mt-4" hidden>
                             <div class="solicitud-billing-card">
                                 <div class="solicitud-billing-heading">
@@ -451,6 +460,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const origenSelect = document.getElementById('origen');
     const destinoSelect = document.getElementById('destino_id');
     const formaPagoSelect = document.getElementById('forma_pago');
+    const tipoPagoSelect = document.getElementById('tipo_pago');
     const billingPanel = document.getElementById('datos-facturacion-qr');
     const billingDocumentNumber = document.getElementById('numero_documento');
     const billingDocumentComplement = document.getElementById('complemento_documento');
@@ -561,13 +571,13 @@ document.addEventListener('DOMContentLoaded', function () {
         const sections = [
             ['Datos del servicio', [['Servicio', 'servicio_extra_id'], ['Origen', 'origen'],
                 ['Destino', 'destino_id'], ['Cantidad', 'cantidad'], ['Contenido', 'contenido'],
-                ['Forma de pago', 'forma_pago']]],
+                ['Forma de pago', 'forma_pago'], ['Tipo de pago', 'tipo_pago']]],
             ['Datos del remitente', [['Nombre', 'nombre_remitente'], ['Carnet', 'carnet'],
                 ['Teléfono', 'telefono_remitente'], ['Dirección de recojo', 'direccion_recojo']]],
             ['Datos del destinatario', [['Nombre', 'nombre_destinatario'],
                 ['Teléfono', 'telefono_destinatario'], ['Dirección de entrega', 'direccion_entrega']]],
         ];
-        if (formaPagoSelect.value === 'origen') {
+        if (tipoPagoSelect.value === 'qr') {
             sections.push(['Datos de facturacion', [
                 ['Documentacion', 'tipo_documento'],
                 ['Numero de documento', 'numero_documento'],
@@ -602,37 +612,47 @@ document.addEventListener('DOMContentLoaded', function () {
         });
         document.getElementById('resumen-solicitud-precio').textContent = precioSolicitud.textContent;
 
-        const pagaEnOrigen = formaPagoSelect.value === 'origen';
+        const pagaConQr = tipoPagoSelect.value === 'qr';
         const pagoTitulo = document.getElementById('resumen-solicitud-pago-titulo');
         const pagoDetalle = document.getElementById('resumen-solicitud-pago-detalle');
         const pagoResumen = document.getElementById('resumen-solicitud-pago');
-        pagoResumen.className = `alert ${pagaEnOrigen ? 'alert-primary' : 'alert-warning'}`;
-        pagoTitulo.textContent = pagaEnOrigen ? 'Pagar en origen' : 'Pagar en destino';
-        pagoDetalle.textContent = pagaEnOrigen
-            ? 'Cada confirmación genera un QR independiente. Puedes continuar aunque tengas pagos pendientes o en registro; consulta cada intento en Mis solicitudes.'
-            : 'La solicitud se registrará ahora. El pago se realizará en destino y no se generará un QR en este paso.';
-        document.getElementById('resumen-solicitud-instruccion').textContent = pagaEnOrigen
+        pagoResumen.className = `alert ${pagaConQr ? 'alert-primary' : 'alert-warning'}`;
+        pagoTitulo.textContent = pagaConQr ? 'Pago por QR' : 'Pago en efectivo';
+        pagoDetalle.textContent = pagaConQr
+            ? 'Se generará un QR. La solicitud y la guía se registrarán cuando se confirme el pago.'
+            : 'La solicitud se registrará ahora y la guía indicará cobrar en origen.';
+        document.getElementById('resumen-solicitud-instruccion').textContent = pagaConQr
             ? 'Revisa el importe y los datos antes de generar el QR.'
             : 'Revisa los datos antes de registrar la solicitud.';
-        confirmarSolicitudButton.innerHTML = pagaEnOrigen
+        confirmarSolicitudButton.innerHTML = pagaConQr
             ? '<i class="fas fa-qrcode mr-1" aria-hidden="true"></i>Generar QR y pagar'
             : '<i class="fas fa-check mr-1" aria-hidden="true"></i>Registrar solicitud';
     }
 
     function actualizarAyudaFormaPago() {
         const ayuda = document.getElementById('forma-pago-ayuda');
-        const pagaEnOrigen = formaPagoSelect.value === 'origen';
-        billingPanel.hidden = !pagaEnOrigen;
-        [billingDocumentNumber, billingCompanyName, billingEmail].forEach(field => {
-            field.required = pagaEnOrigen;
-        });
-        ayuda.textContent = formaPagoSelect.value === 'origen'
-            ? 'Se generará un QR para realizar el pago en origen.'
-            : formaPagoSelect.value === 'destino'
-                ? 'La solicitud se registrará sin generar QR; el pago se realizará en destino.'
-                : 'Elige dónde se realizará el pago.';
-    }
+        const tipoAyuda = document.getElementById('tipo-pago-ayuda');
+        const pagaConQr = tipoPagoSelect.value === 'qr';
+        const pagaEnEfectivo = tipoPagoSelect.value === 'efectivo';
+        if (pagaEnEfectivo) formaPagoSelect.value = 'origen';
 
+        billingPanel.hidden = !pagaConQr;
+        [billingDocumentNumber, billingCompanyName, billingEmail].forEach(field => {
+            field.required = pagaConQr;
+        });
+        ayuda.textContent = pagaEnEfectivo
+            ? 'El efectivo se cobrará en origen.'
+            : formaPagoSelect.value === 'destino'
+                ? 'El envío se pagará en destino.'
+                : formaPagoSelect.value === 'origen'
+                    ? 'El pago se registrará en origen.'
+                    : 'Elige dónde se realizará el pago.';
+        tipoAyuda.textContent = pagaConQr
+            ? 'Se generará un QR y la guía se creará al confirmarse el pago.'
+            : pagaEnEfectivo
+                ? 'La guía se generará ahora y mostrará cobrar en origen.'
+                : 'Elige si pagarás con QR o en efectivo.';
+    }
     function actualizarComplementoDocumento() {
         const permiteComplemento = ['1', '2'].includes(billingDocumentType.value);
         billingDocumentComplement.disabled = !permiteComplemento;
@@ -681,6 +701,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     formaPagoSelect.addEventListener('change', actualizarAyudaFormaPago);
+    tipoPagoSelect.addEventListener('change', actualizarAyudaFormaPago);
     billingDocumentNumber.addEventListener('input', detectarDocumentacion);
     editBillingEmail.addEventListener('change', function () {
         sincronizarCorreoFactura(true);
@@ -898,7 +919,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // El cliente online registra el envío desde el servidor al confirmarse el pago.
     confirmarSolicitudButton.addEventListener('click', async function (event) {
-        if (formaPagoSelect.value !== 'origen') return;
+        if (tipoPagoSelect.value !== 'qr') return;
         event.preventDefault();
         event.stopImmediatePropagation();
 
@@ -955,7 +976,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }, true);
 
     confirmarSolicitudButton.addEventListener('click', function () {
-        if (formaPagoSelect.value !== 'destino' || solicitudRegistrada || generandoQr) return;
+        if (tipoPagoSelect.value !== 'efectivo' || solicitudRegistrada || generandoQr) return;
         if (!validarTodosLosPasos()) return;
         HTMLFormElement.prototype.submit.call(form);
     });

@@ -30,6 +30,7 @@ class SolicitudCliente extends Model
         'paquete_muy_grande',
         'pago_destinatario',
         'forma_pago',
+        'tipo_pago',
         'servicio_extra_id',
         'nombre_remitente',
         'nombre_envia',
@@ -59,12 +60,16 @@ class SolicitudCliente extends Model
 
     public function getFormaPagoLabelAttribute(): string
     {
-        return match ($this->attributes['forma_pago'] ?? null) {
+        $label = match ($this->attributes['forma_pago'] ?? null) {
             'origen' => 'Pagar en origen',
             'destino' => 'Pagar en destino',
             'pagado' => 'Pagado',
             default => $this->pago_destinatario ? 'Pagar en destino' : 'Pagado',
         };
+
+        return $label === 'Pagar en origen' && ($this->attributes['tipo_pago'] ?? null) === 'efectivo'
+            ? 'Cobrar en origen'
+            : $label;
     }
 
     public function cliente(): BelongsTo

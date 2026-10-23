@@ -195,16 +195,20 @@ class ClienteSolicitudController extends Controller
             'direccion_recojo' => ['required', 'string', 'max:255'],
             'direccion_entrega' => ['required', 'string', 'max:255'],
             'forma_pago' => ['required', 'in:origen,destino'],
+            'tipo_pago' => ['required', 'in:qr,efectivo'],
         ]);
 
-        if ($data['forma_pago'] === 'origen') {
-            $message = 'Para pagar en origen, genera el QR y espera la confirmacion del pago para registrar el envio.';
+        if ($data['tipo_pago'] === 'qr') {
+            $message = 'Para pagar con QR, confirma la solicitud desde el formulario para generar el codigo y esperar la confirmacion del pago.';
             if ($request->expectsJson()) {
                 return response()->json(['message' => $message], 422);
             }
 
-            return redirect()->back()->withInput()->withErrors(['forma_pago' => $message]);
+            return redirect()->back()->withInput()->withErrors(['tipo_pago' => $message]);
         }
+
+        // El efectivo de Delivery Express se cobra al remitente en origen.
+        $data['forma_pago'] = 'origen';
 
         try {
             $solicitud = $this->persistirSolicitud($cliente, $data);
@@ -283,6 +287,7 @@ class ClienteSolicitudController extends Controller
                 ? round((float) $data['precio_pagado'], 2)
                 : (float) $tarifarioTiktoker->peso1,
             'forma_pago' => (string) ($data['forma_pago'] ?? 'destino'),
+            'tipo_pago' => $data['tipo_pago'] ?? null,
             'pago_destinatario' => ($data['forma_pago'] ?? 'destino') === 'destino',
             'nombre_remitente' => $this->upper((string) $data['nombre_remitente']),
             'nombre_envia' => null,
@@ -749,7 +754,9 @@ class ClienteSolicitudController extends Controller
             }
         }
 
-        if ($paymentStatus === 'pagado' && $solicitud && $solicitud->forma_pago === 'origen') {
+        if ($paymentStatus === 'pagado'
+            && $solicitud
+            && ($solicitud->forma_pago === 'origen' || $solicitud->tipo_pago === 'qr')) {
             $estadoActual = strtoupper(trim((string) Estado::query()->whereKey($solicitud->estado_id)->value('nombre_estado')));
             $justificacion = trim((string) $solicitud->justificacion);
             if ($estadoActual === 'CANCELADO' && str_contains(mb_strtolower($justificacion), 'qr sin pago confirmado')) {
@@ -766,6 +773,7 @@ class ClienteSolicitudController extends Controller
             }
             $solicitud->update([
                 'forma_pago' => 'pagado',
+                'tipo_pago' => 'qr',
                 'pago_destinatario' => false,
             ]);
         }
@@ -977,6 +985,7 @@ class ClienteSolicitudController extends Controller
             'telefono_destinatario' => (string) ($summary['telefono_destinatario'] ?? ''),
             'direccion_entrega' => (string) ($summary['direccion_entrega'] ?? ''),
             'forma_pago' => 'pagado',
+            'tipo_pago' => 'qr',
             'precio_pagado' => round((float) ($cart['total'] ?? data_get($item, 'total_linea', 0)), 2),
         ];
 
@@ -1174,7 +1183,8 @@ class ClienteSolicitudController extends Controller
         $data = $request->validate([
             'qr_attempt_id' => ['required', 'uuid'],
             'precio_cotizado' => ['required', 'numeric', 'gt:0', 'max:100000'],
-            'forma_pago' => ['required', 'in:origen'],
+            'forma_pago' => ['required', 'in:origen,destino'],
+            'tipo_pago' => ['required', 'in:qr'],
             'tipo_documento' => ['required', 'string', 'max:20', \Illuminate\Validation\Rule::in(array_keys(Cliente::tiposDocumentoIdentidad()))],
             'numero_documento' => ['required', 'string', 'max:80'],
             'complemento_documento' => ['nullable', 'string', 'max:30'],
