@@ -81,17 +81,46 @@ class CheckTracking extends Command
      */
     private function resolveTrackingForCodigo(string $codigo, int $subscriptionsCount): ?array
     {
+        $url = trim((string) config('services.tracking_sqlserver.base_url', ''));
+        if ($url === '') {
+            $url = trim((string) config('services.tracking_sqlserver.fallback_base_url', ''));
+        }
+        $url = $this->normalizeTrackingUrl($url);
+
+        if ($url === '') {
+            Log::error('TRACKING_API_CONFIG_MISSING', [
+                'required_config' => 'TRACKING_SQLSERVER_BASE_URL',
+                'legacy_config' => 'TRACKING_API_URL',
+            ]);
+
+            return null;
+        }
+
+        $timeout = max(1, (int) config('services.tracking_sqlserver.timeout', 15));
+        $verify = filter_var(
+            config('services.tracking_sqlserver.ssl_verify', false),
+            FILTER_VALIDATE_BOOL,
+            FILTER_NULL_ON_FAILURE
+        ) ?? false;
+
         try {
-            $request = Http::timeout(15)
-                ->withoutVerifying()
+            $request = Http::connectTimeout(min(5, $timeout))
+                ->timeout($timeout)
+                ->withOptions(['verify' => $verify])
                 ->acceptJson();
 
-            $token = trim((string) env('TRACKING_API_TOKEN', ''));
+            $token = trim((string) config('services.tracking_sqlserver.token', ''));
+            if ($token === '') {
+                $token = trim((string) config('services.tracking_sqlserver.fallback_token', ''));
+            }
+            if (str_starts_with(strtolower($token), 'bearer ')) {
+                $token = trim(substr($token, 7));
+            }
             if ($token !== '') {
                 $request = $request->withToken($token);
             }
 
-            $resp = $request->get(env('TRACKING_API_URL'), [
+            $resp = $request->get($url, [
                 'codigo' => $codigo,
             ]);
         } catch (\Throwable $e) {
@@ -156,6 +185,23 @@ class CheckTracking extends Command
             'sig' => $sig,
             'latest' => $this->latestEventData($eventos, $sig),
         ];
+    }
+
+    private function normalizeTrackingUrl(string $url): string
+    {
+        if ($url === '') {
+            return '';
+        }
+
+        $path = trim((string) (parse_url($url, PHP_URL_PATH) ?? ''));
+        if ($path === '' || $path === '/') {
+            return rtrim($url, '/') . '/api/tracking/eventos';
+        }
+        if ($path === '/api/sqlserver/busqueda') {
+            return preg_replace('#/api/sqlserver/busqueda$#', '/api/tracking/eventos', $url) ?: $url;
+        }
+
+        return rtrim($url, '/');
     }
 
     /**
