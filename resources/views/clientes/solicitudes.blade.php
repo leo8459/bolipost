@@ -455,6 +455,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let qrAttemptActivo = '';
     let consultaPagoTimer = null;
     let consultaPagoEnCurso = false;
+    let qrConsultaDetenida = false;
     let wizardStep = 0;
 
     function mostrarPaso(index) {
@@ -737,12 +738,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function programarConsultaPago() {
         if (consultaPagoTimer) window.clearTimeout(consultaPagoTimer);
-        if (!qrPendienteActivo || !qrAttemptActivo) return;
+        if (!qrPendienteActivo || !qrAttemptActivo || qrConsultaDetenida) return;
         consultaPagoTimer = window.setTimeout(consultarEstadoPago, 3000);
     }
 
     async function consultarEstadoPago() {
-        if (!qrPendienteActivo || !qrAttemptActivo || consultaPagoEnCurso) return;
+        if (!qrPendienteActivo || !qrAttemptActivo || consultaPagoEnCurso || qrConsultaDetenida) return;
         consultaPagoEnCurso = true;
 
         try {
@@ -758,6 +759,26 @@ document.addEventListener('DOMContentLoaded', function () {
                 }),
             });
             const payload = await response.json();
+            if (payload.qr?.amount != null) document.getElementById('qr-pago-importe').textContent = payload.qr.amount;
+            if (payload.qr?.internal_code) document.getElementById('qr-pago-codigo').textContent = payload.qr.internal_code;
+            if (!response.ok && (payload.terminal || payload.retry === false)) {
+                qrConsultaDetenida = true;
+                mostrarEstadoPago(payload.message || 'La solicitud requiere revisión.', 'warning');
+                mostrarFactura(payload);
+                if (payload.registration_error === 'qr_amount_mismatch') {
+                    document.getElementById('qr-pago-imagen-wrap').classList.add('d-none');
+                    document.getElementById('qr-pago-sin-imagen').classList.add('d-none');
+                    mostrarInstruccionPago(payload.paid
+                        ? 'Pago detectado con monto inconsistente. No vuelvas a pagar; contacta soporte.'
+                        : 'No pagues este QR. Contacta soporte antes de iniciar otro intento.');
+                }
+                if (payload.paid || payload.payment_status === 'pagado') {
+                    mostrarInstruccionPago('Pago confirmado. Conserva el código de pago; no vuelvas a pagar.');
+                    document.getElementById('qr-pago-imagen-wrap').classList.add('d-none');
+                    document.getElementById('qr-pago-sin-imagen').classList.add('d-none');
+                }
+                return;
+            }
             if (!response.ok) throw new Error(payload.message || 'No se pudo consultar el pago.');
 
             if (payload.payment_status === 'cancelado') {
@@ -789,7 +810,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 mostrarEstadoPago(payload.message || 'Esperando la confirmación del pago QR.');
             }
         } catch (error) {
-            mostrarEstadoPago('No pudimos consultar el pago ahora. Reintentaremos automáticamente en 3 segundos.', 'warning');
+            mostrarEstadoPago(error.message || 'No pudimos consultar el pago ahora. Reintentaremos automáticamente en 3 segundos.', 'warning');
         } finally {
             consultaPagoEnCurso = false;
             programarConsultaPago();
@@ -797,6 +818,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function iniciarSeguimientoQr(payload, abrirModal = true) {
+        qrConsultaDetenida = false;
         qrAttemptActivo = String(payload.qr_attempt_id || '');
         qrPendienteActivo = Boolean(qrAttemptActivo);
         if (qrAttemptActivo) form.elements.namedItem('qr_attempt_id').value = qrAttemptActivo;

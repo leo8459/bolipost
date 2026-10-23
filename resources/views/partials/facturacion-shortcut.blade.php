@@ -8182,15 +8182,32 @@
                     scheduleFacturacionQrPolling();
                 } catch (error) {
                     facturacionQrPollingErrorCount += 1;
+                    const errorMessage = error instanceof Error && error.message
+                        ? error.message
+                        : 'Revisa la conexión con Facturación e intenta nuevamente.';
+                    if (/QR_AMOUNT_MISMATCH|diferencia de monto|importe distinto/i.test(errorMessage)) {
+                        if (facturacionQrViewerImage instanceof HTMLImageElement) facturacionQrViewerImage.removeAttribute('src');
+                        if (facturacionQrViewerImageWrap instanceof HTMLElement) facturacionQrViewerImageWrap.classList.add('is-hidden');
+                        if (facturacionQrViewerEmpty instanceof HTMLElement) {
+                            facturacionQrViewerEmpty.textContent = 'QR bloqueado por diferencia de monto. No lo pagues; contacta soporte.';
+                            facturacionQrViewerEmpty.classList.remove('is-hidden');
+                        }
+                        renderFacturacionShortcutFeedback({
+                            type: 'warning',
+                            title: 'QR bloqueado por diferencia de monto',
+                            message: 'No pagues este QR. El estado requiere revisión manual.',
+                            detail: errorMessage,
+                        });
+                        closeFacturacionQrViewer();
+                        return;
+                    }
 
                     if (facturacionQrPollingErrorCount >= 2) {
                         renderFacturacionShortcutFeedback({
                             type: 'warning',
                             title: 'No se pudo actualizar el QR',
                             message: 'El estado del pago no pudo consultarse automaticamente.',
-                            detail: error instanceof Error && error.message
-                                ? error.message
-                                : 'Revisa la conexion con el servicio de facturacion y vuelve a intentar.',
+                            detail: errorMessage,
                         });
                     }
 

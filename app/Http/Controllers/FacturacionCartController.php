@@ -990,6 +990,26 @@ class FacturacionCartController extends Controller
 
     private function buildBridgeFeedback(array $respuesta, string $action): array
     {
+        if ((string) data_get($respuesta, 'code', '') === 'qr_checkout_failed') {
+            return [
+                'type' => 'error',
+                'title' => 'No se pudo generar el QR',
+                'message' => 'La misma venta sigue guardada y la caja queda disponible. Reintenta el QR desde esta venta; no crees otra venta.',
+                'detail' => trim((string) data_get($respuesta, 'provider_message', '')),
+                'action' => $action,
+            ];
+        }
+
+        if ((string) data_get($respuesta, 'code', '') === 'qr_amount_mismatch') {
+            return [
+                'type' => 'warning',
+                'title' => 'QR bloqueado por diferencia de monto',
+                'message' => 'No pagues este QR: Qhantuy informó un importe distinto al carrito.',
+                'detail' => trim((string) data_get($respuesta, 'message', 'Verifica el estado de la referencia antes de volver a intentar.')),
+                'action' => $action,
+            ];
+        }
+
         $estado = strtoupper(trim((string) ($respuesta['estado'] ?? '')));
         $estadoPago = strtolower(trim((string) (
             data_get($respuesta, 'estado_pago')
@@ -1208,6 +1228,10 @@ class FacturacionCartController extends Controller
 
     private function extractQrSessionData(array $respuesta, string $defaultInternalCode = '', bool $forceQr = false, float $defaultAmount = 0): ?array
     {
+        if ((string) data_get($respuesta, 'code', '') === 'qr_amount_mismatch') {
+            return null;
+        }
+
         $imageKeys = [
             'image_data',
             'qr_url',

@@ -164,6 +164,40 @@ class ClienteSolicitudFacturacionService
         $qrData = (array) (data_get($emissionResponse, 'respuesta.respuesta')
             ?? data_get($emissionResponse, 'respuesta')
             ?? $emissionResponse);
+        if ((string) data_get($qrData, 'code', '') !== 'qr_amount_mismatch'
+            && (!(bool) data_get($emissionResponse, 'ok', true)
+                || !(bool) data_get($qrData, 'ok', true)
+                || str_starts_with((string) data_get($qrData, 'code', ''), 'qr_checkout_failed'))) {
+            Log::warning('Falló el checkout QR de cliente online; se conserva el mismo intento para reintentar.', [
+                'cliente_id' => $cliente->id,
+                'cart_id' => $cartId,
+                'qr_attempt_id' => $attemptId,
+                'internal_code' => $code,
+                'provider_message' => data_get($qrData, 'provider_message') ?? data_get($qrData, 'message'),
+            ]);
+
+            throw new RuntimeException('No se pudo generar el QR en Qhantuy. Tu solicitud sigue guardada. Vuelve a solicitar el QR desde esta misma solicitud; no crees otra.');
+        }
+        if ((string) ($qrData['code'] ?? '') === 'qr_amount_mismatch') {
+            throw new RuntimeException((string) ($qrData['message']
+                ?? 'Qhantuy devolvió un QR por un monto distinto. No pagues ese QR; consulta Mis solicitudes antes de reintentar.'));
+        }
+        $providerAmount = data_get($qrData, 'checkout_amount')
+            ?? data_get($qrData, 'checkoutAmount')
+            ?? data_get($qrData, 'qhantuy.checkout_amount');
+        if (is_numeric($providerAmount)
+            && (float) $providerAmount > 0
+            && abs(round((float) $providerAmount, 2) - round($amount, 2)) >= 0.01) {
+            Log::critical('El QR online no coincide con la tarifa confirmada; no se mostrará al cliente.', [
+                'cliente_id' => $cliente->id,
+                'cart_id' => $cartId,
+                'qr_attempt_id' => $attemptId,
+                'quoted_amount' => round($amount, 2),
+                'provider_amount' => round((float) $providerAmount, 2),
+            ]);
+
+            throw new RuntimeException('El monto devuelto por Qhantuy no coincide con la tarifa. No pagues este QR; el sistema intentará cancelarlo y debes consultar Mis solicitudes antes de reintentar.');
+        }
         $qrImage = trim((string) ($qrData['image_data']
             ?? data_get($qrData, 'qr_data.image_data')
             ?? $qrData['qr_url']
@@ -251,6 +285,20 @@ class ClienteSolicitudFacturacionService
         return $this->request('POST', '/cart/cliente-online/pendientes', [
             'after_id' => max(0, $afterId),
             'per_page' => min(100, max(1, $perPage)),
+        ]);
+    }
+
+    public function reportarIncidenciaQrClienteOnline(
+        Cliente $cliente,
+        int $cartId,
+        string $attemptId,
+        array $missingFields
+    ): array {
+        return $this->request('POST', '/cart/cliente-online/incidencia', [
+            'origen_usuario_id' => 'cliente_online_'.$cliente->id,
+            'cart_id' => $cartId,
+            'qr_attempt_id' => Str::lower(trim($attemptId)),
+            'missing_fields' => array_values($missingFields),
         ]);
     }
 
@@ -410,10 +458,18 @@ class ClienteSolicitudFacturacionService
             'cart_id_present' => data_get($body, 'cart.id') !== null,
         ]);
 
+        $remoteCode = data_get($body, 'code') ?? data_get($body, 'respuesta.code');
         $message = trim((string) (data_get($body, 'message')
+            ?? data_get($body, 'respuesta.message')
+            ?? data_get($body, 'respuesta.mensaje')
             ?? data_get($body, 'mensaje')
             ?? data_get($body, 'errors.0')
             ?? ''));
+        if ($remoteCode === 'qr_amount_mismatch') {
+            throw new RuntimeException('[QR_AMOUNT_MISMATCH] '.($message !== ''
+                ? $message
+                : 'El QR tiene una diferencia de monto y requiere revisión manual.'));
+        }
         if ($message === '') {
             $message = 'La API de Facturación rechazó la operación (HTTP '.$response->status().'): '.$path;
         }

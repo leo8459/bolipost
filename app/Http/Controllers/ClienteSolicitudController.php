@@ -414,7 +414,18 @@ class ClienteSolicitudController extends Controller
             'qr_attempt_id' => ['required', 'uuid'],
         ]);
         $cliente = Auth::guard('cliente')->user();
-        $attemptId = strtolower((string) $data['qr_attempt_id']);
+        return $this->checkQrStatusForCustomer($cliente, (string) $data['qr_attempt_id'], $facturacion);
+    }
+
+    public function checkQrStatusForCustomer(
+        Cliente $cliente,
+        string $qrAttemptId,
+        ClienteSolicitudFacturacionService $facturacion
+    ): JsonResponse {
+        $attemptId = strtolower(trim($qrAttemptId));
+        if (!\Illuminate\Support\Str::isUuid($attemptId)) {
+            return response()->json(['message' => 'El intento QR no es válido.'], 422);
+        }
         try {
             $lookup = $facturacion->buscarSolicitudQr($cliente, $attemptId);
             $cart = $lookup['cart'] ?? null;
@@ -434,6 +445,27 @@ class ClienteSolicitudController extends Controller
                 'error' => $exception->getMessage(),
             ]);
 
+            if (str_contains($exception->getMessage(), '[QR_AMOUNT_MISMATCH]')) {
+                $cart = is_array($cart ?? null) ? $cart : [];
+                $paid = $this->normalizarEstadoPagoQr((string) ($cart['estado_pago'] ?? '')) === 'pagado';
+                $qr = $cart !== [] ? $this->qrPayloadParaEstado($facturacion, $cart, $attemptId, $paid ? 'pagado' : 'pendiente') : null;
+
+                return response()->json([
+                    'ok' => false,
+                    'code' => 'qr_amount_mismatch',
+                    'paid' => $paid,
+                    'payment_status' => $paid ? 'pagado' : 'pendiente',
+                    'invoice_status' => strtoupper(trim((string) ($cart['estado_emision'] ?? 'NO_APLICA'))),
+                    'qr' => $qr,
+                    'terminal' => true,
+                    'retry' => false,
+                    'registration_error' => 'qr_amount_mismatch',
+                    'message' => $paid
+                        ? 'Facturación reportó una diferencia de monto para un pago confirmado. No vuelvas a pagar; el envío y la factura requieren revisión manual.'
+                        : 'Facturación reportó una diferencia de monto y bloqueó este QR. No lo pagues; consulta soporte antes de iniciar otro intento.',
+                ], 409);
+            }
+
             return response()->json([
                 'message' => 'No se pudo consultar el pago. Volveremos a intentarlo.',
                 'retry' => true,
@@ -447,6 +479,53 @@ class ClienteSolicitudController extends Controller
         $invoiceStatus = strtoupper(trim((string) ($payment['invoice_status'] ?? $cart['estado_emision'] ?? 'NO_APLICA')));
         $invoiceNumber = trim((string) ($payment['invoice_number'] ?? $cart['numero_factura'] ?? ''));
         $invoiceError = null;
+        $qrStatusPayload = $this->qrPayloadParaEstado($facturacion, $cart, $attemptId, $paymentStatus);
+
+        if ($paymentStatus === 'pagado' && $this->qrSolicitudId($cart) === null) {
+            $summary = $this->qrSummaryFromCart($cart);
+            $requiredFields = [
+                'servicio_extra_id', 'origen', 'destino_id', 'cantidad_paquetes', 'contenido',
+                'remitente', 'carnet_remitente', 'direccion_recojo', 'destinatario', 'direccion_entrega',
+            ];
+            $missingFields = array_values(array_filter($requiredFields, fn ($field) =>
+                blank($summary[$field] ?? null)
+                || (in_array($field, ['servicio_extra_id', 'destino_id', 'cantidad_paquetes'], true) && (int) ($summary[$field] ?? 0) <= 0)
+            ));
+            if ($missingFields !== []) {
+                $incidentSentKey = 'cliente-online-qr-shipment-incident-sent:'.$cartId;
+                if (!Cache::get($incidentSentKey) && Cache::add('cliente-online-qr-shipment-incident-lock:'.$cartId, true, now()->addMinutes(5))) {
+                    try {
+                        $facturacion->reportarIncidenciaQrClienteOnline($cliente, $cartId, $attemptId, $missingFields);
+                        Cache::forever($incidentSentKey, true);
+                        Log::critical('Pago QR confirmado sin datos completos para reconstruir el envío; incidencia enviada a Facturación.', [
+                            'cliente_id' => $cliente->id,
+                            'facturacion_cart_id' => $cartId,
+                            'missing_fields' => $missingFields,
+                        ]);
+                    } catch (\Throwable $exception) {
+                        Log::critical('Pago QR confirmado sin datos completos y no se pudo registrar la incidencia en Facturación.', [
+                            'cliente_id' => $cliente->id,
+                            'facturacion_cart_id' => $cartId,
+                            'missing_fields' => $missingFields,
+                            'error' => $exception->getMessage(),
+                        ]);
+                    }
+                }
+
+                return response()->json([
+                    'ok' => false,
+                    'paid' => true,
+                    'payment_status' => 'pagado',
+                    'invoice_status' => $invoiceStatus,
+                    'invoice_number' => $invoiceNumber,
+                    'qr' => $qrStatusPayload,
+                    'terminal' => true,
+                    'retry' => false,
+                    'registration_error' => 'missing_shipment_data',
+                    'message' => 'Pago confirmado. No se pudieron recuperar los datos del envío y la solicitud requiere revisión. Conserva el código de pago; no vuelvas a pagar.',
+                ], 409);
+            }
+        }
 
         $invoiceAlreadyProcessing = in_array($invoiceStatus, [
             'FACTURADA', 'PENDIENTE', 'PROCESADA', 'EMITIENDO', 'EMISION_INCIERTA',
@@ -454,23 +533,43 @@ class ClienteSolicitudController extends Controller
         $invoiceCanBeStarted = in_array($invoiceStatus, [
             '', 'NO_APLICA', 'ERROR', 'RECHAZADA', 'ANULADA', 'ANULACION_OBSERVADA',
         ], true);
+        $invoiceRetryKey = 'cliente-online-qr-invoice-retry:'.$cartId;
+        $retryDeferred = $paymentStatus === 'pagado'
+            && in_array($invoiceStatus, ['ERROR', 'RECHAZADA'], true)
+            && !Cache::add($invoiceRetryKey, true, now()->addMinutes(5));
 
-        if ($paymentStatus === 'pagado' && !$invoiceAlreadyProcessing && $invoiceCanBeStarted) {
-            try {
-                $invoice = $facturacion->emitirFacturaQrPagada($cliente, $cartId);
-                $payment = $invoice;
-                $cart = is_array($invoice['cart'] ?? null) ? $invoice['cart'] : $cart;
-                $invoiceStatus = strtoupper(trim((string) ($invoice['invoice_status'] ?? $cart['estado_emision'] ?? 'PENDIENTE')));
-                $invoiceNumber = trim((string) ($invoice['invoice_number'] ?? $cart['numero_factura'] ?? '')) ?: $invoiceNumber;
-            } catch (\Throwable $exception) {
-                Log::error('El pago QR fue confirmado, pero no se pudo solicitar la factura online.', [
-                    'cliente_id' => $cliente->id,
-                    'facturacion_cart_id' => $cartId,
-                    'error' => $exception->getMessage(),
-                ]);
-                $invoiceError = 'La factura requiere revision.';
-                $invoiceStatus = 'ERROR';
+        if ($paymentStatus === 'pagado' && !$invoiceAlreadyProcessing && $invoiceCanBeStarted && !$retryDeferred) {
+            $invoiceLock = Cache::lock('cliente-online-qr-invoice:'.$cartId, 120);
+            if (!$invoiceLock->get()) {
+                $invoiceStatus = 'EMITIENDO';
+                $invoiceError = 'La factura está siendo procesada. Se actualizará automáticamente.';
+            } else {
+                try {
+                    $invoice = $facturacion->emitirFacturaQrPagada($cliente, $cartId);
+                    $payment = $invoice;
+                    $cart = is_array($invoice['cart'] ?? null) ? $invoice['cart'] : $cart;
+                    $invoiceStatus = strtoupper(trim((string) ($invoice['invoice_status'] ?? $cart['estado_emision'] ?? 'PENDIENTE')));
+                    $invoiceNumber = trim((string) ($invoice['invoice_number'] ?? $cart['numero_factura'] ?? '')) ?: $invoiceNumber;
+                    if (in_array($invoiceStatus, ['ERROR', 'RECHAZADA'], true)) {
+                        Cache::put($invoiceRetryKey, true, now()->addMinutes(5));
+                    } else {
+                        Cache::forget($invoiceRetryKey);
+                    }
+                } catch (\Throwable $exception) {
+                        $invoiceError = 'La factura requiere revisión.';
+                    Log::error('Pago QR confirmado, pero fallo la solicitud de factura.', [
+                        'cliente_id' => $cliente->id,
+                        'facturacion_cart_id' => $cartId,
+                        'error' => $exception->getMessage(),
+                    ]);
+                    $invoiceStatus = 'ERROR';
+                    Cache::put($invoiceRetryKey, true, now()->addMinutes(5));
+                } finally {
+                    $invoiceLock->release();
+                }
             }
+        } elseif ($retryDeferred) {
+            $invoiceError = 'La factura sigue en revisión. Se volverá a intentar automáticamente en unos minutos.';
         }
 
         $solicitud = null;
@@ -491,6 +590,10 @@ class ClienteSolicitudController extends Controller
                             'message' => 'El pago fue confirmado y el envio se esta registrando. Consulta nuevamente en unos segundos.',
                             'retry' => true,
                             'payment_status' => 'pagado',
+                            'paid' => true,
+                            'invoice_status' => $invoiceStatus,
+                            'invoice_number' => $invoiceNumber,
+                            'qr' => $qrStatusPayload,
                         ], 503);
                     }
 
@@ -499,14 +602,28 @@ class ClienteSolicitudController extends Controller
                         $latest = $facturacion->buscarSolicitudQr($cliente, $attemptId)['cart'] ?? $cart;
                         $latestSummary = is_array($latest) ? $this->qrSummaryFromCart($latest) : [];
                         $latestSolicitudId = (int) ($latestSummary['solicitud_cliente_id'] ?? 0);
+                        $localRequestCacheKey = 'cliente-online-qr-local-solicitud:'.$cliente->id.':'.$attemptId;
                         if ($latestSolicitudId > 0) {
                             $solicitud = SolicitudCliente::query()
                                 ->where('cliente_id', (int) $cliente->id)
                                 ->find($latestSolicitudId);
                             $created = false;
+                            if ($solicitud) {
+                                Cache::forget($localRequestCacheKey);
+                            }
+                        } elseif ((int) Cache::get($localRequestCacheKey, 0) > 0
+                            && ($cachedSolicitud = SolicitudCliente::query()
+                                ->where('cliente_id', (int) $cliente->id)
+                                ->find((int) Cache::get($localRequestCacheKey, 0)))) {
+                            $solicitud = $cachedSolicitud;
+                            $facturacion->vincularSolicitudQr($cliente, $attemptId, $solicitud);
+                            Cache::forget($localRequestCacheKey);
+                            $created = false;
                         } else {
                             $solicitud = $this->registrarSolicitudQrPagada($cliente, $cart);
+                            Cache::forever($localRequestCacheKey, (int) $solicitud->id);
                             $facturacion->vincularSolicitudQr($cliente, $attemptId, $solicitud);
+                            Cache::forget($localRequestCacheKey);
                             $created = true;
                         }
                     } finally {
@@ -521,18 +638,19 @@ class ClienteSolicitudController extends Controller
                     try {
                         Mail::to($cliente->email)->send(new SolicitudClienteCreadaMail($solicitud, $cliente));
                     } catch (\Throwable $exception) {
-                        Log::error('No se pudo enviar el correo de solicitud pagada al cliente.', [
+                        Log::warning('El envío QR se registró, pero falló el correo de confirmación.', [
                             'solicitud_id' => $solicitud->id,
                             'cliente_id' => $cliente->id,
                             'error' => $exception->getMessage(),
                         ]);
-                        $mailWarning = 'El envio quedo registrado, pero no se pudo enviar el correo de confirmacion.';
+                                $mailWarning = 'El envio quedo registrado, pero no se pudo enviar el correo de confirmacion.';
                     }
                 }
             } catch (\Throwable $exception) {
-                Log::error('El pago QR se confirmo, pero no se pudo registrar la solicitud de envio.', [
+                Log::error('Pago QR confirmado, pero no se pudo completar el registro del envío.', [
                     'cliente_id' => $cliente->id,
                     'facturacion_cart_id' => $cartId,
+                    'qr_attempt_id' => $attemptId,
                     'error' => $exception->getMessage(),
                 ]);
 
@@ -540,29 +658,44 @@ class ClienteSolicitudController extends Controller
                     'message' => 'El pago fue confirmado, pero no se pudo registrar el envio. Estamos reintentando.',
                     'retry' => true,
                     'payment_status' => 'pagado',
+                    'paid' => true,
                     'invoice_status' => $invoiceStatus,
+                    'invoice_number' => $invoiceNumber,
+                    'invoice_error' => $invoiceError,
+                    'qr' => $qrStatusPayload,
                 ], 503);
             }
         }
 
         if ($paymentStatus === 'pagado' && $solicitud && $solicitud->forma_pago === 'origen') {
+            $estadoActual = strtoupper(trim((string) Estado::query()->whereKey($solicitud->estado_id)->value('nombre_estado')));
+            $justificacion = trim((string) $solicitud->justificacion);
+            if ($estadoActual === 'CANCELADO' && str_contains(mb_strtolower($justificacion), 'qr sin pago confirmado')) {
+                $solicitud->update([
+                    'estado_id' => $this->resolveSolicitudEstadoId(),
+                    'justificacion' => trim($justificacion."\nReactivada automáticamente al confirmarse el pago QR tardío."),
+                ]);
+                $solicitud->refresh();
+                Log::warning('Se reactivó una solicitud cancelada por vencimiento al confirmarse el pago QR tardío.', [
+                    'solicitud_id' => $solicitud->id,
+                    'cliente_id' => $cliente->id,
+                    'facturacion_cart_id' => $cartId,
+                ]);
+            }
             $solicitud->update([
                 'forma_pago' => 'pagado',
                 'pago_destinatario' => false,
             ]);
         }
 
-        $invoiceStatus = strtoupper(trim((string) ($cart['estado_emision'] ?? $invoiceStatus)));
+        if ($invoiceError === null) {
+            $invoiceStatus = strtoupper(trim((string) ($cart['estado_emision'] ?? $invoiceStatus)));
+        }
         $invoiceNumber = trim((string) ($cart['numero_factura'] ?? $invoiceNumber)) ?: $invoiceNumber;
         $invoiceIsFinal = in_array($invoiceStatus, ['FACTURADA', 'RECHAZADA', 'ERROR', 'ANULADA'], true);
         $terminal = $paymentStatus === 'cancelado'
             || ($paymentStatus === 'pagado' && $solicitud && $invoiceIsFinal);
-        $qrPayload = $facturacion->qrPayloadFromCart($cart, $attemptId);
-        $qrPayload['amount'] = number_format((float) $qrPayload['amount'], 2, '.', '');
-        $qrPayload['currency'] = 'BOB';
-        if ($paymentStatus !== 'pendiente') {
-            $qrPayload['qr_image'] = '';
-        }
+        $qrPayload = $this->qrPayloadParaEstado($facturacion, $cart, $attemptId, $paymentStatus);
 
         return response()->json([
             'ok' => true,
@@ -607,6 +740,22 @@ class ClienteSolicitudController extends Controller
         ];
 
         return DB::transaction(fn () => $this->persistirSolicitud($cliente, $data));
+    }
+
+    private function qrPayloadParaEstado(
+        ClienteSolicitudFacturacionService $facturacion,
+        array $cart,
+        string $attemptId,
+        string $paymentStatus
+    ): array {
+        $qr = $facturacion->qrPayloadFromCart($cart, $attemptId);
+        $qr['amount'] = number_format((float) $qr['amount'], 2, '.', '');
+        $qr['currency'] = 'BOB';
+        if ($paymentStatus !== 'pendiente') {
+            $qr['qr_image'] = '';
+        }
+
+        return $qr;
     }
 
     private function normalizarEstadoPagoQr(string $status): string
@@ -814,6 +963,7 @@ class ClienteSolicitudController extends Controller
                     || str_starts_with($exception->getMessage(), 'El QR de este intento venció')
                     || str_starts_with($exception->getMessage(), 'El QR anterior fue cancelado')
                     || str_starts_with($exception->getMessage(), 'Este intento QR ya fue pagado')
+                    || str_starts_with($exception->getMessage(), 'No se pudo generar el QR en Qhantuy.')
                 )
                     ? $exception->getMessage()
                     : 'No se pudo generar el QR en este momento. Intenta nuevamente.',

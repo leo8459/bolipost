@@ -191,24 +191,7 @@ class FacturacionCartService
         $ctx = $this->getRemoteContextForUser($user);
         $existingItem = $this->findDraftItemByOrigin($ctx['draft'] ?? null, PaqueteEms::class, (int) $paquete->id);
         if ($existingItem) {
-            $cantidadActual = $this->resolveEffectiveDraftItemQuantity($existingItem);
-            $montoBaseActual = round((float) data_get($existingItem, 'monto_base', data_get($existingItem, 'precio', 0)), 2);
-            $montoExtras = round((float) data_get($existingItem, 'monto_extras', 0), 2);
-            $nuevaCantidad = $cantidadActual + 1;
-
-            return $this->updateDraftItem(
-                $user,
-                (int) data_get($existingItem, 'id'),
-                $this->buildDraftItemUpdatePayload($existingItem, [
-                    'titulo' => $tituloServicio,
-                    'nombre_servicio' => $tituloServicio,
-                    'cantidad' => $nuevaCantidad,
-                    'monto_base' => $montoBaseActual,
-                    'monto_extras' => $montoExtras,
-                    'total_linea' => round(($montoBaseActual + $montoExtras) * $nuevaCantidad, 2),
-                    'descripcion_servicio' => $descripcionServicio,
-                ])
-            );
+            throw new \RuntimeException('Este paquete EMS ya está en el carrito. No se volvió a cobrar.');
         }
 
         $body = $this->request('POST', '/cart/items/upsert', $payload);
@@ -504,24 +487,7 @@ class FacturacionCartService
         $ctx = $this->getRemoteContextForUser($user);
         $existingItem = $this->findDraftItemByOrigin($ctx['draft'] ?? null, PaqueteCerti::class, (int) $paquete->id);
         if ($existingItem) {
-            $cantidadActual = $this->resolveEffectiveDraftItemQuantity($existingItem);
-            $montoBaseActual = round((float) data_get($existingItem, 'monto_base', data_get($existingItem, 'precio', 0)), 2);
-            $montoExtras = round((float) data_get($existingItem, 'monto_extras', 0), 2);
-            $nuevaCantidad = $cantidadActual + $cantidadInicial;
-
-            return $this->updateDraftItem(
-                $user,
-                (int) data_get($existingItem, 'id'),
-                $this->buildDraftItemUpdatePayload($existingItem, [
-                    'titulo' => $tituloServicio,
-                    'nombre_servicio' => $tituloServicio,
-                    'cantidad' => $nuevaCantidad,
-                    'monto_base' => $montoBaseActual,
-                    'monto_extras' => $montoExtras,
-                    'total_linea' => round(($montoBaseActual + $montoExtras) * $nuevaCantidad, 2),
-                    'descripcion_servicio' => $descripcionServicio,
-                ])
-            );
+            throw new \RuntimeException('Este paquete certificado ya está en el carrito. No se volvió a cobrar.');
         }
 
         $body = $this->request('POST', '/cart/items/upsert', array_merge(
@@ -635,9 +601,7 @@ class FacturacionCartService
             ]
         );
 
-        if ($cart = $this->incrementExistingDraftItemByOrigin($user, PaqueteInt::class, (int) $paquete->id, 1)) {
-            return $cart;
-        }
+        $this->rejectDuplicateDraftItemByOrigin($user, PaqueteInt::class, (int) $paquete->id);
 
         $body = $this->request('POST', '/cart/items/upsert', $payload);
 
@@ -662,9 +626,7 @@ class FacturacionCartService
         $peso = $this->toFloatNumber($paquete->peso ?? 0);
         $cantidadInicial = max(1, (int) ($paquete->cantidad ?? 1));
 
-        if ($cart = $this->incrementExistingDraftItemByOrigin($user, Recojo::class, (int) $paquete->id, $cantidadInicial)) {
-            return $cart;
-        }
+        $this->rejectDuplicateDraftItemByOrigin($user, Recojo::class, (int) $paquete->id);
 
         $body = $this->request('POST', '/cart/items/upsert', array_merge(
             $this->originUserPayload($user),
@@ -1281,24 +1243,7 @@ class FacturacionCartService
         $ctx = $this->getRemoteContextForUser($user);
         $existingItem = $this->findDraftItemByOrigin($ctx['draft'] ?? null, PaqueteOrdi::class, (int) $paquete->id);
         if ($existingItem) {
-            $cantidadActual = $this->resolveEffectiveDraftItemQuantity($existingItem);
-            $montoBaseActual = $this->resolveOrdiMontoBase($paquete);
-            $montoExtras = round((float) data_get($existingItem, 'monto_extras', 0), 2);
-            $nuevaCantidad = $cantidadActual + $cantidadInicial;
-
-            return $this->updateDraftItem(
-                $user,
-                (int) data_get($existingItem, 'id'),
-                $this->buildDraftItemUpdatePayload($existingItem, [
-                    'titulo' => $tituloServicio,
-                    'nombre_servicio' => $tituloServicio,
-                    'cantidad' => $nuevaCantidad,
-                    'monto_base' => $montoBaseActual,
-                    'monto_extras' => $montoExtras,
-                    'total_linea' => round(($montoBaseActual + $montoExtras) * $nuevaCantidad, 2),
-                    'descripcion_servicio' => $descripcionServicio,
-                ])
-            );
+            throw new \RuntimeException('Este paquete ordinario ya está en el carrito. No se volvió a cobrar.');
         }
 
         $body = $this->request('POST', '/cart/items/upsert', array_merge(
@@ -2718,32 +2663,17 @@ class FacturacionCartService
             });
     }
 
-    private function incrementExistingDraftItemByOrigin(User $user, string $originType, int $originId, int $incrementBy = 1): ?object
+    private function rejectDuplicateDraftItemByOrigin(User $user, string $originType, int $originId): void
     {
-        $incrementBy = max(1, $incrementBy);
         $ctx = $this->getRemoteContextForUser($user);
         $draft = $ctx['draft'] ?? null;
         $existingItem = $this->findDraftItemByOrigin($draft, $originType, $originId);
 
         if (!$existingItem) {
-            return null;
+            return;
         }
 
-        $cantidadActual = $this->resolveEffectiveDraftItemQuantity($existingItem);
-        $montoBase = round((float) data_get($existingItem, 'monto_base', data_get($existingItem, 'precio', 0)), 2);
-        $montoExtras = round((float) data_get($existingItem, 'monto_extras', 0), 2);
-        $nuevaCantidad = $cantidadActual + $incrementBy;
-
-        return $this->updateDraftItem(
-            $user,
-            (int) data_get($existingItem, 'id'),
-            $this->buildDraftItemUpdatePayload($existingItem, [
-                'cantidad' => $nuevaCantidad,
-                'monto_base' => $montoBase,
-                'monto_extras' => $montoExtras,
-                'total_linea' => round(($montoBase + $montoExtras) * $nuevaCantidad, 2),
-            ])
-        );
+        throw new \RuntimeException('Este paquete ya está en el carrito. No se volvió a cobrar.');
     }
 
     private function resolveEffectiveDraftItemQuantity(object $item): int

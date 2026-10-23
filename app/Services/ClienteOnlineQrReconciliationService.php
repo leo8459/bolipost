@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Models\Estado;
+use App\Models\Cliente;
 use App\Models\SolicitudCliente;
+use App\Http\Controllers\ClienteSolicitudController;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -82,6 +84,9 @@ class ClienteOnlineQrReconciliationService
         $createdAt = Carbon::parse($createdAtRaw);
         $expired = $createdAt->lte(now()->subHours(self::QR_EXPIRATION_HOURS));
         $clienteId = (int) $matches[1];
+        $cartMarkedPaid = in_array(strtolower(trim((string) ($cart['estado_pago'] ?? ''))), [
+            'pagado', 'paid', 'success', 'successful', 'succeeded', 'completed', 'approved', 'confirmed',
+        ], true);
         $solicitudId = (int) ($summary['solicitud_cliente_id'] ?? 0);
         $solicitud = $solicitudId > 0
             ? SolicitudCliente::query()->where('cliente_id', $clienteId)->find($solicitudId)
@@ -90,7 +95,8 @@ class ClienteOnlineQrReconciliationService
         // Before payment there normally is no local shipment row. Once the
         // remote QR is older than 48h, only linked, still-active local rows
         // need a final reconciliation; the QR itself remains untouched.
-        if ($expired && !$this->solicitudNeedsExpiryAction($solicitud)) {
+        $cartMarkedPending = $this->normalizePaymentStatus((string) ($cart['estado_pago'] ?? '')) === 'pending';
+        if ($expired && !$cartMarkedPaid && !$cartMarkedPending && !$this->solicitudNeedsExpiryAction($solicitud)) {
             return ['checked' => false, 'paid' => false, 'cancelled' => false];
         }
 
@@ -99,12 +105,15 @@ class ClienteOnlineQrReconciliationService
             $originUserId,
             $clienteId,
             $solicitudId,
-            $expired
+            $expired,
+            $summary,
+            $cartMarkedPaid,
+            $cartMarkedPending
         ): array {
             $solicitud = $solicitudId > 0
                 ? SolicitudCliente::query()->where('cliente_id', $clienteId)->find($solicitudId)
                 : null;
-            if ($expired && !$this->solicitudNeedsExpiryAction($solicitud)) {
+            if ($expired && !$cartMarkedPaid && !$cartMarkedPending && !$this->solicitudNeedsExpiryAction($solicitud)) {
                 return ['checked' => false, 'paid' => false, 'cancelled' => false];
             }
 
@@ -118,7 +127,36 @@ class ClienteOnlineQrReconciliationService
                 throw new RuntimeException('Facturación devolvió un estado de pago no reconocido.');
             }
             if ($status === 'paid') {
-                $updated = $this->markLinkedSolicitudAsPaid($clienteId, $solicitudId);
+                $attemptId = strtolower(trim((string) ($summary['qr_attempt_id'] ?? '')));
+                if (!\Illuminate\Support\Str::isUuid($attemptId)) {
+                    throw new RuntimeException('Facturación no devolvió un identificador válido del intento QR pagado.');
+                }
+                $cliente = Cliente::query()->find($clienteId);
+                if (!$cliente) {
+                    throw new RuntimeException('No se encontró el cliente asociado al QR pagado.');
+                }
+
+                $response = app(ClienteSolicitudController::class)->checkQrStatusForCustomer(
+                    $cliente,
+                    $attemptId,
+                    $this->facturacion
+                );
+                $body = json_decode($response->getContent(), true) ?: [];
+                if ($response->getStatusCode() >= 500 || !empty($body['retry'])) {
+                    throw new RuntimeException((string) ($body['message'] ?? 'El flujo pagado todavía requiere reintento.'));
+                }
+                if (($body['registration_error'] ?? null) === 'missing_shipment_data') {
+                    Log::critical('El QR pagado no tiene datos suficientes para reconstruir el envío.', [
+                        'cart_id' => $cartId,
+                        'cliente_id' => $clienteId,
+                        'qr_attempt_id' => $attemptId,
+                    ]);
+
+                    return ['checked' => true, 'paid' => false, 'cancelled' => false];
+                }
+
+                $updated = !empty($body['solicitud_codigo'])
+                    || $this->markLinkedSolicitudAsPaid($clienteId, $solicitudId);
 
                 return ['checked' => true, 'paid' => $updated, 'cancelled' => false];
             }

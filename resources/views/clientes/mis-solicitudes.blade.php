@@ -138,7 +138,7 @@
                                     </td>
                                     <td>{{ optional($pagoQr->created_at)->format('d/m/Y H:i') }}</td>
                                     <td>
-                                        <button type="button" class="btn btn-sm btn-outline-primary js-consultar-pago-qr" data-qr-attempt="{{ $pagoQr->qr_attempt_id }}">
+                                        <button type="button" class="btn btn-sm btn-outline-primary js-consultar-pago-qr" data-qr-attempt="{{ $pagoQr->qr_attempt_id }}" data-qr-amount="{{ number_format((float) $pagoQr->importe, 2, '.', '') }}" data-qr-code="{{ $pagoQr->internal_code }}">
                                             <i class="fas fa-qrcode mr-1" aria-hidden="true"></i>Ver QR
                                         </button>
                                     </td>
@@ -363,12 +363,22 @@
                         body: new URLSearchParams({ _token: csrfToken, qr_attempt_id: attemptId }),
                     });
                     const payload = await response.json();
-                    if (!response.ok) throw new Error(payload.message || 'No se pudo consultar el pago.');
+                    if (activeAttempt !== attemptId) return;
 
-                    document.getElementById('mis-solicitudes-qr-importe').textContent = payload.qr?.amount || '0.00';
-                    document.getElementById('mis-solicitudes-qr-codigo').textContent = payload.qr?.internal_code || '';
+                    if (payload.qr?.amount != null) document.getElementById('mis-solicitudes-qr-importe').textContent = payload.qr.amount;
+                    if (payload.qr?.internal_code) document.getElementById('mis-solicitudes-qr-codigo').textContent = payload.qr.internal_code;
                     showInvoice(payload);
                     showRequest(payload);
+
+                    if (payload.paid || payload.payment_status === 'pagado' || payload.registration_error === 'qr_amount_mismatch') {
+                        imageWrap.classList.add('d-none');
+                        imageElement.removeAttribute('src');
+                    }
+                    if (payload.terminal || payload.retry === false) {
+                        activeAttempt = '';
+                        if (pollTimer) window.clearTimeout(pollTimer);
+                    }
+                    if (!response.ok) throw new Error(payload.message || 'No se pudo consultar el pago.');
 
                     if (payload.payment_status === 'pendiente' && payload.qr?.qr_image) {
                         const image = String(payload.qr.qr_image);
@@ -399,8 +409,8 @@
                 button.addEventListener('click', function () {
                     activeAttempt = button.dataset.qrAttempt || '';
                     if (pollTimer) window.clearTimeout(pollTimer);
-                    document.getElementById('mis-solicitudes-qr-importe').textContent = '0.00';
-                    document.getElementById('mis-solicitudes-qr-codigo').textContent = '';
+                    document.getElementById('mis-solicitudes-qr-importe').textContent = button.dataset.qrAmount || '—';
+                    document.getElementById('mis-solicitudes-qr-codigo').textContent = button.dataset.qrCode || '';
                     invoiceElement.textContent = '';
                     requestElement.replaceChildren();
                     requestElement.className = 'alert d-none';
