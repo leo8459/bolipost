@@ -266,9 +266,7 @@ class FacturaFirmaPdfController extends Controller
             ->unique(fn (array $package) => strtoupper(trim(($package['codigo'] ?? '') . '|' . ($package['servicio'] ?? ''))))
             ->values();
 
-        // Este comprobante acompaña a la factura y se prepara al emitirla.
-        // La disponibilidad para entrega se valida en el ticket operativo aparte.
-        return $packages->values()->all();
+        return $this->filterDeliveryPackagesByTracking($packages)->values()->all();
     }
 
     private function resolveDeliveryPackageAmount(object $item): string
