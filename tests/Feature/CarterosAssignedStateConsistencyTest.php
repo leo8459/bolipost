@@ -62,6 +62,29 @@ class CarterosAssignedStateConsistencyTest extends TestCase
         $this->assertSame([], $response->getData(true)['data']);
     }
 
+    public function test_domicilio_matches_delivered_package_codes_through_a_database_subquery(): void
+    {
+        DB::table('paquetes_contrato')->insert($this->contractRow(36816, 'CONTRATO-ENTREGADO', 1));
+        DB::table('eventos_contrato')->insert([
+            'codigo' => 'CONTRATO-ENTREGADO',
+            'evento_id' => 316,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->combinedDataResponse(27, true);
+        $data = $response->getData(true);
+
+        $this->assertSame(1, $data['meta']['total']);
+        $this->assertSame('CONTRATO-ENTREGADO', $data['data'][0]['codigo']);
+
+        $method = new ReflectionMethod(CarterosController::class, 'deliveredEventCodeSubqueries');
+        $method->setAccessible(true);
+        $subqueries = $method->invoke(new CarterosController(), 316);
+
+        $this->assertInstanceOf(\Illuminate\Database\Query\Builder::class, $subqueries['CONTRATO']);
+    }
+
     public function test_dashboard_excludes_stale_and_orphaned_cartero_assignments(): void
     {
         DB::table('paquetes_contrato')->insert([
@@ -158,7 +181,7 @@ class CarterosAssignedStateConsistencyTest extends TestCase
         ], $cities);
     }
 
-    private function combinedDataResponse(int $estadoId)
+    private function combinedDataResponse(int $estadoId, bool $includePackageStateMatches = false)
     {
         $method = new ReflectionMethod(CarterosController::class, 'combinedDataResponse');
         $method->setAccessible(true);
@@ -169,6 +192,7 @@ class CarterosAssignedStateConsistencyTest extends TestCase
             $estadoId,
             null,
             true,
+            $includePackageStateMatches,
         );
     }
 
@@ -214,6 +238,7 @@ class CarterosAssignedStateConsistencyTest extends TestCase
                 $table->id();
                 $table->string('codigo');
                 $table->unsignedBigInteger('evento_id');
+                $table->unsignedBigInteger('user_id')->nullable();
                 $table->timestamps();
             });
         }

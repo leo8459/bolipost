@@ -2304,7 +2304,7 @@ class CarterosController extends Controller
         $contratoFilterIds = null;
         $solicitudFilterIds = null;
         $deliveryEventCodes = $includePackageStateMatches
-            ? $this->deliveredEventCodesByType(self::EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE)
+            ? $this->deliveredEventCodeSubqueries(self::EVENTO_ID_PAQUETE_ENTREGADO_EXITOSAMENTE)
             : [];
 
         if ($estadoId !== null || $userId !== null) {
@@ -2331,45 +2331,12 @@ class CarterosController extends Controller
                 }
             }
 
-            $emsFilterIds = (clone $base)
-                ->whereNotNull('id_paquetes_ems')
-                ->pluck('id_paquetes_ems')
-                ->map(fn ($id) => (int) $id)
-                ->unique()
-                ->values()
-                ->all();
-
-            $certiFilterIds = (clone $base)
-                ->whereNotNull('id_paquetes_certi')
-                ->pluck('id_paquetes_certi')
-                ->map(fn ($id) => (int) $id)
-                ->unique()
-                ->values()
-                ->all();
-
-            $contratoFilterIds = (clone $base)
-                ->whereNotNull('id_paquetes_contrato')
-                ->pluck('id_paquetes_contrato')
-                ->map(fn ($id) => (int) $id)
-                ->unique()
-                ->values()
-                ->all();
-
-            $ordiFilterIds = (clone $base)
-                ->whereNotNull('id_paquetes_ordi')
-                ->pluck('id_paquetes_ordi')
-                ->map(fn ($id) => (int) $id)
-                ->unique()
-                ->values()
-                ->all();
-
-            $solicitudFilterIds = (clone $base)
-                ->whereNotNull('id_solicitud_cliente')
-                ->pluck('id_solicitud_cliente')
-                ->map(fn ($id) => (int) $id)
-                ->unique()
-                ->values()
-                ->all();
+            // Keep these filters in SQL so large assignments never become oversized PHP whereIn lists.
+            $emsFilterIds = (clone $base)->whereNotNull('id_paquetes_ems')->select('id_paquetes_ems');
+            $certiFilterIds = (clone $base)->whereNotNull('id_paquetes_certi')->select('id_paquetes_certi');
+            $contratoFilterIds = (clone $base)->whereNotNull('id_paquetes_contrato')->select('id_paquetes_contrato');
+            $ordiFilterIds = (clone $base)->whereNotNull('id_paquetes_ordi')->select('id_paquetes_ordi');
+            $solicitudFilterIds = (clone $base)->whereNotNull('id_solicitud_cliente')->select('id_solicitud_cliente');
         }
 
         $ems = PaqueteEms::query()
@@ -2393,7 +2360,7 @@ class CarterosController extends Controller
             ->when($estadoId !== null || $userId !== null, function ($query) use ($emsFilterIds, $estadoId, $userId, $includePackageStateMatches, $deliveryEventCodes) {
                 if ($includePackageStateMatches && $estadoId !== null && $userId === null) {
                     $query->where(function ($sub) use ($emsFilterIds, $estadoId, $deliveryEventCodes) {
-                        $sub->whereIn('id', $emsFilterIds ?: [0])
+                        $sub->whereIn('id', $emsFilterIds)
                             ->orWhere('estado_id', $estadoId)
                             ->orWhereIn('codigo', $deliveryEventCodes['EMS'] ?? []);
                     });
@@ -2401,7 +2368,7 @@ class CarterosController extends Controller
                     return;
                 }
 
-                $query->whereIn('id', $emsFilterIds ?: [0]);
+                $query->whereIn('id', $emsFilterIds);
                 if ($estadoId !== null) {
                     $query->where('estado_id', $estadoId);
                 }
@@ -2454,7 +2421,7 @@ class CarterosController extends Controller
             ->when($estadoId !== null || $userId !== null, function ($query) use ($certiFilterIds, $estadoId, $userId, $includePackageStateMatches, $deliveryEventCodes) {
                 if ($includePackageStateMatches && $estadoId !== null && $userId === null) {
                     $query->where(function ($sub) use ($certiFilterIds, $estadoId, $deliveryEventCodes) {
-                        $sub->whereIn('id', $certiFilterIds ?: [0])
+                        $sub->whereIn('id', $certiFilterIds)
                             ->orWhere('fk_estado', $estadoId)
                             ->orWhereIn('codigo', $deliveryEventCodes['CERTI'] ?? []);
                     });
@@ -2462,7 +2429,7 @@ class CarterosController extends Controller
                     return;
                 }
 
-                $query->whereIn('id', $certiFilterIds ?: [0]);
+                $query->whereIn('id', $certiFilterIds);
                 if ($estadoId !== null) {
                     $query->where('fk_estado', $estadoId);
                 }
@@ -2516,7 +2483,7 @@ class CarterosController extends Controller
             ->when($estadoId !== null || $userId !== null, function ($query) use ($ordiFilterIds, $estadoId, $userId, $includePackageStateMatches, $deliveryEventCodes) {
                 if ($includePackageStateMatches && $estadoId !== null && $userId === null) {
                     $query->where(function ($sub) use ($ordiFilterIds, $estadoId, $deliveryEventCodes) {
-                        $sub->whereIn('id', $ordiFilterIds ?: [0])
+                        $sub->whereIn('id', $ordiFilterIds)
                             ->orWhere('fk_estado', $estadoId)
                             ->orWhereIn('codigo', $deliveryEventCodes['ORDI'] ?? []);
                     });
@@ -2524,7 +2491,7 @@ class CarterosController extends Controller
                     return;
                 }
 
-                $query->whereIn('id', $ordiFilterIds ?: [0]);
+                $query->whereIn('id', $ordiFilterIds);
                 if ($estadoId !== null) {
                     $query->where('fk_estado', $estadoId);
                 }
@@ -2579,7 +2546,7 @@ class CarterosController extends Controller
             ->when($estadoId !== null || $userId !== null, function ($query) use ($contratoFilterIds, $estadoId, $userId, $includePackageStateMatches, $deliveryEventCodes) {
                 if ($includePackageStateMatches && $estadoId !== null && $userId === null) {
                     $query->where(function ($sub) use ($contratoFilterIds, $estadoId, $deliveryEventCodes) {
-                        $sub->whereIn('id', $contratoFilterIds ?: [0])
+                        $sub->whereIn('id', $contratoFilterIds)
                             ->orWhere('estados_id', $estadoId)
                             ->orWhereIn('codigo', $deliveryEventCodes['CONTRATO'] ?? []);
                     });
@@ -2587,7 +2554,7 @@ class CarterosController extends Controller
                     return;
                 }
 
-                $query->whereIn('id', $contratoFilterIds ?: [0]);
+                $query->whereIn('id', $contratoFilterIds);
                 if ($estadoId !== null) {
                     $query->where('estados_id', $estadoId);
                 }
@@ -2644,7 +2611,7 @@ class CarterosController extends Controller
             ->when($estadoId !== null || $userId !== null, function ($query) use ($solicitudFilterIds, $estadoId, $userId, $includePackageStateMatches, $deliveryEventCodes) {
                 if ($includePackageStateMatches && $estadoId !== null && $userId === null) {
                     $query->where(function ($sub) use ($solicitudFilterIds, $estadoId, $deliveryEventCodes) {
-                        $sub->whereIn('id', $solicitudFilterIds ?: [0])
+                        $sub->whereIn('id', $solicitudFilterIds)
                             ->orWhere('estado_id', $estadoId)
                             ->orWhereIn(DB::raw("COALESCE(NULLIF(TRIM(codigo_solicitud), ''), NULLIF(TRIM(barcode), ''), 'SIN CODIGO')"), $deliveryEventCodes['SOLICITUD'] ?? []);
                     });
@@ -2652,7 +2619,7 @@ class CarterosController extends Controller
                     return;
                 }
 
-                $query->whereIn('id', $solicitudFilterIds ?: [0]);
+                $query->whereIn('id', $solicitudFilterIds);
                 if ($estadoId !== null) {
                     $query->where('estado_id', $estadoId);
                 }
@@ -2855,7 +2822,7 @@ class CarterosController extends Controller
         ]);
     }
 
-    private function deliveredEventCodesByType(int $eventId): array
+    private function deliveredEventCodeSubqueries(int $eventId): array
     {
         $tables = [
             'EMS' => 'eventos_ems',
@@ -2869,13 +2836,11 @@ class CarterosController extends Controller
 
         foreach ($tables as $type => $table) {
             $codes[$type] = DB::table($table)
+                ->selectRaw('TRIM(codigo)')
                 ->where('evento_id', $eventId)
-                ->pluck('codigo')
-                ->map(fn ($codigo) => trim((string) $codigo))
-                ->filter()
-                ->unique()
-                ->values()
-                ->all();
+                ->whereNotNull('codigo')
+                ->whereRaw("TRIM(codigo) <> ''")
+                ->distinct();
         }
 
         return $codes;

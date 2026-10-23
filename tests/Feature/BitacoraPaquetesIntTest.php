@@ -92,6 +92,7 @@ class BitacoraPaquetesIntTest extends TestCase
 
         $request = Request::create('/bitacoras', 'POST', [
             'cod_especial' => ' cn-33-int-001 ',
+            'tipo_transporte' => 'terrestre',
             'transportadora' => 'transportes prueba',
             'provincia' => 'oruro',
             'factura' => 'F-001',
@@ -108,5 +109,37 @@ class BitacoraPaquetesIntTest extends TestCase
         $this->assertSame('TRANSPORTES PRUEBA', $payload['transportadora']);
         $this->assertSame(7, $payload['user_id']);
         $this->assertNotEmpty($payload['imagen_factura']);
+    }
+
+    public function test_optimiza_facturas_redimensionando_imagenes_al_limite_configurado(): void
+    {
+        if (!function_exists('imagecreatetruecolor')) {
+            $this->markTestSkipped('GD no esta instalado.');
+        }
+
+        $image = imagecreatetruecolor(1800, 1200);
+        imagefill($image, 0, 0, imagecolorallocate($image, 255, 255, 255));
+
+        $temporaryPath = tempnam(sys_get_temp_dir(), 'bitacora-factura-test-');
+        imagejpeg($image, $temporaryPath, 100);
+        imagedestroy($image);
+
+        try {
+            $file = new UploadedFile($temporaryPath, 'factura.jpg', 'image/jpeg', UPLOAD_ERR_OK, true);
+            $controller = new BitacoraController(
+                app(BitacoraCn33Service::class),
+                Mockery::mock(BitacoraFacturaQrService::class)
+            );
+            $method = new ReflectionMethod($controller, 'buildOptimizedFacturaImageBinary');
+            $optimized = $method->invoke($controller, $file);
+
+            $this->assertNotNull($optimized);
+            $this->assertContains($optimized['extension'], ['webp', 'jpg']);
+            $dimensions = getimagesizefromstring($optimized['binary']);
+            $this->assertNotFalse($dimensions);
+            $this->assertLessThanOrEqual(1400, max($dimensions[0], $dimensions[1]));
+        } finally {
+            @unlink($temporaryPath);
+        }
     }
 }

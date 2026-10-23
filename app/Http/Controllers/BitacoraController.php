@@ -28,6 +28,10 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class BitacoraController extends Controller
 {
+    private const FACTURA_IMAGE_MAX_PIXELS = 16_000_000;
+
+    private const FACTURA_IMAGE_MAX_SIDE = 1400;
+
     public function __construct(
         private readonly BitacoraCn33Service $cn33Service,
         private readonly BitacoraFacturaQrService $facturaQrService
@@ -1004,9 +1008,19 @@ class BitacoraController extends Controller
 
     private function buildOptimizedFacturaImageBinary(UploadedFile $file): ?array
     {
+        $source = null;
+        $canvas = null;
+
         try {
             $binary = $file->get();
             if ($binary === false || $binary === '') {
+                return null;
+            }
+
+            $imageInfo = @getimagesizefromstring($binary) ?: [];
+            $sourceWidth = (int) ($imageInfo[0] ?? 0);
+            $sourceHeight = (int) ($imageInfo[1] ?? 0);
+            if ($sourceWidth <= 0 || $sourceHeight <= 0 || ($sourceWidth * $sourceHeight) > self::FACTURA_IMAGE_MAX_PIXELS) {
                 return null;
             }
 
@@ -1015,79 +1029,37 @@ class BitacoraController extends Controller
                 return null;
             }
 
-            $imageInfo = @getimagesizefromstring($binary) ?: [];
-            $sourceWidth = (int) ($imageInfo[0] ?? imagesx($source));
-            $sourceHeight = (int) ($imageInfo[1] ?? imagesy($source));
-            if ($sourceWidth <= 0 || $sourceHeight <= 0) {
-                imagedestroy($source);
-
-                return null;
-            }
-
-            [$targetWidth, $targetHeight] = $this->resolveFacturaImageDimensions($sourceWidth, $sourceHeight, 1600);
+            [$targetWidth, $targetHeight] = $this->resolveFacturaImageDimensions($sourceWidth, $sourceHeight, self::FACTURA_IMAGE_MAX_SIDE);
             $canvas = imagecreatetruecolor($targetWidth, $targetHeight);
             $background = imagecolorallocate($canvas, 255, 255, 255);
             imagefill($canvas, 0, 0, $background);
             imagecopyresampled($canvas, $source, 0, 0, 0, 0, $targetWidth, $targetHeight, $sourceWidth, $sourceHeight);
 
             imagedestroy($source);
+            $source = null;
 
             $originalSize = (int) $file->getSize();
-            $candidates = [];
+            $webpBinary = null;
 
             if (function_exists('imagewebp')) {
-                foreach ([78, 70, 62, 55, 48, 40] as $quality) {
-                    $candidateBinary = $this->encodeGdImage($canvas, 'webp', $quality);
-                    if ($candidateBinary === null) {
-                        continue;
-                    }
-
-                    $candidates[] = [
-                        'binary' => $candidateBinary,
+                $webpBinary = $this->encodeGdImage($canvas, 'webp', 74);
+                if ($webpBinary !== null && strlen($webpBinary) < $originalSize) {
+                    return [
+                        'binary' => $webpBinary,
                         'extension' => 'webp',
                     ];
-
-                    if (strlen($candidateBinary) < $originalSize) {
-                        imagedestroy($canvas);
-
-                        return [
-                            'binary' => $candidateBinary,
-                            'extension' => 'webp',
-                        ];
-                    }
                 }
             }
 
-            foreach ([82, 74, 66, 58, 50, 42] as $quality) {
-                $candidateBinary = $this->encodeGdImage($canvas, 'jpeg', $quality);
-                if ($candidateBinary === null) {
-                    continue;
-                }
-
-                $candidates[] = [
-                    'binary' => $candidateBinary,
+            $jpegBinary = $this->encodeGdImage($canvas, 'jpeg', 78);
+            if ($jpegBinary !== null && strlen($jpegBinary) < $originalSize) {
+                return [
+                    'binary' => $jpegBinary,
                     'extension' => 'jpg',
                 ];
-
-                if (strlen($candidateBinary) < $originalSize) {
-                    imagedestroy($canvas);
-
-                    return [
-                        'binary' => $candidateBinary,
-                        'extension' => 'jpg',
-                    ];
-                }
             }
 
-            imagedestroy($canvas);
-
-            if ($candidates === []) {
-                return null;
-            }
-
-            usort($candidates, fn (array $a, array $b) => strlen($a['binary']) <=> strlen($b['binary']));
-
-            return $candidates[0];
+            return null;
         } catch (\Throwable $e) {
             Log::warning('Bitacora factura: no se pudo optimizar la imagen subida.', [
                 'file' => $file->getClientOriginalName(),
@@ -1096,6 +1068,14 @@ class BitacoraController extends Controller
             ]);
 
             return null;
+        } finally {
+            if ($source !== null && $source !== false) {
+                imagedestroy($source);
+            }
+
+            if ($canvas !== null && $canvas !== false) {
+                imagedestroy($canvas);
+            }
         }
     }
 
