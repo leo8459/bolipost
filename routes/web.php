@@ -361,7 +361,18 @@ Route::middleware(['auth', 'internal.only', 'verified'])->group(function () {
 });
 
 Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function () {
+    Route::get('/sistemas/solicitar-cambios', [\App\Http\Controllers\SolicitudCambioController::class, 'index'])->name('solicitudes-cambio.index');
+    Route::post('/sistemas/solicitar-cambios', [\App\Http\Controllers\SolicitudCambioController::class, 'store'])->name('solicitudes-cambio.store');
+    Route::get('/sistemas/solicitar-cambios/{solicitud}', [\App\Http\Controllers\SolicitudCambioController::class, 'show'])->name('solicitudes-cambio.show');
+    Route::get('/administrador/servicios-adicionales', [\App\Http\Controllers\ServicioAdicionalController::class, 'index'])
+        ->name('servicios-adicionales.index');
+    Route::patch('/administrador/servicios-adicionales/{empresa}', [\App\Http\Controllers\ServicioAdicionalController::class, 'update'])
+        ->name('servicios-adicionales.update');
     Route::middleware('can:admin-only-menu')->group(function () {
+        Route::get('/administrador/habilitaciones', [\App\Http\Controllers\ServiceAvailabilityController::class, 'index'])
+            ->name('admin.service-availability.index');
+        Route::patch('/administrador/habilitaciones', [\App\Http\Controllers\ServiceAvailabilityController::class, 'update'])
+            ->name('admin.service-availability.update');
         Route::get('/administrador/cargado-ventanas', [WindowLoadMetricsController::class, 'index'])
             ->name('admin.window-load-metrics.index');
         Route::get('/administrador/eventos', [EventosAdministradorController::class, 'index'])

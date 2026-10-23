@@ -642,6 +642,7 @@ class RecojoController extends Controller
             'departamentos' => self::DEPARTAMENTOS,
             'canContratoCreateSubmit' => $this->canSubmitContratoCreate($user),
             'canContratoCreateFrecuente' => $this->canManageContratoFrecuente($user),
+            'servicioIdaVueltaHabilitado' => (bool) Empresa::query()->whereKey($user->empresa_id)->value('servicio_ida_vuelta'),
         ]);
     }
 
@@ -917,6 +918,13 @@ class RecojoController extends Controller
         ]), $this->storeValidationAttributes());
 
         $contratoVuelta = null;
+        if (($data['ida_vuelta'] ?? false)
+            && ! Empresa::query()->whereKey($user->empresa_id)->where('servicio_ida_vuelta', true)->exists()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'ida_vuelta' => 'El servicio de ida y vuelta no está habilitado para tu empresa.',
+            ]);
+        }
+
         try {
             [$contrato, $contratoVuelta] = DB::transaction(function () use ($data, $user) {
                 $contratoIda = $this->createContratoDesdePayload($data, $user);

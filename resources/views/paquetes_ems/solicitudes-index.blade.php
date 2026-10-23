@@ -334,9 +334,11 @@
                     <p>Consulta todas las solicitudes registradas desde cliente y desde Admisiones.</p>
                 </div>
                 <div class="solicitudes-actions">
-                    <a href="{{ route('paquetes-ems.solicitudes.create') }}" class="btn btn-dorado">
-                        Nuevo
-                    </a>
+                    @if (\App\Support\ServiceAvailability::isEnabled('solicitud'))
+                        <a href="{{ route('paquetes-ems.solicitudes.create') }}" class="btn btn-dorado">
+                            Nuevo
+                        </a>
+                    @endif
                     <a href="{{ route('paquetes-ems.index') }}" class="btn btn-outline-light2">
                         Volver a admisiones
                     </a>

@@ -569,6 +569,7 @@
                         </div>
                         </div>
                     </div>
+                    @if ($servicioIdaVueltaHabilitado ?? false)
                     <div class="section-block">
                         <div class="section-title">Servicio adicional</div>
                         <div class="custom-control custom-checkbox">
@@ -577,6 +578,7 @@
                         </div>
                         <small class="form-text text-muted">Crea también una segunda guía de regreso, invirtiendo origen, destino, remitente y destinatario.</small>
                     </div>
+                    @endif
                     </div>
 
                     <div class="top-actions" id="formActionsBlock" style="display:none;">

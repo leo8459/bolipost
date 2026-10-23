@@ -443,8 +443,38 @@ class ClienteSolicitudFacturacionService
             ?? data_get($respuesta, 'nroFactura')
             ?? data_get($respuestaGuardada, 'factura.nroFactura')
             ?? data_get($respuestaGuardada, 'factura.numeroFactura')
+            ?? data_get($cart, 'numero_factura')
             ?? ''
         ));
+        $invoicePdfUrl = trim((string) (
+            data_get($respuesta, 'factura.pdfUrl')
+            ?? data_get($respuesta, 'factura.pdf_url')
+            ?? data_get($respuesta, 'factura.urlPdf')
+            ?? data_get($respuesta, 'pdfUrl')
+            ?? data_get($respuesta, 'pdf_url')
+            ?? data_get($respuestaGuardada, 'factura.pdfUrl')
+            ?? data_get($respuestaGuardada, 'factura.pdf_url')
+            ?? data_get($respuestaGuardada, 'factura.urlPdf')
+            ?? data_get($cart, 'pdf_url')
+            ?? data_get($cart, 'pdfUrl')
+            ?? ''
+        ));
+        if ($invoicePdfUrl !== '' && str_starts_with($invoicePdfUrl, '/public/')) {
+            $invoicePdfUrl = rtrim((string) config('services.facturacion_bridge.sefe_public_base_url', 'https://sefe.agetic.gob.bo'), '/')
+                . $invoicePdfUrl;
+        }
+        $cuf = trim((string) (
+            data_get($respuesta, 'factura.cuf')
+            ?? data_get($respuesta, 'cuf')
+            ?? data_get($respuestaGuardada, 'factura.cuf')
+            ?? data_get($respuestaGuardada, 'cuf')
+            ?? data_get($cart, 'cuf')
+            ?? ''
+        ));
+        if ($invoicePdfUrl === '' && $invoiceStatus === 'FACTURADA' && preg_match('/^[A-Za-z0-9_-]{10,128}$/', $cuf)) {
+            $invoicePdfUrl = rtrim((string) config('services.facturacion_bridge.sefe_public_base_url', 'https://sefe.agetic.gob.bo'), '/')
+                . '/public/facturas_pdf/' . $cuf . '.pdf';
+        }
 
         return [
             'cart' => $cart,
@@ -453,6 +483,7 @@ class ClienteSolicitudFacturacionService
             'payment_status_confirmed' => in_array($rawPaymentStatus, $knownPaymentStatuses, true),
             'invoice_status' => $invoiceStatus,
             'invoice_number' => $invoiceNumber,
+            'invoice_pdf_url' => $invoicePdfUrl,
         ];
     }
 

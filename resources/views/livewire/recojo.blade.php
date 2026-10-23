@@ -148,7 +148,7 @@
                             Imprimir generados hoy
                         </a> -->
                         @endif
-                        @if (!$this->isAlmacenMode)
+                        @if (!$this->isAlmacenMode && \App\Support\ServiceAvailability::isEnabled('contratos'))
                             @if ($canCreateContratoTarifa)
                             <a class="btn btn-outline-light2" href="{{ route('paquetes-contrato.create-con-tarifa', [], false) }}">
                                 Crear solicitud

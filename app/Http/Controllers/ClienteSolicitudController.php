@@ -12,6 +12,7 @@ use App\Models\SolicitudCliente;
 use App\Models\TarifarioTiktoker;
 use App\Services\ClienteSolicitudFacturacionService;
 use App\Support\SolicitudCode;
+use App\Support\ServiceAvailability;
 use App\Support\TiktokerEvent;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
@@ -20,12 +21,15 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
 
 class ClienteSolicitudController extends Controller
 {
+    private const DELIVERY_EXPRESS_DISABLED_MESSAGE = 'La creación de solicitudes Delivery Express está deshabilitada temporalmente.';
+
     private const DIRECCION_DESTINATARIO_VENTANILLA = 'CORREOS DE BOLIVIA';
 
     private const PICKUP_CONFIRMATION_MESSAGE = 'Se comunicará un operario dentro de las próximas 24 horas para confirmar el recojo. Si nadie se comunica, por favor contáctese al 71522163.';
@@ -42,8 +46,12 @@ class ClienteSolicitudController extends Controller
         'POTOSI',
     ];
 
-    public function create(): View
+    public function create(): View|RedirectResponse
     {
+        if (! ServiceAvailability::isEnabled('solicitud')) {
+            return redirect()->route('clientes.dashboard')->with('error', self::DELIVERY_EXPRESS_DISABLED_MESSAGE);
+        }
+
         $cliente = Auth::guard('cliente')->user();
         $servicioExtraIds = TarifarioTiktoker::query()
             ->whereNotNull('servicio_extra_id')
@@ -82,6 +90,7 @@ class ClienteSolicitudController extends Controller
 
         $pagosQrSinSolicitud = collect();
         $qrAttemptsBySolicitudId = [];
+        $qrPaymentsBySolicitudId = [];
         $qrHistoryWarning = null;
         try {
             $carts = $facturacion->listarSolicitudesQr($cliente, 1, 100);
@@ -96,19 +105,44 @@ class ClienteSolicitudController extends Controller
 
                 $summary = $this->qrSummaryFromCart($cart);
                 $solicitudId = (int) ($summary['solicitud_cliente_id'] ?? 0);
+                $paymentStatus = $this->estadoPagoQrDesdeCarrito($cart);
+                if ($solicitudId <= 0 && $paymentStatus === 'pagado') {
+                    // Recupera el vínculo en carritos antiguos si la API no
+                    // guardó solicitud_cliente_id después de registrar el envío.
+                    $solicitudVinculada = $this->buscarSolicitudQrVinculada($solicitudes, $summary, $cart);
+                    $solicitudId = (int) ($solicitudVinculada?->id ?? 0);
+                }
+                $payment = (object) [
+                    'qr_attempt_id' => $attemptId,
+                    'internal_code' => (string) ($cart['codigo_orden'] ?? ''),
+                    'importe' => (float) ($cart['total'] ?? 0),
+                    'estado_pago' => $paymentStatus,
+                    'created_at' => !empty($cart['created_at'])
+                        ? \Illuminate\Support\Carbon::parse($cart['created_at'])
+                        : null,
+                ];
                 if ($solicitudId > 0) {
                     $qrAttemptsBySolicitudId[$solicitudId] = $attemptId;
+                    $qrPaymentsBySolicitudId[$solicitudId] = $payment;
+                    continue;
+                }
+
+                // Mantener visibles pagos QR pendientes y confirmados sin envío vinculado.
+                // El cliente puede consultar y terminar el registro desde Mis solicitudes.
+                if (!in_array($paymentStatus, ['pendiente', 'pagado'], true)) {
                     continue;
                 }
 
                 $pagosQrSinSolicitud->push((object) [
-                    'qr_attempt_id' => $attemptId,
-                    'internal_code' => (string) ($cart['codigo_orden'] ?? ''),
-                    'importe' => (float) ($cart['total'] ?? 0),
-                    'estado_pago' => $this->estadoPagoQrDesdeCarrito($cart),
-                    'created_at' => !empty($cart['created_at'])
-                        ? \Illuminate\Support\Carbon::parse($cart['created_at'])
-                        : null,
+                    'qr_attempt_id' => $payment->qr_attempt_id,
+                    'internal_code' => $payment->internal_code,
+                    'importe' => $payment->importe,
+                    'estado_pago' => $payment->estado_pago,
+                    'created_at' => $payment->created_at,
+                    'servicio' => (string) ($summary['servicio'] ?? 'Delivery Express'),
+                    'origen' => (string) ($summary['origen'] ?? ''),
+                    'destino' => (string) ($summary['destino'] ?? ''),
+                    'cantidad' => (int) ($summary['cantidad_paquetes'] ?? 1),
                 ]);
             }
         } catch (\Throwable $exception) {
@@ -124,12 +158,21 @@ class ClienteSolicitudController extends Controller
             'solicitudes' => $solicitudes,
             'pagosQrSinSolicitud' => $pagosQrSinSolicitud,
             'qrAttemptsBySolicitudId' => $qrAttemptsBySolicitudId,
+            'qrPaymentsBySolicitudId' => $qrPaymentsBySolicitudId,
             'qrHistoryWarning' => $qrHistoryWarning,
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): JsonResponse|RedirectResponse
     {
+        if (! ServiceAvailability::isEnabled('solicitud')) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => self::DELIVERY_EXPRESS_DISABLED_MESSAGE], 503);
+            }
+
+            return redirect()->route('clientes.dashboard')->with('error', self::DELIVERY_EXPRESS_DISABLED_MESSAGE);
+        }
+
         $cliente = Auth::guard('cliente')->user();
         $servicioExtraIds = TarifarioTiktoker::query()
             ->whereNotNull('servicio_extra_id')
@@ -387,6 +430,10 @@ class ClienteSolicitudController extends Controller
 
     public function quote(Request $request): JsonResponse
     {
+        if (! ServiceAvailability::isEnabled('solicitud')) {
+            return response()->json(['message' => self::DELIVERY_EXPRESS_DISABLED_MESSAGE], 503);
+        }
+
         $data = $request->validate([
             'servicio_extra_id' => ['required', 'integer', 'exists:servicio_extras,id'],
             'origen' => ['required', 'string'],
@@ -518,6 +565,9 @@ class ClienteSolicitudController extends Controller
                     'payment_status' => 'pagado',
                     'invoice_status' => $invoiceStatus,
                     'invoice_number' => $invoiceNumber,
+                    'invoice_download_url' => $invoiceStatus === 'FACTURADA' && filled($payment['invoice_pdf_url'] ?? null)
+                        ? route('clientes.solicitudes.qr.invoice.download', ['qr_attempt_id' => $attemptId])
+                        : null,
                     'qr' => $qrStatusPayload,
                     'terminal' => true,
                     'retry' => false,
@@ -578,6 +628,32 @@ class ClienteSolicitudController extends Controller
             try {
                 $summary = $this->qrSummaryFromCart($cart);
                 $solicitudId = (int) ($summary['solicitud_cliente_id'] ?? 0);
+                if ($solicitudId <= 0 && ! ServiceAvailability::isEnabled('solicitud')) {
+                    $qrPayload = $facturacion->qrPayloadFromCart($cart, $attemptId);
+                    $qrPayload['amount'] = number_format((float) $qrPayload['amount'], 2, '.', '');
+                    $qrPayload['currency'] = 'BOB';
+                    $qrPayload['qr_image'] = '';
+
+                    return response()->json([
+                        'ok' => true,
+                        'payment_status' => 'pagado',
+                        'paid' => true,
+                        'terminal' => true,
+                        'invoice_status' => $invoiceStatus,
+                        'invoice_number' => $invoiceNumber,
+                        'invoice_download_url' => $invoiceStatus === 'FACTURADA' && filled($payment['invoice_pdf_url'] ?? null)
+                            ? route('clientes.solicitudes.qr.invoice.download', ['qr_attempt_id' => $attemptId])
+                            : null,
+                        'invoice_error' => $invoiceError,
+                        'solicitud_codigo' => null,
+                        'ticket_url' => null,
+                        'qr' => $qrPayload,
+                        'mail_warning' => null,
+                        'shipment_registration_blocked' => true,
+                        'message' => 'El pago fue confirmado. El registro del envío está deshabilitado temporalmente.',
+                    ]);
+                }
+
                 if ($solicitudId > 0) {
                     $solicitud = SolicitudCliente::query()
                         ->where('cliente_id', (int) $cliente->id)
@@ -593,6 +669,9 @@ class ClienteSolicitudController extends Controller
                             'paid' => true,
                             'invoice_status' => $invoiceStatus,
                             'invoice_number' => $invoiceNumber,
+                            'invoice_download_url' => $invoiceStatus === 'FACTURADA' && filled($payment['invoice_pdf_url'] ?? null)
+                                ? route('clientes.solicitudes.qr.invoice.download', ['qr_attempt_id' => $attemptId])
+                                : null,
                             'qr' => $qrStatusPayload,
                         ], 503);
                     }
@@ -661,6 +740,9 @@ class ClienteSolicitudController extends Controller
                     'paid' => true,
                     'invoice_status' => $invoiceStatus,
                     'invoice_number' => $invoiceNumber,
+                    'invoice_download_url' => $invoiceStatus === 'FACTURADA' && filled($payment['invoice_pdf_url'] ?? null)
+                        ? route('clientes.solicitudes.qr.invoice.download', ['qr_attempt_id' => $attemptId])
+                        : null,
                     'invoice_error' => $invoiceError,
                     'qr' => $qrStatusPayload,
                 ], 503);
@@ -704,6 +786,9 @@ class ClienteSolicitudController extends Controller
             'terminal' => $terminal,
             'invoice_status' => $invoiceStatus,
             'invoice_number' => $invoiceNumber,
+            'invoice_download_url' => $invoiceStatus === 'FACTURADA' && filled($payment['invoice_pdf_url'] ?? null)
+                ? route('clientes.solicitudes.qr.invoice.download', ['qr_attempt_id' => $attemptId])
+                : null,
             'invoice_error' => $invoiceError,
             'invoice_retry_allowed' => $paymentStatus === 'pagado'
                 && in_array($invoiceStatus, ['ERROR', 'RECHAZADA'], true),
@@ -795,6 +880,80 @@ class ClienteSolicitudController extends Controller
         }
     }
 
+    public function downloadQrInvoice(
+        Request $request,
+        string $qr_attempt_id,
+        ClienteSolicitudFacturacionService $facturacion
+    ) {
+        $cliente = Auth::guard('cliente')->user();
+        $attemptId = strtolower(trim($qr_attempt_id));
+        abort_unless(\Illuminate\Support\Str::isUuid($attemptId), 404);
+
+        try {
+            $lookup = $facturacion->buscarSolicitudQr($cliente, $attemptId);
+            $cart = $lookup['cart'] ?? null;
+            abort_unless(is_array($cart) && (int) ($cart['id'] ?? 0) > 0, 404);
+
+            $isClienteOnlineCart = collect((array) ($cart['items'] ?? []))
+                ->contains(fn ($item) => strtolower((string) data_get($item, 'origen_tipo', '')) === 'cliente_online');
+            abort_unless($isClienteOnlineCart, 404);
+
+            $payment = $facturacion->consultarPagoQr($cliente, (int) $cart['id']);
+            abort_unless($this->normalizarEstadoPagoQr((string) ($payment['payment_status'] ?? '')) === 'pagado', 409, 'El pago todavía no está confirmado.');
+            abort_unless(strtoupper((string) ($payment['invoice_status'] ?? '')) === 'FACTURADA', 409, 'La factura todavía no está emitida.');
+
+            $url = trim((string) ($payment['invoice_pdf_url'] ?? ''));
+            abort_unless($this->isAllowedQrInvoicePdfUrl($url), 404, 'El PDF de esta factura todavía no está disponible.');
+
+            $response = Http::connectTimeout(10)->timeout(45)
+                ->withoutRedirecting()->accept('application/pdf')->get($url);
+            if (!$response->successful() || !str_starts_with($response->body(), '%PDF-')) {
+                throw new \RuntimeException('Facturación no devolvió un PDF válido para la factura QR.');
+            }
+
+            $invoiceNumber = trim((string) ($payment['invoice_number'] ?? ''));
+            $safeNumber = preg_replace('/[^A-Za-z0-9_-]/', '', $invoiceNumber) ?: (string) $cart['id'];
+
+            return response($response->body(), 200, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'attachment; filename="factura-'.$safeNumber.'.pdf"',
+                'Cache-Control' => 'private, no-store',
+            ]);
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $exception) {
+            throw $exception;
+        } catch (\Throwable $exception) {
+            Log::warning('No se pudo descargar la factura de un pago QR del cliente online.', [
+                'cliente_id' => $cliente?->id,
+                'qr_attempt_id' => $attemptId,
+                'error' => $exception->getMessage(),
+            ]);
+
+            abort(502, 'No se pudo descargar la factura. Inténtalo nuevamente en unos minutos.');
+        }
+    }
+
+    private function isAllowedQrInvoicePdfUrl(string $url): bool
+    {
+        $base = rtrim((string) config('services.facturacion_bridge.sefe_public_base_url', 'https://sefe.agetic.gob.bo'), '/');
+        $baseParts = parse_url($base);
+        $urlParts = parse_url($url);
+        if (!is_array($baseParts) || !is_array($urlParts)) {
+            return false;
+        }
+
+        $sameOrigin = strtolower((string) ($urlParts['scheme'] ?? '')) === strtolower((string) ($baseParts['scheme'] ?? ''))
+            && strtolower((string) ($urlParts['host'] ?? '')) === strtolower((string) ($baseParts['host'] ?? ''))
+            && (int) ($urlParts['port'] ?? 0) === (int) ($baseParts['port'] ?? 0)
+            && !isset($urlParts['user'])
+            && !isset($urlParts['pass']);
+        $path = (string) ($urlParts['path'] ?? '');
+
+        return $sameOrigin
+            && !isset($urlParts['query'])
+            && !isset($urlParts['fragment'])
+            && preg_match('#^/public/facturas_pdf/[A-Za-z0-9_-]+\.pdf$#i', $path) === 1;
+    }
+
     private function registrarSolicitudQrPagada(Cliente $cliente, array $cart): SolicitudCliente
     {
         $item = collect((array) ($cart['items'] ?? []))
@@ -879,6 +1038,65 @@ class ClienteSolicitudController extends Controller
         return (array) data_get($item, 'resumen_origen', []);
     }
 
+    private function buscarSolicitudQrVinculada(iterable $solicitudes, array $summary, array $cart): ?SolicitudCliente
+    {
+        $servicioExtraId = (int) ($summary['servicio_extra_id'] ?? 0);
+        $destinoId = (int) ($summary['destino_id'] ?? 0);
+        if ($servicioExtraId <= 0 || $destinoId <= 0 || empty($cart['created_at'])) {
+            return null;
+        }
+
+        try {
+            $qrCreatedAt = \Illuminate\Support\Carbon::parse($cart['created_at'])->getTimestamp();
+        } catch (\Throwable $exception) {
+            return null;
+        }
+
+        $normalize = static fn ($value): string => mb_strtoupper(trim((string) $value));
+        $candidates = collect($solicitudes)->filter(function (SolicitudCliente $solicitud) use (
+            $summary,
+            $servicioExtraId,
+            $destinoId,
+            $cart,
+            $qrCreatedAt,
+            $normalize
+        ): bool {
+            if ($solicitud->forma_pago !== 'pagado'
+                || (int) $solicitud->servicio_extra_id !== $servicioExtraId
+                || (int) $solicitud->destino_id !== $destinoId
+                || (int) $solicitud->cantidad !== (int) ($summary['cantidad_paquetes'] ?? 1)
+                || abs((float) $solicitud->precio - (float) ($cart['total'] ?? 0)) >= 0.01) {
+                return false;
+            }
+
+            $solicitudCreatedAt = $solicitud->created_at?->getTimestamp();
+            if (!$solicitudCreatedAt || abs($solicitudCreatedAt - $qrCreatedAt) > 172800) {
+                return false;
+            }
+
+            $fields = [
+                'origen' => 'origen',
+                'contenido' => 'contenido',
+                'nombre_remitente' => 'remitente',
+                'carnet' => 'carnet_remitente',
+                'telefono_remitente' => 'telefono_remitente',
+                'nombre_destinatario' => 'destinatario',
+                'telefono_destinatario' => 'telefono_destinatario',
+                'direccion_recojo' => 'direccion_recojo',
+            ];
+            foreach ($fields as $solicitudField => $summaryField) {
+                if ($normalize($solicitud->{$solicitudField}) !== $normalize($summary[$summaryField] ?? '')) {
+                    return false;
+                }
+            }
+
+            return true;
+        })->values();
+
+        // Solo enlaza cuando los datos identifican un único envío.
+        return $candidates->count() === 1 ? $candidates->first() : null;
+    }
+
     private function qrAttemptIdFromCart(array $cart): ?string
     {
         $summary = $this->qrSummaryFromCart($cart);
@@ -942,6 +1160,10 @@ class ClienteSolicitudController extends Controller
 
     public function generateQr(Request $request, ClienteSolicitudFacturacionService $facturacion): JsonResponse
     {
+        if (! ServiceAvailability::isEnabled('solicitud')) {
+            return response()->json(['message' => self::DELIVERY_EXPRESS_DISABLED_MESSAGE], 503);
+        }
+
         $servicioExtraIds = TarifarioTiktoker::query()
             ->whereNotNull('servicio_extra_id')
             ->distinct()
@@ -976,22 +1198,6 @@ class ClienteSolicitudController extends Controller
         $attemptId = strtolower((string) $data['qr_attempt_id']);
 
         try {
-            $carts = $facturacion->listarSolicitudesQr($cliente, 1, 20);
-            foreach ((array) data_get($carts, 'data.carts', []) as $cart) {
-                if (!is_array($cart) || !$this->qrCartWasIssued($cart) || $this->qrSolicitudId($cart) !== null) {
-                    continue;
-                }
-                $otherAttemptId = $this->qrAttemptIdFromCart($cart);
-                $otherStatus = $this->estadoPagoQrDesdeCarrito($cart);
-                if ($otherAttemptId && $otherAttemptId !== $attemptId && in_array($otherStatus, ['pendiente', 'pagado'], true)) {
-                    return response()->json([
-                        'message' => $otherStatus === 'pagado'
-                            ? 'Ya tienes un pago confirmado que se esta registrando. Consulta su estado en Mis solicitudes.'
-                            : 'Ya tienes un pago QR pendiente. Completa o cancela ese pago antes de generar otro.',
-                    ], 409);
-                }
-            }
-
             $destino = Destino::query()->find((int) $data['destino_id']);
             $servicioExtra = ServicioExtra::query()->find((int) $data['servicio_extra_id']);
             if (! $destino || ! $servicioExtra) {

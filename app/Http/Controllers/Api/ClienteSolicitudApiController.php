@@ -10,6 +10,7 @@ use App\Models\Origen;
 use App\Models\ServicioExtra;
 use App\Models\SolicitudCliente;
 use App\Models\TarifarioTiktoker;
+use App\Support\ServiceAvailability;
 use App\Support\SolicitudCode;
 use App\Support\TiktokerEvent;
 use Illuminate\Http\JsonResponse;
@@ -40,6 +41,12 @@ class ClienteSolicitudApiController extends Controller
 
     public function storeForCliente(Request $request, Cliente $cliente): JsonResponse
     {
+        if (! ServiceAvailability::isEnabled('solicitud')) {
+            return response()->json([
+                'message' => 'La creación de solicitudes Delivery Express está deshabilitada temporalmente.',
+            ], 503);
+        }
+
         $servicioExtraIds = TarifarioTiktoker::query()
             ->whereNotNull('servicio_extra_id')
             ->distinct()

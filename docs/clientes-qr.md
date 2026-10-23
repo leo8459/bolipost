@@ -6,6 +6,8 @@ La cotización se vuelve a calcular en el servidor al solicitar el QR. Si el pre
 
 Cada `qr_attempt_id` de cliente online usa un carrito independiente en Facturación. Esto evita que líneas de borradores anteriores se sumen al cobro. El formulario de nueva solicitud no recupera automáticamente un QR anterior; esos pagos se consultan en **Mis solicitudes**.
 
+Se permite generar un QR nuevo aunque haya otros intentos pendientes o pagos confirmados en registro. Cada intento usa un carrito y un código independientes; los anteriores se consultan en **Mis solicitudes**.
+
 Después de generar el QR, la ventana de pago consulta su estado cada tres segundos. Una vez confirmado, solicita la factura y registra la solicitud de envío. El historial consulta el QR directamente en Facturación.
 
 ## Conciliacion automatica

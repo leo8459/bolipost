@@ -20,6 +20,7 @@ use App\Services\ContratoCodigoService;
 use App\Services\FacturacionCartService;
 use App\Support\CodigoContinuacionEvent;
 use App\Support\EncargadoEvent;
+use App\Support\ServiceAvailability;
 use App\Support\SolicitudCode;
 use App\Support\StoredImage;
 use App\Support\TiktokerEvent;
@@ -150,6 +151,12 @@ class PaquetesEmsController extends Controller
             'feature.paquetes-ems.solicitudes.index.create',
             'paquetes-ems.solicitudes.create',
         ]);
+
+        if (! ServiceAvailability::isEnabled('solicitud')) {
+            return redirect()
+                ->route('paquetes-ems.solicitudes.index')
+                ->with('error', 'La creación de solicitudes Delivery Express está deshabilitada temporalmente.');
+        }
 
         return view('paquetes_ems.solicitud-create', [
             'destinos' => $this->cachedDestinos(),
@@ -417,6 +424,12 @@ class PaquetesEmsController extends Controller
             'paquetes-ems.solicitudes.quote',
         ]);
 
+        if (! ServiceAvailability::isEnabled('solicitud')) {
+            return response()->json([
+                'message' => 'La creación de solicitudes Delivery Express está deshabilitada temporalmente.',
+            ], 503);
+        }
+
         $request->validate([
             'servicio_extra_id' => ['required', 'integer', 'exists:servicio_extras,id'],
             'origen' => ['required', 'string'],
@@ -452,6 +465,18 @@ class PaquetesEmsController extends Controller
             'feature.paquetes-ems.solicitudes.index.create',
             'paquetes-ems.solicitudes.store',
         ]);
+
+        if (! ServiceAvailability::isEnabled('solicitud')) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'La creación de solicitudes Delivery Express está deshabilitada temporalmente.',
+                ], 503);
+            }
+
+            return redirect()
+                ->route('paquetes-ems.solicitudes.index')
+                ->with('error', 'La creación de solicitudes Delivery Express está deshabilitada temporalmente.');
+        }
 
         $data = $request->validate([
             'solicitud_id' => ['nullable', 'integer', 'exists:solicitud_clientes,id'],

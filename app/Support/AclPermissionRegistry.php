@@ -353,6 +353,8 @@ class AclPermissionRegistry
         'bitacoras.create' => ['create', 'save'],
         'tarifa-contrato.index' => ['create', 'duplicate', 'edit', 'delete', 'save', 'import', 'export', 'report'],
         'empresas.index' => ['create', 'edit', 'history', 'delete', 'import', 'export'],
+        'servicios-adicionales.index' => ['edit'],
+        'solicitudes-cambio.index' => ['create', 'manage'],
         'empresas.historial.index' => ['search', 'view-pdf'],
         'alertas-empresa.index' => ['view', 'create', 'approve', 'readers', 'delete', 'export', 'manage'],
         'servicios.index' => ['create', 'edit', 'delete'],
@@ -529,6 +531,9 @@ class AclPermissionRegistry
      * @var array<string, array<int, string>>
      */
     private const ROUTE_ACCESS_PERMISSION_OVERRIDES = [
+        'solicitudes-cambio.store' => ['feature.solicitudes-cambio.create'],
+        'solicitudes-cambio.show' => ['solicitudes-cambio.index'],
+        'servicios-adicionales.update' => ['feature.servicios-adicionales.edit'],
         'conceptos-facturacion.versiones.store' => ['feature.conceptos-facturacion.index.create'],
         'dashboard.alerts.department-details' => ['dashboard'],
         'dashboard.chart-volume-data' => ['dashboard'],
@@ -2042,6 +2047,9 @@ class AclPermissionRegistry
             'feature.conciliacion.conciliaciones.confirmacion-pago' => 'Botón 5: Confirmación de pago',
             'feature.conciliacion.conciliaciones.editar' => 'Botón: Editar información cargada',
             'alertas-empresa.index' => 'Ventana: Alertas para empresas',
+            'solicitudes-cambio.index' => 'Ventana: Solicitar cambios',
+            'feature.solicitudes-cambio.create' => 'Registrar solicitudes de cambios',
+            'feature.solicitudes-cambio.manage' => 'Consultar solicitudes de todos los usuarios',
             'alertas-empresa.store' => 'Accion: Enviar alerta',
             'alertas-empresa.approve' => 'Accion: Corregir, aprobar y publicar alerta',
             'alertas-empresa.destroy' => 'Accion: Eliminar alerta',
@@ -2467,6 +2475,9 @@ class AclPermissionRegistry
             'feature.conciliacion.conciliaciones.confirmacion-pago' => 'Permite confirmar definitivamente el pago en el paso 5.',
             'feature.conciliacion.conciliaciones.editar' => 'Permite abrir Editar. El documento del paso 1 queda bloqueado después de marcar Conciliado.',
             'alertas-empresa.index' => 'Permite abrir la ventana Mandar alertas desde Paquetes Contratos.',
+            'solicitudes-cambio.index' => 'Permite abrir Solicitar cambios y consultar las fichas propias.',
+            'feature.solicitudes-cambio.create' => 'Permite registrar una nueva ficha de requerimiento de sistemas.',
+            'feature.solicitudes-cambio.manage' => 'Permite consultar e imprimir las solicitudes de todos los usuarios. Requiere acceso a Solicitar cambios.',
             'alertas-empresa.store' => 'Permite guardar y enviar una alerta a los perfiles de empresa seleccionados.',
             'alertas-empresa.approve' => 'Permite corregir y aprobar una alerta pendiente antes de publicarla.',
             'alertas-empresa.destroy' => 'Permite eliminar definitivamente una alerta enviada.',

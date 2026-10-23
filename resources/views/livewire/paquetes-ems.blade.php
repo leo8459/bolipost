@@ -1165,7 +1165,7 @@
                                     <button class="btn btn-outline-light2" type="button" wire:click="limpiarFiltrosTransito">Limpiar</button>
                                 @endif
                             @endif
-                            @if (!$this->isAlmacenEms && ((($this->isAdmision && $canEmsAdmisionCreate) || ($this->isAlmacenEms && $canEmsCreate)) && $canEmsCreateRoute))
+                            @if (!$this->isAlmacenEms && ((($this->isAdmision && $canEmsAdmisionCreate) || ($this->isAlmacenEms && $canEmsCreate)) && $canEmsCreateRoute) && \App\Support\ServiceAvailability::isEnabled('ems'))
                                 <div class="header-primary-action">
                                     <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
                                 </div>
