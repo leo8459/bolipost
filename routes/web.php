@@ -20,6 +20,7 @@ use App\Http\Controllers\ConciliacionEmpresaController;
 use App\Http\Controllers\ContractExpirationEmailController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeliveryImageController;
+use App\Http\Controllers\DeliveryExpressControlController;
 use App\Http\Controllers\DespachoController;
 use App\Http\Controllers\DestinoController;
 use App\Http\Controllers\EmpresaController;
@@ -510,6 +511,8 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/paquetes-ems', [PaquetesEmsController::class, 'index'])->name('paquetes-ems.index');
     Route::get('/paquetes-ems/create', [PaquetesEmsController::class, 'create'])->name('paquetes-ems.create');
     Route::get('/paquetes-ems/solicitudes', [PaquetesEmsController::class, 'indexSolicitudes'])->name('paquetes-ems.solicitudes.index');
+    Route::get('/delivery-express/paquetes-faro', [DeliveryExpressControlController::class, 'index'])
+        ->name('delivery-express.paquetes-faro.index');
     Route::get('/paquetes-ems/solicitudes/nueva', [PaquetesEmsController::class, 'createSolicitud'])->name('paquetes-ems.solicitudes.create');
     Route::get('/paquetes-ems/solicitudes/buscar', [PaquetesEmsController::class, 'findSolicitud'])->name('paquetes-ems.solicitudes.find');
     Route::get('/paquetes-ems/solicitudes/cotizar', [PaquetesEmsController::class, 'quoteSolicitud'])->name('paquetes-ems.solicitudes.quote');

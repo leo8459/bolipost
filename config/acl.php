@@ -416,6 +416,7 @@ return [
         'paquetes-ems' => 'Paquetes EMS',
         'paquetes-ems.almacen-admisiones' => 'Almacen admisiones',
         'paquetes-ems.solicitudes.index' => 'Solicitudes EMS',
+        'delivery-express.paquetes-faro.index' => 'Paquetes Delivery Express por Faro',
         'paquetes-certificados' => 'Paquetes Certificados',
         'paquetes-ordinarios' => 'Paquetes Ordinarios',
         'paquetes-contrato' => 'Paquetes Contrato',

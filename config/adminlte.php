@@ -592,6 +592,20 @@ $config = [
             ],
         ],
         [
+            'text' => 'Delivery Express',
+            'icon' => 'fas fa-shipping-fast',
+            'can' => 'paquetes-ems.solicitudes.index',
+            'submenu' => [
+                [
+                    'text' => 'Paquetes Delivery Express por Faro',
+                    'url' => 'delivery-express/paquetes-faro',
+                    'icon' => 'fas fa-boxes',
+                    'can' => 'paquetes-ems.solicitudes.index',
+                    'active' => ['delivery-express/paquetes-faro*'],
+                ],
+            ],
+        ],
+        [
             'text' => 'Empresa',
             'icon' => 'fas fa-building',
             'submenu' => [

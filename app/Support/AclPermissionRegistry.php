@@ -531,6 +531,7 @@ class AclPermissionRegistry
      * @var array<string, array<int, string>>
      */
     private const ROUTE_ACCESS_PERMISSION_OVERRIDES = [
+        'delivery-express.paquetes-faro.index' => ['paquetes-ems.solicitudes.index'],
         'solicitudes-cambio.store' => ['feature.solicitudes-cambio.create'],
         'solicitudes-cambio.show' => ['solicitudes-cambio.index'],
         'servicios-adicionales.update' => ['feature.servicios-adicionales.edit'],

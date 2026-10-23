@@ -264,6 +264,22 @@
             white-space: nowrap;
         }
 
+        .solicitudes-table > tbody > tr.solicitud-pagada > td{
+            background-color:#d4edda;
+        }
+
+        .solicitudes-table > tbody > tr.solicitud-pendiente > td{
+            background-color:#f8d7da;
+        }
+
+        .solicitudes-table.table-hover > tbody > tr.solicitud-pagada:hover > td{
+            background-color:#c3e6cb;
+        }
+
+        .solicitudes-table.table-hover > tbody > tr.solicitud-pendiente:hover > td{
+            background-color:#f5c6cb;
+        }
+
         .solicitudes-pill{
             background: rgba(52,68,124,.12);
             color: var(--azul);
@@ -451,6 +467,7 @@
                                     <th>Destinatario</th>
                                     <th>Peso</th>
                                     <th>Precio</th>
+                                    <th>Pago</th>
                                     <th>Estado</th>
                                     <th>Fecha</th>
                                     <th></th>
@@ -460,8 +477,12 @@
                                 @foreach ($solicitudes as $solicitud)
                                     @php
                                         $estadoNombre = (string) optional($solicitud->estadoRegistro)->nombre_estado;
+                                        $estaPagada = $solicitud->forma_pago === 'pagado';
+                                        $pagaEnDestino = $solicitud->forma_pago === 'destino'
+                                            || ($solicitud->forma_pago === null && $solicitud->pago_destinatario);
+                                        $filaVerde = $estaPagada || $pagaEnDestino;
                                     @endphp
-                                    <tr>
+                                    <tr class="{{ $filaVerde ? 'solicitud-pagada' : 'solicitud-pendiente' }}">
                                         <td>
                                             <input
                                                 type="checkbox"
@@ -485,6 +506,11 @@
                                         </td>
                                         <td>{{ $solicitud->peso !== null ? \App\Support\BolivianNumber::format((float) $solicitud->peso, 3, '.', '') : '-' }}</td>
                                         <td>{{ $solicitud->precio !== null ? \App\Support\BolivianNumber::format((float) $solicitud->precio, 2, '.', '') : '-' }}</td>
+                                        <td>
+                                            <span class="badge badge-{{ $filaVerde ? 'success' : 'danger' }}">
+                                                {{ $estaPagada ? 'Pagado' : ($pagaEnDestino ? 'Pagar en destino' : 'Pendiente de pago') }}
+                                            </span>
+                                        </td>
                                         <td>
                                             <span class="badge badge-warning">
                                                 {{ $estadoNombre !== '' ? $estadoNombre : '-' }}
