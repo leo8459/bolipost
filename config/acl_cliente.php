@@ -39,6 +39,7 @@ return [
         'clientes.solicitudes.quote' => 'clientes.solicitudes.create',
         'clientes.solicitudes.qr.generate' => 'clientes.solicitudes.create',
         'clientes.solicitudes.qr.status' => 'clientes.solicitudes.create',
+        'clientes.solicitudes.qr.invoice.download' => 'clientes.solicitudes.history',
         'clientes.solicitudes.ticket' => 'clientes.solicitudes.history',
     ],
 

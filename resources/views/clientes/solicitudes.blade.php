@@ -1,19 +1,19 @@
 @extends('layouts.cliente-adminlte')
 
-@section('title', 'Solicitudes')
+@section('title', 'Nuevo envío Delivery Express')
 
 @section('content_header')
     <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between">
         <div>
-            <h1 class="m-0 text-dark">Nueva solicitud</h1>
-            <small class="text-muted">Completa los datos de tu env&iacute;o. Podr&aacute;s revisarlos antes de confirmar.</small>
+            <h1 class="m-0 text-dark">Nuevo envío Delivery Express</h1>
+            <small class="text-muted">Cotiza y completa los datos de tu envío en pasos sencillos.</small>
         </div>
         <div class="d-flex flex-column flex-md-row">
             <a href="{{ route('clientes.solicitudes.history') }}" class="btn btn-outline-warning mt-3 mt-md-0 mr-md-2">
-                Ver mis solicitudes
+                <i class="fas fa-list-alt mr-1" aria-hidden="true"></i> Historial de envíos
             </a>
             <a href="{{ route('clientes.dashboard') }}" class="btn btn-outline-primary mt-3 mt-md-0">
-                Volver al panel
+                <i class="fas fa-arrow-left mr-1" aria-hidden="true"></i> Volver al panel
             </a>
         </div>
     </div>
@@ -39,9 +39,14 @@
         </div>
     @endif
 
-    <div class="card card-outline card-primary solicitud-card">
-        <div class="card-header">
-            <h3 class="card-title">Prepara tu env&iacute;o</h3>
+    <div class="card solicitud-card">
+        <div class="card-header solicitud-card-header">
+            <div>
+                <div class="solicitud-card-header__eyebrow"><i class="fas fa-shipping-fast" aria-hidden="true"></i> Delivery Express</div>
+                <h3 class="card-title">Prepara tu envío</h3>
+                <p class="solicitud-card-header__description">Completa la información de tu paquete y confirma los datos antes de continuar.</p>
+            </div>
+            <span class="solicitud-card-header__badge"><i class="fas fa-list-ol mr-1" aria-hidden="true"></i> 3 pasos</span>
         </div>
         <form id="solicitud-form" method="POST" action="{{ route('clientes.solicitudes.store') }}" novalidate>
             @csrf
@@ -324,6 +329,10 @@
                         <div id="qr-pago-registro" class="alert d-none" role="status" aria-live="polite"></div>
                         <div id="qr-pago-imagen-wrap" class="qr-payment-image-wrap d-none">
                             <img id="qr-pago-imagen" alt="C&oacute;digo QR para pagar el env&iacute;o">
+                            <a id="qr-pago-descargar" class="btn btn-outline-primary btn-sm qr-payment-download" href="#" download="QR-de-pago.png" target="_blank" rel="noopener noreferrer">
+                                <i class="fas fa-download mr-1" aria-hidden="true"></i>Descargar imagen
+                            </a>
+                            <small class="d-block text-muted mt-2">En celular, si la imagen se abre aparte, mantenla presionada para guardarla.</small>
                         </div>
                         <div id="qr-pago-sin-imagen" class="alert alert-warning d-none" role="status">Facturaci&oacute;n no devolvi&oacute; la imagen del QR.</div>
                         <small class="text-muted">C&oacute;digo: <span id="qr-pago-codigo"></span></small>
@@ -339,10 +348,18 @@
 
 @push('css')
 <style>
-.solicitud-card { border-radius: 12px; }
+.solicitud-card { overflow: hidden; border: 1px solid #e3eaf3; border-radius: 16px; box-shadow: 0 10px 28px rgba(25, 48, 78, .08); animation: solicitud-panel-in .35s ease-out; }
+.solicitud-card-header { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 22px 24px; border-bottom: 0; color: #fff; background: linear-gradient(115deg, #172c4d, #205a91); }
+.solicitud-card-header .card-title { float: none; display: block; margin: 0; color: #fff; font-size: 1.35rem; font-weight: 800; }
+.solicitud-card-header__eyebrow { margin-bottom: 5px; color: #ffe28b; font-size: .73rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.solicitud-card-header__description { margin: 6px 0 0; color: rgba(255, 255, 255, .78); font-size: .88rem; }
+.solicitud-card-header__badge { flex: 0 0 auto; padding: 8px 11px; border: 1px solid rgba(255, 255, 255, .22); border-radius: 999px; color: #fff; background: rgba(255, 255, 255, .1); font-size: .78rem; font-weight: 700; }
+.solicitud-card .card-body { padding: 24px; }
 .solicitud-wizard-progress { margin-bottom: 24px; padding: 20px 22px 16px; border: 1px solid #e5eaf1; border-radius: 14px; background: linear-gradient(135deg, #fbfcfe, #f5f8fc); }
 .solicitud-wizard-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .solicitud-wizard-step { display: flex; align-items: center; gap: 11px; min-width: 0; padding: 4px; border: 0; background: transparent; color: #667085; text-align: left; cursor: pointer; }
+.solicitud-wizard-step:not(:disabled):hover .solicitud-wizard-step-number, .solicitud-wizard-step:focus-visible .solicitud-wizard-step-number { transform: translateY(-2px); border-color: #164b8d; box-shadow: 0 4px 12px rgba(22, 75, 141, .14); }
+.solicitud-wizard-step:focus-visible { outline: 2px solid #164b8d; outline-offset: 3px; border-radius: 8px; }
 .solicitud-wizard-step:disabled { cursor: default; opacity: .72; }
 .solicitud-wizard-step-number { display: inline-flex; flex: 0 0 36px; width: 36px; height: 36px; align-items: center; justify-content: center; border: 2px solid #d7dee8; border-radius: 50%; background: #fff; color: #667085; font-weight: 700; transition: color .2s ease, background .2s ease, border-color .2s ease, transform .2s ease; }
 .solicitud-wizard-step strong, .solicitud-wizard-step small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -372,11 +389,15 @@
 .solicitud-email-toggle input { accent-color: #164b8d; }
 .solicitud-billing-card input[readonly] { background: #eef4fb; color: #52647a; }
 @keyframes solicitud-panel-in { from { opacity: .55; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-.solicitud-section { padding: 22px; border: 1px solid #e4e8ee; border-radius: 12px; background: #fff; }
-.solicitud-section-title { display: flex; align-items: center; gap: 10px; font-size: 1.1rem; font-weight: 600; }
+.solicitud-section { padding: 22px; border: 1px solid #e4e8ee; border-radius: 12px; background: #fff; transition: border-color .2s ease, box-shadow .2s ease; }
+.solicitud-section:hover { border-color: #d1dfef; box-shadow: 0 6px 18px rgba(25, 48, 78, .045); }
+.solicitud-section-title { display: flex; align-items: center; gap: 10px; color: #203957; font-size: 1.1rem; font-weight: 700; }
 .solicitud-step { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: #fff3cd; color: #735500; font-size: .9rem; }
-.solicitud-card .form-control { border-radius: 7px; }
+.solicitud-card .form-control { border: 1px solid #d9e2ed; border-radius: 8px; transition: border-color .18s ease, box-shadow .18s ease; }
+.solicitud-card .form-control:focus { border-color: #6d9ed5; box-shadow: 0 0 0 .18rem rgba(22, 75, 141, .12); }
 .solicitud-card label { font-size: .93rem; }
+.solicitud-wizard-footer .btn { min-height: 40px; padding: 9px 15px; border-radius: 9px; font-weight: 700; transition: transform .18s ease, box-shadow .18s ease; }
+.solicitud-wizard-footer .btn:hover, .solicitud-wizard-footer .btn:focus-visible { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(25, 48, 78, .14); }
 #resumen-solicitud-modal .modal-content { border-radius: 14px; overflow: hidden; }
 #resumen-solicitud-modal .modal-header { background: #fff9e8; padding: 20px 24px; }
 #resumen-solicitud-modal .modal-body { padding: 20px 24px; background: #f8fafc; }
@@ -386,6 +407,7 @@
 .qr-payment-amount { color: #1f4f8f; font-size: 1.8rem; font-weight: 700; margin-bottom: 14px; }
 .qr-payment-image-wrap { margin: 0 auto 16px; width: min(100%, 300px); padding: 12px; background: white; border: 1px solid #e4e8ee; border-radius: 12px; }
 .qr-payment-image-wrap img { display: block; width: 100%; height: auto; }
+.qr-payment-download { display: block; width: 100%; margin-top: 12px; }
 .solicitud-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .solicitud-summary-section { padding: 16px; background: #fff; border: 1px solid #e4e8ee; border-radius: 10px; min-width: 0; }
 .solicitud-summary-section:first-child { grid-column: 1 / -1; }
@@ -396,6 +418,9 @@
 .solicitud-total strong { font-size: 1.2rem; }
 .solicitud-total small { margin-top: 4px; }
 @media (max-width: 575.98px) {
+    .solicitud-card-header { align-items: flex-start; padding: 19px 17px; }
+    .solicitud-card-header__badge { padding: 6px 9px; font-size: .72rem; }
+    .solicitud-card .card-body { padding: 16px; }
     .solicitud-wizard-progress { padding: 14px 12px 12px; }
     .solicitud-wizard-steps { gap: 4px; }
     .solicitud-wizard-step { flex-direction: column; gap: 5px; padding: 2px; text-align: center; }
@@ -414,7 +439,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
     .solicitud-section[data-wizard-panel]:not([hidden]) { animation: none; }
-    .solicitud-wizard-step-number, .solicitud-wizard-track span { transition: none; }
+    .solicitud-wizard-step-number, .solicitud-wizard-track span, .solicitud-section, .solicitud-card .form-control, .solicitud-wizard-footer .btn { transition: none; }
 }
 </style>
 @endpush
@@ -584,7 +609,7 @@ document.addEventListener('DOMContentLoaded', function () {
         pagoResumen.className = `alert ${pagaEnOrigen ? 'alert-primary' : 'alert-warning'}`;
         pagoTitulo.textContent = pagaEnOrigen ? 'Pagar en origen' : 'Pagar en destino';
         pagoDetalle.textContent = pagaEnOrigen
-            ? 'Al confirmar, se generará el QR para pagar en origen. La solicitud se registrará cuando se confirme el pago.'
+            ? 'Cada confirmación genera un QR independiente. Puedes continuar aunque tengas pagos pendientes o en registro; consulta cada intento en Mis solicitudes.'
             : 'La solicitud se registrará ahora. El pago se realizará en destino y no se generará un QR en este paso.';
         document.getElementById('resumen-solicitud-instruccion').textContent = pagaEnOrigen
             ? 'Revisa el importe y los datos antes de generar el QR.'
@@ -744,6 +769,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     async function consultarEstadoPago() {
         if (!qrPendienteActivo || !qrAttemptActivo || consultaPagoEnCurso || qrConsultaDetenida) return;
+        const attemptId = qrAttemptActivo;
         consultaPagoEnCurso = true;
 
         try {
@@ -755,10 +781,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 },
                 body: new URLSearchParams({
                     _token: form.elements.namedItem('_token').value,
-                    qr_attempt_id: qrAttemptActivo,
+                    qr_attempt_id: attemptId,
                 }),
             });
             const payload = await response.json();
+            if (qrAttemptActivo !== attemptId) return;
             if (payload.qr?.amount != null) document.getElementById('qr-pago-importe').textContent = payload.qr.amount;
             if (payload.qr?.internal_code) document.getElementById('qr-pago-codigo').textContent = payload.qr.internal_code;
             if (!response.ok && (payload.terminal || payload.retry === false)) {
@@ -810,7 +837,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 mostrarEstadoPago(payload.message || 'Esperando la confirmación del pago QR.');
             }
         } catch (error) {
-            mostrarEstadoPago(error.message || 'No pudimos consultar el pago ahora. Reintentaremos automáticamente en 3 segundos.', 'warning');
+            if (qrAttemptActivo === attemptId) {
+                mostrarEstadoPago(error.message || 'No pudimos consultar el pago ahora. Reintentaremos automáticamente en 3 segundos.', 'warning');
+            }
         } finally {
             consultaPagoEnCurso = false;
             programarConsultaPago();
@@ -821,7 +850,7 @@ document.addEventListener('DOMContentLoaded', function () {
         qrConsultaDetenida = false;
         qrAttemptActivo = String(payload.qr_attempt_id || '');
         qrPendienteActivo = Boolean(qrAttemptActivo);
-        if (qrAttemptActivo) form.elements.namedItem('qr_attempt_id').value = qrAttemptActivo;
+        if (qrAttemptActivo) form.elements.namedItem('qr_attempt_id').value = nuevoQrAttemptId();
         document.getElementById('qr-pago-importe').textContent = payload.amount || '0.00';
         document.getElementById('qr-pago-codigo').textContent = payload.internal_code || '';
         document.getElementById('qr-pago-registro').replaceChildren();
@@ -833,11 +862,20 @@ document.addEventListener('DOMContentLoaded', function () {
         const image = String(payload.qr_image || '');
         const imageElement = document.getElementById('qr-pago-imagen');
         const imageWrap = document.getElementById('qr-pago-imagen-wrap');
+        const downloadLink = document.getElementById('qr-pago-descargar');
         const noImage = document.getElementById('qr-pago-sin-imagen');
         if (image) {
-            imageElement.src = image.startsWith('data:image/') || image.startsWith('http://') || image.startsWith('https://')
+            const imageSource = image.startsWith('data:image/') || image.startsWith('http://') || image.startsWith('https://')
                 ? image
                 : 'data:image/png;base64,' + image;
+            imageElement.src = imageSource;
+            const imageExtension = imageSource.match(/^data:image\/(png|jpe?g|webp)/i)?.[1]?.replace('jpeg', 'jpg')
+                || imageSource.match(/\.(png|jpe?g|webp)(?:[?#]|$)/i)?.[1]?.replace('jpeg', 'jpg')
+                || 'png';
+            const safeCode = String(document.getElementById('qr-pago-codigo').textContent || 'pago')
+                .replace(/[^a-z0-9_-]/gi, '-');
+            downloadLink.href = imageSource;
+            downloadLink.download = 'QR-' + safeCode + '.' + imageExtension;
             imageWrap.classList.remove('d-none');
             noImage.classList.add('d-none');
         } else {
@@ -850,7 +888,7 @@ document.addEventListener('DOMContentLoaded', function () {
         programarConsultaPago();
     }
 
-    // Si hay un QR pendiente, se conserva y se impide generar otro envío antes de resolverlo.
+    // El QR activo se consulta en esta ventana; los intentos anteriores quedan en Mis solicitudes.
     form.addEventListener('submit', function (event) {
         if (!solicitudRegistrada) return;
         event.preventDefault();
@@ -864,7 +902,7 @@ document.addEventListener('DOMContentLoaded', function () {
         event.preventDefault();
         event.stopImmediatePropagation();
 
-        if (qrPendienteActivo || solicitudRegistrada) {
+        if (solicitudRegistrada) {
             qrModal.modal('show');
             return;
         }

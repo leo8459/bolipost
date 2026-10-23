@@ -337,7 +337,7 @@ $config = [
             'text' => 'Nueva Solicitud',
             'url' => 'clientes/solicitudes/nueva',
             'icon' => 'fas fa-file-signature',
-            'can' => 'cliente-panel',
+            'can' => 'cliente-delivery-express-menu',
             'context' => 'cliente',
         ],
         [
@@ -348,6 +348,20 @@ $config = [
             'context' => 'cliente',
         ],
         ['header' => 'SISTEMA DE INFORMACION'],
+        [
+            'text' => 'Sistemas',
+            'icon' => 'fas fa-laptop-code',
+            'can' => 'solicitudes-cambio.index',
+            'submenu' => [
+                [
+                    'text' => 'Solicitar cambios',
+                    'url' => 'sistemas/solicitar-cambios',
+                    'icon' => 'fas fa-file-signature',
+                    'can' => 'solicitudes-cambio.index',
+                    'active' => ['sistemas/solicitar-cambios*'],
+                ],
+            ],
+        ],
         [
             'text' => 'Conciliación',
             'icon' => 'fas fa-balance-scale',
@@ -379,19 +393,56 @@ $config = [
             'can' => 'admin-only-menu',
             'submenu' => [
                 [
-                    'text' => 'Personal AGBC',
-                    'url' => 'users',
-                    'icon' => 'fas fa-user',
+                    'text' => 'Habilitaciones',
+                    'icon' => 'fas fa-toggle-on',
+                    'submenu' => [
+                        [
+                            'text' => 'Habilitaciones',
+                            'url' => 'administrador/habilitaciones',
+                            'icon' => 'fas fa-toggle-on',
+                            'can' => 'admin-only-menu',
+                            'active' => ['administrador/habilitaciones'],
+                        ],
+                        [
+                            'text' => 'Habilitar servicio adicional',
+                            'url' => 'administrador/servicios-adicionales',
+                            'icon' => 'fas fa-exchange-alt',
+                            'can' => 'servicios-adicionales.index',
+                        ],
+                    ],
                 ],
                 [
-                    'text' => 'Vinculacion IPS',
-                    'url' => 'users/ips-links',
-                    'icon' => 'fas fa-link',
+                    'text' => 'Personal',
+                    'icon' => 'fas fa-users',
+                    'submenu' => [
+                        [
+                            'text' => 'Personal AGBC',
+                            'url' => 'users',
+                            'icon' => 'fas fa-user',
+                        ],
+                        [
+                            'text' => 'Roles',
+                            'url' => 'roles',
+                            'icon' => 'fas fa-users-cog',
+                        ],
+                    ],
                 ],
                 [
-                    'text' => 'Roles',
-                    'url' => 'roles',
-                    'icon' => 'fas fa-users-cog',
+                    'text' => 'Internacional',
+                    'icon' => 'fas fa-globe-americas',
+                    'submenu' => [
+                        [
+                            'text' => 'IPS',
+                            'url' => 'ips',
+                            'icon' => 'fas fa-globe-americas',
+                            'can' => 'ips.index',
+                        ],
+                        [
+                            'text' => 'Vinculacion IPS',
+                            'url' => 'users/ips-links',
+                            'icon' => 'fas fa-link',
+                        ],
+                    ],
                 ],
                 [
                     'text' => 'APIS',
@@ -434,12 +485,6 @@ $config = [
                     'url' => 'administrador/eventos',
                     'icon' => 'fas fa-history',
                     'can' => 'admin-only-menu',
-                ],
-                [
-                    'text' => 'IPS',
-                    'url' => 'ips',
-                    'icon' => 'fas fa-globe-americas',
-                    'can' => 'ips.index',
                 ],
             ],
         ],
@@ -1290,6 +1335,12 @@ $config = [
                             'url' => 'empresas/historial',
                             'icon' => 'fas fa-history',
                             'can' => 'empresas.historial.index',
+                        ],
+                        [
+                            'text' => 'Habilitar servicio adicional',
+                            'url' => 'administrador/servicios-adicionales',
+                            'icon' => 'fas fa-exchange-alt',
+                            'can' => 'servicios-adicionales.index',
                         ],
                         [
                             'text' => 'Permisos',

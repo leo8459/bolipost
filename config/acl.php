@@ -40,6 +40,8 @@ return [
     |
     */
     'excluded_route_permissions' => [
+        'admin.service-availability.index',
+        'admin.service-availability.update',
         'welcome',
         'tracking.demo',
         'api.busqueda.ems-eventos',
@@ -104,6 +106,8 @@ return [
     |
     */
     'custom_permissions' => [
+        'feature.solicitudes-cambio.create',
+        'feature.solicitudes-cambio.manage',
         'pulse',
         'feature.carteros.distribucion.assign',
         'feature.carteros.distribucion.selfassign',
@@ -162,6 +166,7 @@ return [
         'feature.users.empresas.export',
         'feature.users.empresas.manage',
         'feature.empresas.export',
+        'feature.servicios-adicionales.edit',
         'feature.empresas.history',
         'feature.empresas.historial.search',
         'feature.empresas.historial.view-pdf',
@@ -315,6 +320,8 @@ return [
         // Los roles operativos se administran manualmente desde el panel.
         'administrador' => ['*'],
         'regional' => [
+            'solicitudes-cambio.*',
+            'feature.solicitudes-cambio.create',
             'livewire.vehicle-brands',
             'feature.vehicle-brands.*',
             'livewire.vehicles',
@@ -353,11 +360,15 @@ return [
             'fuel-logs.*',
         ],
         'taller' => [
+            'solicitudes-cambio.*',
+            'feature.solicitudes-cambio.create',
             'livewire.workshops',
             'feature.workshops.*',
             'workshops.*',
         ],
         'conductor' => [
+            'solicitudes-cambio.*',
+            'feature.solicitudes-cambio.create',
             'livewire.vehicles',
             'feature.vehicles.view',
             'livewire.drivers',
@@ -419,6 +430,8 @@ return [
         'carteros' => 'Carteros',
         'api.carteros' => 'API Carteros',
         'empresas' => 'Empresas',
+        'servicios-adicionales' => 'Habilitar servicio adicional',
+        'solicitudes-cambio' => 'Sistemas - Solicitar cambios',
         'empresas.historial' => 'Historial de empresas',
         'empresas.historial.index' => 'Historial de empresas',
         'alertas-empresa' => 'Alertas para empresas',

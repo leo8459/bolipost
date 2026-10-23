@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Database\Query\Grammars\CaseInsensitivePostgresGrammar;
 use App\Livewire\Hooks\EnsureLivewireActionPermission;
 use App\Support\AclPermissionRegistry;
+use App\Support\ServiceAvailability;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\DB;
@@ -42,6 +43,8 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('cliente-panel', function (): bool {
             return auth('cliente')->check();
         });
+        Gate::define('cliente-delivery-express-menu', fn (): bool => auth('cliente')->check()
+            && ServiceAvailability::isEnabled('solicitud'));
         Gate::define('admin-only-menu', fn ($user = null): bool => $this->userIsSuperAdmin($user));
 
         Gate::define('viewPulse', fn ($user = null): bool => $this->userCanInternalWindow($user, 'pulse'));

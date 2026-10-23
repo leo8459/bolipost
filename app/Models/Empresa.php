@@ -13,6 +13,10 @@ class Empresa extends Model
 
     protected $table = 'empresa';
 
+    protected $casts = [
+        'servicio_ida_vuelta' => 'boolean',
+    ];
+
     protected $fillable = [
         'nombre',
         'sigla',
