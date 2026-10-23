@@ -918,6 +918,47 @@
             box-shadow: 0 6px 20px rgba(33, 57, 91, .06);
         }
 
+        #mis-solicitudes-qr-modal .qr-pending-qr img {
+            display: block;
+            width: 100%;
+            height: auto;
+            border-radius: 9px;
+        }
+
+        #mis-solicitudes-qr-modal .qr-image-download {
+            display: flex;
+            min-height: 42px;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin: 11px 2px 0;
+            border: 1px solid #c9d9ef;
+            border-radius: 10px;
+            color: #214f8a;
+            background: #f4f8ff;
+            font-size: 12px;
+            font-weight: 800;
+            transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+        }
+
+        #mis-solicitudes-qr-modal .qr-image-download:hover,
+        #mis-solicitudes-qr-modal .qr-image-download:focus {
+            transform: translateY(-1px);
+            border-color: #aec5e5;
+            color: #173e73;
+            background: #eaf2ff;
+            box-shadow: 0 5px 13px rgba(21, 36, 61, .12);
+            text-decoration: none;
+        }
+
+        #mis-solicitudes-qr-modal .qr-image-note {
+            display: block;
+            margin: 7px 4px 0;
+            color: #8591a2;
+            font-size: 10px;
+            line-height: 1.4;
+        }
+
         #mis-solicitudes-qr-modal .qr-invoice-editor {
             border-color: #f0dba9 !important;
             border-radius: 14px !important;
@@ -1027,7 +1068,8 @@
             #mis-solicitudes-qr-modal .qr-state-info::after,
             #mis-solicitudes-qr-modal .qr-state-success .qr-status-feedback__icon,
             #mis-solicitudes-qr-modal .qr-state-success .qr-status-feedback__icon::after,
-            #mis-solicitudes-qr-modal .qr-document-card__download {
+            #mis-solicitudes-qr-modal .qr-document-card__download,
+            #mis-solicitudes-qr-modal .qr-image-download {
                 animation: none;
                 transition: none;
             }
@@ -1419,6 +1461,10 @@
                     </div>
                     <div id="mis-solicitudes-qr-imagen-wrap" class="qr-pending-qr mx-auto mb-3 p-2 border rounded d-none" style="max-width: 300px; background: #fff;">
                         <img id="mis-solicitudes-qr-imagen" class="img-fluid" alt="QR pendiente de pago">
+                        <a id="mis-solicitudes-qr-descargar" class="qr-image-download" href="#" download="QR-de-pago.png" target="_blank" rel="noopener noreferrer">
+                            <i class="fas fa-download" aria-hidden="true"></i>Descargar imagen
+                        </a>
+                        <small class="qr-image-note">En celular, si la imagen se abre aparte, mantenla presionada para guardarla.</small>
                     </div>
                     <div class="qr-reference"><i class="fas fa-fingerprint" aria-hidden="true"></i><span>Referencia:</span><strong id="mis-solicitudes-qr-codigo" class="font-weight-bold"></strong></div>
                 </div>
@@ -1498,6 +1544,7 @@
             const documentsElement = modal[0].querySelector('.qr-documents');
             const imageWrap = document.getElementById('mis-solicitudes-qr-imagen-wrap');
             const imageElement = document.getElementById('mis-solicitudes-qr-imagen');
+            const imageDownloadLink = document.getElementById('mis-solicitudes-qr-descargar');
             const invoiceEditor = document.getElementById('mis-solicitudes-qr-factura-editor');
             const invoiceForm = document.getElementById('mis-solicitudes-qr-factura-form');
             const invoiceFormError = document.getElementById('mis-solicitudes-qr-factura-error');
@@ -1720,6 +1767,7 @@
                     if (payload.paid || payload.payment_status === 'pagado' || payload.registration_error === 'qr_amount_mismatch') {
                         imageWrap.classList.add('d-none');
                         imageElement.removeAttribute('src');
+                        imageDownloadLink.removeAttribute('href');
                     }
                     if (payload.terminal || payload.retry === false) {
                         activeAttempt = '';
@@ -1732,11 +1780,20 @@
                         imageElement.src = image.startsWith('data:image/') || image.startsWith('http://') || image.startsWith('https://')
                             ? image
                             : 'data:image/png;base64,' + image;
+                        const imageSource = imageElement.src;
+                        const extension = imageSource.match(/^data:image\/(png|jpe?g|webp)/i)?.[1]?.toLowerCase().replace('jpeg', 'jpg')
+                            || imageSource.match(/\.(png|jpe?g|webp)(?:[?#]|$)/i)?.[1]?.toLowerCase().replace('jpeg', 'jpg')
+                            || 'png';
+                        const safeCode = String(document.getElementById('mis-solicitudes-qr-codigo').textContent || 'pago')
+                            .replace(/[^a-z0-9_-]/gi, '-');
+                        imageDownloadLink.href = imageSource;
+                        imageDownloadLink.download = 'QR-' + safeCode + '.' + extension;
                         imageWrap.classList.remove('d-none');
                         setStatus('El pago sigue pendiente. Actualizaremos el estado cada 3 segundos.');
                     } else {
                         imageWrap.classList.add('d-none');
                         imageElement.removeAttribute('src');
+                        imageDownloadLink.removeAttribute('href');
                         setStatus(payload.message || 'Estado del pago actualizado.', payload.payment_status === 'cancelado' ? 'warning' : 'success');
                     }
 
@@ -1770,6 +1827,7 @@
                     documentsElement.classList.remove('qr-documents--single');
                     imageWrap.classList.add('d-none');
                     imageElement.removeAttribute('src');
+                    imageDownloadLink.removeAttribute('href');
                     setStatus('Consultando el estado del pago...', 'info');
                     modal.modal('show');
                     if (activeAttempt) consultStatus(activeAttempt);
