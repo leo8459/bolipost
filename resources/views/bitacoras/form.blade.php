@@ -4,56 +4,70 @@
 
 <style>
     .bitacora-form-shell {
-        padding: 20px;
+        --bitacora-ink: #172b4d;
+        --bitacora-muted: #68788f;
+        --bitacora-blue: #20539a;
+        --bitacora-border: #e1e8f1;
+        padding: 24px 28px 26px;
         background: #fff;
+        color: var(--bitacora-ink);
     }
 
     .bitacora-form-shell label {
-        font-weight: 800;
-        color: #0f172a;
-        margin-bottom: 0.5rem;
+        display: block;
+        margin-bottom: 0.45rem;
+        color: #253750;
+        font-size: 0.9rem;
+        font-weight: 700;
     }
 
     .bitacora-form-shell .form-control,
     .bitacora-form-shell .form-control-file {
-        min-height: 44px;
-        border-radius: 10px;
-        border: 1px solid #cbd5e1;
+        min-height: 46px;
+        border: 1px solid #cfd8e4;
+        border-radius: 9px;
         box-shadow: none;
+        color: #21344f;
+        transition: border-color 0.16s ease, box-shadow 0.16s ease;
     }
 
     .bitacora-form-shell .form-control:focus,
     .bitacora-form-shell .form-control-file:focus {
         border-color: #20539A;
-        box-shadow: 0 0 0 0.15rem rgba(32, 83, 154, 0.12);
+        box-shadow: 0 0 0 3px rgba(32, 83, 154, 0.12);
     }
 
     .btn-dorado {
-        background: #FECC36;
+        min-height: 44px;
+        background: #20539a;
         color: #fff;
-        font-weight: 800;
-        border: none;
-        border-radius: 12px;
-        padding: 10px 18px;
+        font-weight: 700;
+        border: 1px solid #1d4c8d;
+        border-radius: 9px;
+        padding: 0.65rem 1.15rem;
+        transition: background-color 0.16s ease, box-shadow 0.16s ease;
     }
 
     .btn-dorado:hover {
-        filter: brightness(.95);
+        background: #173f75;
         color: #fff;
+        box-shadow: 0 3px 9px rgba(32, 83, 154, 0.2);
     }
 
     .btn-outline-azul {
-        border: 1px solid rgba(32, 83, 154, 0.25);
-        color: #20539A;
-        font-weight: 800;
-        border-radius: 12px;
-        padding: 10px 18px;
+        min-height: 44px;
+        border: 1px solid #cbd7e5;
+        color: #315578;
+        font-weight: 700;
+        border-radius: 9px;
+        padding: 0.65rem 1.15rem;
         background: #fff;
     }
 
     .btn-outline-azul:hover {
-        background: rgba(32, 83, 154, 0.05);
-        color: #20539A;
+        background: #f5f8fc;
+        border-color: #a9bfd9;
+        color: #20539a;
     }
 
     .bitacora-form-footer {
@@ -72,9 +86,10 @@
     .bitacora-form-helper {
         display: block;
         margin-top: 0.45rem;
-        font-size: 0.85rem;
-        font-weight: 600;
-        color: #20539A;
+        color: #68788f;
+        font-size: 0.82rem;
+        font-weight: 500;
+        line-height: 1.45;
     }
 
     .text-uppercase-live {
@@ -82,21 +97,28 @@
     }
 
     .bitacora-photo-card {
-        margin-top: 1rem;
-        padding: 1rem;
-        border: 1px dashed #cbd5e1;
-        border-radius: 14px;
-        background: #f8fbff;
+        margin-top: 0.4rem;
+        padding: 1rem 1.1rem;
+        border: 1px solid #e1e8f1;
+        border-radius: 12px;
+        background: #fbfcfe;
+    }
+
+    .bitacora-photo-card .form-control-file {
+        width: 100%;
+        height: auto;
+        padding: 0.55rem;
+        background: #fff;
     }
 
     .bitacora-photo-preview {
         display: none;
         width: 100%;
-        max-width: 340px;
+        max-width: 360px;
         max-height: 320px;
         object-fit: contain;
         margin-top: 0.9rem;
-        border-radius: 12px;
+        border-radius: 10px;
         border: 1px solid #d7deea;
         background: #fff;
         padding: 0.4rem;
@@ -106,37 +128,256 @@
         display: block;
     }
 
+    .bitacora-code-entry {
+        padding: 1rem 1.1rem;
+        border: 1px solid #dbe5f1;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #f7faff 0%, #fff 100%);
+    }
+
+    .bitacora-code-entry .form-control {
+        font-size: 1.05rem;
+        font-weight: 700;
+        letter-spacing: 0.035em;
+        text-transform: uppercase;
+    }
+
+    .bitacora-code-types {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        margin: 0.65rem 0 0.6rem;
+    }
+
+    .bitacora-code-type {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 0.25rem 0.65rem;
+        border: 1px solid #d9e3ef;
+        background: #fff;
+        color: #3c5779;
+        font-size: 0.74rem;
+        font-weight: 700;
+    }
+
+    .bitacora-lookup-status {
+        display: block;
+        min-height: 2.65rem;
+        margin-top: 0.5rem;
+        padding: 0.55rem 0.7rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        background: #f8fafc;
+        color: #52657d;
+        font-size: 0.83rem;
+        font-weight: 600;
+        line-height: 1.45;
+    }
+
+    .bitacora-lookup-status.is-info {
+        border-color: #d7e5f6;
+        background: #f1f7fd;
+        color: #20539a;
+    }
+
+    .bitacora-lookup-status.is-success {
+        border-color: #cde8d7;
+        background: #f0faf3;
+        color: #176b3b;
+    }
+
+    .bitacora-lookup-status.is-warning {
+        border-color: #f0dfbb;
+        background: #fff9ec;
+        color: #885b0b;
+    }
+
+    .bitacora-form-intro {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.85rem;
+        margin-bottom: 1.35rem;
+        padding: 0.95rem 1rem;
+        border: 1px solid #dce8f6;
+        border-left: 4px solid #20539a;
+        border-radius: 10px;
+        background: #f6f9fd;
+    }
+
+    .bitacora-form-intro-icon {
+        display: grid;
+        flex: 0 0 34px;
+        width: 34px;
+        height: 34px;
+        place-items: center;
+        border-radius: 9px;
+        background: #e4edf9;
+        color: #20539a;
+    }
+
+    .bitacora-form-intro strong,
+    .bitacora-form-intro span {
+        display: block;
+    }
+
+    .bitacora-form-intro strong {
+        margin-bottom: 0.15rem;
+        color: #172b4d;
+    }
+
+    .bitacora-form-intro-copy {
+        color: #68788f;
+        font-size: 0.88rem;
+        line-height: 1.45;
+    }
+
+    .bitacora-form-section {
+        margin-bottom: 1.4rem;
+        padding-bottom: 1.25rem;
+        border-bottom: 1px solid #edf1f6;
+    }
+
+    .bitacora-section-heading {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .bitacora-section-step {
+        display: inline-flex;
+        flex: 0 0 30px;
+        width: 30px;
+        height: 30px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 9px;
+        background: #eaf0f8;
+        color: #20539a;
+        font-size: 0.78rem;
+        font-weight: 800;
+    }
+
+    .bitacora-section-heading h4 {
+        margin: 0;
+        color: #172b4d;
+        font-size: 1rem;
+        font-weight: 800;
+    }
+
+    .bitacora-section-heading p {
+        margin: 0.18rem 0 0;
+        color: #68788f;
+        font-size: 0.84rem;
+    }
+
+    .bitacora-form-section .form-group {
+        margin-bottom: 0.9rem;
+    }
+
+    .bitacora-form-shell .form-control::placeholder {
+        color: #94a1b2;
+        opacity: 1;
+    }
+
+    .bitacora-form-shell .form-control:read-only {
+        background: #f4f6f9;
+    }
+
+    .bitacora-form-footer {
+        margin-top: 1.35rem;
+        padding-top: 1rem;
+        border-top: 1px solid #e8edf3;
+    }
+
+    .bitacora-edit-summary {
+        margin-bottom: 1rem;
+        padding: 1rem 1.1rem;
+        border: 1px solid #e1e8f1;
+        border-radius: 10px;
+        background: #f8fafc;
+        color: #52657d;
+        line-height: 1.8;
+    }
+
+    @media (max-width: 576px) {
+        .bitacora-form-shell {
+            padding: 14px;
+        }
+
+        .bitacora-code-entry {
+            padding: 0.8rem;
+        }
+
+        .bitacora-form-actions {
+            flex-direction: column-reverse;
+        }
+
+        .bitacora-form-actions .btn {
+            width: 100%;
+        }
+    }
+
 </style>
 
 <div class="bitacora-form-shell">
         @if (!$editOnlyPhoto)
-            <div class="alert alert-info">
-                Usuario logueado: <strong>{{ auth()->user()->name ?? 'Usuario del sistema' }}</strong>
-                <br>
-                Escribe el <strong>cod_especial</strong>; el sistema puede cargar datos de apoyo, pero solo se guardara la bitacora manual que registres aqui.
+            <div class="bitacora-form-intro">
+                <span class="bitacora-form-intro-icon" aria-hidden="true"><i class="fas fa-user-check"></i></span>
+                <div>
+                    <strong>{{ auth()->user()->name ?? 'Usuario del sistema' }}</strong>
+                    <span class="bitacora-form-intro-copy">Registro manual de transporte, costos y evidencia para el envío.</span>
+                </div>
             </div>
 
-            <div class="form-group mb-3">
-                <div class="col-md-12">
-                    <label for="cod_especial">Cod Especial <span class="text-danger">*</span></label>
+            <section class="bitacora-form-section" aria-labelledby="bitacora-identificacion-heading">
+                <div class="bitacora-section-heading">
+                    <span class="bitacora-section-step">01</span>
+                    <div>
+                        <h4 id="bitacora-identificacion-heading">Identificación del envío</h4>
+                        <p>Ingresa el código especial para consultar los datos disponibles.</p>
+                    </div>
+                </div>
+                <div class="bitacora-code-entry">
+                    <div class="form-group mb-0">
+                        <label for="cod_especial">Código especial <span class="text-danger">*</span></label>
                     <input
                         type="text"
                         id="cod_especial"
                         name="cod_especial"
                         value="{{ old('cod_especial', $bitacora->cod_especial) }}"
                         class="form-control @error('cod_especial') is-invalid @enderror"
-                        placeholder="Ej: LPZ00001 o codigo certificado"
+                        placeholder="Escribe o pega el código especial"
+                        maxlength="50"
+                        autocomplete="off"
+                        autocapitalize="characters"
+                        spellcheck="false"
                         required
                     >
-                    @error('cod_especial')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
-                    <small id="cn33-summary-help" class="bitacora-form-helper"></small>
+                        <div class="bitacora-code-types" aria-label="Tipos de código admitidos">
+                            <span class="bitacora-code-type">CN-33</span>
+                            <span class="bitacora-code-type">Solicitud</span>
+                            <span class="bitacora-code-type">Delivery Express</span>
+                        </div>
+                        <small id="cn33-summary-help" class="bitacora-lookup-status" role="status" aria-live="polite">Al reconocer el código, el peso se cargará automáticamente si está disponible.</small>
+                        @error('cod_especial')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
                 </div>
-            </div>
+            </section>
 
-            <div class="row">
-                <div class="col-md-3">
+            <section class="bitacora-form-section" aria-labelledby="bitacora-transporte-heading">
+                <div class="bitacora-section-heading">
+                    <span class="bitacora-section-step">02</span>
+                    <div>
+                        <h4 id="bitacora-transporte-heading">Transporte y facturación</h4>
+                        <p>Completa el traslado y los datos de la factura asociada.</p>
+                    </div>
+                </div>
+                <div class="row">
+                <div class="col-lg-3 col-md-6">
                     <div class="form-group mb-3">
                         <label for="tipo_transporte">Tipo de transporte <span class="text-danger">*</span></label>
                         <select
@@ -155,7 +396,7 @@
                     </div>
                 </div>
 
-                <div class="col-md-3">
+                <div class="col-lg-3 col-md-6">
                     <div class="form-group mb-3">
                         <label for="transportadora">Transportadora <span class="text-danger">*</span></label>
                         <input
@@ -175,7 +416,7 @@
                     </div>
                 </div>
 
-                <div class="col-md-3">
+                <div class="col-lg-3 col-md-6">
                     <div class="form-group mb-3">
                         <label for="provincia">Provincia <span class="text-muted">(opcional)</span></label>
                         <input
@@ -191,7 +432,7 @@
                     </div>
                 </div>
 
-                <div class="col-md-3">
+                <div class="col-lg-3 col-md-6">
                     <div class="form-group mb-3">
                         <label for="factura">Factura <span class="text-danger">*</span></label>
                         <input
@@ -208,7 +449,16 @@
                     </div>
                 </div>
             </div>
+            </section>
 
+            <section class="bitacora-form-section" aria-labelledby="bitacora-costos-heading">
+                <div class="bitacora-section-heading">
+                    <span class="bitacora-section-step">03</span>
+                    <div>
+                        <h4 id="bitacora-costos-heading">Importe y peso</h4>
+                        <p>Registra el monto facturado y el peso total del envío.</p>
+                    </div>
+                </div>
             <div class="row">
                 <div class="col-md-6">
                     <div class="form-group mb-3">
@@ -248,12 +498,13 @@
                         @error('peso')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
-                        <small class="bitacora-form-helper is-info">Peso maximo: 150 kg. Si pegas el numero de despacho del CN-33, el peso se cargara automaticamente; puedes cambiarlo manualmente.</small>
+                        <small class="bitacora-form-helper is-info">Máximo: 150 kg. El peso detectado se puede corregir manualmente.</small>
                     </div>
                 </div>
             </div>
+            </section>
         @else
-            <div class="alert alert-secondary">
+            <div class="bitacora-edit-summary">
                 <div><strong>Cod. especial:</strong> {{ $bitacora->cod_especial ?: '-' }}</div>
                 <div><strong>Factura:</strong> {{ $bitacora->factura ?: '-' }}</div>
                 <div><strong>Transportadora:</strong> {{ $bitacora->transportadora ?: '-' }}</div>
@@ -276,9 +527,17 @@
             </div>
         @endif
 
+        <section class="bitacora-form-section bitacora-evidence-section" aria-labelledby="bitacora-evidencia-heading">
+            <div class="bitacora-section-heading">
+                <span class="bitacora-section-step">{{ $editOnlyPhoto ? '01' : '04' }}</span>
+                <div>
+                    <h4 id="bitacora-evidencia-heading">{{ $editOnlyPhoto ? 'Actualizar evidencia' : 'Factura o evidencia' }}</h4>
+                    <p>Adjunta un archivo legible para respaldar el registro.</p>
+                </div>
+            </div>
         <div class="bitacora-photo-card">
             <div class="form-group mb-0">
-                <label for="imagen_factura">Foto o factura @if(!$editOnlyPhoto)<span class="text-danger">*</span>@endif</label>
+                <label for="imagen_factura">Archivo de factura @if(!$editOnlyPhoto)<span class="text-danger">*</span>@endif</label>
                 <input
                     type="file"
                     id="imagen_factura"
@@ -290,7 +549,7 @@
                 @error('imagen_factura')
                     <div class="invalid-feedback d-block">{{ $message }}</div>
                 @enderror
-                <small class="bitacora-form-helper">Puedes subir JPG, PNG, WEBP o PDF. Si subes una imagen, el sistema la optimiza para que pese menos antes de guardarla.</small>
+                <small class="bitacora-form-helper">Formatos permitidos: JPG, PNG, WEBP o PDF. Las imágenes se optimizan al guardarse.</small>
                 @php
                     $existingImageUrl = $bitacora->imagen_factura ? asset('storage/' . $bitacora->imagen_factura) : null;
                     $existingImageExtension = $bitacora->imagen_factura ? strtolower(pathinfo((string) $bitacora->imagen_factura, PATHINFO_EXTENSION)) : null;
@@ -318,12 +577,13 @@
                 @endif
             </div>
         </div>
+        </section>
 
     <div class="bitacora-form-footer">
         <div class="bitacora-form-actions">
-            <a href="{{ route('bitacoras.index') }}" class="btn btn-outline-azul">Volver</a>
+            <a href="{{ route('bitacoras.index') }}" class="btn btn-outline-azul">Cancelar</a>
             @if ($editOnlyPhoto || auth()->user()?->can('feature.bitacoras.index.save') || auth()->user()?->can('feature.bitacoras.create.save'))
-                <button type="submit" class="btn btn-dorado">Guardar</button>
+                <button type="submit" class="btn btn-dorado">{{ $editOnlyPhoto ? 'Guardar cambios' : 'Registrar bitácora' }}</button>
             @endif
         </div>
     </div>
@@ -406,7 +666,7 @@
 
             const setHelp = (message, type = '') => {
                 helpBox.textContent = message;
-                helpBox.className = 'bitacora-form-helper';
+                helpBox.className = 'bitacora-lookup-status';
                 if (type !== '') {
                     helpBox.classList.add(type);
                 }
@@ -414,12 +674,18 @@
 
             const loadSummary = async () => {
                 const rawCode = (codeInput.value || '').trim().toUpperCase();
-                if (rawCode === '' || rawCode === lastFetchedCode) {
+                if (rawCode === '') {
+                    lastFetchedCode = '';
+                    setHelp('Al reconocer el código, el peso se cargará automáticamente si está disponible.');
+                    return;
+                }
+
+                if (rawCode === lastFetchedCode) {
                     return;
                 }
 
                 lastFetchedCode = rawCode;
-                setHelp('Consultando peso del CN-33...', 'is-info');
+                setHelp('Buscando el código en despachos, solicitudes y Delivery Express…', 'is-info');
 
                 try {
                     const response = await fetch(`${endpoint}?cod_especial=${encodeURIComponent(rawCode)}`, {
@@ -434,15 +700,21 @@
                     }
 
                     const data = await response.json();
+                    if (rawCode !== (codeInput.value || '').trim().toUpperCase()) {
+                        return;
+                    }
+
                     if (!data || !data.exists) {
-                        setHelp('No se encontro ese CN-33. Verifica el numero de despacho.', 'is-warning');
+                        setHelp('No encontramos ese código en CN-33, solicitudes o Delivery Express. Verifica el código especial.', 'is-warning');
                         return;
                     }
 
                     weightInput.value = data.peso ?? '';
-                    setHelp(`Peso cargado automaticamente: ${data.peso ?? '0.000'} kg. Puedes cambiarlo manualmente si lo necesitas.`, 'is-info');
+                    setHelp(`Código reconocido. Peso total: ${data.peso ?? '0.000'} kg. Puedes ajustarlo manualmente.`, 'is-success');
                 } catch (error) {
-                    setHelp('No se pudo consultar el peso automatico del CN-33 en este momento.', 'is-warning');
+                    if (rawCode === (codeInput.value || '').trim().toUpperCase()) {
+                        setHelp('No se pudieron consultar los datos automáticos. Al guardar, el sistema confirmará que el código exista.', 'is-warning');
+                    }
                 }
             };
 

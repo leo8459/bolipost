@@ -50,6 +50,20 @@
             max-width: 640px;
         }
 
+        .bitacoras-scope-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            margin-top: 0.55rem;
+            padding: 0.28rem 0.65rem;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.96);
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
         .bitacoras-header-top {
             display: flex;
             justify-content: space-between;
@@ -401,6 +415,16 @@
                             <div>
                                 <h3 class="card-title" id="card_title">Administracion de Bitacoras</h3>
                                 <div class="bitacoras-subtitle">Gestiona bitacoras, filtros operativos y evidencias asociadas a paquetes provinciales.</div>
+                                <div class="bitacoras-scope-badge">
+                                    <i class="fas {{ $departmentScope === null ? 'fa-globe-americas' : 'fa-map-marker-alt' }}" aria-hidden="true"></i>
+                                    @if ($departmentScope === null)
+                                        Acceso nacional
+                                    @elseif ($departmentScope === [])
+                                        Sin departamento asignado
+                                    @else
+                                        Departamento: {{ implode(', ', $departmentScope) }}
+                                    @endif
+                                </div>
                             </div>
                             @can('feature.bitacoras.index.create')
                                 <a href="{{ route('bitacoras.create') }}" class="btn btn-dorado">Crear Nuevo</a>

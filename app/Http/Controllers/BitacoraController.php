@@ -9,6 +9,7 @@ use App\Models\PaqueteEms;
 use App\Models\PaqueteInt;
 use App\Models\PaqueteOrdi;
 use App\Models\Recojo;
+use App\Models\SolicitudCliente;
 use App\Models\User;
 use App\Services\BitacoraFacturaQrService;
 use App\Support\BitacoraCn33Service;
@@ -20,6 +21,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -62,6 +64,7 @@ class BitacoraController extends Controller
 
     private function buildIndexData(Request $request, bool $paginate = true): array
     {
+        $departmentScope = $this->resolveBitacoraDepartmentScope(Auth::user());
         $regionalScope = $this->resolveRegionalScopeForUser(Auth::user());
         $q = trim((string) $request->query('q', ''));
         $userId = (int) $request->query('user_id', 0);
@@ -75,7 +78,7 @@ class BitacoraController extends Controller
             ->selectRaw('trim(upper(cod_especial)) as cod_especial_normalizado')
             ->groupBy(DB::raw('trim(upper(cod_especial))'));
 
-        $this->applyBitacoraFilters($filteredCodEspecialesQuery, $q, $userId, $codEspecial, $provincia, $regional, $origenCn33, $transportadora);
+        $this->applyBitacoraFilters($filteredCodEspecialesQuery, $q, $userId, $codEspecial, $provincia, $regional, $origenCn33, $transportadora, $departmentScope);
 
         $latestIdsQuery = Bitacora::query()
             ->selectRaw('max(id) as id')
@@ -83,6 +86,7 @@ class BitacoraController extends Controller
             ->whereNotNull('precio_total')
             ->whereNotNull('peso')
             ->groupBy(DB::raw('trim(upper(cod_especial))'));
+        $this->applyBitacoraDepartmentScope($latestIdsQuery, $departmentScope);
 
         $bitacorasQuery = Bitacora::query()
             ->with([
@@ -123,35 +127,41 @@ class BitacoraController extends Controller
                 'paqueteCerti:id,codigo,cod_especial',
             ])
             ->whereIn(DB::raw('trim(upper(cod_especial))'), $codEspecialesPagina)
-            ->orderBy('id')
-            ->get()
+            ->orderBy('id');
+        $this->applyBitacoraDepartmentScope($detallesPorCodEspecial, $departmentScope);
+        $detallesPorCodEspecial = $detallesPorCodEspecial->get()
             ->groupBy(fn (Bitacora $bitacora) => strtoupper(trim((string) $bitacora->cod_especial)));
 
         $users = User::query()
+            ->when($departmentScope !== null, function ($query) use ($departmentScope) {
+                $this->applyUserDepartmentScope($query, $departmentScope);
+            })
             ->when($regional !== '', function ($query) use ($regional) {
                 $this->applyUserRegionalFilter($query, $regional);
             })
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        $regionales = $this->departamentosFiltro();
-        $origenesCn33 = $this->departamentosFiltro();
+        $regionales = $departmentScope ?? $this->departamentosFiltro();
+        $origenesCn33 = $regionales;
 
-        $provincias = Bitacora::query()
+        $provinciasQuery = Bitacora::query()
             ->select('provincia')
             ->whereNotNull('provincia')
             ->whereRaw("trim(provincia) <> ''")
             ->distinct()
-            ->orderBy('provincia')
-            ->pluck('provincia');
+            ->orderBy('provincia');
+        $this->applyBitacoraDepartmentScope($provinciasQuery, $departmentScope);
+        $provincias = $provinciasQuery->pluck('provincia');
 
-        $transportadoras = Bitacora::query()
+        $transportadorasQuery = Bitacora::query()
             ->selectRaw('trim(upper(transportadora)) as transportadora')
             ->whereNotNull('transportadora')
             ->whereRaw("trim(transportadora) <> ''")
             ->distinct()
-            ->orderBy('transportadora')
-            ->pluck('transportadora');
+            ->orderBy('transportadora');
+        $this->applyBitacoraDepartmentScope($transportadorasQuery, $departmentScope);
+        $transportadoras = $transportadorasQuery->pluck('transportadora');
 
         $pendingCn33Alert = $paginate
             ? [
@@ -241,7 +251,8 @@ class BitacoraController extends Controller
             'reportTotals',
             'reportPreviewAvailable',
             'cn33LocationsPorCodEspecial',
-            'cn33PackagesPorCodEspecial'
+            'cn33PackagesPorCodEspecial',
+            'departmentScope'
         );
     }
 
@@ -435,7 +446,17 @@ class BitacoraController extends Controller
             ->get();
     }
 
-    private function applyBitacoraFilters($query, string $q, int $userId, string $codEspecial, string $provincia, string $regional, string $origenCn33, string $transportadora): void
+    private function applyBitacoraFilters(
+        $query,
+        string $q,
+        int $userId,
+        string $codEspecial,
+        string $provincia,
+        string $regional,
+        string $origenCn33,
+        string $transportadora,
+        ?array $departmentScope = null
+    ): void
     {
         $query
             ->when($userId > 0, function ($query) use ($userId) {
@@ -492,6 +513,36 @@ class BitacoraController extends Controller
                         });
                 });
             });
+
+        $this->applyBitacoraDepartmentScope($query, $departmentScope);
+    }
+
+    private function applyBitacoraDepartmentScope($query, ?array $departments): void
+    {
+        if ($departments === null) {
+            return;
+        }
+
+        $query->whereHas('user', function ($userQuery) use ($departments) {
+            $this->applyUserDepartmentScope($userQuery, $departments);
+        });
+    }
+
+    private function applyUserDepartmentScope($query, array $departments): void
+    {
+        if ($departments === []) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
+        $query->where(function ($departmentQuery) use ($departments) {
+            foreach ($departments as $department) {
+                $departmentQuery->orWhere(function ($regionalQuery) use ($department) {
+                    $this->applyUserRegionalFilter($regionalQuery, $department);
+                });
+            }
+        });
     }
 
     private function applyUserRegionalFilter($query, string $regional): void
@@ -635,6 +686,60 @@ class BitacoraController extends Controller
         return null;
     }
 
+    private function resolveBitacoraDepartmentScope($user): ?array
+    {
+        if ($this->canViewAllBitacoras($user)) {
+            return null;
+        }
+
+        if (!$user) {
+            return [];
+        }
+
+        $departments = method_exists($user, 'regionalesLista')
+            ? $user->regionalesLista()
+            : [(string) ($user->ciudad ?? '')];
+
+        return collect($departments)
+            ->map(fn ($department) => strtoupper(trim((string) $department)))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function canViewAllBitacoras($user): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        if (method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin()) {
+            return true;
+        }
+
+        if (!method_exists($user, 'hasRole')) {
+            return false;
+        }
+
+        return $user->hasRole('administrador')
+            || $user->hasRole('admin')
+            || $user->hasRole('administrador_operaciones');
+    }
+
+    private function ensureBitacoraDepartmentAccess(Bitacora $bitacora, $user): void
+    {
+        $departmentScope = $this->resolveBitacoraDepartmentScope($user);
+        if ($departmentScope === null) {
+            return;
+        }
+
+        $query = Bitacora::query()->whereKey($bitacora->getKey());
+        $this->applyBitacoraDepartmentScope($query, $departmentScope);
+
+        abort_unless($query->exists(), 404);
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $payload = $this->validateStoreData($request);
@@ -647,6 +752,8 @@ class BitacoraController extends Controller
 
     public function edit(Bitacora $bitacora): View
     {
+        $this->ensureBitacoraDepartmentAccess($bitacora, Auth::user());
+
         return view('bitacoras.edit', [
             'bitacora' => $bitacora,
         ]);
@@ -654,6 +761,8 @@ class BitacoraController extends Controller
 
     public function update(Request $request, Bitacora $bitacora): RedirectResponse
     {
+        $this->ensureBitacoraDepartmentAccess($bitacora, $request->user());
+
         $data = $this->validateEditData($request, $bitacora);
         $message = 'No se actualizaron datos. La bitacora quedo sin cambios.';
 
@@ -669,6 +778,8 @@ class BitacoraController extends Controller
 
     public function destroy(Bitacora $bitacora): RedirectResponse
     {
+        $this->ensureBitacoraDepartmentAccess($bitacora, Auth::user());
+
         if (!empty($bitacora->imagen_factura) && Storage::disk('public')->exists($bitacora->imagen_factura)) {
             Storage::disk('public')->delete($bitacora->imagen_factura);
         }
@@ -720,7 +831,7 @@ class BitacoraController extends Controller
                 ->exists();
 
             if ($bitacoraExists) {
-                $validator->errors()->add('cod_especial', 'Ya existe una bitacora registrada para este CN-33.');
+                $validator->errors()->add('cod_especial', 'Ya existe una bitacora registrada para este codigo especial.');
 
                 return;
             }
@@ -748,8 +859,12 @@ class BitacoraController extends Controller
                 ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codEspecial])
                 ->exists();
 
-            if (!$emsExists && !$contratoExists && !$ordiExists && !$certiExists && !$intExists) {
-                $validator->errors()->add('cod_especial', 'No existen paquetes EMS, contratos, ordinarios, certificados o INT con ese codigo.');
+            $solicitudExists = Schema::hasTable('solicitud_clientes') && SolicitudCliente::query()
+                ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codEspecial])
+                ->exists();
+
+            if (!$emsExists && !$contratoExists && !$ordiExists && !$certiExists && !$intExists && !$solicitudExists) {
+                $validator->errors()->add('cod_especial', 'No existen paquetes EMS, contratos, ordinarios, certificados, INT, solicitudes o envios Delivery Express con ese codigo.');
             }
         });
 
@@ -908,6 +1023,12 @@ class BitacoraController extends Controller
             })
             ->sum('peso');
 
+        $pesoSolicitud = Schema::hasTable('solicitud_clientes')
+            ? (float) SolicitudCliente::query()
+                ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codigo])
+                ->sum('peso')
+            : 0.0;
+
         $pesoInt = (float) PaqueteInt::query()
             ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codigo])
             ->sum('peso');
@@ -924,9 +1045,15 @@ class BitacoraController extends Controller
             ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codigo])
             ->sum('precio');
 
+        $precioSolicitud = Schema::hasTable('solicitud_clientes')
+            ? (float) SolicitudCliente::query()
+                ->whereRaw('trim(upper(COALESCE(cod_especial, \'\'))) = ?', [$codigo])
+                ->sum('precio')
+            : 0.0;
+
         return [
-            'peso' => round($pesoEms + $pesoContrato + $pesoOrdi + $pesoCerti + $pesoInt, 3),
-            'precio_total' => round($precioEms + $precioContrato + $precioInt, 2),
+            'peso' => round($pesoEms + $pesoContrato + $pesoOrdi + $pesoCerti + $pesoInt + $pesoSolicitud, 3),
+            'precio_total' => round($precioEms + $precioContrato + $precioInt + $precioSolicitud, 2),
         ];
     }
 
