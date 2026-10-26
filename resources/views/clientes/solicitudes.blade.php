@@ -243,8 +243,8 @@
                             >
                         </div>
                         <div class="col-md-6 form-group">
-                            <label for="telefono_remitente">Tel&eacute;fono <small class="text-muted font-weight-normal">(opcional)</small></label>
-                            <input type="text" id="telefono_remitente" name="telefono_remitente" value="{{ old('telefono_remitente', $cliente->telefono) }}" class="form-control">
+                            <label for="telefono_remitente">Tel&eacute;fono <span class="text-danger" aria-hidden="true">*</span></label>
+                            <input type="text" id="telefono_remitente" name="telefono_remitente" required value="{{ old('telefono_remitente', $cliente->telefono) }}" class="form-control">
                         </div>
                         <div class="col-md-6 form-group mb-0">
                             <label for="direccion_recojo">Direcci&oacute;n de recojo <span class="text-danger" aria-hidden="true">*</span></label>
