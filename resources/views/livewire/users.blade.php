@@ -725,6 +725,14 @@
                                                     >
                                                         <i class="fa fa-undo"></i>
                                                     </button>
+                                                <button
+                                                    wire:click="confirmStatusAction({{ $user->id }}, 'enable_consolidator')"
+                                                    class="btn btn-sm btn-info"
+                                                    type="button"
+                                                    title="Habilitar consolidador"
+                                                >
+                                                    <i class="fa fa-user-shield mr-1"></i>Habilitar consolidador
+                                                </button>
                                                 @endif
                                             @else
                                                 @if(auth()->user()?->isSuperAdmin() && !session()->has('impersonator_id') && (int) auth()->id() !== (int) $user->id)
@@ -995,13 +1003,17 @@
                 <div class="modal-body">
                     @if($statusAction === 'restore')
                         Se reactivara el usuario seleccionado.
+                    @elseif($statusAction === 'enable_consolidator')
+                        Se habilitara la cuenta y se asignara el rol consolidador, quitando los demas roles. Este rol evitara la baja automatica por vencimiento del contrato.
                     @else
                         El usuario seleccionado sera dado de baja.
                     @endif
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                    <button type="button" class="btn btn-primary" wire:click="applyStatusAction">Confirmar</button>
+                    <button type="button" class="btn btn-primary" wire:click="applyStatusAction">
+                        {{ $statusAction === 'enable_consolidator' ? 'Habilitar consolidador' : 'Confirmar' }}
+                    </button>
                 </div>
             </div>
         </div>

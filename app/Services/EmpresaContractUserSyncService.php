@@ -10,6 +10,8 @@ use Illuminate\Support\Collection;
 
 class EmpresaContractUserSyncService
 {
+    private const CONSOLIDADOR_ROLE_NAME = 'consolidador';
+
     private const EXPIRATION_ALERT_ROLES = [
         'encargado',
         'contratos',
@@ -25,10 +27,13 @@ class EmpresaContractUserSyncService
             ->whereDate('fin_contrato', '<', $today)
             ->pluck('id');
 
+        $this->restoreConsolidatorsDisabledByContract($expiredCompanyIds);
+
         if ($expiredCompanyIds->isNotEmpty()) {
             User::query()
                 ->whereIn('empresa_id', $expiredCompanyIds)
                 ->whereNull('deleted_at')
+                ->whereDoesntHave('roles', fn ($query) => $query->where('name', self::CONSOLIDADOR_ROLE_NAME))
                 ->update([
                     'deleted_at' => now(),
                     'auto_baja_empresa_at' => now(),
@@ -67,11 +72,13 @@ class EmpresaContractUserSyncService
 
         $today = Carbon::today()->toDateString();
         $isExpired = ! empty($empresa->fin_contrato) && Carbon::parse($empresa->fin_contrato)->lt(Carbon::parse($today));
+        $this->restoreConsolidatorsDisabledByContract(collect([(int) $empresa->id]));
 
         if ($isExpired) {
             User::query()
                 ->where('empresa_id', $empresa->id)
                 ->whereNull('deleted_at')
+                ->whereDoesntHave('roles', fn ($query) => $query->where('name', self::CONSOLIDADOR_ROLE_NAME))
                 ->update([
                     'deleted_at' => now(),
                     'auto_baja_empresa_at' => now(),
@@ -94,7 +101,9 @@ class EmpresaContractUserSyncService
 
     public function ensureAuthenticatedUserIsActive(?AuthenticatableContract $user): bool
     {
-        if (! $user instanceof User || (int) ($user->empresa_id ?? 0) <= 0) {
+        if (! $user instanceof User
+            || $user->hasRole(self::CONSOLIDADOR_ROLE_NAME)
+            || (int) ($user->empresa_id ?? 0) <= 0) {
             return true;
         }
 
@@ -123,6 +132,24 @@ class EmpresaContractUserSyncService
             ]);
 
         return false;
+    }
+
+    private function restoreConsolidatorsDisabledByContract(Collection $empresaIds): void
+    {
+        if ($empresaIds->isEmpty()) {
+            return;
+        }
+
+        User::withTrashed()
+            ->whereIn('empresa_id', $empresaIds)
+            ->whereNotNull('deleted_at')
+            ->whereNotNull('auto_baja_empresa_at')
+            ->whereHas('roles', fn ($query) => $query->where('name', self::CONSOLIDADOR_ROLE_NAME))
+            ->update([
+                'deleted_at' => null,
+                'auto_baja_empresa_at' => null,
+                'updated_at' => now(),
+            ]);
     }
 
     public function buildExpirationAlertsForUser(?AuthenticatableContract $user): Collection

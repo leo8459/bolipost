@@ -17,6 +17,8 @@ class Users extends Component
 {
     use WithPagination;
 
+    private const CONSOLIDADOR_ROLE_NAME = 'consolidador';
+
     public $search = '';
     public $searchQuery = '';
     public $groupByBillingSucursal = false;
@@ -230,7 +232,7 @@ class Users extends Component
 
     public function confirmStatusAction(int $userId, string $action): void
     {
-        if (! in_array($action, ['delete', 'restore'], true)) {
+        if (! in_array($action, ['delete', 'restore', 'enable_consolidator'], true)) {
             return;
         }
 
@@ -244,7 +246,7 @@ class Users extends Component
 
     public function applyStatusAction(): void
     {
-        if (! in_array($this->statusAction, ['delete', 'restore'], true) || ! $this->statusUserId) {
+        if (! in_array($this->statusAction, ['delete', 'restore', 'enable_consolidator'], true) || ! $this->statusUserId) {
             return;
         }
 
@@ -265,6 +267,34 @@ class Users extends Component
         if ($this->statusAction === 'restore' && $user->trashed()) {
             $user->restore();
             session()->flash('success', 'Usuario reactivado correctamente.');
+        }
+
+        if ($this->statusAction === 'enable_consolidator') {
+            $enabled = DB::transaction(function () use ($user): bool {
+                $lockedUser = User::withTrashed()->lockForUpdate()->findOrFail((int) $user->id);
+                if (! $lockedUser->trashed()) {
+                    return false;
+                }
+
+                $role = Role::query()->firstOrCreate([
+                    'name' => self::CONSOLIDADOR_ROLE_NAME,
+                    'guard_name' => 'web',
+                ]);
+
+                $lockedUser->restore();
+                $lockedUser->auto_baja_empresa_at = null;
+                $lockedUser->save();
+                $lockedUser->syncRoles([$role]);
+
+                return true;
+            });
+
+            session()->flash(
+                $enabled ? 'success' : 'warning',
+                $enabled
+                    ? 'Usuario habilitado como consolidador. Se quitaron sus otros roles.'
+                    : 'El usuario ya está activo; no se modificaron sus roles.'
+            );
         }
 
         $this->statusUserId = null;
