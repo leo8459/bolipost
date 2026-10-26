@@ -4,6 +4,7 @@
         @php($totalesPendientesModulo = $item->pendientes_por_modulo ?? [])
         @php($transitoAgrupado = $item->transito_grupos ?? [])
         @php($pendientesAgrupado = $item->pendientes_grupos ?? [])
+        @php($empresasPendientes = collect($pendientesAgrupado)->flatMap(fn ($grupo) => collect($grupo['paquetes'] ?? [])->pluck('empresa'))->map(fn ($empresa) => trim((string) $empresa))->filter()->unique(fn ($empresa) => mb_strtolower($empresa))->sortBy(fn ($empresa) => mb_strtolower($empresa))->values())
         <div class="modal fade" id="departamentoTransitoModal{{ $item->puesto }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-xl">
                 <div class="modal-content">
@@ -214,14 +215,14 @@
                                 <div class="col-6 col-md-3 mb-3">
                                     <div class="border rounded p-3 h-100">
                                         <div class="text-muted small">{{ $moduloDetalle }}</div>
-                                        <div class="h4 mb-0 text-warning">{{ \App\Support\BolivianNumber::format((int) ($totalesPendientesModulo[$moduloDetalle] ?? 0)) }}</div>
+                                        <div class="h4 mb-0 text-warning" data-pending-summary-module="{{ $moduloDetalle }}">{{ \App\Support\BolivianNumber::format((int) ($totalesPendientesModulo[$moduloDetalle] ?? 0)) }}</div>
                                     </div>
                                 </div>
                             @endforeach
                         </div>
 
                         <div class="alert alert-light border">
-                            <strong>Total pendiente:</strong> {{ \App\Support\BolivianNumber::format((int) $item->pendientes) }}
+                            <strong>Total pendiente:</strong> <span data-pending-summary-total>{{ \App\Support\BolivianNumber::format((int) $item->pendientes) }}</span>
                             <span class="mx-2">|</span>
                             <strong>En transito:</strong> no incluidos
                             <span class="mx-2">|</span>
@@ -229,7 +230,7 @@
                             <span class="mx-2">|</span>
                             <strong>Rango:</strong> {{ $rangoLabel }}
                             <span class="mx-2">|</span>
-                            <strong>Estados filtrados:</strong>
+                            <strong>Grupos filtrados:</strong>
                             <span data-pending-filter-count>{{ \App\Support\BolivianNumber::format(collect($pendientesAgrupado)->count()) }}</span>
                         </div>
 
@@ -253,8 +254,13 @@
                                     </select>
                                 </div>
                                 <div class="form-group col-12 col-md-3 mb-2">
-                                    <label class="small text-muted mb-1">Estado</label>
-                                    <input type="text" class="form-control form-control-sm" data-pending-filter-state placeholder="Ej: CARTERO">
+                                    <label class="small text-muted mb-1">Empresa</label>
+                                    <select class="form-control form-control-sm" data-pending-filter-company>
+                                        <option value="">Todas</option>
+                                        @foreach($empresasPendientes as $empresaPendiente)
+                                            <option value="{{ mb_strtolower($empresaPendiente) }}">{{ $empresaPendiente }}</option>
+                                        @endforeach
+                                    </select>
                                 </div>
                                 <div class="form-group col-12 col-md-2 mb-2">
                                     <button type="button" class="btn btn-sm btn-primary mr-1" data-pending-filter-search>
@@ -280,13 +286,9 @@
                                 <tbody>
                                     @forelse($pendientesAgrupado as $indiceGrupo => $grupo)
                                         @php($detalleModalId = 'departamentoPendienteDetalleModal' . $item->puesto . '-' . $indiceGrupo)
-                                        @php($modulosGrupo = collect($grupo['modulos'] ?? [])->filter(fn ($total) => (int) $total > 0))
                                         <tr
                                             data-pending-row
-                                            data-pending-module="{{ $modulosGrupo->keys()->implode(',') }}"
-                                            data-pending-date-min="{{ !empty($grupo['fecha_min'] ?? '') ? \Illuminate\Support\Carbon::parse($grupo['fecha_min'])->format('Y-m-d') : '' }}"
-                                            data-pending-date-max="{{ !empty($grupo['fecha_max'] ?? '') ? \Illuminate\Support\Carbon::parse($grupo['fecha_max'])->format('Y-m-d') : '' }}"
-                                            data-pending-state="{{ strtoupper(trim((string) ($grupo['estado'] ?? ''))) }}"
+                                            data-pending-details-target="#{{ $detalleModalId }}"
                                         >
                                             <td>
                                                 <span
@@ -296,8 +298,8 @@
                                                     {{ $grupo['estado'] ?? 'SIN ESTADO' }}
                                                 </span>
                                             </td>
-                                            <td>{{ $grupo['modulos_label'] ?? '-' }}</td>
-                                            <td class="font-weight-bold text-warning">{{ \App\Support\BolivianNumber::format((int) ($grupo['total'] ?? 0)) }}</td>
+                                            <td data-pending-modules-label>{{ $grupo['modulos_label'] ?? '-' }}</td>
+                                            <td class="font-weight-bold text-warning" data-pending-total>{{ \App\Support\BolivianNumber::format((int) ($grupo['total'] ?? 0)) }}</td>
                                             <td>
                                                 <button
                                                     type="button"
@@ -315,7 +317,7 @@
                                         </tr>
                                     @endforelse
                                     <tr class="d-none" data-pending-empty-filter>
-                                        <td colspan="4" class="text-center text-muted py-4">No hay estados pendientes con los filtros seleccionados.</td>
+                                        <td colspan="4" class="text-center text-muted py-4">No hay paquetes pendientes con los filtros seleccionados.</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -343,9 +345,9 @@
                         </div>
                         <div class="modal-body">
                             <div class="alert alert-light border">
-                                <strong>Total paquetes:</strong> {{ \App\Support\BolivianNumber::format((int) ($grupo['total'] ?? 0)) }}
+                                <strong>Total paquetes:</strong> <span data-pending-detail-total>{{ \App\Support\BolivianNumber::format((int) ($grupo['total'] ?? 0)) }}</span>
                                 <span class="mx-2">|</span>
-                                <strong>Modulos:</strong> {{ $grupo['modulos_label'] ?? '-' }}
+                                <strong>Modulos:</strong> <span data-pending-detail-modules>{{ $grupo['modulos_label'] ?? '-' }}</span>
                             </div>
 
                             <div class="table-responsive" style="max-height: 430px; overflow:auto;">
@@ -354,6 +356,7 @@
                                         <tr>
                                             <th>Modulo</th>
                                             <th>Codigo</th>
+                                            <th>Empresa</th>
                                             <th>Estado</th>
                                             <th>Origen</th>
                                             <th>Destino</th>
@@ -364,9 +367,15 @@
                                     <tbody>
                                         @forelse(($grupo['paquetes'] ?? []) as $detalle)
                                             @php($detalleCreadoAt = !empty($detalle['creado_at'] ?? '') ? \Illuminate\Support\Carbon::parse($detalle['creado_at']) : null)
-                                            <tr>
+                                            <tr
+                                                data-pending-package
+                                                data-pending-package-module="{{ $detalle['modulo'] ?? '' }}"
+                                                data-pending-package-date="{{ $detalleCreadoAt ? $detalleCreadoAt->format('Y-m-d') : '' }}"
+                                                data-pending-package-company="{{ mb_strtolower(trim((string) ($detalle['empresa'] ?? 'SIN EMPRESA'))) }}"
+                                            >
                                                 <td>{{ $detalle['modulo'] ?? '-' }}</td>
                                                 <td><span class="badge badge-light">{{ $detalle['codigo'] ?? '-' }}</span></td>
+                                                <td>{{ $detalle['empresa'] ?? 'SIN EMPRESA' }}</td>
                                                 <td>{{ $detalle['estado'] ?? '-' }}</td>
                                                 <td>{{ $detalle['origen'] ?? '-' }}</td>
                                                 <td>{{ $detalle['destino'] ?? '-' }}</td>
@@ -375,7 +384,7 @@
                                             </tr>
                                         @empty
                                             <tr>
-                                                <td colspan="7" class="text-center text-muted py-4">No hay paquetes para este estado.</td>
+                                                <td colspan="8" class="text-center text-muted py-4">No hay paquetes para este estado.</td>
                                             </tr>
                                         @endforelse
                                     </tbody>

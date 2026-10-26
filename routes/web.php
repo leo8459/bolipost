@@ -5,7 +5,6 @@ use App\Http\Controllers\AlertaEmpresaController;
 use App\Http\Controllers\AppConfigController;
 use App\Http\Controllers\AreaContratosController;
 use App\Http\Controllers\AuditoriaController;
-use App\Http\Controllers\BackupController;
 use App\Http\Controllers\BastionController;
 use App\Http\Controllers\BastionReportController;
 use App\Http\Controllers\BitacoraController;
@@ -876,10 +875,6 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::post('/fuel-logs/scrape-from-qr', [FuelLogController::class, 'scrapeFromQr'])->name('fuel-logs.scrape-from-qr');
     Route::get('/fuel-logs/by-vehicle/{vehicle}', [FuelLogController::class, 'byVehicle'])->name('fuel-logs.by-vehicle');
     Route::post('/qr/decode-from-image', [QrDecoderController::class, 'decodeFromImage'])->name('api.qr.decode');
-    Route::get('/respaldos', [BackupController::class, 'index'])->name('backups.index');
-    Route::post('/respaldos/base-datos', [BackupController::class, 'backupDatabase'])->name('backups.database');
-    Route::post('/respaldos/sistema', [BackupController::class, 'backupSystem'])->name('backups.system');
-    Route::get('/respaldos/descargar/{file}', [BackupController::class, 'download'])->name('backups.download');
 });
 
 require __DIR__.'/auth.php';

@@ -456,6 +456,5 @@ return [
         'tarifa-contrato' => 'Tarifa Contrato',
         'bitacoras' => 'Bitacoras',
         'importar' => 'Importaciones',
-        'backups' => 'Respaldos',
     ],
 ];

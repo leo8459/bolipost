@@ -2640,6 +2640,12 @@ class DashboardController extends Controller
             $estadoColumn = $config['estado_column'];
 
             $identityColumns = $this->packageIdentityColumns($moduloKey, $config);
+            $companyIdExpression = match ($moduloKey) {
+                'contrato' => 'COALESCE(t.empresa_id, (select company_user.empresa_id from users as company_user where company_user.id = t.user_id))',
+                'ems' => '(select company_user.empresa_id from users as company_user where company_user.id = t.user_id)',
+                default => 'NULL',
+            };
+            $companyColumn = "coalesce((select company.nombre from empresa as company where company.id = " . $companyIdExpression . "), 'SIN EMPRESA')";
 
             $query = DB::table($config['table'] . ' as t')
                 ->leftJoin('estados as e', 'e.id', '=', 't.' . $estadoColumn)
@@ -2647,6 +2653,7 @@ class DashboardController extends Controller
                     DB::raw("'" . $label . "' as modulo"),
                     't.codigo as codigo',
                     DB::raw("coalesce(e.nombre_estado, 'SIN ESTADO') as estado"),
+                    DB::raw($companyColumn . ' as empresa'),
                     DB::raw($identityColumns['origen'] . ' as origen'),
                     DB::raw($identityColumns['destino'] . ' as destino'),
                     DB::raw($identityColumns['destinatario'] . ' as destinatario'),
@@ -2705,6 +2712,7 @@ class DashboardController extends Controller
                 'modulo' => (string) ($row->modulo ?? ''),
                 'codigo' => (string) ($row->codigo ?? ''),
                 'estado' => (string) ($row->estado ?? ''),
+                'empresa' => (string) ($row->empresa ?? 'SIN EMPRESA'),
                 'origen' => (string) ($row->origen ?? ''),
                 'destino' => (string) ($row->destino ?? ''),
                 'destinatario' => (string) ($row->destinatario ?? ''),
