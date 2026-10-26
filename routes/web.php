@@ -660,12 +660,8 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
         ->where('codigo', '[A-Za-z0-9-]{1,35}')
         ->name('paquetes-ips.deliver');
     Route::get('/eventos-ips', [EventosIpsController::class, 'index'])->name('eventos-ips.index');
-    Route::post('/todos-paquetes/exportaciones', [TodosPaquetesController::class, 'createExcelExport'])->name('todos-paquetes.export.create');
-    Route::get('/todos-paquetes/exportaciones/{export}/estado', [TodosPaquetesController::class, 'exportStatus'])
-        ->whereUuid('export')->name('todos-paquetes.export.status');
-    Route::get('/todos-paquetes/exportaciones/{export}/descargar', [TodosPaquetesController::class, 'downloadExport'])
-        ->whereUuid('export')->name('todos-paquetes.export.download');
-    Route::post('/todos-paquetes/reporte-historial', [TodosPaquetesController::class, 'reporteHistorial'])->name('todos-paquetes.reporte-historial');
+    Route::get('/todos-paquetes/export/excel', [TodosPaquetesController::class, 'exportExcel'])->name('todos-paquetes.export.excel');
+    Route::get('/todos-paquetes/reporte-historial', [TodosPaquetesController::class, 'reporteHistorial'])->name('todos-paquetes.reporte-historial');
     Route::post('/todos-paquetes', [TodosPaquetesController::class, 'store'])->name('todos-paquetes.store');
     Route::get('/todos-paquetes/{type}/{id}/guia', [TodosPaquetesController::class, 'reimprimirGuia'])->name('todos-paquetes.guia');
     Route::get('/todos-paquetes/reporte-salida/{codigo}', [TodosPaquetesController::class, 'reporteSalida'])->name('todos-paquetes.reporte-salida');

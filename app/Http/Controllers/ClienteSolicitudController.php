@@ -190,7 +190,6 @@ class ClienteSolicitudController extends Controller
             'nombre_remitente' => ['required', 'string', 'max:255'],
             'carnet' => ['required', 'string', 'max:255'],
             'telefono_remitente' => ['required', 'string', 'max:50'],
-            'paquete_muy_grande' => ['nullable', 'boolean'],
             'nombre_destinatario' => ['required', 'string', 'max:255'],
             'telefono_destinatario' => ['required', 'string', 'max:50'],
             'direccion_recojo' => ['required', 'string', 'max:255'],
@@ -275,8 +274,6 @@ class ClienteSolicitudController extends Controller
         $direccionEntrega = $this->isPuertaAVentanillaService($servicioExtra)
             ? self::DIRECCION_DESTINATARIO_VENTANILLA
             : trim((string) $data['direccion_entrega']);
-        $paqueteMuyGrande = filter_var($data['paquete_muy_grande'] ?? false, FILTER_VALIDATE_BOOLEAN);
-        $recargoTamano = $paqueteMuyGrande ? 10.00 : 0.00;
 
         $solicitud = SolicitudCliente::query()->create([
             'cliente_id' => (int) $cliente->id,
@@ -290,8 +287,7 @@ class ClienteSolicitudController extends Controller
             'peso' => null,
             'precio' => array_key_exists('precio_pagado', $data)
                 ? round((float) $data['precio_pagado'], 2)
-                : round((float) $tarifarioTiktoker->peso1 + $recargoTamano, 2),
-            'paquete_muy_grande' => $paqueteMuyGrande,
+                : (float) $tarifarioTiktoker->peso1,
             'forma_pago' => (string) ($data['forma_pago'] ?? 'destino'),
             'tipo_pago' => $data['tipo_pago'] ?? null,
             'pago_destinatario' => ($data['forma_pago'] ?? 'destino') === 'destino',
@@ -986,7 +982,6 @@ class ClienteSolicitudController extends Controller
             'nombre_remitente' => (string) ($summary['remitente'] ?? ''),
             'carnet' => (string) ($summary['carnet_remitente'] ?? ''),
             'telefono_remitente' => (string) ($summary['telefono_remitente'] ?? ''),
-            'paquete_muy_grande' => (bool) ($summary['paquete_muy_grande'] ?? false),
             'direccion_recojo' => (string) ($summary['direccion_recojo'] ?? ''),
             'nombre_destinatario' => (string) ($summary['destinatario'] ?? ''),
             'telefono_destinatario' => (string) ($summary['telefono_destinatario'] ?? ''),
@@ -1205,7 +1200,6 @@ class ClienteSolicitudController extends Controller
             'nombre_remitente' => ['required', 'string', 'max:255'],
             'carnet' => ['required', 'string', 'max:255'],
             'telefono_remitente' => ['required', 'string', 'max:50'],
-            'paquete_muy_grande' => ['nullable', 'boolean'],
             'nombre_destinatario' => ['required', 'string', 'max:255'],
             'telefono_destinatario' => ['required', 'string', 'max:50'],
             'direccion_recojo' => ['required', 'string', 'max:255'],
@@ -1227,8 +1221,7 @@ class ClienteSolicitudController extends Controller
                 (string) $data['origen'],
                 (int) $data['destino_id']
             );
-            $paqueteMuyGrande = filter_var($data['paquete_muy_grande'] ?? false, FILTER_VALIDATE_BOOLEAN);
-            $amount = round((float) $tarifario->peso1 + ($paqueteMuyGrande ? 10.00 : 0.00), 2);
+            $amount = round((float) $tarifario->peso1, 2);
             if ($amount <= 0) {
                 return response()->json(['message' => 'La tarifa calculada no permite generar un QR.'], 422);
             }
@@ -1246,7 +1239,6 @@ class ClienteSolicitudController extends Controller
                 'tarifario_id' => $tarifario->id,
                 'precio_cotizado' => $quotedAmount,
                 'precio_a_cobrar' => $amount,
-                'paquete_muy_grande' => $paqueteMuyGrande,
             ]);
 
             $qr = $facturacion->generarQr($cliente, $data, $servicioExtra, $destino, $amount);

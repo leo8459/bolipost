@@ -121,12 +121,8 @@
                             <div id="precio_solicitud" class="alert alert-light border mb-0 py-2" role="status" aria-live="polite">
                                 Seleccione el servicio, origen y destino para conocer el precio.
                             </div>
-                            <input type="hidden" id="paquete_muy_grande" name="paquete_muy_grande" value="{{ old('paquete_muy_grande') ? '1' : '0' }}">
-                            <button type="button" id="recargo-tamano-button" class="btn btn-outline-warning btn-sm mt-2" aria-pressed="false" disabled>
-                                <i class="fas fa-plus-circle mr-1" aria-hidden="true"></i>Aumentar Bs 10 por tama&ntilde;o
-                            </button>
                             <small class="form-text text-muted">
-                                El tama&ntilde;o del paquete se verificar&aacute; al momento del recojo. Si corresponde, se cobrar&aacute; un recargo de Bs 10.
+                                Si el volumen del paquete es muy grande, se a&ntilde;adir&aacute; un recargo de Bs 10 al precio indicado.
                             </small>
                         </div>
                         <div class="col-md-6 form-group mb-0">
@@ -312,7 +308,7 @@
                             <div id="resumen-solicitud-datos" class="solicitud-summary"></div>
                             <div class="solicitud-total mt-3">
                                 <strong id="resumen-solicitud-precio"></strong>
-                                <small class="d-block">El tama&ntilde;o del paquete se verificar&aacute; al momento del recojo. Si corresponde, se cobrar&aacute; un recargo de Bs 10.</small>
+                                <small class="d-block">Si el volumen del paquete es muy grande, se añadir&aacute; un recargo de Bs 10 al precio indicado.</small>
                             </div>
 
                         </div>
@@ -477,8 +473,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const editBillingEmail = document.getElementById('editar-correo-facturacion');
     const direccionInput = document.getElementById('direccion_entrega');
     const precioSolicitud = document.getElementById('precio_solicitud');
-    const paqueteMuyGrandeInput = document.getElementById('paquete_muy_grande');
-    const recargoTamanoButton = document.getElementById('recargo-tamano-button');
     const quoteUrl = @json(route('clientes.solicitudes.quote'));
     const qrGenerateUrl = @json(route('clientes.solicitudes.qr.generate'));
     const qrStatusUrl = @json(route('clientes.solicitudes.qr.status'));
@@ -971,8 +965,6 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!response.ok) {
                 if (payload.precio_actual) {
                     const actual = Number(payload.precio_actual);
-                    tarifaBase = Math.max(0, actual - (paqueteMuyGrande ? 10 : 0));
-                    sincronizarBotonRecargo();
                     setPrecio('La tarifa cambió. Nuevo precio: Bs ' + actual.toFixed(2) + '. Revísalo antes de confirmar.', 'warning', actual);
                     mostrarResumen();
                 }
@@ -1044,8 +1036,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const precioCotizado = document.getElementById('precio_cotizado');
     let quoteSequence = 0;
-    let tarifaBase = null;
-    let paqueteMuyGrande = paqueteMuyGrandeInput.value === '1';
 
     function setPrecio(message, type, amount = '') {
         if (!precioSolicitud) return;
@@ -1056,37 +1046,6 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('resumen-solicitud-precio').textContent = message;
     }
 
-    function mostrarPrecioCotizado(type = 'success') {
-        if (!Number.isFinite(tarifaBase)) return;
-
-        const recargo = paqueteMuyGrande ? 10 : 0;
-        const total = tarifaBase + recargo;
-        const detalleRecargo = recargo > 0 ? ' (incluye Bs 10 por tama\u00f1o).' : '.';
-        setPrecio('Precio: Bs ' + total.toFixed(2) + detalleRecargo, type, total);
-    }
-
-    function sincronizarBotonRecargo() {
-        if (!recargoTamanoButton) return;
-
-        recargoTamanoButton.disabled = !Number.isFinite(tarifaBase);
-        recargoTamanoButton.setAttribute('aria-pressed', paqueteMuyGrande ? 'true' : 'false');
-        recargoTamanoButton.classList.toggle('btn-warning', paqueteMuyGrande);
-        recargoTamanoButton.classList.toggle('btn-outline-warning', !paqueteMuyGrande);
-        recargoTamanoButton.innerHTML = paqueteMuyGrande
-            ? '<i class="fas fa-minus-circle mr-1" aria-hidden="true"></i>Quitar aumento de Bs 10'
-            : '<i class="fas fa-plus-circle mr-1" aria-hidden="true"></i>Aumentar Bs 10 por tama&ntilde;o';
-    }
-
-    recargoTamanoButton?.addEventListener('click', function () {
-        if (!Number.isFinite(tarifaBase)) return;
-
-        paqueteMuyGrande = !paqueteMuyGrande;
-        paqueteMuyGrandeInput.value = paqueteMuyGrande ? '1' : '0';
-        sincronizarBotonRecargo();
-        mostrarPrecioCotizado();
-    });
-    sincronizarBotonRecargo();
-
     async function cotizarSolicitud() {
         const requestSequence = ++quoteSequence;
         const servicioId = servicioSelect.value;
@@ -1095,14 +1054,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const selectionKey = [servicioId, origen, destinoId].join('|');
 
         if (!servicioId || !origen || !destinoId) {
-            tarifaBase = null;
-            sincronizarBotonRecargo();
             setPrecio('Seleccione el servicio, origen y destino para conocer el precio.', 'light');
             return;
         }
 
-        tarifaBase = null;
-        sincronizarBotonRecargo();
         setPrecio('Calculando precio...', 'info');
 
         try {
@@ -1133,13 +1088,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 throw new Error('La tarifa recibida no es válida.');
             }
 
-            tarifaBase = amount;
-            sincronizarBotonRecargo();
-            mostrarPrecioCotizado();
+            setPrecio('Precio: Bs ' + amount.toFixed(2) + '.', 'success', amount);
         } catch (error) {
             if (requestSequence !== quoteSequence) return;
-            tarifaBase = null;
-            sincronizarBotonRecargo();
             setPrecio(error.message || 'No se pudo calcular el precio.', 'warning');
         }
     }

@@ -2,8 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Services\TodosPaquetesHistoryReportService;
-use Barryvdh\DomPDF\Facade\Pdf;
+use App\Http\Controllers\TodosPaquetesController;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -83,9 +82,9 @@ class TodosPaquetesHistoryReportTest extends TestCase
             ],
         ]);
 
-        $service = new TodosPaquetesHistoryReportService;
-        $method = new \ReflectionMethod($service, 'historyEventsForPackages');
-        $events = $method->invoke($service, collect([
+        $controller = new TodosPaquetesController;
+        $method = new \ReflectionMethod($controller, 'historyEventsForPackages');
+        $events = $method->invoke($controller, collect([
             (object) ['type_key' => 'ems', 'codigo' => 'C0040A5663BO'],
         ]))->get('ems|C0040A5663BO');
 
@@ -100,13 +99,15 @@ class TodosPaquetesHistoryReportTest extends TestCase
         $this->assertSame('1 d 3 h 30 min', $events[0]->tiempo_hasta_siguiente);
         $this->assertSame('Envío en tránsito.', $events[1]->nombre_evento);
         $this->assertSame('1 d 3 h 30 min', $events[1]->tiempo_desde_anterior);
-        $this->assertSame('Ultimo evento registrado', $events[1]->tiempo_hasta_siguiente);
+        $this->assertSame('Último evento registrado', $events[1]->tiempo_hasta_siguiente);
     }
 
     public function test_report_code_parser_accepts_lines_commas_and_spaces_without_duplicates(): void
     {
-        $service = new TodosPaquetesHistoryReportService;
-        $codes = $service->parseCodes(" c0040a5663bo\nC0040A5662BO, C0040A5663BO;C0040A38636BO ");
+        $controller = new TodosPaquetesController;
+        $method = new \ReflectionMethod($controller, 'parseHistoryReportCodes');
+
+        $codes = $method->invoke($controller, " c0040a5663bo\nC0040A5662BO, C0040A5663BO;C0040A38636BO ");
 
         $this->assertSame([
             'C0040A5663BO',
@@ -126,7 +127,7 @@ class TodosPaquetesHistoryReportTest extends TestCase
             'usuario_email' => 'entrega@correos.gob.bo',
             'usuario_regional' => 'SANTA CRUZ',
             'cliente_nombre' => null,
-            'tiempo_hasta_siguiente' => 'Ultimo evento registrado',
+            'tiempo_hasta_siguiente' => 'Último evento registrado',
         ];
         $package = (object) [
             'codigo' => 'C0040A5663BO',
@@ -145,31 +146,24 @@ class TodosPaquetesHistoryReportTest extends TestCase
             'duracion_historial' => 'Un solo evento',
         ];
 
-        $viewData = [
+        $html = view('todos_paquetes.historial-pdf', [
             'packages' => collect([$package]),
             'requestedCodes' => collect(['C0040A5663BO', 'NO-EXISTE']),
             'notFoundCodes' => collect(['NO-EXISTE']),
             'generatedAt' => Carbon::parse('2026-09-23 10:00:00'),
             'generatedBy' => (object) ['name' => 'Director financiero'],
             'totalEvents' => 1,
-        ];
-        $html = view('todos_paquetes.historial-pdf', $viewData)->render();
+        ])->render();
 
         $this->assertStringContainsString('Qué pasó por última vez', $html);
         $this->assertStringContainsString('Tiempo desde el evento anterior', $html);
         $this->assertStringContainsString('Evento inicial', $html);
-        $this->assertStringContainsString('Ultimo evento registrado', $html);
+        $this->assertStringContainsString('Último evento registrado', $html);
         $this->assertStringContainsString('Duración total registrada', $html);
         $this->assertStringContainsString('Envío entregado al destinatario.', $html);
         $this->assertStringContainsString('Responsable de entrega', $html);
         $this->assertStringContainsString('SANTA CRUZ', $html);
         $this->assertStringContainsString('Guías no encontradas', $html);
         $this->assertStringContainsString('NO-EXISTE', $html);
-
-        $pdfContents = Pdf::loadView('todos_paquetes.historial-pdf', $viewData)
-            ->setPaper('A4', 'portrait')
-            ->output();
-
-        $this->assertStringStartsWith('%PDF-', $pdfContents);
     }
 }

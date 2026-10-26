@@ -119,7 +119,6 @@ class ClienteSolicitudFacturacionService
                 'remitente' => trim((string) $solicitud['nombre_remitente']),
                 'carnet_remitente' => trim((string) $solicitud['carnet']),
                 'telefono_remitente' => trim((string) ($solicitud['telefono_remitente'] ?? '')),
-                'paquete_muy_grande' => filter_var($solicitud['paquete_muy_grande'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 'direccion_recojo' => trim((string) $solicitud['direccion_recojo']),
                 'destinatario' => trim((string) $solicitud['nombre_destinatario']),
                 'telefono_destinatario' => trim((string) ($solicitud['telefono_destinatario'] ?? '')),

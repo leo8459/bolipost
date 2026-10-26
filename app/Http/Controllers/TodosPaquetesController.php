@@ -2,34 +2,44 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\TodosPaquetesExport;
 use App\Models\Cartero;
 use App\Models\CarteroAssignmentReport;
 use App\Models\CarteroAssignmentReportItem;
 use App\Models\Estado;
-use App\Models\PackageReportExport;
 use App\Models\PaqueteCerti;
 use App\Models\PaqueteEms;
 use App\Models\PaqueteOrdi;
 use App\Models\Recojo;
 use App\Models\SolicitudCliente;
 use App\Models\User;
-use App\Jobs\GenerateTodosPaquetesExcelReport;
-use App\Jobs\GenerateTodosPaquetesHistoryPdfReport;
-use App\Services\TodosPaquetesReportQuery;
-use App\Services\TodosPaquetesHistoryReportService;
+use App\Support\CarteroEvent;
+use App\Support\CodigoContinuacionEvent;
+use App\Support\EncargadoEvent;
+use App\Support\PackageWeightFilter;
 use App\Support\StoredImage;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Maatwebsite\Excel\Facades\Excel;
 
 class TodosPaquetesController extends Controller
 {
+    private const EVENT_TABLES = [
+        'ems' => 'eventos_ems',
+        'contrato' => 'eventos_contrato',
+        'certi' => 'eventos_certi',
+        'ordi' => 'eventos_ordi',
+        'solicitud' => 'eventos_tiktoker',
+    ];
+
     private const DEPARTAMENTOS = [
         'TRINIDAD',
         'SUCRE',
@@ -174,11 +184,9 @@ class TodosPaquetesController extends Controller
         $estadoId = $filters['estado_id'];
         $pesoMin = $filters['peso_min'];
         $pesoMax = $filters['peso_max'];
-        $reportQuery = app(TodosPaquetesReportQuery::class);
-        $query = $reportQuery->filtered($filters);
-        $paquetesEncontrados = $reportQuery->count($filters);
+        $query = $this->filteredPackagesQuery($filters);
 
-        $paquetes = $query->simplePaginate(25)->withQueryString();
+        $paquetes = $query->paginate(25)->withQueryString();
         $paquetes->getCollection()->transform(function ($paquete) {
             $paquete->origen = $this->canonicalLocationName((string) $paquete->origen);
             $paquete->destino = $this->canonicalLocationName((string) $paquete->destino);
@@ -188,18 +196,9 @@ class TodosPaquetesController extends Controller
         $this->attachSalidaReports($paquetes->getCollection());
         $estados = Estado::query()->orderBy('nombre_estado')->get(['id', 'nombre_estado']);
         $editing = $this->resolveEditing($request);
-        $reportExportId = (string) $request->query('export_job', '');
-        $reportExport = Str::isUuid($reportExportId)
-            ? PackageReportExport::query()
-                ->whereKey($reportExportId)
-                ->where('user_id', $request->user()->id)
-                ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>=', now()))
-                ->first()
-            : null;
 
         return view('todos_paquetes.index', [
             'paquetes' => $paquetes,
-            'paquetesEncontrados' => $paquetesEncontrados,
             'estados' => $estados,
             'types' => self::TYPES,
             'carteros' => $this->carterosDisponibles($request),
@@ -213,98 +212,26 @@ class TodosPaquetesController extends Controller
             'pesoMin' => $pesoMin,
             'pesoMax' => $pesoMax,
             'editing' => $editing,
-            'reportExport' => $reportExport,
             'showCreateModal' => $request->boolean('create') || old('package_type') !== null,
         ]);
     }
 
-    public function createExcelExport(Request $request)
+    public function exportExcel(Request $request)
     {
         $filters = $this->validatedPackageFilters($request);
-        $activeReports = PackageReportExport::query()
-            ->where('user_id', $request->user()->id)
-            ->whereIn('status', ['pending', 'processing'])
-            ->count();
+        $rows = $this->filteredPackagesQuery($filters)->get();
+        $filters['type_label'] = array_key_exists($filters['type'], self::TYPES)
+            ? self::TYPES[$filters['type']]['label']
+            : 'TODOS';
+        $filters['estado_label'] = ! empty($filters['estado_id'])
+            ? Estado::query()->whereIn('id', $filters['estado_id'])->orderBy('nombre_estado')->pluck('nombre_estado')->implode(', ')
+            : 'TODOS';
+        $filters['generated_at'] = now();
 
-        if ($activeReports >= 2) {
-            return back()->with('error', 'Ya tienes dos reportes en preparacion. Espera a que termine uno antes de solicitar otro.');
-        }
-
-        $reportId = (string) Str::uuid();
-        $filename = 'reporte-paquetes-'.now()->format('Ymd-His').'-'.substr($reportId, 0, 8).'.xlsx';
-        $report = PackageReportExport::query()->create([
-            'id' => $reportId,
-            'user_id' => $request->user()->id,
-            'report_type' => 'xlsx',
-            'filters' => $filters,
-            'status' => 'pending',
-            'file_name' => $filename,
-            'row_count' => 0,
-            'progress_message' => 'En espera para generar el Excel...',
-        ]);
-
-        GenerateTodosPaquetesExcelReport::dispatch($report->id)
-            ->onConnection('reports')
-            ->onQueue('reports');
-
-        $query = [
-            'q' => $filters['search'] !== '' ? $filters['search'] : null,
-            'type' => $filters['type'] !== '' ? $filters['type'] : null,
-            'estado_id' => $filters['estado_id'] ?: null,
-            'peso_min' => $filters['peso_min'],
-            'peso_max' => $filters['peso_max'],
-            'export_job' => $report->id,
-        ];
-
-        return redirect()
-            ->route('todos-paquetes.index', array_filter($query, fn ($value) => $value !== null && $value !== ''))
-            ->with('success', 'El reporte se esta preparando. Puedes seguir usando la pagina mientras se genera.');
-    }
-
-    public function exportStatus(Request $request, string $export)
-    {
-        $report = $this->ownedPackageReport($request, $export);
-        abort_if($report->expires_at && $report->expires_at->isPast(), 410, 'El reporte ya vencio.');
-
-        return response()->json([
-            'status' => $report->status,
-            'report_type' => $report->report_type,
-            'rows' => (int) $report->row_count,
-            'total_rows' => (int) $report->total_rows,
-            'progress' => (int) $report->progress,
-            'progress_message' => $report->progress_message,
-            'download_url' => $report->status === 'completed'
-                ? route('todos-paquetes.export.download', ['export' => $report->id])
-                : null,
-        ])->header('Cache-Control', 'private, no-store');
-    }
-
-    public function downloadExport(Request $request, string $export)
-    {
-        $report = $this->ownedPackageReport($request, $export);
-
-        abort_unless($report->status === 'completed' && $report->file_path, 404);
-        abort_if($report->expires_at && $report->expires_at->isPast(), 410, 'El reporte ya vencio.');
-        abort_unless(Storage::disk('local')->exists($report->file_path), 404);
-
-        $contentType = match ($report->report_type) {
-            'history_pdf' => 'application/pdf',
-            default => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        };
-
-        return Storage::disk('local')->download($report->file_path, $report->file_name, [
-            'Content-Type' => $contentType,
-        ]);
-    }
-
-    private function ownedPackageReport(Request $request, string $export): PackageReportExport
-    {
-        abort_unless(Str::isUuid($export), 404);
-
-        return PackageReportExport::query()
-            ->whereKey($export)
-            ->where('user_id', $request->user()->id)
-            ->firstOrFail();
+        return Excel::download(
+            new TodosPaquetesExport($rows, $filters),
+            'reporte-paquetes-filtrados-'.now()->format('Ymd-His').'.xlsx',
+        );
     }
 
     public function reporteHistorial(Request $request)
@@ -315,8 +242,7 @@ class TodosPaquetesController extends Controller
             'codigos' => 'guías',
         ]);
 
-        $historyReportService = app(TodosPaquetesHistoryReportService::class);
-        $requestedCodes = $historyReportService->parseCodes((string) $data['codigos']);
+        $requestedCodes = $this->parseHistoryReportCodes((string) $data['codigos']);
 
         if ($requestedCodes->isEmpty()) {
             throw ValidationException::withMessages([
@@ -330,36 +256,48 @@ class TodosPaquetesController extends Controller
             ]);
         }
 
-        $activeReports = PackageReportExport::query()
-            ->where('user_id', $request->user()->id)
-            ->whereIn('status', ['pending', 'processing'])
-            ->count();
+        $rows = DB::query()
+            ->fromSub($this->buildUnionQuery(), 'p')
+            ->whereIn(DB::raw('UPPER(TRIM(codigo))'), $requestedCodes->all())
+            ->get();
 
-        if ($activeReports >= 2) {
-            return back()->with('error', 'Ya tienes dos reportes en preparacion. Espera a que termine uno antes de solicitar otro.');
-        }
+        $requestedOrder = $requestedCodes->flip();
+        $rows = $rows
+            ->sortBy(fn (object $row): int => (int) ($requestedOrder[$this->normalizedCode($row->codigo)] ?? PHP_INT_MAX))
+            ->values()
+            ->map(function (object $row): object {
+                $row->origen = $this->canonicalLocationName((string) $row->origen);
+                $row->destino = $this->canonicalLocationName((string) $row->destino);
 
-        $reportId = (string) Str::uuid();
-        $filename = 'historial-paquetes-'.now()->format('Ymd-His').'-'.substr($reportId, 0, 8).'.pdf';
-        $report = PackageReportExport::query()->create([
-            'id' => $reportId,
-            'user_id' => $request->user()->id,
-            'report_type' => 'history_pdf',
-            'filters' => ['codes' => $requestedCodes->all()],
-            'status' => 'pending',
-            'file_name' => $filename,
-            'row_count' => 0,
-            'total_rows' => $requestedCodes->count(),
-            'progress_message' => 'En espera para generar el PDF...',
-        ]);
+                return $row;
+            });
 
-        GenerateTodosPaquetesHistoryPdfReport::dispatch($report->id)
-            ->onConnection('reports')
-            ->onQueue('reports');
+        $eventsByPackage = $this->historyEventsForPackages($rows);
+        $rows->each(function (object $row) use ($eventsByPackage): void {
+            $row->eventos = $eventsByPackage->get(
+                $this->historyPackageKey((string) $row->type_key, $row->codigo),
+                collect()
+            );
+            $row->duracion_historial = $this->historyTotalDuration($row->eventos);
+        });
 
-        return redirect()
-            ->route('todos-paquetes.index', ['export_job' => $report->id])
-            ->with('success', 'El reporte PDF se esta preparando. Puedes seguir usando la pagina mientras se genera.');
+        $foundCodes = $rows
+            ->pluck('codigo')
+            ->map(fn ($code): string => $this->normalizedCode($code))
+            ->unique();
+        $notFoundCodes = $requestedCodes->diff($foundCodes)->values();
+        $generatedAt = now();
+
+        $pdf = Pdf::loadView('todos_paquetes.historial-pdf', [
+            'packages' => $rows,
+            'requestedCodes' => $requestedCodes,
+            'notFoundCodes' => $notFoundCodes,
+            'generatedAt' => $generatedAt,
+            'generatedBy' => $request->user(),
+            'totalEvents' => $rows->sum(fn (object $row): int => $row->eventos->count()),
+        ])->setPaper('A4', 'portrait');
+
+        return $pdf->stream('historial-paquetes-'.$generatedAt->format('Ymd-His').'.pdf');
     }
 
     public function store(Request $request)
@@ -794,15 +732,404 @@ class TodosPaquetesController extends Controller
         }
 
         return [
-            'search' => trim((string) $request->input('q', '')),
-            'type' => trim((string) $request->input('type', '')),
-            'estado_id' => collect((array) $request->input('estado_id', []))
+            'search' => trim((string) $request->query('q', '')),
+            'type' => trim((string) $request->query('type', '')),
+            'estado_id' => collect((array) $request->query('estado_id', []))
                 ->filter(fn ($id) => is_scalar($id) && ctype_digit((string) $id) && (int) $id > 0)
                 ->map(fn ($id) => (int) $id)
                 ->unique()->values()->all(),
             'peso_min' => $pesoMin,
             'peso_max' => $pesoMax,
         ];
+    }
+
+    /**
+     * @return Collection<int, string>
+     */
+    private function parseHistoryReportCodes(string $rawCodes): Collection
+    {
+        return collect(preg_split('/[\s,;]+/u', $rawCodes) ?: [])
+            ->map(fn ($code): string => $this->normalizedCode($code))
+            ->filter(fn (string $code): bool => $code !== '' && $code !== 'SIN CODIGO')
+            ->unique()
+            ->values();
+    }
+
+    /**
+     * @param  Collection<int, object>  $packages
+     * @return Collection<string, Collection<int, object>>
+     */
+    private function historyEventsForPackages(Collection $packages): Collection
+    {
+        if ($packages->isEmpty() || ! Schema::hasTable('eventos')) {
+            return collect();
+        }
+
+        return $packages
+            ->groupBy('type_key')
+            ->flatMap(function (Collection $typePackages, string $type): Collection {
+                $eventTable = self::EVENT_TABLES[$type] ?? null;
+
+                if ($eventTable === null || ! Schema::hasTable($eventTable)) {
+                    return collect();
+                }
+
+                $codes = $typePackages
+                    ->pluck('codigo')
+                    ->map(fn ($code): string => $this->normalizedCode($code))
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                if ($codes === []) {
+                    return collect();
+                }
+
+                $hasUserId = Schema::hasColumn($eventTable, 'user_id');
+                $hasUsers = $hasUserId && Schema::hasTable('users');
+                $hasClients = $type === 'solicitud'
+                    && Schema::hasColumn($eventTable, 'cliente_id')
+                    && Schema::hasTable('clientes');
+
+                $query = DB::table($eventTable.' as tracking')
+                    ->leftJoin('eventos as evento', 'evento.id', '=', 'tracking.evento_id')
+                    ->whereIn(DB::raw('UPPER(TRIM(tracking.codigo))'), $codes)
+                    ->select([
+                        'tracking.id',
+                        'tracking.codigo',
+                        'tracking.evento_id',
+                        'evento.nombre_evento',
+                        'tracking.created_at',
+                        Schema::hasColumn($eventTable, 'codigo_relacionado')
+                            ? 'tracking.codigo_relacionado'
+                            : DB::raw('NULL as codigo_relacionado'),
+                        Schema::hasColumn($eventTable, 'detalle_evento')
+                            ? 'tracking.detalle_evento'
+                            : DB::raw('NULL as detalle_evento'),
+                    ]);
+
+                if ($hasUsers) {
+                    $query->leftJoin('users as usuario', 'usuario.id', '=', 'tracking.user_id')
+                        ->addSelect([
+                            'tracking.user_id',
+                            'usuario.name as usuario_nombre',
+                            'usuario.email as usuario_email',
+                            'usuario.ciudad as usuario_regional',
+                            Schema::hasColumn('users', 'alias')
+                                ? 'usuario.alias as usuario_alias'
+                                : DB::raw('NULL as usuario_alias'),
+                        ]);
+                } else {
+                    $query->addSelect([
+                        DB::raw('NULL as user_id'),
+                        DB::raw('NULL as usuario_nombre'),
+                        DB::raw('NULL as usuario_email'),
+                        DB::raw('NULL as usuario_regional'),
+                        DB::raw('NULL as usuario_alias'),
+                    ]);
+                }
+
+                if ($hasClients) {
+                    $query->leftJoin('clientes as cliente', 'cliente.id', '=', 'tracking.cliente_id')
+                        ->addSelect('cliente.name as cliente_nombre');
+                } else {
+                    $query->addSelect(DB::raw('NULL as cliente_nombre'));
+                }
+
+                return $query
+                    ->orderBy('tracking.created_at')
+                    ->orderBy('tracking.id')
+                    ->get()
+                    ->map(function (object $event) use ($type): object {
+                        $eventName = CodigoContinuacionEvent::nombreMostrado(
+                            trim((string) ($event->nombre_evento ?? '')),
+                            $event->codigo_relacionado ?? null
+                        );
+                        $eventName = EncargadoEvent::nombreMostrado($eventName, $event->detalle_evento ?? null);
+                        $eventName = CarteroEvent::nombreMostrado($eventName, $event->detalle_evento ?? null);
+
+                        $event->nombre_evento = $eventName !== '' ? $eventName : 'Movimiento sin descripción';
+                        $event->_package_key = $this->historyPackageKey($type, $event->codigo);
+
+                        return $event;
+                    });
+            })
+            ->groupBy('_package_key')
+            ->map(function (Collection $events): Collection {
+                $orderedEvents = $events->values();
+
+                return $orderedEvents->map(function (object $event, int $index) use ($orderedEvents): object {
+                    $currentDate = $event->created_at ? Carbon::parse($event->created_at) : null;
+                    $previousEvent = $index > 0 ? $orderedEvents->get($index - 1) : null;
+                    $previousDate = $previousEvent?->created_at ? Carbon::parse($previousEvent->created_at) : null;
+                    $nextEvent = $orderedEvents->get($index + 1);
+                    $nextDate = $nextEvent?->created_at ? Carbon::parse($nextEvent->created_at) : null;
+
+                    $event->tiempo_desde_anterior = $previousDate !== null && $currentDate !== null
+                        ? $this->formatHistoryDuration((int) $previousDate->diffInSeconds($currentDate))
+                        : 'Evento inicial';
+                    $event->tiempo_hasta_siguiente = $currentDate !== null && $nextDate !== null
+                        ? $this->formatHistoryDuration((int) $currentDate->diffInSeconds($nextDate))
+                        : 'Último evento registrado';
+
+                    return $event;
+                });
+            });
+    }
+
+    private function historyTotalDuration(Collection $events): string
+    {
+        $datedEvents = $events->filter(fn (object $event): bool => ! empty($event->created_at))->values();
+
+        if ($datedEvents->isEmpty()) {
+            return 'Sin historial';
+        }
+
+        if ($datedEvents->count() === 1) {
+            return 'Un solo evento';
+        }
+
+        $firstDate = Carbon::parse($datedEvents->first()->created_at);
+        $lastDate = Carbon::parse($datedEvents->last()->created_at);
+
+        return $this->formatHistoryDuration((int) $firstDate->diffInSeconds($lastDate));
+    }
+
+    private function formatHistoryDuration(int $totalSeconds): string
+    {
+        $totalSeconds = max(0, $totalSeconds);
+        $days = intdiv($totalSeconds, 86400);
+        $hours = intdiv($totalSeconds % 86400, 3600);
+        $minutes = intdiv($totalSeconds % 3600, 60);
+        $seconds = $totalSeconds % 60;
+        $parts = [];
+
+        if ($days > 0) {
+            $parts[] = $days.' d';
+        }
+        if ($hours > 0 || $days > 0) {
+            $parts[] = $hours.' h';
+        }
+        if ($minutes > 0 || $hours > 0 || $days > 0) {
+            $parts[] = $minutes.' min';
+        }
+        if ($seconds > 0 || $parts === []) {
+            $parts[] = $seconds.' s';
+        }
+
+        return implode(' ', $parts);
+    }
+
+    private function historyPackageKey(string $type, mixed $code): string
+    {
+        return $type.'|'.$this->normalizedCode($code);
+    }
+
+    private function normalizedCode(mixed $code): string
+    {
+        return mb_strtoupper(trim((string) $code), 'UTF-8');
+    }
+
+    private function filteredPackagesQuery(array $filters)
+    {
+        $query = DB::query()->fromSub($this->buildUnionQuery(), 'p')
+            ->when(array_key_exists($filters['type'], self::TYPES), fn ($query) => $query->where('type_key', $filters['type']))
+            ->when(! empty($filters['estado_id']), fn ($query) => $query->whereIn('estado_id', $filters['estado_id']))
+            ->when($filters['search'] !== '', function ($query) use ($filters) {
+                $query->whereRaw('LOWER(search_blob) LIKE ?', ['%'.mb_strtolower($filters['search']).'%']);
+            })
+            ->orderByDesc('updated_at')
+            ->orderByDesc('record_id');
+
+        return PackageWeightFilter::apply($query, $filters['peso_min'], $filters['peso_max']);
+    }
+
+    private function buildUnionQuery()
+    {
+        $queries = [
+            $this->selectFor('ems', 'paquetes_ems', 'estado_id', [
+                'codigo' => 'codigo',
+                'cod_especial' => 'cod_especial',
+                'origen' => 'origen',
+                'destino' => 'ciudad',
+                'empresa' => null,
+                'destinatario' => 'nombre_destinatario',
+                'remitente' => 'nombre_remitente',
+                'telefono' => 'telefono_destinatario',
+                'peso' => 'peso',
+                'precio' => 'precio',
+                'justificacion' => 'justificacion',
+            ]),
+            $this->selectForContrato(),
+            $this->selectFor('certi', 'paquetes_certi', 'fk_estado', [
+                'codigo' => 'codigo',
+                'cod_especial' => 'cod_especial',
+                'origen' => null,
+                'destino' => 'cuidad',
+                'empresa' => null,
+                'destinatario' => 'destinatario',
+                'remitente' => null,
+                'telefono' => 'telefono',
+                'peso' => 'peso',
+                'precio' => 'precio',
+                'justificacion' => null,
+            ]),
+            $this->selectFor('ordi', 'paquetes_ordi', 'fk_estado', [
+                'codigo' => 'codigo',
+                'cod_especial' => 'cod_especial',
+                'origen' => null,
+                'destino' => 'ciudad',
+                'empresa' => null,
+                'destinatario' => 'destinatario',
+                'remitente' => null,
+                'telefono' => 'telefono',
+                'peso' => 'peso',
+                'precio' => 'precio',
+                'justificacion' => null,
+            ]),
+            $this->selectFor('solicitud', 'solicitud_clientes', 'estado_id', [
+                'codigo' => "COALESCE(NULLIF(TRIM(codigo_solicitud), ''), NULLIF(TRIM(barcode), ''), 'SIN CODIGO')",
+                'cod_especial' => 'cod_especial',
+                'origen' => 'origen',
+                'destino' => 'ciudad',
+                'empresa' => null,
+                'destinatario' => 'nombre_destinatario',
+                'remitente' => 'nombre_remitente',
+                'telefono' => 'telefono_destinatario',
+                'peso' => 'peso',
+                'precio' => 'precio',
+                'justificacion' => 'justificacion',
+            ], true),
+        ];
+
+        $union = array_shift($queries);
+        foreach ($queries as $query) {
+            $union->unionAll($query);
+        }
+
+        return $union;
+    }
+
+    private function selectFor(string $type, string $table, string $stateColumn, array $columns, bool $rawCodigo = false)
+    {
+        $label = self::TYPES[$type]['label'];
+        $selects = [
+            DB::raw("'".$type."' as type_key"),
+            DB::raw("'".str_replace("'", "''", $label)."' as tipo"),
+            DB::raw($table.'.id as record_id'),
+        ];
+
+        foreach (['codigo', 'cod_especial', 'origen', 'destino'] as $alias) {
+            $column = $columns[$alias] ?? null;
+            if ($alias === 'codigo' && $rawCodigo) {
+                $selects[] = DB::raw($column.' as codigo');
+
+                continue;
+            }
+
+            $selects[] = $column
+                ? DB::raw('COALESCE('.$table.'.'.$column."::text, '') as ".$alias)
+                : DB::raw("'' as ".$alias);
+        }
+
+        $empresaColumn = $columns['empresa'] ?? null;
+        $selects[] = $empresaColumn
+            ? DB::raw('COALESCE('.$table.'.'.$empresaColumn."::text, '') as empresa")
+            : DB::raw("'' as empresa");
+
+        foreach (['destinatario', 'remitente', 'telefono'] as $alias) {
+            $column = $columns[$alias] ?? null;
+            $selects[] = $column
+                ? DB::raw('COALESCE('.$table.'.'.$column."::text, '') as ".$alias)
+                : DB::raw("'' as ".$alias);
+        }
+
+        $selects[] = DB::raw("'' as codigo_madre");
+
+        $selects[] = DB::raw('COALESCE('.$table.'.'.($columns['peso'] ?? 'id')."::text, '') as peso");
+        $selects[] = DB::raw('COALESCE('.$table.'.'.($columns['precio'] ?? 'id')."::text, '') as precio");
+        $selects[] = ($columns['justificacion'] ?? null)
+            ? DB::raw('COALESCE('.$table.'.'.$columns['justificacion']."::text, '') as justificacion")
+            : DB::raw("'' as justificacion");
+        $selects[] = DB::raw($table.'.'.$stateColumn.' as estado_id');
+        $selects[] = DB::raw("COALESCE(estados.nombre_estado, 'SIN ESTADO') as estado_nombre");
+        $selects[] = DB::raw($table.'.created_at as created_at');
+        $selects[] = DB::raw($table.'.updated_at as updated_at');
+        $selects[] = DB::raw('NULL as fecha_recojo');
+        $selects[] = DB::raw($this->searchExpression($table, $columns, $rawCodigo).' as search_blob');
+
+        return DB::table($table)
+            ->leftJoin('estados', 'estados.id', '=', $table.'.'.$stateColumn)
+            ->select($selects);
+    }
+
+    private function selectForContrato()
+    {
+        $table = 'paquetes_contrato';
+        $label = self::TYPES['contrato']['label'];
+        $empresaExpr = "COALESCE(NULLIF(TRIM(emp.nombre), ''), NULLIF(TRIM(emp_user.nombre), ''), '')";
+
+        return DB::table($table)
+            ->leftJoin('estados', 'estados.id', '=', $table.'.estados_id')
+            ->leftJoin('empresa as emp', 'emp.id', '=', $table.'.empresa_id')
+            ->leftJoin('users as u', 'u.id', '=', $table.'.user_id')
+            ->leftJoin('empresa as emp_user', 'emp_user.id', '=', 'u.empresa_id')
+            ->select([
+                DB::raw("'contrato' as type_key"),
+                DB::raw("'".str_replace("'", "''", $label)."' as tipo"),
+                DB::raw($table.'.id as record_id'),
+                DB::raw('COALESCE('.$table.".codigo::text, '') as codigo"),
+                DB::raw('COALESCE('.$table.".cod_especial::text, '') as cod_especial"),
+                DB::raw('COALESCE('.$table.".origen::text, '') as origen"),
+                DB::raw('COALESCE('.$table.".destino::text, '') as destino"),
+                DB::raw($empresaExpr.' as empresa'),
+                DB::raw('COALESCE('.$table.".nombre_d::text, '') as destinatario"),
+                DB::raw('COALESCE('.$table.".nombre_r::text, '') as remitente"),
+                DB::raw('COALESCE('.$table.".telefono_d::text, '') as telefono"),
+                DB::raw('COALESCE('.$table.".codigo_madre::text, '') as codigo_madre"),
+                DB::raw('COALESCE('.$table.".peso::text, '') as peso"),
+                DB::raw('COALESCE('.$table.".precio::text, '') as precio"),
+                DB::raw('COALESCE('.$table.".justificacion::text, '') as justificacion"),
+                DB::raw($table.'.estados_id as estado_id'),
+                DB::raw("COALESCE(estados.nombre_estado, 'SIN ESTADO') as estado_nombre"),
+                DB::raw($table.'.created_at as created_at'),
+                DB::raw($table.'.updated_at as updated_at'),
+                DB::raw($table.'.fecha_recojo as fecha_recojo'),
+                DB::raw(
+                    "LOWER(CONCAT_WS(' ', ".
+                    'COALESCE('.$table.".codigo::text, ''), ".
+                    'COALESCE('.$table.".codigo_madre::text, ''), ".
+                    'COALESCE('.$table.".cod_especial::text, ''), ".
+                    'COALESCE('.$table.".origen::text, ''), ".
+                    'COALESCE('.$table.".destino::text, ''), ".
+                    $empresaExpr.', '.
+                    'COALESCE('.$table.".nombre_d::text, ''), ".
+                    'COALESCE('.$table.".nombre_r::text, ''), ".
+                    'COALESCE('.$table.".telefono_d::text, ''), ".
+                    'COALESCE('.$table.".justificacion::text, ''), ".
+                    "COALESCE(estados.nombre_estado, '')".
+                    ')) as search_blob'
+                ),
+            ]);
+    }
+
+    private function searchExpression(string $table, array $columns, bool $rawCodigo): string
+    {
+        $parts = [];
+        foreach ($columns as $alias => $column) {
+            if ($column === null) {
+                continue;
+            }
+
+            $parts[] = $rawCodigo && $alias === 'codigo'
+                ? 'COALESCE(('.$column.")::text, '')"
+                : 'COALESCE('.$table.'.'.$column."::text, '')";
+        }
+
+        $parts[] = "COALESCE(estados.nombre_estado, '')";
+
+        return 'LOWER(CONCAT_WS(\' \', '.implode(', ', $parts).'))';
     }
 
     private function resolveEditing(Request $request): ?array

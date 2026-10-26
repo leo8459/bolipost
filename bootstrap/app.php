@@ -21,7 +21,6 @@ use App\Http\Middleware\RedirectIfClienteAuthenticated;
 use App\Http\Middleware\RegistrarAuditoria;
 use App\Http\Middleware\SetSystemAuditContext;
 use App\Http\Middleware\UseClienteGuard;
-use App\Models\PackageReportExport;
 use App\Services\ContratoCodigoService;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Database\QueryException;
@@ -31,7 +30,6 @@ use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Http\Middleware\CheckAbilities;
 use Laravel\Sanctum\Http\Middleware\CheckForAnyAbility;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
@@ -147,19 +145,5 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withSchedule(function (Schedule $schedule): void {
         $schedule->command('tracking:check')->cron('0 */8 * * *')->withoutOverlapping();
-        $schedule->call(function (): void {
-            PackageReportExport::query()
-                ->whereNotNull('expires_at')
-                ->where('expires_at', '<', now())
-                ->chunkById(100, function ($reports): void {
-                    foreach ($reports as $report) {
-                        if ($report->file_path) {
-                            Storage::disk('local')->delete($report->file_path);
-                        }
-
-                        $report->delete();
-                    }
-                }, 'id', 'id');
-        })->name('cleanup-expired-package-reports')->daily()->withoutOverlapping();
     })
     ->create();

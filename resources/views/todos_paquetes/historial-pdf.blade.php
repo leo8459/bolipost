@@ -258,8 +258,8 @@
                                 {{ $event->created_at ? \Illuminate\Support\Carbon::parse($event->created_at)->format('d/m/Y') : 'SIN FECHA' }}<br>
                                 <span class="muted">{{ $event->created_at ? \Illuminate\Support\Carbon::parse($event->created_at)->format('H:i:s') : '' }}</span>
                                 <span class="next-time">
-                                    @if(($event->tiempo_hasta_siguiente ?? '') === 'Ultimo evento registrado')
-                                        Ultimo evento registrado
+                                    @if(($event->tiempo_hasta_siguiente ?? '') === 'Último evento registrado')
+                                        Último evento registrado
                                     @else
                                         Siguiente evento en:<br><strong>{{ $event->tiempo_hasta_siguiente }}</strong>
                                     @endif
