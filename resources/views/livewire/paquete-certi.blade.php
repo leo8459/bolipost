@@ -473,7 +473,7 @@
     <div class="modal fade" id="paqueteCertiModal" tabindex="-1" aria-hidden="true" wire:ignore.self>
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
-                <form wire:submit.prevent="save">
+                <form wire:submit.prevent="save" autocomplete="off">
                     <div class="modal-header">
                         <h5 class="modal-title">
                             {{ $editingId ? 'Editar paquete certificado' : 'Nuevo paquete certificado' }}
@@ -508,12 +508,12 @@
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Destinatario</label>
-                                <input type="text" wire:model.live.debounce.300ms="destinatario" class="form-control uppercase-input">
+                                <input type="text" wire:model.defer="destinatario" class="form-control uppercase-input" autocomplete="off">
                                 @error('destinatario') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Telefono</label>
-                                <input type="number" wire:model.live.debounce.300ms="telefono" class="form-control">
+                                <input type="number" wire:model.defer="telefono" class="form-control" autocomplete="off">
                                 @error('telefono') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
@@ -781,18 +781,6 @@
 </div>
 
 <script>
-    document.addEventListener('input', (event) => {
-        const target = event.target;
-        if (target && target.classList && target.classList.contains('uppercase-input') && target.tagName === 'INPUT') {
-            const start = target.selectionStart;
-            const end = target.selectionEnd;
-            target.value = target.value.toUpperCase();
-            if (start !== null && end !== null) {
-                target.setSelectionRange(start, end);
-            }
-        }
-    });
-
     window.addEventListener('openPaqueteCertiModal', () => {
         $('#paqueteCertiModal').modal('show');
     });

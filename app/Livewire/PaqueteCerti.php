@@ -219,18 +219,6 @@ class PaqueteCerti extends Component
         $this->zonaEditValue = '';
     }
 
-    public function updatedDestinatario($value)
-    {
-        $this->destinatario = $this->upper($value);
-        $this->autocompletarDatosDestinatario();
-    }
-
-    public function updatedTelefono($value)
-    {
-        $this->telefono = trim((string) $value);
-        $this->autocompletarDatosDestinatario();
-    }
-
     public function save()
     {
         $permission = $this->editingId
@@ -645,49 +633,6 @@ class PaqueteCerti extends Component
             'fk_estado' => 'required|exists:estados,id',
             'fk_ventanilla' => 'required|exists:ventanilla,id',
         ];
-    }
-
-    protected function autocompletarDatosDestinatario(): void
-    {
-        if ($this->editingId) {
-            return;
-        }
-
-        $destinatario = $this->upper($this->destinatario);
-        $telefono = trim((string) $this->telefono);
-
-        if ($destinatario === '' && $telefono === '') {
-            return;
-        }
-
-        $registro = PaqueteCertiModel::query()
-            ->when($this->upper($this->cuidad) !== '', function ($query) {
-                $query->whereRaw('trim(upper(cuidad)) = trim(upper(?))', [$this->upper($this->cuidad)]);
-            })
-            ->when($destinatario !== '' && $telefono !== '', function ($query) use ($destinatario, $telefono) {
-                $query->whereRaw('trim(upper(destinatario)) = trim(upper(?))', [$destinatario])
-                    ->whereRaw('trim(cast(telefono as text)) = trim(?)', [$telefono]);
-            }, function ($query) use ($destinatario, $telefono) {
-                $query->where(function ($subQuery) use ($destinatario, $telefono) {
-                    if ($destinatario !== '') {
-                        $subQuery->orWhereRaw('trim(upper(destinatario)) = trim(upper(?))', [$destinatario]);
-                    }
-
-                    if ($telefono !== '') {
-                        $subQuery->orWhereRaw('trim(cast(telefono as text)) = trim(?)', [$telefono]);
-                    }
-                });
-            })
-            ->orderByDesc('id')
-            ->first(['destinatario', 'telefono', 'zona']);
-
-        if (!$registro) {
-            return;
-        }
-
-        $this->destinatario = $this->upper($registro->destinatario ?: $this->destinatario);
-        $this->telefono = trim((string) ($registro->telefono ?: $this->telefono));
-        $this->zona = $this->upper($registro->zona ?: $this->zona);
     }
 
     protected function payload()

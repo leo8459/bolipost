@@ -732,18 +732,6 @@ class PaquetesOrdi extends Component
         $this->zonaEditValue = '';
     }
 
-    public function updatedDestinatario($value)
-    {
-        $this->destinatario = strtoupper((string) $value);
-        $this->autocompletarDatosDestinatario();
-    }
-
-    public function updatedTelefono($value)
-    {
-        $this->telefono = trim((string) $value);
-        $this->autocompletarDatosDestinatario();
-    }
-
     public function save()
     {
         $createMode = $this->isAlmacen ? 'almacen' : 'clasificacion';
@@ -1137,49 +1125,6 @@ class PaquetesOrdi extends Component
             ->whereRaw('trim(upper(codigo)) = trim(upper(?))', [$codigo])
             ->when($this->editingId, fn (Builder $query) => $query->where('id', '!=', (int) $this->editingId))
             ->exists();
-    }
-
-    protected function autocompletarDatosDestinatario(): void
-    {
-        if ($this->editingId) {
-            return;
-        }
-
-        $destinatario = $this->upper($this->destinatario);
-        $telefono = trim((string) $this->telefono);
-
-        if ($destinatario === '' && $telefono === '') {
-            return;
-        }
-
-        $registro = PaqueteOrdi::query()
-            ->when($this->upper($this->ciudad) !== '', function (Builder $query) {
-                $query->whereRaw('trim(upper(ciudad)) = trim(upper(?))', [$this->upper($this->ciudad)]);
-            })
-            ->when($destinatario !== '' && $telefono !== '', function (Builder $query) use ($destinatario, $telefono) {
-                $query->whereRaw('trim(upper(destinatario)) = trim(upper(?))', [$destinatario])
-                    ->whereRaw('trim(telefono) = trim(?)', [$telefono]);
-            }, function (Builder $query) use ($destinatario, $telefono) {
-                $query->where(function (Builder $subQuery) use ($destinatario, $telefono) {
-                    if ($destinatario !== '') {
-                        $subQuery->orWhereRaw('trim(upper(destinatario)) = trim(upper(?))', [$destinatario]);
-                    }
-
-                    if ($telefono !== '') {
-                        $subQuery->orWhereRaw('trim(telefono) = trim(?)', [$telefono]);
-                    }
-                });
-            })
-            ->orderByDesc('id')
-            ->first(['destinatario', 'telefono', 'zona']);
-
-        if (!$registro) {
-            return;
-        }
-
-        $this->destinatario = $this->upper($registro->destinatario ?: $this->destinatario);
-        $this->telefono = trim((string) ($registro->telefono ?: $this->telefono));
-        $this->zona = $this->upper($registro->zona ?: $this->zona);
     }
 
     protected function calcularPrecio($pesoGramos): ?float
