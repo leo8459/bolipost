@@ -109,9 +109,11 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-6 form-group mb-md-0">
-                            <label for="cantidad">Cantidad de paquetes <span class="text-danger" aria-hidden="true">*</span></label>
-                            <input type="number" min="1" id="cantidad" name="cantidad" required value="{{ old('cantidad', 1) }}" class="form-control">
+                        <input type="hidden" id="cantidad" name="cantidad" value="1">
+                        <div class="col-12 form-group mb-md-0">
+                            <small id="cantidad-paquetes-ayuda" class="form-text text-info">
+                                Cada caja o paquete debe contar con su propia gu&iacute;a. Si necesitas enviar varios, crea un env&iacute;o por cada caja o paquete.
+                            </small>
                         </div>
                         <div class="col-md-6 form-group mb-0">
                             <label for="contenido">Contenido <span class="text-danger" aria-hidden="true">*</span></label>
@@ -143,9 +145,8 @@
                             <select name="tipo_pago" id="tipo_pago" @required(old('forma_pago') === 'origen') @disabled(old('forma_pago') !== 'origen') class="form-control">
                                 <option value="">Selecciona una opci&oacute;n...</option>
                                 <option value="qr" @selected(old('tipo_pago') === 'qr')>QR</option>
-                                <option value="efectivo" @selected(old('tipo_pago') === 'efectivo')>Efectivo</option>
                             </select>
-                            <small id="tipo-pago-ayuda" class="form-text text-muted" aria-live="polite">Elige si pagar&aacute;s con QR o en efectivo.</small>
+                            <small id="tipo-pago-ayuda" class="form-text text-muted" aria-live="polite">El pago en origen se realiza &uacute;nicamente por QR.</small>
                         </div>
                         <div id="datos-facturacion-qr" class="col-12 mt-4" hidden>
                             <div class="solicitud-billing-card">
@@ -568,7 +569,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     mostrarPaso(0);
 
-    ['servicio_extra_id', 'origen', 'destino_id', 'cantidad', 'contenido',
+    ['servicio_extra_id', 'origen', 'destino_id', 'contenido',
         'nombre_remitente', 'carnet', 'direccion_recojo', 'nombre_destinatario',
         'telefono_destinatario', 'direccion_entrega'].forEach(name => {
         form.elements.namedItem(name).required = true;
@@ -629,7 +630,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const pagoDetalle = document.getElementById('resumen-solicitud-pago-detalle');
         const pagoResumen = document.getElementById('resumen-solicitud-pago');
         pagoResumen.className = `alert ${pagaConQr ? 'alert-primary' : (pagaEnDestino ? 'alert-info' : 'alert-warning')}`;
-        pagoTitulo.textContent = pagaEnDestino ? 'Pagar en destino' : (pagaConQr ? 'Pago por QR' : 'Pago en efectivo');
+        pagoTitulo.textContent = pagaConQr ? 'Pago por QR' : 'Pagar en destino';
         pagoDetalle.textContent = pagaConQr
             ? 'Se generará un QR. La solicitud y la guía se registrarán cuando se confirme el pago.'
             : (pagaEnDestino
@@ -648,13 +649,12 @@ document.addEventListener('DOMContentLoaded', function () {
         const tipoAyuda = document.getElementById('tipo-pago-ayuda');
         const pagaEnOrigen = formaPagoSelect.value === 'origen';
         const pagaEnDestino = formaPagoSelect.value === 'destino';
-        if (!pagaEnOrigen) tipoPagoSelect.value = '';
+        tipoPagoSelect.value = pagaEnOrigen ? 'qr' : '';
         tipoPagoContainer.hidden = !pagaEnOrigen;
         tipoPagoObligatorio.hidden = !pagaEnOrigen;
         tipoPagoSelect.required = pagaEnOrigen;
         tipoPagoSelect.disabled = !pagaEnOrigen;
         const pagaConQr = pagaEnOrigen && tipoPagoSelect.value === 'qr';
-        const pagaEnEfectivo = pagaEnOrigen && tipoPagoSelect.value === 'efectivo';
 
         billingPanel.hidden = !pagaConQr;
         [billingDocumentNumber, billingCompanyName, billingEmail].forEach(field => {
@@ -663,13 +663,11 @@ document.addEventListener('DOMContentLoaded', function () {
         ayuda.textContent = pagaEnDestino
             ? 'El envío se pagará en destino.'
             : pagaEnOrigen
-                ? (pagaEnEfectivo ? 'El efectivo se cobrará en origen.' : 'Elige cómo realizarás el pago en origen.')
+                ? 'El pago en origen se realiza únicamente por QR.'
                 : 'Elige dónde se realizará el pago.';
         tipoAyuda.textContent = pagaConQr
             ? 'Se generará un QR y la guía se creará al confirmarse el pago.'
-            : pagaEnEfectivo
-                ? 'La guía se generará ahora y mostrará cobrar en origen.'
-                : 'Elige si pagarás con QR o en efectivo.';
+            : 'Elige pagar en origen para generar un QR.';
     }
     function actualizarComplementoDocumento() {
         const permiteComplemento = ['1', '2'].includes(billingDocumentType.value);
@@ -994,8 +992,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }, true);
 
     confirmarSolicitudButton.addEventListener('click', function () {
-        const registrarDirectamente = formaPagoSelect.value === 'destino'
-            || (formaPagoSelect.value === 'origen' && tipoPagoSelect.value === 'efectivo');
+        const registrarDirectamente = formaPagoSelect.value === 'destino';
         if (!registrarDirectamente || solicitudRegistrada || generandoQr) return;
         if (!validarTodosLosPasos()) return;
         HTMLFormElement.prototype.submit.call(form);

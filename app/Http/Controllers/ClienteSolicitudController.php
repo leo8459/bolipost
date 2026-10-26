@@ -185,7 +185,7 @@ class ClienteSolicitudController extends Controller
             'servicio_extra_id' => ['required', 'integer', 'in:'.implode(',', $servicioExtraIds)],
             'origen' => ['required', 'string'],
             'destino_id' => ['required', 'integer', 'exists:destino,id'],
-            'cantidad' => ['required', 'integer', 'min:1'],
+            'cantidad' => ['required', 'integer', 'in:1'],
             'contenido' => ['required', 'string'],
             'nombre_remitente' => ['required', 'string', 'max:255'],
             'carnet' => ['required', 'string', 'max:255'],
@@ -195,7 +195,7 @@ class ClienteSolicitudController extends Controller
             'direccion_recojo' => ['required', 'string', 'max:255'],
             'direccion_entrega' => ['required', 'string', 'max:255'],
             'forma_pago' => ['required', 'in:origen,destino'],
-            'tipo_pago' => ['nullable', 'required_if:forma_pago,origen', 'prohibited_unless:forma_pago,origen', 'in:qr,efectivo'],
+            'tipo_pago' => ['nullable', 'required_if:forma_pago,origen', 'prohibited_unless:forma_pago,origen', 'in:qr'],
             'recargo_volumen' => ['nullable', 'boolean'],
         ]);
 
@@ -208,11 +208,6 @@ class ClienteSolicitudController extends Controller
             }
 
             return redirect()->back()->withInput()->withErrors(['tipo_pago' => $message]);
-        }
-
-        // El efectivo de Delivery Express se cobra al remitente en origen.
-        if (($data['tipo_pago'] ?? null) === 'efectivo') {
-            $data['forma_pago'] = 'origen';
         }
 
         try {
@@ -1199,7 +1194,7 @@ class ClienteSolicitudController extends Controller
             'servicio_extra_id' => ['required', 'integer', 'in:'.implode(',', $servicioExtraIds)],
             'origen' => ['required', 'string'],
             'destino_id' => ['required', 'integer', 'exists:destino,id'],
-            'cantidad' => ['required', 'integer', 'min:1'],
+            'cantidad' => ['required', 'integer', 'in:1'],
             'contenido' => ['required', 'string'],
             'nombre_remitente' => ['required', 'string', 'max:255'],
             'carnet' => ['required', 'string', 'max:255'],
