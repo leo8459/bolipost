@@ -196,7 +196,10 @@ class ClienteSolicitudController extends Controller
             'direccion_entrega' => ['required', 'string', 'max:255'],
             'forma_pago' => ['required', 'in:origen,destino'],
             'tipo_pago' => ['nullable', 'required_if:forma_pago,origen', 'prohibited_unless:forma_pago,origen', 'in:qr,efectivo'],
+            'recargo_volumen' => ['nullable', 'boolean'],
         ]);
+
+        $data['recargo_volumen'] = (bool) ($data['recargo_volumen'] ?? false);
 
         if (($data['tipo_pago'] ?? null) === 'qr') {
             $message = 'Para pagar con QR, confirma la solicitud desde el formulario para generar el codigo y esperar la confirmacion del pago.';
@@ -287,7 +290,7 @@ class ClienteSolicitudController extends Controller
             'peso' => null,
             'precio' => array_key_exists('precio_pagado', $data)
                 ? round((float) $data['precio_pagado'], 2)
-                : (float) $tarifarioTiktoker->peso1,
+                : round((float) $tarifarioTiktoker->peso1 + (!empty($data['recargo_volumen']) ? 10 : 0), 2),
             'forma_pago' => (string) ($data['forma_pago'] ?? 'destino'),
             'tipo_pago' => $data['tipo_pago'] ?? null,
             'pago_destinatario' => ($data['forma_pago'] ?? 'destino') === 'destino',
@@ -978,6 +981,7 @@ class ClienteSolicitudController extends Controller
             'origen' => (string) ($summary['origen'] ?? ''),
             'destino_id' => (int) ($summary['destino_id'] ?? 0),
             'cantidad' => (int) ($summary['cantidad_paquetes'] ?? 1),
+            'recargo_volumen' => (bool) ($summary['recargo_volumen'] ?? false),
             'contenido' => (string) ($summary['contenido'] ?? ''),
             'nombre_remitente' => (string) ($summary['remitente'] ?? ''),
             'carnet' => (string) ($summary['carnet_remitente'] ?? ''),
@@ -1204,6 +1208,7 @@ class ClienteSolicitudController extends Controller
             'telefono_destinatario' => ['required', 'string', 'max:50'],
             'direccion_recojo' => ['required', 'string', 'max:255'],
             'direccion_entrega' => ['required', 'string', 'max:255'],
+            'recargo_volumen' => ['nullable', 'boolean'],
         ]);
 
         $cliente = Auth::guard('cliente')->user();
@@ -1221,7 +1226,8 @@ class ClienteSolicitudController extends Controller
                 (string) $data['origen'],
                 (int) $data['destino_id']
             );
-            $amount = round((float) $tarifario->peso1, 2);
+            $recargoVolumen = (bool) ($data['recargo_volumen'] ?? false);
+            $amount = round((float) $tarifario->peso1 + ($recargoVolumen ? 10 : 0), 2);
             if ($amount <= 0) {
                 return response()->json(['message' => 'La tarifa calculada no permite generar un QR.'], 422);
             }
@@ -1239,6 +1245,7 @@ class ClienteSolicitudController extends Controller
                 'tarifario_id' => $tarifario->id,
                 'precio_cotizado' => $quotedAmount,
                 'precio_a_cobrar' => $amount,
+                'recargo_volumen' => $recargoVolumen,
             ]);
 
             $qr = $facturacion->generarQr($cliente, $data, $servicioExtra, $destino, $amount);

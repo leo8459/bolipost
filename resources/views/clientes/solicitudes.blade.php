@@ -52,6 +52,7 @@
             @csrf
             <input type="hidden" name="qr_attempt_id" value="{{ (string) \Illuminate\Support\Str::uuid() }}">
             <input type="hidden" name="precio_cotizado" id="precio_cotizado" value="">
+            <input type="hidden" name="recargo_volumen" id="recargo_volumen" value="0">
             <div class="card-body">
                 <div class="solicitud-wizard-progress" aria-label="Progreso de la solicitud">
                     <div class="solicitud-wizard-steps">
@@ -121,8 +122,11 @@
                             <div id="precio_solicitud" class="alert alert-light border mb-0 py-2" role="status" aria-live="polite">
                                 Seleccione el servicio, origen y destino para conocer el precio.
                             </div>
+                            <button type="button" id="precio-recargo-toggle" class="btn btn-outline-success btn-sm mt-2" aria-pressed="false" disabled>
+                                <i class="fas fa-plus mr-1" aria-hidden="true"></i><span>Aumentar precio en Bs 10</span>
+                            </button>
                             <small class="form-text text-muted">
-                                Si el volumen del paquete es muy grande, se a&ntilde;adir&aacute; un recargo de Bs 10 al precio indicado.
+                                Al momento del recojo verificaremos las medidas y el peso. Cada paquete debe medir menos de 50 × 40 × 30 cm y pesar menos de 3 kg. Si supera alguno de estos límites, agrega el recargo de Bs 10.
                             </small>
                         </div>
                         <div class="col-md-6 form-group mb-0">
@@ -308,7 +312,7 @@
                             <div id="resumen-solicitud-datos" class="solicitud-summary"></div>
                             <div class="solicitud-total mt-3">
                                 <strong id="resumen-solicitud-precio"></strong>
-                                <small class="d-block">Si el volumen del paquete es muy grande, se añadir&aacute; un recargo de Bs 10 al precio indicado.</small>
+                                <small class="d-block">Al momento del recojo verificaremos las medidas y el peso. Cada paquete debe medir menos de 50 × 40 × 30 cm y pesar menos de 3 kg. Si supera alguno de estos límites, agrega el recargo de Bs 10.</small>
                             </div>
 
                         </div>
@@ -473,6 +477,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const editBillingEmail = document.getElementById('editar-correo-facturacion');
     const direccionInput = document.getElementById('direccion_entrega');
     const precioSolicitud = document.getElementById('precio_solicitud');
+    const recargoVolumenInput = document.getElementById('recargo_volumen');
+    const recargoVolumenButton = document.getElementById('precio-recargo-toggle');
+    const recargoVolumenButtonLabel = recargoVolumenButton.querySelector('span');
     const quoteUrl = @json(route('clientes.solicitudes.quote'));
     const qrGenerateUrl = @json(route('clientes.solicitudes.qr.generate'));
     const qrStatusUrl = @json(route('clientes.solicitudes.qr.status'));
@@ -1036,15 +1043,43 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const precioCotizado = document.getElementById('precio_cotizado');
     let quoteSequence = 0;
+    let precioBaseCotizado = null;
+    let recargoVolumenAplicado = false;
 
     function setPrecio(message, type, amount = '') {
         if (!precioSolicitud) return;
 
-        precioCotizado.value = amount === '' ? '' : Number(amount).toFixed(2);
+        precioBaseCotizado = amount === '' ? null : Number(amount);
+        recargoVolumenInput.value = recargoVolumenAplicado ? '1' : '0';
+        recargoVolumenButton.disabled = precioBaseCotizado === null || !Number.isFinite(precioBaseCotizado);
+        recargoVolumenButton.setAttribute('aria-pressed', recargoVolumenAplicado ? 'true' : 'false');
+        recargoVolumenButtonLabel.textContent = recargoVolumenAplicado ? 'Quitar recargo de Bs 10' : 'Aumentar precio en Bs 10';
+        recargoVolumenButton.classList.toggle('btn-success', recargoVolumenAplicado);
+        recargoVolumenButton.classList.toggle('btn-outline-success', !recargoVolumenAplicado);
+
+        if (precioBaseCotizado !== null && Number.isFinite(precioBaseCotizado)) {
+            const total = precioBaseCotizado + (recargoVolumenAplicado ? 10 : 0);
+            precioCotizado.value = total.toFixed(2);
+            if (type === 'success') {
+                message = 'Precio: Bs ' + total.toFixed(2) + (recargoVolumenAplicado ? ' (incluye recargo de Bs 10).' : '.');
+            } else if (type === 'warning') {
+                message = 'La tarifa cambió. Nuevo precio: Bs ' + total.toFixed(2) + (recargoVolumenAplicado ? ' (incluye recargo de Bs 10).' : '.') + ' Revísalo antes de confirmar.';
+            }
+        } else {
+            precioCotizado.value = '';
+        }
+
         precioSolicitud.textContent = message;
         precioSolicitud.className = 'alert border mb-0 py-2 alert-' + type;
         document.getElementById('resumen-solicitud-precio').textContent = message;
     }
+
+    recargoVolumenButton.addEventListener('click', function () {
+        if (precioBaseCotizado === null || !Number.isFinite(precioBaseCotizado)) return;
+
+        recargoVolumenAplicado = !recargoVolumenAplicado;
+        setPrecio('Precio: Bs ' + precioBaseCotizado.toFixed(2) + '.', 'success', precioBaseCotizado);
+    });
 
     async function cotizarSolicitud() {
         const requestSequence = ++quoteSequence;

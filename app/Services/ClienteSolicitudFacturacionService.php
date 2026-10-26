@@ -115,6 +115,7 @@ class ClienteSolicitudFacturacionService
                 'origen' => $originCity,
                 'destino' => $destinationCity,
                 'cantidad_paquetes' => (int) $solicitud['cantidad'],
+                'recargo_volumen' => (bool) ($solicitud['recargo_volumen'] ?? false),
                 'contenido' => trim((string) $solicitud['contenido']),
                 'remitente' => trim((string) $solicitud['nombre_remitente']),
                 'carnet_remitente' => trim((string) $solicitud['carnet']),
