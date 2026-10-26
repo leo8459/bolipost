@@ -746,8 +746,16 @@ class AclPermissionRegistry
             'todos-paquetes.store',
             'feature.todos-paquetes.index.create',
         ],
-        'todos-paquetes.export.excel' => [
-            'todos-paquetes.export.excel',
+        'todos-paquetes.export.create' => [
+            'todos-paquetes.export.create',
+            'feature.todos-paquetes.index.print',
+        ],
+        'todos-paquetes.export.status' => [
+            'todos-paquetes.export.status',
+            'feature.todos-paquetes.index.print',
+        ],
+        'todos-paquetes.export.download' => [
+            'todos-paquetes.export.download',
             'feature.todos-paquetes.index.print',
         ],
         'todos-paquetes.reporte-historial' => [

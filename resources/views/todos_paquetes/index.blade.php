@@ -37,6 +37,9 @@
             </div>
             <div class="card-body">
                 <form method="GET" action="{{ route('todos-paquetes.index') }}" class="row align-items-end">
+                    @if($reportExport)
+                        <input type="hidden" name="export_job" value="{{ $reportExport->id }}">
+                    @endif
                     <div class="col-xl-4 col-lg-4 col-md-12 mb-3">
                         <label class="small font-weight-bold">Buscar por cualquier campo</label>
                         <input
@@ -125,7 +128,7 @@
                     </div>
                 </div>
                 <div class="tp-results-tools">
-                    <span class="tp-total-pill"><strong>{{ \App\Support\BolivianNumber::format($paquetes->total()) }}</strong> registros</span>
+                    <span class="tp-total-pill"><strong>{{ \App\Support\BolivianNumber::format($paquetesEncontrados) }}</strong> paquetes en total</span>
                     @aclcan('print', null, 'todos-paquetes.index')
                         <button
                             type="button"
@@ -137,13 +140,24 @@
                             <i class="fas fa-file-pdf"></i>
                             <span>Reporte de historial</span>
                         </button>
-                        <a
-                            href="{{ route('todos-paquetes.export.excel', request()->except(['page', 'create', 'edit_type', 'edit_id'])) }}"
-                            class="btn btn-outline-success tp-create-btn"
-                        >
-                            <i class="fas fa-file-excel"></i>
-                            <span>Exportar Excel</span>
-                        </a>
+                        <form method="POST" action="{{ route('todos-paquetes.export.create') }}" class="d-inline-block">
+                            @csrf
+                            <input type="hidden" name="q" value="{{ $search }}">
+                            <input type="hidden" name="type" value="{{ $type }}">
+                            @foreach($estadoId as $selectedEstadoId)
+                                <input type="hidden" name="estado_id[]" value="{{ $selectedEstadoId }}">
+                            @endforeach
+                            @if($pesoMin !== null)
+                                <input type="hidden" name="peso_min" value="{{ $pesoMin }}">
+                            @endif
+                            @if($pesoMax !== null)
+                                <input type="hidden" name="peso_max" value="{{ $pesoMax }}">
+                            @endif
+                            <button type="submit" class="btn btn-outline-success tp-create-btn">
+                                <i class="fas fa-file-excel"></i>
+                                <span>Generar Excel (.xlsx)</span>
+                            </button>
+                        </form>
                     @endaclcan
                     @aclcan('create', null, 'todos-paquetes.index')
                         <a
@@ -156,6 +170,35 @@
                     @endaclcan
                 </div>
             </div>
+            @if($reportExport)
+                <div
+                    class="alert alert-info m-3 mb-0 d-flex align-items-center justify-content-between flex-wrap"
+                    id="packageReportStatus"
+                    data-status-url="{{ route('todos-paquetes.export.status', ['export' => $reportExport->id]) }}"
+                >
+                    <span id="packageReportStatusText">
+                        @if($reportExport->status === 'failed')
+                            No se pudo generar el reporte {{ $reportExport->report_type === 'history_pdf' ? 'PDF' : 'Excel' }}.
+                        @elseif($reportExport->status === 'completed')
+                            @if($reportExport->report_type === 'history_pdf')
+                                Reporte PDF listo: {{ \App\Support\BolivianNumber::format($reportExport->row_count) }} guias encontradas.
+                            @else
+                                Reporte Excel listo: {{ \App\Support\BolivianNumber::format($reportExport->row_count) }} paquetes.
+                            @endif
+                        @else
+                            Preparando tu reporte {{ $reportExport->report_type === 'history_pdf' ? 'PDF' : 'Excel' }}...
+                        @endif
+                    </span>
+                    <a
+                        id="packageReportDownload"
+                        href="{{ route('todos-paquetes.export.download', ['export' => $reportExport->id]) }}"
+                        class="btn btn-success btn-sm ml-2"
+                        @if($reportExport->status !== 'completed') style="display:none" @endif
+                    >
+                        <i class="fas fa-download mr-1"></i> Descargar {{ $reportExport->report_type === 'history_pdf' ? 'PDF' : 'Excel' }}
+                    </a>
+                </div>
+            @endif
             <div class="card-body p-0">
                 <div class="table-responsive tp-desktop-results">
                     <table class="table table-hover table-striped mb-0 tp-table">
@@ -527,7 +570,8 @@
         <div class="modal fade" id="historyReportModal" tabindex="-1" role="dialog" aria-labelledby="historyReportModalTitle" aria-hidden="true">
             <div class="modal-dialog modal-lg" role="document">
                 <div class="modal-content tp-modal">
-                    <form method="GET" action="{{ route('todos-paquetes.reporte-historial') }}" target="_blank">
+                    <form method="POST" action="{{ route('todos-paquetes.reporte-historial') }}">
+                        @csrf
                         <div class="modal-header">
                             <div>
                                 <h5 class="modal-title" id="historyReportModalTitle">Reporte del historial de paquetes</h5>
@@ -551,7 +595,7 @@
                                     maxlength="12000"
                                     required
                                     spellcheck="false"
-                                >{{ $paquetes->pluck('codigo')->map(fn ($codigo) => trim((string) $codigo))->filter()->unique()->implode("\n") }}</textarea>
+                                >{{ old('codigos', $paquetes->pluck('codigo')->map(fn ($codigo) => trim((string) $codigo))->filter()->unique()->implode("\n")) }}</textarea>
                                 <small class="form-text text-muted">Máximo 200 guías. Si alguna no existe, el PDF la mostrará en la sección “Guías no encontradas”.</small>
                             </div>
                         </div>
@@ -566,6 +610,65 @@
             </div>
         </div>
     @endaclcan
+
+    @if($reportExport)
+        <div
+            class="modal fade"
+            id="packageReportProgressModal"
+            tabindex="-1"
+            role="dialog"
+            aria-labelledby="packageReportProgressTitle"
+            aria-hidden="true"
+            data-status-url="{{ route('todos-paquetes.export.status', ['export' => $reportExport->id]) }}"
+            data-report-type="{{ $reportExport->report_type }}"
+        >
+            <div class="modal-dialog modal-dialog-centered" role="document">
+                <div class="modal-content tp-modal">
+                    <div class="modal-header">
+                        <div>
+                            <h5 class="modal-title" id="packageReportProgressTitle">
+                                {{ $reportExport->report_type === 'history_pdf' ? 'Generando PDF' : 'Generando Excel' }}
+                            </h5>
+                            <div class="small text-white-50">El reporte se prepara en segundo plano.</div>
+                        </div>
+                        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Cerrar">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span id="packageReportProgressMessage" class="small text-muted">Consultando el progreso...</span>
+                            <strong id="packageReportProgressPercent" class="ml-3">0%</strong>
+                        </div>
+                        <div class="progress" style="height: 1.1rem;">
+                            <div
+                                id="packageReportProgressBar"
+                                class="progress-bar progress-bar-striped progress-bar-animated bg-success"
+                                role="progressbar"
+                                style="width: 0%"
+                                aria-valuenow="0"
+                                aria-valuemin="0"
+                                aria-valuemax="100"
+                            ></div>
+                        </div>
+                        <div class="d-flex justify-content-end align-items-center mt-4">
+                            <a
+                                id="packageReportProgressDownload"
+                                href="{{ route('todos-paquetes.export.download', ['export' => $reportExport->id]) }}"
+                                class="btn btn-success mr-2"
+                                @if($reportExport->status !== 'completed') style="display:none" @endif
+                            >
+                                <i class="fas fa-download mr-1"></i> Descargar {{ $reportExport->report_type === 'history_pdf' ? 'PDF' : 'Excel' }}
+                            </a>
+                            <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">
+                                {{ $reportExport->status === 'completed' ? 'Cerrar' : 'Seguir trabajando' }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
 @endsection
 
 @section('css')
@@ -1215,6 +1318,97 @@
                 updateCreateForm();
             }
 
+            const reportStatus = document.getElementById('packageReportStatus');
+            const reportProgressModal = document.getElementById('packageReportProgressModal');
+            if (reportStatus && reportProgressModal) {
+                const statusText = document.getElementById('packageReportStatusText');
+                const statusDownload = document.getElementById('packageReportDownload');
+                const progressTitle = document.getElementById('packageReportProgressTitle');
+                const progressMessage = document.getElementById('packageReportProgressMessage');
+                const progressPercent = document.getElementById('packageReportProgressPercent');
+                const progressBar = document.getElementById('packageReportProgressBar');
+                const progressDownload = document.getElementById('packageReportProgressDownload');
+                const numberFormat = new Intl.NumberFormat('es-BO');
+                let pollTimer = null;
+
+                const updateReportProgress = function (report) {
+                    const isHistoryPdf = report.report_type === 'history_pdf';
+                    const label = isHistoryPdf ? 'PDF' : 'Excel';
+                    const countLabel = isHistoryPdf ? 'guías encontradas.' : 'paquetes.';
+                    const percent = report.status === 'completed'
+                        ? 100
+                        : Math.max(0, Math.min(99, Number(report.progress) || 0));
+
+                    progressTitle.textContent = report.status === 'completed'
+                        ? 'Reporte ' + label + ' listo'
+                        : report.status === 'failed'
+                            ? 'No se pudo generar el ' + label
+                            : 'Generando ' + label;
+                    progressMessage.textContent = report.status === 'completed'
+                        ? numberFormat.format(report.rows) + ' ' + countLabel
+                        : report.progress_message || (report.status === 'pending' ? 'En espera en la cola...' : 'Preparando el reporte...');
+                    progressPercent.textContent = percent + '%';
+                    progressBar.style.width = percent + '%';
+                    progressBar.setAttribute('aria-valuenow', percent);
+                    progressBar.classList.toggle('progress-bar-animated', report.status === 'pending' || report.status === 'processing');
+                    progressBar.classList.toggle('bg-danger', report.status === 'failed');
+                    progressBar.classList.toggle('bg-success', report.status !== 'failed');
+
+                    if (report.status === 'completed' && report.download_url) {
+                        progressDownload.href = report.download_url;
+                        progressDownload.style.display = '';
+                        statusDownload.href = report.download_url;
+                        statusDownload.style.display = '';
+                        statusDownload.innerHTML = '<i class="fas fa-download mr-1"></i> Descargar ' + label;
+                        reportStatus.classList.remove('alert-info', 'alert-danger', 'alert-warning');
+                        reportStatus.classList.add('alert-success');
+                        statusText.textContent = 'Reporte ' + label + ' listo: ' + numberFormat.format(report.rows) + ' ' + countLabel;
+                    } else if (report.status === 'failed') {
+                        progressDownload.style.display = 'none';
+                        reportStatus.classList.remove('alert-info', 'alert-success', 'alert-warning');
+                        reportStatus.classList.add('alert-danger');
+                        statusText.textContent = 'No se pudo generar el reporte ' + label + '. Vuelve a solicitarlo.';
+                    } else {
+                        const pendingMessage = 'El reporte ' + label + ' está en espera para generarse.';
+                        statusText.textContent = report.progress_message || pendingMessage;
+                    }
+                };
+
+                const pollReportStatus = function () {
+                    fetch(reportProgressModal.dataset.statusUrl, { cache: 'no-store', headers: { 'Accept': 'application/json' } })
+                        .then(function (response) {
+                            if (response.status === 404 || response.status === 410) {
+                                throw new Error('expired');
+                            }
+                            if (!response.ok) {
+                                throw new Error('status');
+                            }
+                            return response.json();
+                        })
+                        .then(function (report) {
+                            updateReportProgress(report);
+                            if (report.status === 'pending' || report.status === 'processing') {
+                                pollTimer = window.setTimeout(pollReportStatus, 1000);
+                            }
+                        })
+                        .catch(function (error) {
+                            if (error.message === 'expired') {
+                                progressTitle.textContent = 'Reporte no disponible';
+                                progressMessage.textContent = 'Este reporte venció. Genera uno nuevo.';
+                                progressBar.classList.remove('progress-bar-animated');
+                                return;
+                            }
+                            pollTimer = window.setTimeout(pollReportStatus, 3000);
+                        });
+                };
+
+                if (pollTimer !== null) {
+                    window.clearTimeout(pollTimer);
+                }
+                $('#packageReportProgressModal').modal('show');
+                pollReportStatus();
+            }
+
             const editPackagePhoto = document.getElementById('editPackagePhoto');
             const editPackageImagePreview = document.getElementById('editPackageImagePreview');
             const editPackageImageEmpty = document.getElementById('editPackageImageEmpty');
@@ -1248,6 +1442,10 @@
                     codeLabel.textContent = reportCode || '-';
                 }
             });
+
+            @if($errors->has('codigos'))
+                $('#historyReportModal').modal('show');
+            @endif
         });
     </script>
 @endsection
