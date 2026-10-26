@@ -49,20 +49,28 @@ class BackupController extends Controller
             return back()->with('error', 'El respaldo automatico solo esta habilitado para PostgreSQL.');
         }
 
-        $pgDumpPath = env('PG_DUMP_PATH', 'pg_dump');
+        $pgDumpPath = $this->resolvePgDumpPath();
+        if ($pgDumpPath === null) {
+            return back()->with(
+                'error',
+                'No se encontró pg_dump. Instala las herramientas de PostgreSQL o configura PG_DUMP_PATH con la ruta completa a pg_dump.exe.'
+            );
+        }
         $timestamp = now()->format('Ymd_His');
         $database = (string) ($dbConfig['database'] ?? '');
-        $filename = "db_{$database}_{$timestamp}.sql";
+        $filename = "db_{$database}_{$timestamp}.backup";
         $fullPath = $backupDir.DIRECTORY_SEPARATOR.$filename;
-        $restrictKey = $this->buildRestrictKey();
+
+        @set_time_limit(0);
 
         $process = new Process([
             $pgDumpPath,
             '-h', (string) ($dbConfig['host'] ?? '127.0.0.1'),
             '-p', (string) ($dbConfig['port'] ?? '5432'),
             '-U', (string) ($dbConfig['username'] ?? ''),
-            '-F', 'p',
-            '--restrict-key='.$restrictKey,
+            '-F', 'c',
+            '--no-owner',
+            '--no-acl',
             '-f', $fullPath,
             $database,
         ]);
@@ -71,33 +79,57 @@ class BackupController extends Controller
             'PGPASSWORD' => (string) ($dbConfig['password'] ?? ''),
         ]);
 
-        $process->setTimeout(300);
+        $process->setTimeout(1800);
         $process->run();
 
         if (! $process->isSuccessful()) {
-            // Fallback for some Windows web SAPIs where direct process args can fail silently.
-            $fallback = $this->runPgDumpWithShell(
-                $pgDumpPath,
-                (string) ($dbConfig['host'] ?? '127.0.0.1'),
-                (string) ($dbConfig['port'] ?? '5432'),
-                (string) ($dbConfig['username'] ?? ''),
-                (string) ($dbConfig['password'] ?? ''),
-                $restrictKey,
-                $fullPath,
-                $database
-            );
+            $fallback = [
+                'success' => false,
+                'exit_code' => null,
+                'error_output' => '',
+                'output' => '',
+            ];
+            $primaryOutput = trim($process->getErrorOutput()."\n".$process->getOutput());
 
-            if ($fallback['success'] === true) {
-                return back()->with('success', "Respaldo de base de datos generado: {$filename}");
+            // Fallback for some Windows web SAPIs where direct process args can fail silently.
+            if ($primaryOutput === '') {
+                File::delete($fullPath);
+                $fallback = $this->runPgDumpWithShell(
+                    $pgDumpPath,
+                    (string) ($dbConfig['host'] ?? '127.0.0.1'),
+                    (string) ($dbConfig['port'] ?? '5432'),
+                    (string) ($dbConfig['username'] ?? ''),
+                    (string) ($dbConfig['password'] ?? ''),
+                    $fullPath,
+                    $database
+                );
+
+                if ($fallback['success'] === true && File::exists($fullPath) && File::size($fullPath) > 0) {
+                    return back()
+                        ->with('success', "Backup generado: {$filename}. La descarga comenzará automáticamente.")
+                        ->with('download_backup', $filename);
+                }
             }
 
-            $errorOutputRaw = trim($process->getErrorOutput()) ?: trim($process->getOutput());
-            $errorOutput = $this->sanitizeOutput($errorOutputRaw);
-            $fallbackOutput = $this->sanitizeOutput((string) ($fallback['output'] ?? ''));
+            File::delete($fullPath);
+
+            $errorLines = collect([
+                $process->getErrorOutput(),
+                $process->getOutput(),
+                $fallback['error_output'] ?? '',
+                $fallback['output'] ?? '',
+            ])
+                ->flatMap(fn (string $output): array => preg_split('/\R+/', trim($output), -1, PREG_SPLIT_NO_EMPTY) ?: [])
+                ->map(fn (string $line): string => trim($this->sanitizeOutput($line)))
+                ->filter()
+                ->unique()
+                ->values();
             $exitCode = $process->getExitCode();
             $fallbackExitCode = $fallback['exit_code'] ?? null;
-            $combinedMessage = trim($errorOutput.' '.$fallbackOutput);
-            $combinedMessage = $combinedMessage !== '' ? $combinedMessage : 'Sin detalles de error.';
+            $combinedMessage = $errorLines->implode(' | ');
+            $combinedMessage = $combinedMessage !== '' && ! preg_match('/^pg_dump:\s*error:\s*$/i', $combinedMessage)
+                ? $combinedMessage
+                : 'pg_dump no devolvió detalles. Revisa los permisos del usuario y la conexión del servidor PostgreSQL.';
 
             Log::error('Error al generar backup de base de datos', [
                 'message' => $combinedMessage,
@@ -116,7 +148,15 @@ class BackupController extends Controller
             );
         }
 
-        return back()->with('success', "Respaldo de base de datos generado: {$filename}");
+        if (! File::exists($fullPath) || File::size($fullPath) === 0) {
+            File::delete($fullPath);
+
+            return back()->with('error', 'pg_dump terminó sin errores, pero no se creó un archivo de backup válido.');
+        }
+
+        return back()
+            ->with('success', "Backup generado: {$filename}. La descarga comenzará automáticamente.")
+            ->with('download_backup', $filename);
     }
 
     public function backupSystem(): RedirectResponse
@@ -227,13 +267,67 @@ class BackupController extends Controller
         return mb_convert_encoding($value, 'UTF-8', 'UTF-8');
     }
 
-    private function buildRestrictKey(): string
+    private function resolvePgDumpPath(): ?string
     {
-        try {
-            return bin2hex(random_bytes(16));
-        } catch (\Throwable $e) {
-            return hash('sha256', uniqid((string) mt_rand(), true));
+        $configuredPath = trim((string) config('database.pg_dump_path', ''), "\"' \t\n\r\0\x0B");
+        if ($configuredPath !== '' && File::isFile($configuredPath)) {
+            return $configuredPath;
         }
+
+        $binaryNames = PHP_OS_FAMILY === 'Windows' ? ['pg_dump.exe', 'pg_dump'] : ['pg_dump'];
+        $pathDirectories = explode(PATH_SEPARATOR, (string) (getenv('PATH') ?: ''));
+
+        foreach ($pathDirectories as $directory) {
+            $directory = trim($directory, "\" \t");
+            if ($directory === '') {
+                continue;
+            }
+
+            foreach ($binaryNames as $binaryName) {
+                $candidate = rtrim($directory, '/\\').DIRECTORY_SEPARATOR.$binaryName;
+                if (File::isFile($candidate)) {
+                    return $candidate;
+                }
+            }
+        }
+
+        if (PHP_OS_FAMILY === 'Windows') {
+            $programFilesRoots = array_unique(array_filter([
+                getenv('ProgramW6432') ?: null,
+                getenv('ProgramFiles') ?: null,
+                getenv('ProgramFiles(x86)') ?: null,
+            ]));
+
+            foreach ($programFilesRoots as $programFilesRoot) {
+                foreach ([
+                    rtrim(str_replace('\\', '/', $programFilesRoot), '/').'/PostgreSQL/*/bin/pg_dump.exe',
+                    rtrim(str_replace('\\', '/', $programFilesRoot), '/').'/PostgreSQL/*/pgAdmin 4/runtime/pg_dump.exe',
+                ] as $pattern) {
+                    $candidates = glob($pattern) ?: [];
+                    rsort($candidates, SORT_NATURAL | SORT_FLAG_CASE);
+
+                    foreach ($candidates as $candidate) {
+                        if (File::isFile($candidate)) {
+                            return $candidate;
+                        }
+                    }
+                }
+            }
+        } else {
+            $candidates = array_merge(
+                glob('/usr/lib/postgresql/*/bin/pg_dump') ?: [],
+                ['/usr/bin/pg_dump', '/usr/local/bin/pg_dump']
+            );
+            rsort($candidates, SORT_NATURAL | SORT_FLAG_CASE);
+
+            foreach ($candidates as $candidate) {
+                if (File::isFile($candidate)) {
+                    return $candidate;
+                }
+            }
+        }
+
+        return null;
     }
 
     private function runPgDumpWithShell(
@@ -242,17 +336,15 @@ class BackupController extends Controller
         string $port,
         string $username,
         string $password,
-        string $restrictKey,
         string $fullPath,
         string $database
     ): array {
         $cmd = sprintf(
-            '"%s" -h "%s" -p "%s" -U "%s" -F p --restrict-key="%s" -f "%s" "%s"',
+            '"%s" -h "%s" -p "%s" -U "%s" -F c --no-owner --no-acl -f "%s" "%s"',
             str_replace('"', '\"', $pgDumpPath),
             str_replace('"', '\"', $host),
             str_replace('"', '\"', $port),
             str_replace('"', '\"', $username),
-            str_replace('"', '\"', $restrictKey),
             str_replace('"', '\"', $fullPath),
             str_replace('"', '\"', $database)
         );
@@ -261,13 +353,14 @@ class BackupController extends Controller
         $process->setEnv([
             'PGPASSWORD' => $password,
         ]);
-        $process->setTimeout(300);
+        $process->setTimeout(1800);
         $process->run();
 
         return [
             'success' => $process->isSuccessful(),
             'exit_code' => $process->getExitCode(),
-            'output' => trim($process->getErrorOutput().' '.$process->getOutput()),
+            'error_output' => trim($process->getErrorOutput()),
+            'output' => trim($process->getOutput()),
         ];
     }
 }

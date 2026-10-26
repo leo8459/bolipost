@@ -27,8 +27,20 @@
             padding:18px 20px;
         }
         .header-app.is-almacen .header-app-tools{
+            flex:0 1 auto;
             gap:16px;
-            align-items:flex-end;
+            align-items:stretch;
+            width:100%;
+            min-width:0;
+        }
+        .header-app.is-almacen .header-app-shell{
+            flex-direction:column;
+            align-items:stretch;
+            gap:18px;
+        }
+        .header-app.is-almacen .header-app-main{
+            width:100%;
+            flex:0 0 auto;
         }
         .header-app.is-create .header-app-main{
             padding-top:4px;
@@ -118,7 +130,7 @@
             flex:0 0 auto;
         }
         .header-app.is-almacen .header-actions-row{
-            justify-content:flex-end;
+            justify-content:stretch;
             width:100%;
         }
         .header-app.is-almacen .header-actions-group{
@@ -129,13 +141,190 @@
             width:min(100%, 860px);
         }
         .header-app.is-almacen .header-search-cluster{
-            justify-content:flex-end;
-            width:min(100%, 980px);
+            display:grid;
+            grid-template-columns:minmax(0, 1fr) auto;
+            justify-content:stretch;
+            align-items:stretch;
+            width:100%;
         }
         .header-app.is-almacen .header-search-form{
             flex:1 1 auto;
             width:auto;
-            min-width:420px;
+            min-width:0;
+            max-width:none;
+        }
+        .ems-action-groups{
+            display:grid;
+            grid-template-columns:repeat(3, minmax(0, 1fr));
+            align-items:stretch;
+            flex:1 1 100%;
+            gap:12px;
+            width:100%;
+        }
+        .ems-action-groups--compact{
+            grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));
+        }
+        .ems-action-group{
+            min-width:0;
+            padding:13px;
+            border:1px solid rgba(255,255,255,.2);
+            border-radius:14px;
+            background:rgba(255,255,255,.09);
+        }
+        .ems-action-heading{
+            display:flex;
+            align-items:center;
+            gap:10px;
+            margin-bottom:11px;
+        }
+        .ems-action-heading-icon{
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            width:34px;
+            height:34px;
+            flex:0 0 34px;
+            border-radius:10px;
+            color:#fff;
+            background:rgba(255,255,255,.15);
+        }
+        .ems-action-heading strong{
+            display:block;
+            color:#fff;
+            font-size:12px;
+            line-height:1.2;
+            letter-spacing:.045em;
+            text-transform:uppercase;
+        }
+        .ems-action-heading small{
+            display:block;
+            margin-top:3px;
+            color:rgba(255,255,255,.72);
+            font-size:11px;
+            line-height:1.3;
+        }
+        .ems-action-list{
+            display:flex;
+            flex-wrap:wrap;
+            align-items:stretch;
+            gap:8px;
+        }
+        .ems-action-button{
+            display:inline-flex;
+            align-items:center;
+            justify-content:flex-start;
+            gap:8px;
+            flex:1 1 auto;
+            min-width:0;
+            min-height:42px;
+            padding:9px 11px;
+            border:1px solid rgba(255,255,255,.75);
+            border-radius:10px;
+            background:#fff;
+            color:#20539A;
+            font-size:12px;
+            font-weight:800;
+            line-height:1.25;
+            cursor:pointer;
+            text-align:left;
+            text-decoration:none;
+            box-shadow:0 3px 8px rgba(10,31,68,.08);
+            transition:background-color .15s ease, border-color .15s ease, transform .15s ease;
+        }
+        .ems-action-button:hover,
+        .ems-action-button:focus{
+            border-color:#FECC36;
+            background:#fff9e6;
+            color:#173f78;
+            text-decoration:none;
+            transform:translateY(-1px);
+        }
+        .ems-action-button:focus-visible{
+            outline:3px solid rgba(254,204,54,.7);
+            outline-offset:2px;
+        }
+        .ems-action-button i{
+            flex:0 0 auto;
+            width:15px;
+            color:#6b83a8;
+            text-align:center;
+        }
+        .ems-action-button--primary{
+            border-color:rgba(254,204,54,.9);
+            background:#FECC36;
+            color:#173f78;
+        }
+        .ems-action-button--primary i{ color:#173f78; }
+        .ems-action-button--primary:hover,
+        .ems-action-button--primary:focus{
+            border-color:#f2bd1c;
+            background:#f8c526;
+            color:#173f78;
+        }
+        .ems-action-button--danger,
+        .ems-action-button--danger i{
+            color:#a52834;
+        }
+        .ems-action-button--danger:hover,
+        .ems-action-button--danger:focus{
+            border-color:#efb3b8;
+            background:#fff1f2;
+            color:#842029;
+        }
+        .ems-primary-action{
+            min-height:44px;
+            padding:10px 18px;
+            border:1px solid rgba(254,204,54,.9);
+            border-radius:10px;
+            white-space:nowrap;
+            background:#FECC36;
+            color:#173f78;
+            font-weight:800;
+            box-shadow:0 5px 14px rgba(15,40,82,.18);
+        }
+        .ems-primary-action:hover,
+        .ems-primary-action:focus{
+            border-color:#f2bd1c;
+            background:#f8c526;
+            color:#173f78;
+        }
+        .ems-search-button{
+            min-height:44px;
+            padding:10px 18px;
+            border:1px solid rgba(255,255,255,.75);
+            border-radius:10px;
+            background:#fff;
+            color:#20539A;
+            font-weight:800;
+            box-shadow:0 3px 8px rgba(10,31,68,.08);
+        }
+        .ems-search-button:hover,
+        .ems-search-button:focus{
+            border-color:#FECC36;
+            background:#fff9e6;
+            color:#173f78;
+        }
+        .ems-header-back{
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            gap:8px;
+            min-height:42px;
+            padding:9px 14px;
+            border:1px solid rgba(255,255,255,.75);
+            border-radius:10px;
+            background:#fff;
+            color:#20539A;
+            font-size:12px;
+            font-weight:800;
+            text-decoration:none;
+        }
+        .ems-header-back:hover,
+        .ems-header-back:focus{
+            border-color:#FECC36;
+            background:#fff9e6;
+            color:#173f78;
+            text-decoration:none;
         }
         .header-app.is-almacen .header-primary-action{
             flex:0 0 auto;
@@ -620,6 +809,9 @@
                 max-width:none;
                 justify-content:stretch;
             }
+            .ems-action-groups:not(.ems-action-groups--compact){
+                grid-template-columns:repeat(2, minmax(0, 1fr));
+            }
             .header-app.is-almacen .header-search-cluster{ width:100%; }
             .header-app.is-almacen .header-search-form{ min-width:0; width:100%; }
             .header-app.is-ventanilla .header-search-cluster{ width:100%; }
@@ -662,6 +854,29 @@
             }
             .header-app.is-almacen .header-search-form{
                 min-width:0;
+                width:100%;
+            }
+            .header-app.is-almacen .header-search-cluster{
+                grid-template-columns:1fr;
+                gap:9px;
+            }
+            .ems-action-groups{
+                grid-template-columns:1fr;
+                gap:9px;
+            }
+            .ems-action-group{
+                padding:12px;
+            }
+            .ems-action-list{
+                display:grid;
+                grid-template-columns:1fr;
+            }
+            .ems-action-button{
+                width:100%;
+            }
+            .ems-primary-action,
+            .ems-search-button,
+            .ems-header-back{
                 width:100%;
             }
             .header-actions-group > .btn,
@@ -1108,8 +1323,8 @@
                     @if ($this->isCreateEms)
                         <div class="header-create-side">
                             <div class="header-tool-actions">
-                                <a class="btn btn-outline-light2" href="{{ route('paquetes-ems.index') }}">
-                                    Volver a Paquetes EMS
+                                <a class="ems-header-back" href="{{ route('paquetes-ems.index') }}">
+                                    <i class="fas fa-arrow-left" aria-hidden="true"></i> Volver a Paquetes EMS
                                 </a>
                             </div>
                             <div class="header-preregistro">
@@ -1140,10 +1355,14 @@
                                         wire:model.defer="search"
                                         wire:keydown.enter.prevent="searchPaquetes(true)"
                                     >
-                                    <button class="btn btn-outline-light2" type="button" wire:click="searchPaquetes(true)">Buscar</button>
+                                    <button class="btn ems-search-button" type="button" wire:click="searchPaquetes(true)">
+                                        <i class="fas fa-search mr-1" aria-hidden="true"></i> Buscar
+                                    </button>
                                 </div>
                                 @if ($this->isAlmacenEms && $canEmsCreate && $canEmsCreateRoute)
-                                    <button class="btn btn-dorado" type="button" wire:click="openEnvioOficialModal">GENERAR ENVIO OFICIAL</button>
+                                    <button class="btn ems-primary-action" type="button" wire:click="openEnvioOficialModal">
+                                        <i class="fas fa-file-signature mr-1" aria-hidden="true"></i> Generar envío oficial
+                                    </button>
                                 @endif
                             </div>
                         </div>
@@ -1162,107 +1381,189 @@
                                     @endforeach
                                 </select>
                                 @if ($filtroOrigenTransito !== '' || $filtroDestinoTransito !== '' || $searchQuery !== '')
-                                    <button class="btn btn-outline-light2" type="button" wire:click="limpiarFiltrosTransito">Limpiar</button>
+                                    <button class="btn ems-search-button" type="button" wire:click="limpiarFiltrosTransito">
+                                        <i class="fas fa-eraser mr-1" aria-hidden="true"></i> Limpiar
+                                    </button>
                                 @endif
                             @endif
                             @if (!$this->isAlmacenEms && ((($this->isAdmision && $canEmsAdmisionCreate) || ($this->isAlmacenEms && $canEmsCreate)) && $canEmsCreateRoute) && \App\Support\ServiceAvailability::isEnabled('ems'))
                                 <div class="header-primary-action">
-                                    <button class="btn btn-dorado" type="button" wire:click="openCreateModal">Nuevo</button>
+                                    <button class="btn ems-primary-action" type="button" wire:click="openCreateModal">
+                                        <i class="fas fa-plus mr-1" aria-hidden="true"></i> Nuevo
+                                    </button>
                                 </div>
                             @endif
-                            <div class="header-actions-group">
-                                @if ($this->isAdmision)
-                                    @if ($canEmsAssign)
-                                    <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosGeneradosHoy">
-                                        GENERADOS EL DIA DE HOY
-                                    </button>
+                            @if ($this->isAlmacenEms)
+                                <div class="ems-action-groups">
+                                    @if ($canEmsRegisterContract || $canEmsWeighContract || $canEmsWeighTiktoker)
+                                        <section class="ems-action-group" aria-labelledby="warehouseIngresoHeading">
+                                            <div class="ems-action-heading">
+                                                <span class="ems-action-heading-icon" aria-hidden="true"><i class="fas fa-box-open"></i></span>
+                                                <span>
+                                                    <strong id="warehouseIngresoHeading">Ingreso y peso</strong>
+                                                    <small>Contratos y registro de peso</small>
+                                                </span>
+                                            </div>
+                                            <div class="ems-action-list">
+                                                @if ($canEmsRegisterContract)
+                                                    <a class="ems-action-button" href="{{ route('paquetes-ems.contrato-rapido.create') }}" target="_blank" rel="noopener">
+                                                        <i class="fas fa-file-contract" aria-hidden="true"></i> Registrar contrato
+                                                    </a>
+                                                @endif
+                                                @if ($canEmsWeighContract)
+                                                    <button class="ems-action-button" type="button" wire:click="openContratoPesoModal">
+                                                        <i class="fas fa-weight-hanging" aria-hidden="true"></i> Añadir peso al contrato
+                                                    </button>
+                                                @endif
+                                                @if ($canEmsWeighTiktoker)
+                                                    <button class="ems-action-button" type="button" wire:click="openTiktokerPesoModal">
+                                                        <i class="fas fa-boxes" aria-hidden="true"></i> Asignar peso a Delivery Express
+                                                    </button>
+                                                @endif
+                                            </div>
+                                        </section>
+                                    @endif
 
-                                    <button class="btn btn-outline-light2" type="button" wire:click="mandarSeleccionadosSinFiltroFecha">
-                                        Mandar seleccionados
-                                    </button>
+                                    @if ($canEmsSendVentanilla || $canEmsSendRegional)
+                                        <section class="ems-action-group" aria-labelledby="warehouseDespachoHeading">
+                                            <div class="ems-action-heading">
+                                                <span class="ems-action-heading-icon" aria-hidden="true"><i class="fas fa-shipping-fast"></i></span>
+                                                <span>
+                                                    <strong id="warehouseDespachoHeading">Despacho</strong>
+                                                    <small>Enviar a ventanilla o regional</small>
+                                                </span>
+                                            </div>
+                                            <div class="ems-action-list">
+                                                @if ($canEmsSendVentanilla)
+                                                    <button class="ems-action-button" type="button" wire:click="openVentanillaPesoModal">
+                                                        <i class="fas fa-store" aria-hidden="true"></i> Enviar a ventanilla EMS
+                                                    </button>
+                                                @endif
+                                                @if ($canEmsSendRegional)
+                                                    <button class="ems-action-button" type="button" wire:click="toggleCn33Assign">
+                                                        <i class="fas fa-list-ol" aria-hidden="true"></i> Añadir a CN-33
+                                                    </button>
+                                                    <button class="ems-action-button ems-action-button--primary" type="button" wire:click="openRegionalModal">
+                                                        <i class="fas fa-truck" aria-hidden="true"></i> Enviar a regional
+                                                    </button>
+                                                @endif
+                                            </div>
+                                        </section>
                                     @endif
-                                @elseif ($this->isAlmacenEms)
-                                    @if ($canEmsRegisterContract)
-                                    <a class="btn btn-outline-light2" href="{{ route('paquetes-ems.contrato-rapido.create') }}" target="_blank" rel="noopener">
-                                        Registrar contrato
-                                    </a>
+
+                                    @if ($canEmsRestore || $canEmsReprintCn33)
+                                        <section class="ems-action-group" aria-labelledby="warehouseDocumentosHeading">
+                                            <div class="ems-action-heading">
+                                                <span class="ems-action-heading-icon" aria-hidden="true"><i class="fas fa-folder-open"></i></span>
+                                                <span>
+                                                    <strong id="warehouseDocumentosHeading">Documentos y control</strong>
+                                                    <small>Manifiestos, factura y bajas</small>
+                                                </span>
+                                            </div>
+                                            <div class="ems-action-list">
+                                                @if ($canEmsReprintCn33)
+                                                    <button class="ems-action-button" type="button" wire:click="toggleCn33Reprint">
+                                                        <i class="fas fa-print" aria-hidden="true"></i> Reimprimir CN-33
+                                                    </button>
+                                                    <button class="ems-action-button" type="button" wire:click="toggleCn38Generate">
+                                                        <i class="fas fa-file-invoice-dollar" aria-hidden="true"></i> Factura BOA
+                                                    </button>
+                                                @endif
+                                                @if ($canEmsRestore)
+                                                    <button
+                                                        class="ems-action-button ems-action-button--danger"
+                                                        type="button"
+                                                        wire:click="darDeBajaOficialSeleccionados"
+                                                        onclick="return confirm('Solo se daran de baja envios OFICIAL seleccionados. Deseas continuar?')"
+                                                    >
+                                                        <i class="fas fa-ban" aria-hidden="true"></i> Dar de baja oficial
+                                                    </button>
+                                                @endif
+                                            </div>
+                                        </section>
                                     @endif
-                                    @if ($canEmsWeighContract)
-                                    <button class="btn btn-outline-light2" type="button" wire:click="openContratoPesoModal">
-                                        Anadir peso contrato
-                                    </button>
-                                    @endif
-                                    @if ($canEmsWeighTiktoker)
-                                    <button class="btn btn-outline-light2" type="button" wire:click="openTiktokerPesoModal">
-                                        Asignar peso a Delivery Express
-                                    </button>
-                                    @endif
-                                    @if ($canEmsSendVentanilla)
-                                    <button class="btn btn-outline-light2" type="button" wire:click="openVentanillaPesoModal">
-                                        Enviar a ventanilla EMS
-                                    </button>
-                                    @endif
-                                    @if ($canEmsSendRegional)
-                                    <button class="btn btn-outline-light2" type="button" wire:click="toggleCn33Assign">
-                                        Anadir a CN-33
-                                    </button>
-                                    @endif
-                                    @if ($canEmsSendRegional)
-                                    <button class="btn btn-outline-light2" type="button" wire:click="openRegionalModal">
-                                        Manda a regional
-                                    </button>
-                                    @endif
-                                    @if ($canEmsRestore)
-                                    <button
-                                        class="btn btn-outline-light2"
-                                        type="button"
-                                        wire:click="darDeBajaOficialSeleccionados"
-                                        onclick="return confirm('Solo se daran de baja envios OFICIAL seleccionados. Deseas continuar?')"
-                                    >
-                                        Dar de baja oficial
-                                    </button>
-                                    @endif
-                                    @if ($canEmsReprintCn33)
-                                    <button class="btn btn-outline-light2" type="button" wire:click="toggleCn33Reprint">
-                                        Reimprimir CN-33
-                                    </button>
-                                    @endif
-                                    @if ($canEmsReprintCn33)
-                                    <button class="btn btn-outline-light2" type="button" wire:click="toggleCn38Generate">
-                                        Factura BOA
-                                    </button>
-                                    @endif
-                                @elseif ($this->isVentanillaEms)
-                                    @if ($canEmsDeliver)
-                                    <button class="btn btn-outline-light2" type="button" wire:click="openEntregaVentanillaModal">
-                                        Entregar seleccionados
-                                    </button>
-                                    <button
-                                        class="btn btn-outline-light2"
-                                        type="button"
-                                        wire:click="devolverSeleccionadosVentanillaAEstadoAnterior"
-                                        onclick="return confirm('Seguro que deseas devolver los seleccionados al estado anterior (ALMACEN o RECIBIDO)?')"
-                                    >
-                                        Devolver a almacen
-                                    </button>
-                                    @endif
-                                @elseif ($this->isDevolucionEms)
-                                    @if ($canEmsDeliver)
-                                    <button class="btn btn-outline-light2" type="button" wire:click="openDevolucionEmsModal">
-                                        Devolver seleccionados
-                                    </button>
-                                    @endif
-                                @elseif ($this->isTransitoEms)
-                                    @if ($canEmsAssign)
-                                    <button class="btn btn-outline-light2" type="button" wire:click="toggleRecibirRegionalCn33Input">
-                                        Recibir todos del CN-33
-                                    </button>
-                                    <button class="btn btn-outline-light2" type="button" wire:click="openRecibirRegionalModal">
-                                        Recibir
-                                    </button>
-                                    @endif
+                                </div>
+                            @else
+                                @if (($this->isAdmision && $canEmsAssign) || (($this->isVentanillaEms || $this->isDevolucionEms) && $canEmsDeliver) || ($this->isTransitoEms && $canEmsAssign))
+                                    <div class="ems-action-groups ems-action-groups--compact">
+                                        @if ($this->isAdmision && $canEmsAssign)
+                                            <section class="ems-action-group" aria-labelledby="emsAdmisionActionsHeading">
+                                                <div class="ems-action-heading">
+                                                    <span class="ems-action-heading-icon" aria-hidden="true"><i class="fas fa-boxes"></i></span>
+                                                    <span>
+                                                        <strong id="emsAdmisionActionsHeading">Despacho</strong>
+                                                        <small>Enviar paquetes admitidos</small>
+                                                    </span>
+                                                </div>
+                                                <div class="ems-action-list">
+                                                    <button class="ems-action-button ems-action-button--primary" type="button" wire:click="mandarSeleccionadosGeneradosHoy">
+                                                        <i class="fas fa-calendar-day" aria-hidden="true"></i> Generados el día de hoy
+                                                    </button>
+                                                    <button class="ems-action-button" type="button" wire:click="mandarSeleccionadosSinFiltroFecha">
+                                                        <i class="fas fa-paper-plane" aria-hidden="true"></i> Mandar seleccionados
+                                                    </button>
+                                                </div>
+                                            </section>
+                                        @elseif ($this->isVentanillaEms && $canEmsDeliver)
+                                            <section class="ems-action-group" aria-labelledby="emsVentanillaActionsHeading">
+                                                <div class="ems-action-heading">
+                                                    <span class="ems-action-heading-icon" aria-hidden="true"><i class="fas fa-store"></i></span>
+                                                    <span>
+                                                        <strong id="emsVentanillaActionsHeading">Ventanilla EMS</strong>
+                                                        <small>Entregar o devolver envíos</small>
+                                                    </span>
+                                                </div>
+                                                <div class="ems-action-list">
+                                                    <button class="ems-action-button ems-action-button--primary" type="button" wire:click="openEntregaVentanillaModal">
+                                                        <i class="fas fa-box" aria-hidden="true"></i> Entregar seleccionados
+                                                    </button>
+                                                    <button
+                                                        class="ems-action-button"
+                                                        type="button"
+                                                        wire:click="devolverSeleccionadosVentanillaAEstadoAnterior"
+                                                        onclick="return confirm('Seguro que deseas devolver los seleccionados al estado anterior (ALMACEN o RECIBIDO)?')"
+                                                    >
+                                                        <i class="fas fa-undo" aria-hidden="true"></i> Devolver a almacén
+                                                    </button>
+                                                </div>
+                                            </section>
+                                        @elseif ($this->isDevolucionEms && $canEmsDeliver)
+                                            <section class="ems-action-group" aria-labelledby="emsDevolucionActionsHeading">
+                                                <div class="ems-action-heading">
+                                                    <span class="ems-action-heading-icon" aria-hidden="true"><i class="fas fa-undo-alt"></i></span>
+                                                    <span>
+                                                        <strong id="emsDevolucionActionsHeading">Devoluciones</strong>
+                                                        <small>Registrar la devolución de envíos</small>
+                                                    </span>
+                                                </div>
+                                                <div class="ems-action-list">
+                                                    <button class="ems-action-button ems-action-button--primary" type="button" wire:click="openDevolucionEmsModal">
+                                                        <i class="fas fa-undo" aria-hidden="true"></i> Devolver seleccionados
+                                                    </button>
+                                                </div>
+                                            </section>
+                                        @elseif ($this->isTransitoEms && $canEmsAssign)
+                                            <section class="ems-action-group" aria-labelledby="emsRecepcionActionsHeading">
+                                                <div class="ems-action-heading">
+                                                    <span class="ems-action-heading-icon" aria-hidden="true"><i class="fas fa-truck-loading"></i></span>
+                                                    <span>
+                                                        <strong id="emsRecepcionActionsHeading">Recepción regional</strong>
+                                                        <small>Registrar paquetes recibidos</small>
+                                                    </span>
+                                                </div>
+                                                <div class="ems-action-list">
+                                                    <button class="ems-action-button" type="button" wire:click="toggleRecibirRegionalCn33Input">
+                                                        <i class="fas fa-list-ol" aria-hidden="true"></i> Recibir todos del CN-33
+                                                    </button>
+                                                    <button class="ems-action-button ems-action-button--primary" type="button" wire:click="openRecibirRegionalModal">
+                                                        <i class="fas fa-check" aria-hidden="true"></i> Recibir
+                                                    </button>
+                                                </div>
+                                            </section>
+                                        @endif
+                                    </div>
                                 @endif
-                            </div>
+                            @endif
                         </div>
                     @endif
                 </div>

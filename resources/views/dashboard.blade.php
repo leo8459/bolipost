@@ -1615,43 +1615,89 @@
                 const fromInput = modal.querySelector('[data-pending-filter-from]');
                 const toInput = modal.querySelector('[data-pending-filter-to]');
                 const moduleSelect = modal.querySelector('[data-pending-filter-module]');
-                const stateInput = modal.querySelector('[data-pending-filter-state]');
+                const companySelect = modal.querySelector('[data-pending-filter-company]');
                 const searchButton = modal.querySelector('[data-pending-filter-search]');
                 const clearButton = modal.querySelector('[data-pending-filter-clear]');
                 const countLabel = modal.querySelector('[data-pending-filter-count]');
                 const emptyFilterRow = modal.querySelector('[data-pending-empty-filter]');
                 const rows = Array.from(modal.querySelectorAll('[data-pending-row]'));
+                const summaryTotal = modal.querySelector('[data-pending-summary-total]');
+                const summaryModules = Array.from(modal.querySelectorAll('[data-pending-summary-module]'));
 
                 if (!rows.length) {
                     return;
                 }
 
                 const formatCount = (value) => Number(value).toLocaleString('es-BO');
+                const packageRowsByGroup = rows.map((row) => {
+                    const detailsId = (row.getAttribute('data-pending-details-target') || '').replace(/^#/, '');
+                    const detailsModal = detailsId ? document.getElementById(detailsId) : null;
+                    return {
+                        row,
+                        detailsModal,
+                        packageRows: detailsModal ? Array.from(detailsModal.querySelectorAll('[data-pending-package]')) : [],
+                    };
+                });
 
                 const applyFilters = () => {
                     const from = fromInput?.value || '';
                     const to = toInput?.value || '';
-                    const module = moduleSelect?.value || '';
-                    const state = (stateInput?.value || '').trim().toUpperCase();
+                    const module = (moduleSelect?.value || '').trim().toUpperCase();
+                    const company = (companySelect?.value || '').trim().toLocaleLowerCase('es');
                     let visibleCount = 0;
+                    let totalPackages = 0;
+                    const totalsByModule = {};
 
-                    rows.forEach((row) => {
-                        const rowDateMin = row.getAttribute('data-pending-date-min') || '';
-                        const rowDateMax = row.getAttribute('data-pending-date-max') || '';
-                        const rowModules = (row.getAttribute('data-pending-module') || '')
-                            .split(',')
-                            .map((value) => value.trim())
-                            .filter(Boolean);
-                        const rowState = (row.getAttribute('data-pending-state') || '').toUpperCase();
-                        const matchesFrom = !from || (rowDateMax && rowDateMax >= from);
-                        const matchesTo = !to || (rowDateMin && rowDateMin <= to);
-                        const matchesModule = !module || rowModules.includes(module);
-                        const matchesState = !state || rowState.includes(state);
-                        const isVisible = matchesFrom && matchesTo && matchesModule && matchesState;
+                    packageRowsByGroup.forEach(({ row, detailsModal, packageRows }) => {
+                        const groupTotals = {};
+                        let groupCount = 0;
 
+                        packageRows.forEach((packageRow) => {
+                            const packageDate = packageRow.getAttribute('data-pending-package-date') || '';
+                            const packageModule = (packageRow.getAttribute('data-pending-package-module') || '').trim().toUpperCase();
+                            const packageCompany = (packageRow.getAttribute('data-pending-package-company') || '').trim().toLocaleLowerCase('es');
+                            const matchesFrom = !from || (packageDate !== '' && packageDate >= from);
+                            const matchesTo = !to || (packageDate !== '' && packageDate <= to);
+                            const matchesModule = !module || packageModule === module;
+                            const matchesCompany = !company || packageCompany === company;
+                            const isVisible = matchesFrom && matchesTo && matchesModule && matchesCompany;
+
+                            packageRow.classList.toggle('d-none', !isVisible);
+                            if (isVisible) {
+                                groupCount += 1;
+                                groupTotals[packageModule] = (groupTotals[packageModule] || 0) + 1;
+                                totalsByModule[packageModule] = (totalsByModule[packageModule] || 0) + 1;
+                                totalPackages += 1;
+                            }
+                        });
+
+                        const isVisible = groupCount > 0;
                         row.classList.toggle('d-none', !isVisible);
                         if (isVisible) {
                             visibleCount += 1;
+                        }
+
+                        const moduleLabel = Object.keys(groupTotals)
+                            .sort((left, right) => left.localeCompare(right, 'es'))
+                            .map((name) => `${name}: ${formatCount(groupTotals[name])}`)
+                            .join(' | ') || '-';
+                        const groupTotalLabel = row.querySelector('[data-pending-total]');
+                        const groupModulesLabel = row.querySelector('[data-pending-modules-label]');
+                        if (groupTotalLabel) {
+                            groupTotalLabel.textContent = formatCount(groupCount);
+                        }
+                        if (groupModulesLabel) {
+                            groupModulesLabel.textContent = moduleLabel;
+                        }
+                        if (detailsModal) {
+                            const detailTotal = detailsModal.querySelector('[data-pending-detail-total]');
+                            const detailModules = detailsModal.querySelector('[data-pending-detail-modules]');
+                            if (detailTotal) {
+                                detailTotal.textContent = formatCount(groupCount);
+                            }
+                            if (detailModules) {
+                                detailModules.textContent = moduleLabel;
+                            }
                         }
                     });
 
@@ -1661,6 +1707,13 @@
                     if (emptyFilterRow) {
                         emptyFilterRow.classList.toggle('d-none', visibleCount > 0);
                     }
+                    if (summaryTotal) {
+                        summaryTotal.textContent = formatCount(totalPackages);
+                    }
+                    summaryModules.forEach((element) => {
+                        const moduleName = (element.getAttribute('data-pending-summary-module') || '').trim().toUpperCase();
+                        element.textContent = formatCount(totalsByModule[moduleName] || 0);
+                    });
                 };
 
                 const clearFilters = () => {
@@ -1673,15 +1726,15 @@
                     if (moduleSelect) {
                         moduleSelect.value = '';
                     }
-                    if (stateInput) {
-                        stateInput.value = '';
+                    if (companySelect) {
+                        companySelect.value = '';
                     }
                     applyFilters();
                 };
 
                 searchButton?.addEventListener('click', applyFilters);
                 clearButton?.addEventListener('click', clearFilters);
-                [fromInput, toInput, moduleSelect, stateInput].forEach((control) => {
+                [fromInput, toInput, moduleSelect, companySelect].forEach((control) => {
                     control?.addEventListener('keydown', (event) => {
                         if (event.key === 'Enter') {
                             event.preventDefault();

@@ -134,9 +134,9 @@
                             </select>
                             <small id="forma-pago-ayuda" class="form-text text-muted" aria-live="polite">Elige d&oacute;nde se realizar&aacute; el pago.</small>
                         </div>
-                        <div class="col-md-6 form-group mb-0">
-                            <label for="tipo_pago">Tipo de pago <span class="text-danger" aria-hidden="true">*</span></label>
-                            <select name="tipo_pago" id="tipo_pago" required class="form-control">
+                        <div id="tipo-pago-container" class="col-md-6 form-group mb-0" @if(old('forma_pago') !== 'origen') hidden @endif>
+                            <label for="tipo_pago">Tipo de pago <span id="tipo-pago-obligatorio" class="text-danger" aria-hidden="true" @if(old('forma_pago') !== 'origen') hidden @endif>*</span></label>
+                            <select name="tipo_pago" id="tipo_pago" @required(old('forma_pago') === 'origen') @disabled(old('forma_pago') !== 'origen') class="form-control">
                                 <option value="">Selecciona una opci&oacute;n...</option>
                                 <option value="qr" @selected(old('tipo_pago') === 'qr')>QR</option>
                                 <option value="efectivo" @selected(old('tipo_pago') === 'efectivo')>Efectivo</option>
@@ -261,8 +261,8 @@
                             <input type="text" id="nombre_destinatario" name="nombre_destinatario" required value="{{ old('nombre_destinatario') }}" class="form-control">
                         </div>
                         <div class="col-md-6 form-group">
-                            <label for="telefono_destinatario">Tel&eacute;fono <small class="text-muted font-weight-normal">(opcional)</small></label>
-                            <input type="text" id="telefono_destinatario" name="telefono_destinatario" value="{{ old('telefono_destinatario') }}" class="form-control">
+                            <label for="telefono_destinatario">Tel&eacute;fono <span class="text-danger" aria-hidden="true">*</span></label>
+                            <input type="text" id="telefono_destinatario" name="telefono_destinatario" required value="{{ old('telefono_destinatario') }}" class="form-control">
                         </div>
                         <div class="col-md-12 form-group mb-0">
                             <label for="direccion_entrega">Direcci&oacute;n de entrega <span class="text-danger" aria-hidden="true">*</span></label>
@@ -461,6 +461,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const destinoSelect = document.getElementById('destino_id');
     const formaPagoSelect = document.getElementById('forma_pago');
     const tipoPagoSelect = document.getElementById('tipo_pago');
+    const tipoPagoContainer = document.getElementById('tipo-pago-container');
+    const tipoPagoObligatorio = document.getElementById('tipo-pago-obligatorio');
     const billingPanel = document.getElementById('datos-facturacion-qr');
     const billingDocumentNumber = document.getElementById('numero_documento');
     const billingDocumentComplement = document.getElementById('complemento_documento');
@@ -561,17 +563,19 @@ document.addEventListener('DOMContentLoaded', function () {
 
     ['servicio_extra_id', 'origen', 'destino_id', 'cantidad', 'contenido',
         'nombre_remitente', 'carnet', 'direccion_recojo', 'nombre_destinatario',
-        'direccion_entrega'].forEach(name => {
+        'telefono_destinatario', 'direccion_entrega'].forEach(name => {
         form.elements.namedItem(name).required = true;
     });
 
     function mostrarResumen() {
         const container = document.getElementById('resumen-solicitud-datos');
         container.replaceChildren();
+        const camposServicio = [['Servicio', 'servicio_extra_id'], ['Origen', 'origen'],
+            ['Destino', 'destino_id'], ['Cantidad', 'cantidad'], ['Contenido', 'contenido'],
+            ['Forma de pago', 'forma_pago']];
+        if (formaPagoSelect.value === 'origen') camposServicio.push(['Tipo de pago', 'tipo_pago']);
         const sections = [
-            ['Datos del servicio', [['Servicio', 'servicio_extra_id'], ['Origen', 'origen'],
-                ['Destino', 'destino_id'], ['Cantidad', 'cantidad'], ['Contenido', 'contenido'],
-                ['Forma de pago', 'forma_pago'], ['Tipo de pago', 'tipo_pago']]],
+            ['Datos del servicio', camposServicio],
             ['Datos del remitente', [['Nombre', 'nombre_remitente'], ['Carnet', 'carnet'],
                 ['Teléfono', 'telefono_remitente'], ['Dirección de recojo', 'direccion_recojo']]],
             ['Datos del destinatario', [['Nombre', 'nombre_destinatario'],
@@ -612,15 +616,18 @@ document.addEventListener('DOMContentLoaded', function () {
         });
         document.getElementById('resumen-solicitud-precio').textContent = precioSolicitud.textContent;
 
-        const pagaConQr = tipoPagoSelect.value === 'qr';
+        const pagaEnDestino = formaPagoSelect.value === 'destino';
+        const pagaConQr = !pagaEnDestino && tipoPagoSelect.value === 'qr';
         const pagoTitulo = document.getElementById('resumen-solicitud-pago-titulo');
         const pagoDetalle = document.getElementById('resumen-solicitud-pago-detalle');
         const pagoResumen = document.getElementById('resumen-solicitud-pago');
-        pagoResumen.className = `alert ${pagaConQr ? 'alert-primary' : 'alert-warning'}`;
-        pagoTitulo.textContent = pagaConQr ? 'Pago por QR' : 'Pago en efectivo';
+        pagoResumen.className = `alert ${pagaConQr ? 'alert-primary' : (pagaEnDestino ? 'alert-info' : 'alert-warning')}`;
+        pagoTitulo.textContent = pagaEnDestino ? 'Pagar en destino' : (pagaConQr ? 'Pago por QR' : 'Pago en efectivo');
         pagoDetalle.textContent = pagaConQr
             ? 'Se generará un QR. La solicitud y la guía se registrarán cuando se confirme el pago.'
-            : 'La solicitud se registrará ahora y la guía indicará cobrar en origen.';
+            : (pagaEnDestino
+                ? 'La solicitud se registrará ahora para que el pago se realice en destino.'
+                : 'La solicitud se registrará ahora y la guía indicará cobrar en origen.');
         document.getElementById('resumen-solicitud-instruccion').textContent = pagaConQr
             ? 'Revisa el importe y los datos antes de generar el QR.'
             : 'Revisa los datos antes de registrar la solicitud.';
@@ -632,21 +639,25 @@ document.addEventListener('DOMContentLoaded', function () {
     function actualizarAyudaFormaPago() {
         const ayuda = document.getElementById('forma-pago-ayuda');
         const tipoAyuda = document.getElementById('tipo-pago-ayuda');
-        const pagaConQr = tipoPagoSelect.value === 'qr';
-        const pagaEnEfectivo = tipoPagoSelect.value === 'efectivo';
-        if (pagaEnEfectivo) formaPagoSelect.value = 'origen';
+        const pagaEnOrigen = formaPagoSelect.value === 'origen';
+        const pagaEnDestino = formaPagoSelect.value === 'destino';
+        if (!pagaEnOrigen) tipoPagoSelect.value = '';
+        tipoPagoContainer.hidden = !pagaEnOrigen;
+        tipoPagoObligatorio.hidden = !pagaEnOrigen;
+        tipoPagoSelect.required = pagaEnOrigen;
+        tipoPagoSelect.disabled = !pagaEnOrigen;
+        const pagaConQr = pagaEnOrigen && tipoPagoSelect.value === 'qr';
+        const pagaEnEfectivo = pagaEnOrigen && tipoPagoSelect.value === 'efectivo';
 
         billingPanel.hidden = !pagaConQr;
         [billingDocumentNumber, billingCompanyName, billingEmail].forEach(field => {
             field.required = pagaConQr;
         });
-        ayuda.textContent = pagaEnEfectivo
-            ? 'El efectivo se cobrará en origen.'
-            : formaPagoSelect.value === 'destino'
-                ? 'El envío se pagará en destino.'
-                : formaPagoSelect.value === 'origen'
-                    ? 'El pago se registrará en origen.'
-                    : 'Elige dónde se realizará el pago.';
+        ayuda.textContent = pagaEnDestino
+            ? 'El envío se pagará en destino.'
+            : pagaEnOrigen
+                ? (pagaEnEfectivo ? 'El efectivo se cobrará en origen.' : 'Elige cómo realizarás el pago en origen.')
+                : 'Elige dónde se realizará el pago.';
         tipoAyuda.textContent = pagaConQr
             ? 'Se generará un QR y la guía se creará al confirmarse el pago.'
             : pagaEnEfectivo
@@ -976,7 +987,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }, true);
 
     confirmarSolicitudButton.addEventListener('click', function () {
-        if (tipoPagoSelect.value !== 'efectivo' || solicitudRegistrada || generandoQr) return;
+        const registrarDirectamente = formaPagoSelect.value === 'destino'
+            || (formaPagoSelect.value === 'origen' && tipoPagoSelect.value === 'efectivo');
+        if (!registrarDirectamente || solicitudRegistrada || generandoQr) return;
         if (!validarTodosLosPasos()) return;
         HTMLFormElement.prototype.submit.call(form);
     });

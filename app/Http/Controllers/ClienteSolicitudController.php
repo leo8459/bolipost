@@ -191,14 +191,14 @@ class ClienteSolicitudController extends Controller
             'carnet' => ['required', 'string', 'max:255'],
             'telefono_remitente' => ['nullable', 'string', 'max:50'],
             'nombre_destinatario' => ['required', 'string', 'max:255'],
-            'telefono_destinatario' => ['nullable', 'string', 'max:50'],
+            'telefono_destinatario' => ['required', 'string', 'max:50'],
             'direccion_recojo' => ['required', 'string', 'max:255'],
             'direccion_entrega' => ['required', 'string', 'max:255'],
             'forma_pago' => ['required', 'in:origen,destino'],
-            'tipo_pago' => ['required', 'in:qr,efectivo'],
+            'tipo_pago' => ['nullable', 'required_if:forma_pago,origen', 'prohibited_unless:forma_pago,origen', 'in:qr,efectivo'],
         ]);
 
-        if ($data['tipo_pago'] === 'qr') {
+        if (($data['tipo_pago'] ?? null) === 'qr') {
             $message = 'Para pagar con QR, confirma la solicitud desde el formulario para generar el codigo y esperar la confirmacion del pago.';
             if ($request->expectsJson()) {
                 return response()->json(['message' => $message], 422);
@@ -208,7 +208,9 @@ class ClienteSolicitudController extends Controller
         }
 
         // El efectivo de Delivery Express se cobra al remitente en origen.
-        $data['forma_pago'] = 'origen';
+        if (($data['tipo_pago'] ?? null) === 'efectivo') {
+            $data['forma_pago'] = 'origen';
+        }
 
         try {
             $solicitud = $this->persistirSolicitud($cliente, $data);
@@ -1199,7 +1201,7 @@ class ClienteSolicitudController extends Controller
             'carnet' => ['required', 'string', 'max:255'],
             'telefono_remitente' => ['nullable', 'string', 'max:50'],
             'nombre_destinatario' => ['required', 'string', 'max:255'],
-            'telefono_destinatario' => ['nullable', 'string', 'max:50'],
+            'telefono_destinatario' => ['required', 'string', 'max:50'],
             'direccion_recojo' => ['required', 'string', 'max:255'],
             'direccion_entrega' => ['required', 'string', 'max:255'],
         ]);

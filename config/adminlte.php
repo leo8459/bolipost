@@ -1423,11 +1423,6 @@ $config = [
 
                     'icon' => 'fas fa-file-alt',
                 ],
-                [
-                    'text' => 'Respaldos',
-                    'url' => '/respaldos',
-                    'icon' => 'fas fa-save',
-                ],
             ],
         ],
     ],
