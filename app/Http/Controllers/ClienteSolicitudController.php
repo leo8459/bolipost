@@ -582,51 +582,6 @@ class ClienteSolicitudController extends Controller
             }
         }
 
-        $invoiceAlreadyProcessing = in_array($invoiceStatus, [
-            'FACTURADA', 'PENDIENTE', 'PROCESADA', 'EMITIENDO', 'EMISION_INCIERTA',
-        ], true);
-        $invoiceCanBeStarted = in_array($invoiceStatus, [
-            '', 'NO_APLICA', 'ERROR', 'RECHAZADA', 'ANULADA', 'ANULACION_OBSERVADA',
-        ], true);
-        $invoiceRetryKey = 'cliente-online-qr-invoice-retry:'.$cartId;
-        $retryDeferred = $paymentStatus === 'pagado'
-            && in_array($invoiceStatus, ['ERROR', 'RECHAZADA'], true)
-            && !Cache::add($invoiceRetryKey, true, now()->addMinutes(5));
-
-        if ($paymentStatus === 'pagado' && !$invoiceAlreadyProcessing && $invoiceCanBeStarted && !$retryDeferred) {
-            $invoiceLock = Cache::lock('cliente-online-qr-invoice:'.$cartId, 120);
-            if (!$invoiceLock->get()) {
-                $invoiceStatus = 'EMITIENDO';
-                $invoiceError = 'La factura está siendo procesada. Se actualizará automáticamente.';
-            } else {
-                try {
-                    $invoice = $facturacion->emitirFacturaQrPagada($cliente, $cartId);
-                    $payment = $invoice;
-                    $cart = is_array($invoice['cart'] ?? null) ? $invoice['cart'] : $cart;
-                    $invoiceStatus = strtoupper(trim((string) ($invoice['invoice_status'] ?? $cart['estado_emision'] ?? 'PENDIENTE')));
-                    $invoiceNumber = trim((string) ($invoice['invoice_number'] ?? $cart['numero_factura'] ?? '')) ?: $invoiceNumber;
-                    if (in_array($invoiceStatus, ['ERROR', 'RECHAZADA'], true)) {
-                        Cache::put($invoiceRetryKey, true, now()->addMinutes(5));
-                    } else {
-                        Cache::forget($invoiceRetryKey);
-                    }
-                } catch (\Throwable $exception) {
-                        $invoiceError = 'La factura requiere revisión.';
-                    Log::error('Pago QR confirmado, pero fallo la solicitud de factura.', [
-                        'cliente_id' => $cliente->id,
-                        'facturacion_cart_id' => $cartId,
-                        'error' => $exception->getMessage(),
-                    ]);
-                    $invoiceStatus = 'ERROR';
-                    Cache::put($invoiceRetryKey, true, now()->addMinutes(5));
-                } finally {
-                    $invoiceLock->release();
-                }
-            }
-        } elseif ($retryDeferred) {
-            $invoiceError = 'La factura sigue en revisión. Se volverá a intentar automáticamente en unos minutos.';
-        }
-
         $solicitud = null;
         $mailWarning = null;
         if ($paymentStatus === 'pagado') {
@@ -663,6 +618,9 @@ class ClienteSolicitudController extends Controller
                     $solicitud = SolicitudCliente::query()
                         ->where('cliente_id', (int) $cliente->id)
                         ->find($solicitudId);
+                    if ($solicitud) {
+                        $facturacion->vincularSolicitudQr($cliente, $attemptId, $solicitud);
+                    }
                     $created = false;
                 } else {
                     $lock = Cache::lock('cliente-online-qr-register:'.$cliente->id.':'.$attemptId, 90);
@@ -693,6 +651,7 @@ class ClienteSolicitudController extends Controller
                                 ->find($latestSolicitudId);
                             $created = false;
                             if ($solicitud) {
+                                $facturacion->vincularSolicitudQr($cliente, $attemptId, $solicitud);
                                 Cache::forget($localRequestCacheKey);
                             }
                         } elseif ((int) Cache::get($localRequestCacheKey, 0) > 0
@@ -752,6 +711,52 @@ class ClienteSolicitudController extends Controller
                     'qr' => $qrStatusPayload,
                 ], 503);
             }
+        }
+
+        // Emit only after the paid QR cart has the definitive guide code linked.
+        $invoiceAlreadyProcessing = in_array($invoiceStatus, [
+            'FACTURADA', 'PENDIENTE', 'PROCESADA', 'EMITIENDO', 'EMISION_INCIERTA',
+        ], true);
+        $invoiceCanBeStarted = in_array($invoiceStatus, [
+            '', 'NO_APLICA', 'ERROR', 'RECHAZADA', 'ANULADA', 'ANULACION_OBSERVADA',
+        ], true);
+        $invoiceRetryKey = 'cliente-online-qr-invoice-retry:'.$cartId;
+        $retryDeferred = $paymentStatus === 'pagado'
+            && in_array($invoiceStatus, ['ERROR', 'RECHAZADA'], true)
+            && !Cache::add($invoiceRetryKey, true, now()->addMinutes(5));
+
+        if ($paymentStatus === 'pagado' && $solicitud && !$invoiceAlreadyProcessing && $invoiceCanBeStarted && !$retryDeferred) {
+            $invoiceLock = Cache::lock('cliente-online-qr-invoice:'.$cartId, 120);
+            if (!$invoiceLock->get()) {
+                $invoiceStatus = 'EMITIENDO';
+                $invoiceError = 'La factura está siendo procesada. Se actualizará automáticamente.';
+            } else {
+                try {
+                    $invoice = $facturacion->emitirFacturaQrPagada($cliente, $cartId);
+                    $payment = $invoice;
+                    $cart = is_array($invoice['cart'] ?? null) ? $invoice['cart'] : $cart;
+                    $invoiceStatus = strtoupper(trim((string) ($invoice['invoice_status'] ?? $cart['estado_emision'] ?? 'PENDIENTE')));
+                    $invoiceNumber = trim((string) ($invoice['invoice_number'] ?? $cart['numero_factura'] ?? '')) ?: $invoiceNumber;
+                    if (in_array($invoiceStatus, ['ERROR', 'RECHAZADA'], true)) {
+                        Cache::put($invoiceRetryKey, true, now()->addMinutes(5));
+                    } else {
+                        Cache::forget($invoiceRetryKey);
+                    }
+                } catch (\Throwable $exception) {
+                    $invoiceError = 'La factura requiere revisión.';
+                    Log::error('Pago QR confirmado, pero fallo la solicitud de factura.', [
+                        'cliente_id' => $cliente->id,
+                        'facturacion_cart_id' => $cartId,
+                        'error' => $exception->getMessage(),
+                    ]);
+                    $invoiceStatus = 'ERROR';
+                    Cache::put($invoiceRetryKey, true, now()->addMinutes(5));
+                } finally {
+                    $invoiceLock->release();
+                }
+            }
+        } elseif ($retryDeferred) {
+            $invoiceError = 'La factura sigue en revisión. Se volverá a intentar automáticamente en unos minutos.';
         }
 
         if ($paymentStatus === 'pagado'

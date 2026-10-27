@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\FacturacionScanConflictException;
+use App\Exceptions\FacturacionSolicitudConfirmationRequired;
 use App\Models\ConceptoFacturacion;
 use App\Models\PaqueteCerti;
 use App\Models\PaqueteInt;
@@ -822,7 +823,7 @@ class FacturacionCartService
         return $cart ?: throw new \RuntimeException('No se pudo guardar los paquetes internacionales en el carrito.');
     }
 
-    public function addScannedItemByCode(User $user, string $codigo, ?string $selectedType = null, ?int $selectedRecordId = null): array
+    public function addScannedItemByCode(User $user, string $codigo, ?string $selectedType = null, ?int $selectedRecordId = null, bool $confirmarReagregar = false): array
     {
         $this->assertFacturacionPermission($user);
 
@@ -979,7 +980,7 @@ class FacturacionCartService
             'certificado' => $this->addPaqueteCerti($user, $record),
             'interno' => $this->addPaqueteInt($user, $record),
             'ems' => $this->addPaqueteEms($user, $record),
-            'solicitud_ems' => $this->addSolicitudEms($user, $record),
+            'solicitud_ems' => $this->addSolicitudEms($user, $record, $confirmarReagregar),
             default => throw new \RuntimeException('El codigo escaneado no tiene un modulo compatible con Facturacion.'),
         };
         $cartItem = $this->findDraftItemByOrigin($cart, $record::class, (int) ($record->id ?? 0));
@@ -1034,7 +1035,7 @@ class FacturacionCartService
         });
     }
 
-    public function addSolicitudEms(User $user, SolicitudCliente $solicitud): object
+    public function addSolicitudEms(User $user, SolicitudCliente $solicitud, bool $confirmarReagregar = false): object
     {
         $this->assertFacturacionPermission($user);
 
@@ -1085,6 +1086,7 @@ class FacturacionCartService
                     'servicio_nombre' => $this->normalizeServicioAnalyticsNombre($nombreServicio),
                     'servicio_familia' => 'EMS',
                     'codigo_producto_fiscal' => (string) $fiscalData['codigo_producto'],
+                    'confirmar_reagregar' => $confirmarReagregar,
                 ])
             );
         }
@@ -1095,6 +1097,7 @@ class FacturacionCartService
             [
                 'origen_tipo' => SolicitudCliente::class,
                 'origen_id' => (int) $solicitud->id,
+                'confirmar_reagregar' => $confirmarReagregar,
                 'codigo' => (string) ($solicitud->codigo_solicitud ?? ''),
                 'titulo' => $tituloSolicitud,
                 'nombre_servicio' => $nombreServicioFacturacion,
@@ -2457,6 +2460,18 @@ class FacturacionCartService
                 'status' => $response->status(),
                 'body' => $body ?: trim((string) $response->body()),
             ]);
+            if (
+                $response->status() === 409
+                && is_array($body)
+                && (string) ($body['code'] ?? '') === 'solicitud_ya_pagada_o_facturada'
+                && !empty($body['requires_confirmation'])
+            ) {
+                throw new FacturacionSolicitudConfirmationRequired(
+                    (string) ($body['message'] ?? 'La solicitud ya tiene un pago o factura vinculada.'),
+                    (string) ($body['solicitud_codigo'] ?? ''),
+                    (array) ($body['existing'] ?? [])
+                );
+            }
             $msg = is_array($body)
                 ? (string) ($body['message'] ?? $body['mensaje'] ?? $this->firstValidationError($body) ?? 'Error remoto')
                 : trim((string) $response->body());

@@ -1374,6 +1374,40 @@
         </div>
     </div>
 
+    <div
+        class="global-shortcut-confirm"
+        id="facturacionPaidSolicitudModal"
+        aria-hidden="true"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="facturacionPaidSolicitudTitle"
+        aria-describedby="facturacionPaidSolicitudMessage"
+    >
+        <div class="global-shortcut-confirm__backdrop" data-close-facturacion-paid-solicitud="true"></div>
+        <div class="global-shortcut-confirm__panel" role="document">
+            <div class="global-shortcut-confirm__header">
+                <div class="global-shortcut-confirm__icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div class="global-shortcut-confirm__eyebrow">Verifica la venta existente</div>
+            </div>
+            <h4 id="facturacionPaidSolicitudTitle" class="global-shortcut-confirm__title">Solicitud ya pagada o facturada</h4>
+            <p id="facturacionPaidSolicitudMessage" class="global-shortcut-confirm__message"></p>
+            <div class="global-shortcut-confirm__note" id="facturacionPaidSolicitudExistingBox">
+                <span class="global-shortcut-confirm__note-label">Venta existente</span>
+                <p id="facturacionPaidSolicitudExisting"></p>
+            </div>
+            <div class="global-shortcut-confirm__actions">
+                <button type="button" class="global-shortcut-confirm__btn global-shortcut-confirm__btn--ghost" id="facturacionPaidSolicitudCancel">
+                    Cancelar
+                </button>
+                <button type="button" class="global-shortcut-confirm__btn global-shortcut-confirm__btn--danger" id="facturacionPaidSolicitudAccept">
+                    Agregar de todas formas
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div class="facturacion-result-modal" id="facturacionResultModal" aria-hidden="true" role="dialog" aria-modal="true">
         <div class="facturacion-result-modal__backdrop" data-close-facturacion-result="true"></div>
         <div class="facturacion-result-modal__panel" role="document">
@@ -5030,6 +5064,13 @@
             const facturacionScanSelectionMessage = document.getElementById('facturacionScanSelectionMessage');
             const facturacionScanSelectionList = document.getElementById('facturacionScanSelectionList');
             const facturacionScanSelectionCancel = document.getElementById('facturacionScanSelectionCancel');
+            const facturacionPaidSolicitudModal = document.getElementById('facturacionPaidSolicitudModal');
+            const facturacionPaidSolicitudTitle = document.getElementById('facturacionPaidSolicitudTitle');
+            const facturacionPaidSolicitudMessage = document.getElementById('facturacionPaidSolicitudMessage');
+            const facturacionPaidSolicitudExistingBox = document.getElementById('facturacionPaidSolicitudExistingBox');
+            const facturacionPaidSolicitudExisting = document.getElementById('facturacionPaidSolicitudExisting');
+            const facturacionPaidSolicitudCancel = document.getElementById('facturacionPaidSolicitudCancel');
+            const facturacionPaidSolicitudAccept = document.getElementById('facturacionPaidSolicitudAccept');
             const facturacionBillingInlineForm = document.getElementById('facturacionBillingInlineForm');
             const facturacionBillingModeInput = document.getElementById('facturacionBillingModeInput');
             const facturacionInvoiceChannelInput = document.getElementById('facturacionInvoiceChannelInput');
@@ -6399,6 +6440,11 @@
                     clearFacturacionScanSelection();
                 }
                 const formData = new FormData(form);
+                if (options.confirmDuplicate) {
+                    formData.set('confirmar_reagregar', '1');
+                } else {
+                    formData.delete('confirmar_reagregar');
+                }
                 const scanSubmitButton = form.querySelector('button[type="submit"]');
                 if (scanSubmitButton instanceof HTMLButtonElement) {
                     scanSubmitButton.dataset.originalText = scanSubmitButton.dataset.originalText || scanSubmitButton.textContent.trim();
@@ -6424,6 +6470,10 @@
                     if (!response.ok || !data || data.ok === false) {
                         if (response.status === 409 && data && data.requires_selection) {
                             openFacturacionScanSelectionModal(data);
+                            return;
+                        }
+                        if (response.status === 409 && data && data.requires_confirmation) {
+                            openFacturacionPaidSolicitudModal(data);
                             return;
                         }
 
@@ -9134,6 +9184,49 @@
                 facturacionScanSelectionModal.setAttribute('aria-hidden', 'true');
             };
 
+            const closeFacturacionPaidSolicitudModal = () => {
+                if (!facturacionPaidSolicitudModal) {
+                    return;
+                }
+
+                facturacionPaidSolicitudModal.classList.remove('is-open');
+                facturacionPaidSolicitudModal.setAttribute('aria-hidden', 'true');
+            };
+
+            const openFacturacionPaidSolicitudModal = (payload) => {
+                if (!facturacionPaidSolicitudModal) {
+                    return;
+                }
+
+                const feedback = payload && payload.feedback ? payload.feedback : {};
+                const existing = payload && payload.existing && typeof payload.existing === 'object' ? payload.existing : {};
+                if (facturacionPaidSolicitudTitle instanceof HTMLElement) {
+                    facturacionPaidSolicitudTitle.textContent = String(feedback.title || 'Solicitud ya pagada o facturada');
+                }
+                if (facturacionPaidSolicitudMessage instanceof HTMLElement) {
+                    facturacionPaidSolicitudMessage.textContent = String(feedback.message || 'Esta solicitud ya registra un pago o una factura. ¿Estás seguro de que deseas agregarla al carrito? Puedes continuar si confirmas.');
+                }
+
+                const existingDetails = [
+                    existing.codigo_orden ? 'Orden ' + String(existing.codigo_orden) : '',
+                    existing.numero_factura ? 'Factura ' + String(existing.numero_factura) : '',
+                    existing.estado_pago ? 'Pago: ' + String(existing.estado_pago) : '',
+                    existing.estado_emision ? 'Estado: ' + String(existing.estado_emision) : '',
+                ].filter(Boolean);
+                if (facturacionPaidSolicitudExisting instanceof HTMLElement) {
+                    facturacionPaidSolicitudExisting.textContent = existingDetails.join(' · ') || String(feedback.detail || 'Se encontró una venta anterior asociada a esta solicitud.');
+                }
+                if (facturacionPaidSolicitudExistingBox instanceof HTMLElement) {
+                    facturacionPaidSolicitudExistingBox.classList.toggle('is-hidden', existingDetails.length === 0 && !feedback.detail);
+                }
+
+                facturacionPaidSolicitudModal.classList.add('is-open');
+                facturacionPaidSolicitudModal.setAttribute('aria-hidden', 'false');
+                window.setTimeout(() => {
+                    facturacionPaidSolicitudAccept?.focus();
+                }, 30);
+            };
+
             const openFacturacionScanSelectionModal = (payload) => {
                 if (!facturacionScanSelectionModal || !facturacionScanSelectionList) {
                     return;
@@ -9550,12 +9643,37 @@
                 });
             }
 
+            if (facturacionPaidSolicitudCancel) {
+                facturacionPaidSolicitudCancel.addEventListener('click', closeFacturacionPaidSolicitudModal);
+            }
+
+            if (facturacionPaidSolicitudAccept) {
+                facturacionPaidSolicitudAccept.addEventListener('click', async function () {
+                    closeFacturacionPaidSolicitudModal();
+                    if (facturacionScanForm instanceof HTMLFormElement) {
+                        await submitFacturacionScanForm(facturacionScanForm, {
+                            preserveSelection: true,
+                            confirmDuplicate: true,
+                        });
+                    }
+                });
+            }
+
             if (facturacionScanSelectionModal) {
                 facturacionScanSelectionModal.addEventListener('click', function (event) {
                     const target = event.target;
                     if (target instanceof HTMLElement && target.dataset.closeFacturacionScanSelect === 'true') {
                         clearFacturacionScanSelection();
                         closeFacturacionScanSelectionModal();
+                    }
+                });
+            }
+
+            if (facturacionPaidSolicitudModal) {
+                facturacionPaidSolicitudModal.addEventListener('click', function (event) {
+                    const target = event.target;
+                    if (target instanceof HTMLElement && target.dataset.closeFacturacionPaidSolicitud === 'true') {
+                        closeFacturacionPaidSolicitudModal();
                     }
                 });
             }
@@ -10300,6 +10418,14 @@
                     }
                     clearFacturacionScanSelection();
                     closeFacturacionScanSelectionModal();
+                    return;
+                }
+
+                if (event.key === 'Escape' && facturacionPaidSolicitudModal && facturacionPaidSolicitudModal.classList.contains('is-open')) {
+                    if (isFacturacionSubmitting) {
+                        return;
+                    }
+                    closeFacturacionPaidSolicitudModal();
                     return;
                 }
 

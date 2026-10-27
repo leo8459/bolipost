@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Exceptions\FacturacionScanConflictException;
+use App\Exceptions\FacturacionSolicitudConfirmationRequired;
 use App\Models\ConceptoFacturacion;
 use App\Services\FacturacionCartService;
 use App\Services\FacturacionClienteFrecuenteService;
@@ -433,13 +434,15 @@ class FacturacionCartController extends Controller
                 'scan_code' => ['required', 'string', 'max:120'],
                 'selected_match_type' => ['nullable', 'string', 'in:contrato,ordinario,certificado,interno,ems,solicitud_ems'],
                 'selected_match_id' => ['nullable', 'integer', 'min:1'],
+                'confirmar_reagregar' => ['nullable', 'boolean'],
             ]);
 
             $resultado = $service->addScannedItemByCode(
                 $user,
                 (string) $validated['scan_code'],
                 isset($validated['selected_match_type']) ? (string) $validated['selected_match_type'] : null,
-                isset($validated['selected_match_id']) ? (int) $validated['selected_match_id'] : null
+                isset($validated['selected_match_id']) ? (int) $validated['selected_match_id'] : null,
+                (bool) ($validated['confirmar_reagregar'] ?? false)
             );
             $item = (array) ($resultado['item'] ?? []);
             $cart = $resultado['cart'] ?? null;
@@ -484,6 +487,34 @@ class FacturacionCartController extends Controller
             }
 
             throw $e;
+        } catch (FacturacionSolicitudConfirmationRequired $e) {
+            $existing = $e->existing();
+            $details = array_values(array_filter([
+                !empty($existing['codigo_orden']) ? 'Orden ' . trim((string) $existing['codigo_orden']) : null,
+                !empty($existing['numero_factura']) ? 'Factura ' . trim((string) $existing['numero_factura']) : null,
+            ]));
+            $feedback = [
+                'type' => 'warning',
+                'title' => 'Solicitud ya pagada o facturada',
+                'message' => 'La solicitud ' . ($e->solicitudCodigo() ?: trim((string) ($validated['scan_code'] ?? ''))) . ' ya registra un pago o una factura. ¿Estás seguro de que deseas agregarla al carrito? Puedes continuar si confirmas.',
+                'detail' => $details !== [] ? implode(' · ', $details) : trim($e->getMessage()),
+                'action' => 'scan_add_confirm_duplicate',
+            ];
+
+            if ($expectsJson) {
+                return response()->json([
+                    'ok' => false,
+                    'requires_confirmation' => true,
+                    'solicitud_codigo' => $e->solicitudCodigo(),
+                    'existing' => $existing,
+                    'feedback' => $feedback,
+                ], 409);
+            }
+
+            return back()
+                ->withInput()
+                ->with('facturacion_feedback', $feedback)
+                ->with('facturacion_scanner_open', true);
         } catch (FacturacionScanConflictException $e) {
             Log::warning('Escaneo con multiples coincidencias en facturacion.', [
                 'user_id' => $user?->id,
