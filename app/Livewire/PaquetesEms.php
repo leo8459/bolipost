@@ -3008,9 +3008,7 @@ class PaquetesEms extends Component
             return;
         }
         $this->ciudad = $this->normalizeDestinoNombre((string) $this->ciudad);
-        if ($this->precio_confirm !== null) {
-            $this->precio = $this->precio_confirm;
-        }
+        $this->precio_confirm = $this->precio;
 
         if ($this->isCreateEms && is_array($this->tarifario_snapshot)) {
             $this->tarifario_snapshot['precio_final'] = round((float) ($this->precio ?? 0), 2);

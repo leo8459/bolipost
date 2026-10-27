@@ -110,6 +110,7 @@ class ClienteSolicitudFacturacionService
                 'codigo_producto_fiscal' => $productCode,
                 'descripcion_servicio' => $fiscalDescription,
                 'unidad_medida' => 58,
+                'importe_facturado_snapshot' => round($amount, 2),
                 'servicio_extra_id' => (int) $servicio->id,
                 'destino_id' => (int) $destino->id,
                 'origen' => $originCity,

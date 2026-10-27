@@ -397,6 +397,8 @@
                                     data-edit-facturacion-item="true"
                                     data-focus-field="{{ $issue['field'] }}"
                                     data-item-id="{{ $issueItem->id }}"
+                                    data-item-origen-tipo="{{ (string) ($issueItem->origen_tipo ?? '') }}"
+                                    data-item-servicio-familia="{{ (string) data_get($issueItem->resumen_origen, 'servicio_familia', '') }}"
                                     data-item-codigo="{{ $issueItem->codigo }}"
                                     data-item-titulo="{{ $issueItem->titulo }}"
                                     data-item-servicio="{{ $issueItem->nombre_servicio }}"
@@ -667,6 +669,8 @@
                                         class="global-shortcut-link-btn"
                                         data-edit-facturacion-item="true"
                                         data-item-id="{{ $item->id }}"
+                                        data-item-origen-tipo="{{ (string) ($item->origen_tipo ?? '') }}"
+                                        data-item-servicio-familia="{{ (string) data_get($item->resumen_origen, 'servicio_familia', '') }}"
                                         data-item-codigo="{{ $item->codigo }}"
                                         data-item-titulo="{{ $item->titulo }}"
                                         data-item-servicio="{{ $item->nombre_servicio }}"
@@ -995,7 +999,7 @@
             </div>
             <h4 id="facturacionItemEditTitle" class="global-shortcut-confirm__title">Corregir item antes de reenviar</h4>
             <p class="global-shortcut-confirm__message" id="facturacionItemEditMessage">
-                Ajusta el codigo, el precio o la descripcion del item y guarda los cambios para volver a intentar la emision.
+                Ajusta los datos permitidos del item y guarda los cambios para volver a intentar la emision.
             </p>
             <form method="POST" action="" id="facturacionItemEditForm" class="global-shortcut-item-edit-form">
                 @csrf
@@ -1013,7 +1017,7 @@
                 <input type="hidden" id="facturacionEditItemCodigoProducto" name="codigo_producto">
                 <input type="hidden" id="facturacionEditItemUnidadMedida" name="unidad_medida">
                 <div class="facturacion-item-edit-hint is-hidden" id="facturacionItemEditSplitHint">
-                    Este item esta agrupado. Si cambias la cantidad a un valor menor que el total, separaremos esa parte en una nueva linea para que puedas darle otro detalle, precio o descripcion.
+                    Este item esta agrupado. Si cambias la cantidad a un valor menor que el total, separaremos esa parte en una nueva linea para que puedas corregir sus datos.
                 </div>
                 <div class="facturacion-item-edit-batch is-hidden" id="facturacionItemEditBatch"></div>
                 <div class="facturacion-item-edit-service-summary is-hidden" id="facturacionItemEditServiceSummary">
@@ -1369,6 +1373,40 @@
             <div class="global-shortcut-confirm__actions">
                 <button type="button" class="global-shortcut-confirm__btn global-shortcut-confirm__btn--ghost" id="facturacionScanSelectionCancel">
                     Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div
+        class="global-shortcut-confirm"
+        id="facturacionPaidSolicitudModal"
+        aria-hidden="true"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="facturacionPaidSolicitudTitle"
+        aria-describedby="facturacionPaidSolicitudMessage"
+    >
+        <div class="global-shortcut-confirm__backdrop" data-close-facturacion-paid-solicitud="true"></div>
+        <div class="global-shortcut-confirm__panel" role="document">
+            <div class="global-shortcut-confirm__header">
+                <div class="global-shortcut-confirm__icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div class="global-shortcut-confirm__eyebrow">Verifica la venta existente</div>
+            </div>
+            <h4 id="facturacionPaidSolicitudTitle" class="global-shortcut-confirm__title">Registro ya pagado o facturado</h4>
+            <p id="facturacionPaidSolicitudMessage" class="global-shortcut-confirm__message"></p>
+            <div class="global-shortcut-confirm__note" id="facturacionPaidSolicitudExistingBox">
+                <span class="global-shortcut-confirm__note-label">Venta existente</span>
+                <p id="facturacionPaidSolicitudExisting"></p>
+            </div>
+            <div class="global-shortcut-confirm__actions">
+                <button type="button" class="global-shortcut-confirm__btn global-shortcut-confirm__btn--ghost" id="facturacionPaidSolicitudCancel">
+                    Cancelar
+                </button>
+                <button type="button" class="global-shortcut-confirm__btn global-shortcut-confirm__btn--danger" id="facturacionPaidSolicitudAccept">
+                    Agregar de todas formas
                 </button>
             </div>
         </div>
@@ -5030,6 +5068,14 @@
             const facturacionScanSelectionMessage = document.getElementById('facturacionScanSelectionMessage');
             const facturacionScanSelectionList = document.getElementById('facturacionScanSelectionList');
             const facturacionScanSelectionCancel = document.getElementById('facturacionScanSelectionCancel');
+            const facturacionPaidSolicitudModal = document.getElementById('facturacionPaidSolicitudModal');
+            const facturacionPaidSolicitudTitle = document.getElementById('facturacionPaidSolicitudTitle');
+            const facturacionPaidSolicitudMessage = document.getElementById('facturacionPaidSolicitudMessage');
+            const facturacionPaidSolicitudExistingBox = document.getElementById('facturacionPaidSolicitudExistingBox');
+            const facturacionPaidSolicitudExisting = document.getElementById('facturacionPaidSolicitudExisting');
+            const facturacionPaidSolicitudCancel = document.getElementById('facturacionPaidSolicitudCancel');
+            const facturacionPaidSolicitudAccept = document.getElementById('facturacionPaidSolicitudAccept');
+            let facturacionPaidSolicitudRetry = null;
             const facturacionBillingInlineForm = document.getElementById('facturacionBillingInlineForm');
             const facturacionBillingModeInput = document.getElementById('facturacionBillingModeInput');
             const facturacionInvoiceChannelInput = document.getElementById('facturacionInvoiceChannelInput');
@@ -6399,6 +6445,11 @@
                     clearFacturacionScanSelection();
                 }
                 const formData = new FormData(form);
+                if (options.confirmDuplicate) {
+                    formData.set('confirmar_reagregar', '1');
+                } else {
+                    formData.delete('confirmar_reagregar');
+                }
                 const scanSubmitButton = form.querySelector('button[type="submit"]');
                 if (scanSubmitButton instanceof HTMLButtonElement) {
                     scanSubmitButton.dataset.originalText = scanSubmitButton.dataset.originalText || scanSubmitButton.textContent.trim();
@@ -6424,6 +6475,11 @@
                     if (!response.ok || !data || data.ok === false) {
                         if (response.status === 409 && data && data.requires_selection) {
                             openFacturacionScanSelectionModal(data);
+                            return;
+                        }
+                        if (response.status === 409 && data && data.requires_confirmation) {
+                            facturacionPaidSolicitudRetry = { type: 'scan', form };
+                            openFacturacionPaidSolicitudModal(data);
                             return;
                         }
 
@@ -6760,6 +6816,13 @@
                         facturacionConceptoDescripcion
                     );
                     const formData = new FormData(facturacionConceptoModalForm);
+                    const confirmDuplicateCode = facturacionConceptoModalForm.dataset.confirmarReagregarCodigo || '';
+                    if (confirmDuplicateCode !== '') {
+                        formData.set('confirmar_reagregar_codigo', confirmDuplicateCode);
+                    } else {
+                        formData.delete('confirmar_reagregar_codigo');
+                    }
+                    facturacionConceptoModalForm.dataset.confirmarReagregarCodigo = '';
                     if (facturacionConceptoModalSubmit instanceof HTMLButtonElement) {
                         facturacionConceptoModalSubmit.dataset.originalText = facturacionConceptoModalSubmit.dataset.originalText || facturacionConceptoModalSubmit.textContent.trim();
                         facturacionConceptoModalSubmit.disabled = true;
@@ -6794,6 +6857,13 @@
                         }
 
                         if (!response.ok || !data || data.ok === false) {
+                            if (response.status === 409 && data && data.requires_confirmation) {
+                                facturacionConceptoModalForm.dataset.confirmarReagregarCodigo = String(data.item_codigo || '');
+                                facturacionPaidSolicitudRetry = { type: 'concepto', form: facturacionConceptoModalForm };
+                                openFacturacionPaidSolicitudModal(data);
+                                return;
+                            }
+
                             const rawSnippet = String(responseText || '')
                                 .replace(/<[^>]+>/g, ' ')
                                 .replace(/\s+/g, ' ')
@@ -6817,7 +6887,7 @@
                         await syncFacturacionShortcutAfterMutation();
                         facturacionDraftAutosaveEnabled = true;
                         if (typeof setAutosaveState === 'function') {
-                            setAutosaveState('is-saved', 'Cobro agregado. Puedes editar el precio en el carrito.');
+                            setAutosaveState('is-saved', 'Cobro agregado. El precio queda registrado para este cobro.');
                         }
 
                         closeFacturacionConceptoModal();
@@ -8570,7 +8640,7 @@
                 return cleanBase.replace(/\.\d+$/, '') + '.' + (index + 1);
             };
 
-            const renderFacturacionGroupedEditBatch = (trigger, groupedQuantity) => {
+            const renderFacturacionGroupedEditBatch = (trigger, groupedQuantity, isPriceLocked = false) => {
                 if (!(facturacionItemEditBatch instanceof HTMLElement)) {
                     return;
                 }
@@ -8605,7 +8675,7 @@
                             </div>
                             <div class="global-shortcut-field">
                                 <label>Precio</label>
-                                <input type="number" name="entries[${index}][precio]" min="0" step="0.01" value="${escapeFacturacionHtml(basePrice)}" data-base-price="${escapeFacturacionHtml(basePrice)}">
+                                <input type="number" name="entries[${index}][precio]" min="0" step="0.01" value="${escapeFacturacionHtml(basePrice)}" data-base-price="${escapeFacturacionHtml(basePrice)}" ${isPriceLocked ? 'readonly' : ''}>
                             </div>
                             <div class="global-shortcut-field global-shortcut-field--description">
                                 <label>Descripcion</label>
@@ -8628,7 +8698,7 @@
                                 ></textarea>
                                 <small class="global-shortcut-field__hint">La base se conserva. Aqui solo agregas o ajustas el detalle adicional.</small>
                             </div>
-                            <p class="facturacion-item-edit-batch__help">Las unidades se mantienen agrupadas mientras conserven el mismo codigo y precio. La descripcion puede variar sin separar la linea.</p>
+                            <p class="facturacion-item-edit-batch__help">${isPriceLocked ? 'El precio queda fijado al agregar el cobro. La descripcion puede variar sin separar la linea.' : 'Las unidades se mantienen agrupadas mientras conserven el mismo codigo y precio. La descripcion puede variar sin separar la linea.'}</p>
                         </div>
                     `;
                     facturacionItemEditBatch.appendChild(card);
@@ -8728,6 +8798,17 @@
                     trigger.dataset.itemServicio || ''
                 );
                 const itemCode = String(trigger.dataset.itemCodigo || '').trim();
+                const originType = String(trigger.dataset.itemOrigenTipo || '').trim().replace(/\\/g, '/');
+                const isPaqueteEmsOrigin = originType === 'App/Models/PaqueteEms' || originType.endsWith('/PaqueteEms');
+                const isConceptoFacturacionOrigin = originType === 'App/Models/ConceptoFacturacion' || originType.endsWith('/ConceptoFacturacion');
+                const originServiceFamily = String(trigger.dataset.itemServicioFamilia || '').trim().toUpperCase();
+                const deliverySourceText = [trigger.dataset.itemTitulo, trigger.dataset.itemServicio].join(' ').toUpperCase();
+                const isDeliveryExpressOrigin = originType === 'cliente_online'
+                    || (
+                        (originType === 'App/Models/SolicitudCliente' || originType.endsWith('/SolicitudCliente'))
+                        && (originServiceFamily === 'DELIVERY_EXPRESS' || /DELIVERY|PUERTA A PUERTA|PUERTA A VENTANILLA|VENTANILLA A VENTANILLA/.test(deliverySourceText))
+                    );
+                const isLockedOriginPrice = isPaqueteEmsOrigin || isConceptoFacturacionOrigin || isDeliveryExpressOrigin;
                 const serviceCode = String(trigger.dataset.itemCodigoServicio || '').trim().toUpperCase();
                 const resolvedItemServiceCode = /^SRVE-[0-9]+(?:\.|\s*-|$)/i.test(itemCode)
                     ? (itemCode.match(/^SRVE-[0-9]+/i)?.[0]?.toUpperCase() || serviceCode)
@@ -8852,6 +8933,7 @@
                 }
                 if (facturacionEditItemCodePrecio instanceof HTMLInputElement) {
                     facturacionEditItemCodePrecio.value = String(trigger.dataset.itemPrecio || '0.00');
+                    facturacionEditItemCodePrecio.readOnly = isLockedOriginPrice;
                 }
                 if (facturacionItemEditServiceCode instanceof HTMLElement) {
                     facturacionItemEditServiceCode.textContent = itemCode || '-';
@@ -8866,7 +8948,7 @@
                 }
                 if (facturacionEditItemServicePrecio instanceof HTMLInputElement) {
                     facturacionEditItemServicePrecio.value = trigger.dataset.itemPrecio || '0.00';
-                    facturacionEditItemServicePrecio.readOnly = resolvedItemServiceCode === 'SRVE-0' || isEmsItem;
+                    facturacionEditItemServicePrecio.readOnly = resolvedItemServiceCode === 'SRVE-0' || isEmsItem || isLockedOriginPrice;
                     facturacionEditItemServicePrecio.required = !facturacionEditItemServicePrecio.readOnly;
                 }
                 if (facturacionItemEditServiceIcon instanceof HTMLElement) {
@@ -8894,12 +8976,13 @@
                 if (facturacionEditItemEmsPrecio instanceof HTMLInputElement) {
                     facturacionEditItemEmsPrecio.value = trigger.dataset.itemPrecio || '';
                     facturacionEditItemEmsPrecio.disabled = !isEmsItem;
+                    facturacionEditItemEmsPrecio.readOnly = isLockedOriginPrice;
                 }
                 const genericPriceInput = document.getElementById('facturacionEditItemPrecio');
                 const genericWeightInput = document.getElementById('facturacionEditItemPeso');
                 if (genericPriceInput instanceof HTMLInputElement) {
                     genericPriceInput.disabled = isEmsItem;
-                    genericPriceInput.readOnly = resolvedItemServiceCode === 'SRVE-0';
+                    genericPriceInput.readOnly = resolvedItemServiceCode === 'SRVE-0' || isLockedOriginPrice;
                 }
                 if (genericWeightInput instanceof HTMLInputElement) {
                     genericWeightInput.disabled = isEmsItem;
@@ -8942,7 +9025,13 @@
                 }
 
                 if (facturacionItemEditMessage instanceof HTMLElement) {
-                    facturacionItemEditMessage.textContent = isServiceItem
+                    facturacionItemEditMessage.textContent = isLockedOriginPrice
+                        ? (isPaqueteEmsOrigin
+                            ? 'El precio del paquete EMS se calcula con el tarifario y no se puede cambiar. Puedes corregir los demás datos antes de reenviar.'
+                            : (isDeliveryExpressOrigin
+                                ? 'El precio de Delivery Express queda fijado por la tarifa cotizada y no se puede cambiar. Puedes corregir los demás datos antes de reenviar.'
+                                : 'El precio del concepto facturable queda registrado al agregarlo y no se puede cambiar en el carrito. Puedes corregir la descripcion antes de reenviar.'))
+                        : isServiceItem
                         ? 'Revisa el precio y la descripcion usando el mismo formato con el que agregaste el servicio.'
                         : (isEmsItem
                         ? 'Actualiza los datos reales del paquete. El codigo combinado del servicio se conserva para el carrito.'
@@ -8953,6 +9042,9 @@
 
                 if (facturacionItemEditSplitHint instanceof HTMLElement) {
                     facturacionItemEditSplitHint.classList.toggle('is-hidden', groupedQuantity <= 1 || isServiceItem);
+                    facturacionItemEditSplitHint.textContent = isLockedOriginPrice
+                        ? 'Este item esta agrupado. Si cambias la cantidad, separaremos las unidades y conservaremos el precio registrado para cada una.'
+                        : 'Este item esta agrupado. Si cambias la cantidad a un valor menor que el total, separaremos esa parte en una nueva linea para que puedas darle otro detalle, precio o descripcion.';
                 }
                 if (facturacionItemEditSummary instanceof HTMLElement) {
                     facturacionItemEditSummary.classList.toggle('is-hidden', isServiceItem || isCodeItem || (groupedQuantity > 1 && !isEmsItem));
@@ -8962,7 +9054,7 @@
                 }
                 if (facturacionItemEditBatch instanceof HTMLElement && facturacionItemEditSingleGrid instanceof HTMLElement) {
                     if (groupedQuantity > 1 && !isServiceItem) {
-                        renderFacturacionGroupedEditBatch(trigger, groupedQuantity);
+                        renderFacturacionGroupedEditBatch(trigger, groupedQuantity, isLockedOriginPrice);
                         facturacionItemEditBatch.classList.remove('is-hidden');
                         facturacionItemEditSingleGrid.classList.add('is-hidden');
                     } else {
@@ -9077,6 +9169,9 @@
                         field.value = '';
                     }
                 });
+                if (facturacionEditItemCodePrecio instanceof HTMLInputElement) {
+                    facturacionEditItemCodePrecio.readOnly = false;
+                }
                 if (facturacionEditItemCodeTitulo instanceof HTMLElement) {
                     facturacionEditItemCodeTitulo.textContent = '-';
                 }
@@ -9091,6 +9186,7 @@
                     if (field instanceof HTMLInputElement) {
                         field.value = '';
                         field.disabled = true;
+                        field.readOnly = false;
                     }
                 });
                 const genericPriceInput = document.getElementById('facturacionEditItemPrecio');
@@ -9132,6 +9228,59 @@
 
                 facturacionScanSelectionModal.classList.remove('is-open');
                 facturacionScanSelectionModal.setAttribute('aria-hidden', 'true');
+            };
+
+            const closeFacturacionPaidSolicitudModal = (preserveRetry = false) => {
+                if (!facturacionPaidSolicitudModal) {
+                    return;
+                }
+
+                if (!preserveRetry && facturacionPaidSolicitudRetry) {
+                    if (
+                        facturacionPaidSolicitudRetry.type === 'concepto'
+                        && facturacionPaidSolicitudRetry.form instanceof HTMLFormElement
+                    ) {
+                        facturacionPaidSolicitudRetry.form.dataset.confirmarReagregarCodigo = '';
+                    }
+                    facturacionPaidSolicitudRetry = null;
+                }
+
+                facturacionPaidSolicitudModal.classList.remove('is-open');
+                facturacionPaidSolicitudModal.setAttribute('aria-hidden', 'true');
+            };
+
+            const openFacturacionPaidSolicitudModal = (payload) => {
+                if (!facturacionPaidSolicitudModal) {
+                    return;
+                }
+
+                const feedback = payload && payload.feedback ? payload.feedback : {};
+                const existing = payload && payload.existing && typeof payload.existing === 'object' ? payload.existing : {};
+                if (facturacionPaidSolicitudTitle instanceof HTMLElement) {
+                    facturacionPaidSolicitudTitle.textContent = String(feedback.title || 'Paquete ya pagado o facturado');
+                }
+                if (facturacionPaidSolicitudMessage instanceof HTMLElement) {
+                    facturacionPaidSolicitudMessage.textContent = String(feedback.message || 'Este paquete ya registra un pago o una factura. ¿Estás seguro de que deseas agregarlo al carrito? Puedes continuar si confirmas.');
+                }
+
+                const existingDetails = [
+                    existing.codigo_orden ? 'Orden ' + String(existing.codigo_orden) : '',
+                    existing.numero_factura ? 'Factura ' + String(existing.numero_factura) : '',
+                    existing.estado_pago ? 'Pago: ' + String(existing.estado_pago) : '',
+                    existing.estado_emision ? 'Estado: ' + String(existing.estado_emision) : '',
+                ].filter(Boolean);
+                if (facturacionPaidSolicitudExisting instanceof HTMLElement) {
+                    facturacionPaidSolicitudExisting.textContent = existingDetails.join(' · ') || String(feedback.detail || 'Se encontró una venta anterior asociada a este registro.');
+                }
+                if (facturacionPaidSolicitudExistingBox instanceof HTMLElement) {
+                    facturacionPaidSolicitudExistingBox.classList.toggle('is-hidden', existingDetails.length === 0 && !feedback.detail);
+                }
+
+                facturacionPaidSolicitudModal.classList.add('is-open');
+                facturacionPaidSolicitudModal.setAttribute('aria-hidden', 'false');
+                window.setTimeout(() => {
+                    facturacionPaidSolicitudAccept?.focus();
+                }, 30);
             };
 
             const openFacturacionScanSelectionModal = (payload) => {
@@ -9460,9 +9609,12 @@
 
                         const data = await response.json().catch(() => null);
                         if (!response.ok || !data || data.ok === false) {
+                            const validationMessage = data && data.errors
+                                ? Object.values(data.errors).flat()[0]
+                                : '';
                             const message = data && data.feedback && data.feedback.detail
                                 ? data.feedback.detail
-                                : 'No se pudo actualizar el item.';
+                                : (validationMessage || 'No se pudo actualizar el item.');
                             throw new Error(message);
                         }
 
@@ -9550,12 +9702,53 @@
                 });
             }
 
+            if (facturacionPaidSolicitudCancel) {
+                facturacionPaidSolicitudCancel.addEventListener('click', closeFacturacionPaidSolicitudModal);
+            }
+
+            if (facturacionPaidSolicitudAccept) {
+                facturacionPaidSolicitudAccept.addEventListener('click', async function () {
+                    const retry = facturacionPaidSolicitudRetry;
+                    closeFacturacionPaidSolicitudModal(true);
+                    facturacionPaidSolicitudRetry = null;
+
+                    if (retry && retry.type === 'concepto' && retry.form instanceof HTMLFormElement) {
+                        retry.form.requestSubmit();
+                        return;
+                    }
+
+                    if (retry && retry.type === 'scan' && retry.form instanceof HTMLFormElement) {
+                        await submitFacturacionScanForm(retry.form, {
+                            preserveSelection: true,
+                            confirmDuplicate: true,
+                        });
+                        return;
+                    }
+
+                    if (facturacionScanForm instanceof HTMLFormElement) {
+                        await submitFacturacionScanForm(facturacionScanForm, {
+                            preserveSelection: true,
+                            confirmDuplicate: true,
+                        });
+                    }
+                });
+            }
+
             if (facturacionScanSelectionModal) {
                 facturacionScanSelectionModal.addEventListener('click', function (event) {
                     const target = event.target;
                     if (target instanceof HTMLElement && target.dataset.closeFacturacionScanSelect === 'true') {
                         clearFacturacionScanSelection();
                         closeFacturacionScanSelectionModal();
+                    }
+                });
+            }
+
+            if (facturacionPaidSolicitudModal) {
+                facturacionPaidSolicitudModal.addEventListener('click', function (event) {
+                    const target = event.target;
+                    if (target instanceof HTMLElement && target.dataset.closeFacturacionPaidSolicitud === 'true') {
+                        closeFacturacionPaidSolicitudModal();
                     }
                 });
             }
@@ -10300,6 +10493,14 @@
                     }
                     clearFacturacionScanSelection();
                     closeFacturacionScanSelectionModal();
+                    return;
+                }
+
+                if (event.key === 'Escape' && facturacionPaidSolicitudModal && facturacionPaidSolicitudModal.classList.contains('is-open')) {
+                    if (isFacturacionSubmitting) {
+                        return;
+                    }
+                    closeFacturacionPaidSolicitudModal();
                     return;
                 }
 
