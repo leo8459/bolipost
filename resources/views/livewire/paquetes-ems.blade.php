@@ -1230,6 +1230,302 @@
                 grid-template-columns:1fr;
             }
         }
+
+        .plantilla-wrap.ems-create-page{
+            padding:0;
+            border-radius:0;
+            background:#f3f6fa;
+            color:#102b53;
+        }
+        .ems-create-page .card-app{
+            overflow:visible;
+            border:0;
+            border-radius:0;
+            background:transparent;
+            box-shadow:none;
+        }
+        .ems-create-page .card-body{ padding:0; }
+        .ems-create-page .header-app.is-create{ display:none; }
+        .ems-create-topbar{
+            min-height:70px;
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:18px;
+            padding:10px clamp(18px, 5vw, 76px);
+            border-top:7px solid #ffcf35;
+            border-bottom:1px solid #dfe5ed;
+            background:#fff;
+        }
+        .ems-create-brand{
+            display:flex;
+            align-items:center;
+            gap:13px;
+            color:#0b2b58;
+            font-size:18px;
+            font-weight:900;
+            letter-spacing:.025em;
+        }
+        .ems-create-brand-icon,
+        .ems-create-icon{
+            width:44px;
+            height:44px;
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            flex:0 0 auto;
+            border-radius:13px;
+            background:#ffcf35;
+            color:#0b2b58;
+            font-size:20px;
+        }
+        .ems-create-topbar-link{
+            display:inline-flex;
+            align-items:center;
+            gap:8px;
+            color:#17365f;
+            font-size:14px;
+            font-weight:700;
+            text-decoration:none;
+        }
+        .ems-create-topbar-link:hover{ color:#20539a; text-decoration:none; }
+        .ems-create-content{
+            max-width:1780px;
+            margin:0 auto;
+            padding:24px clamp(16px, 2.6vw, 44px) 40px;
+        }
+        .ems-create-heading{
+            display:flex;
+            align-items:flex-end;
+            justify-content:space-between;
+            gap:22px;
+            margin-bottom:20px;
+        }
+        .ems-create-breadcrumb{
+            margin-bottom:7px;
+            color:#7b8798;
+            font-size:14px;
+        }
+        .ems-create-breadcrumb i{ margin:0 8px; font-size:11px; }
+        .ems-create-heading h1{
+            margin:0;
+            color:#0b2b58;
+            font-size:clamp(30px, 3vw, 42px);
+            font-weight:900;
+            letter-spacing:-.035em;
+        }
+        .ems-create-heading p{
+            margin:5px 0 0;
+            color:#66758a;
+            font-size:16px;
+        }
+        .ems-create-preregistro{
+            display:grid;
+            grid-template-columns:minmax(180px, 1fr) minmax(260px, 440px);
+            align-items:center;
+            gap:12px 20px;
+            margin:0 0 20px;
+            padding:13px 16px;
+            border:1px solid #dce5ef;
+            border-radius:13px;
+            background:#fff;
+        }
+        .ems-create-preregistro-label{ margin:0; color:#17365f; font-size:13px; font-weight:800; }
+        .ems-create-preregistro-help{ display:block; margin-top:3px; color:#718096; font-size:12px; }
+        .ems-create-preregistro .form-control{ min-height:42px; border-radius:9px; }
+        .ems-create-preregistro-message{ grid-column:1 / -1; margin-top:-6px; color:#28724a; font-size:12px; font-weight:700; }
+        .ems-create-preregistro-message.is-error{ color:#b42318; }
+        .ems-create-steps{
+            display:grid;
+            grid-template-columns:minmax(0, 1fr);
+            margin:0 0 20px;
+            max-width:380px;
+        }
+        .ems-create-step{
+            position:relative;
+            display:flex;
+            align-items:center;
+            gap:12px;
+            min-width:0;
+            padding:0 15px;
+            color:#19375e;
+            text-decoration:none;
+        }
+        .ems-create-step:first-child{ padding-left:0; }
+        .ems-create-step:last-child{ padding-right:0; }
+        .ems-create-step:not(:last-child)::after{
+            content:"";
+            height:1px;
+            position:absolute;
+            left:calc(50% + 32px);
+            right:-8px;
+            top:21px;
+            background:#cbd5e1;
+        }
+        .ems-create-step:hover{ color:#0b2b58; text-decoration:none; }
+        .ems-create-step-number{
+            position:relative;
+            z-index:1;
+            width:42px;
+            height:42px;
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            flex:0 0 auto;
+            border:1px solid #cbd5e1;
+            border-radius:50%;
+            background:#fff;
+            color:#344c6a;
+            font-size:16px;
+            font-weight:800;
+        }
+        .ems-create-step.is-active .ems-create-step-number{ border-color:#0b4a8f; background:#0b4a8f; color:#fff; }
+        .ems-create-step-copy{ position:relative; z-index:1; min-width:0; background:#f3f6fa; padding-right:10px; }
+        .ems-create-step-copy strong{ display:block; color:#15345d; font-size:14px; }
+        .ems-create-step-copy small{ display:block; margin-top:1px; color:#738096; font-size:12px; }
+        .ems-create-grid{
+            display:grid;
+            grid-template-columns:minmax(0, 1.45fr) minmax(450px, 1fr);
+            align-items:start;
+            gap:20px;
+        }
+        .ems-create-main,
+        .ems-create-summary-card,
+        .ems-create-info-card{
+            border:1px solid #dce3ec;
+            border-radius:14px;
+            background:#fff;
+            box-shadow:0 5px 18px rgba(20, 43, 76, .045);
+        }
+        .ems-create-main{ min-width:0; padding:22px; }
+        .ems-create-main .alert{ border-radius:10px; }
+        .ems-create-form-heading{
+            display:flex;
+            align-items:center;
+            gap:14px;
+            margin:0 0 18px;
+        }
+        .ems-create-form-heading .ems-create-icon{ width:48px; height:48px; }
+        .ems-create-form-heading h2{ margin:0; color:#0b2b58; font-size:22px; font-weight:900; }
+        .ems-create-form-heading p{ margin:2px 0 0; color:#738096; font-size:13px; }
+        .ems-create-required-note{ margin-left:auto; color:#718096; font-size:12px; white-space:nowrap; }
+        .ems-create-page .required-note{ margin:0 0 14px; color:#6b7788; font-size:12px; }
+        .ems-create-page .required-star{ color:#e2b321; }
+        .ems-create-page .section-block{
+            padding:18px;
+            border-color:#e3e8ef;
+            border-radius:12px;
+            background:#fff;
+            scroll-margin-top:24px;
+        }
+        .ems-create-page .section-title{
+            margin-bottom:14px;
+            color:#15345d;
+            font-size:15px;
+            letter-spacing:0;
+            text-transform:none;
+        }
+        .ems-create-page .form-group label{ color:#183457; font-size:13px; font-weight:700; }
+        .ems-create-page .form-control,
+        .ems-create-page select.form-control{
+            min-height:43px;
+            border-color:#d4dce6;
+            border-radius:9px;
+            color:#1e3554;
+        }
+        .ems-create-page textarea.form-control{ min-height:78px; }
+        .ems-create-page .form-option-card{ border-color:#e1e6ed; border-radius:9px; }
+        .ems-create-summary-card{ position:sticky; top:18px; max-height:calc(100vh - 36px); overflow-y:auto; padding:21px; }
+        .ems-create-summary-heading{ display:flex; align-items:center; gap:13px; margin-bottom:17px; }
+        .ems-create-summary-heading .ems-create-icon{ width:44px; height:44px; }
+        .ems-create-summary-heading h2{ margin:0; color:#0b2b58; font-size:19px; font-weight:900; }
+        .ems-create-route{ display:grid; grid-template-columns:26px 1fr; gap:0 12px; margin:0 0 16px; }
+        .ems-create-route-symbols{ display:flex; flex-direction:column; align-items:center; padding-top:3px; color:#0b4a8f; }
+        .ems-create-route-symbols .route-line{ width:1px; min-height:31px; margin:5px 0; background:#bdcadd; }
+        .ems-create-route-point{ padding:0 0 14px; }
+        .ems-create-route-point:last-child{ padding-bottom:0; }
+        .ems-create-route-label{ display:block; color:#738096; font-size:12px; }
+        .ems-create-route-value{ display:block; color:#122f57; font-size:16px; font-weight:800; overflow-wrap:anywhere; }
+        .ems-create-summary-list{
+            display:grid;
+            grid-template-columns:repeat(2, minmax(0, 1fr));
+            align-items:start;
+            column-gap:18px;
+            margin:0;
+            padding:12px 0;
+            border-top:1px solid #e2e7ee;
+            border-bottom:1px solid #e2e7ee;
+        }
+        .ems-create-summary-section-title{ grid-column:1 / -1; margin:13px 0 4px; color:#17365f; font-size:12px; font-weight:900; }
+        .ems-create-summary-section-title:first-child{ margin-top:0; }
+        .ems-create-summary-row{ display:flex; min-width:0; flex-direction:column; gap:2px; padding:5px 0; border-bottom:1px solid #edf0f4; color:#68778d; font-size:12px; }
+        .ems-create-summary-row strong{ max-width:100%; color:#1c3556; font-weight:700; text-align:left; overflow-wrap:anywhere; }
+        .ems-create-summary-row.is-stack{ grid-column:1 / -1; display:block; }
+        .ems-create-summary-row.is-stack strong{ display:block; max-width:none; margin-top:2px; text-align:left; }
+        .ems-create-price{ padding-top:15px; }
+        .ems-create-price-label{ display:block; color:#15345d; font-size:13px; font-weight:800; }
+        .ems-create-price-value{ display:block; margin-top:4px; color:#0b2b58; font-size:28px; font-weight:900; letter-spacing:-.025em; }
+        .ems-create-price-help{ display:block; margin-top:3px; color:#768397; font-size:12px; }
+        .ems-create-info-card{ display:flex; gap:13px; margin-top:14px; padding:16px; background:#f8fafc; }
+        .ems-create-info-icon{ width:40px; height:40px; display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto; border-radius:11px; background:#e9eff7; color:#193d69; }
+        .ems-create-info-card strong{ display:block; color:#17365f; font-size:13px; }
+        .ems-create-info-card p{ margin:3px 0 0; color:#68778d; font-size:12px; line-height:1.45; }
+        .ems-create-actions{
+            position:sticky;
+            bottom:12px;
+            z-index:3;
+            margin:18px -22px -22px;
+            padding:14px 22px;
+            border-top:1px solid #e1e7ef;
+            border-radius:0 0 14px 14px;
+            background:rgba(255,255,255,.97);
+            box-shadow:0 -8px 20px rgba(15, 37, 68, .06);
+        }
+        .ems-create-actions .btn-dorado{ min-width:185px; border-radius:10px; font-weight:800; }
+        .ems-create-actions .btn-outline-azul{ border-radius:10px; }
+        @media (max-width: 1199.98px){
+            .ems-create-grid{ grid-template-columns:minmax(0, 1fr); }
+            .ems-create-summary-card{ position:static; grid-row:1; max-height:none; overflow:visible; }
+            .ems-create-summary-column{ display:grid; grid-template-columns:minmax(0, 1.3fr) minmax(240px, .9fr); align-items:start; gap:14px; }
+            .ems-create-info-card{ margin-top:0; }
+        }
+        @media (max-width: 767.98px){
+            .ems-create-topbar{ min-height:62px; padding:8px 18px; }
+            .ems-create-brand{ font-size:15px; }
+            .ems-create-brand-icon{ width:38px; height:38px; }
+            .ems-create-topbar-link{ font-size:0; }
+            .ems-create-topbar-link i{ font-size:16px; }
+            .ems-create-content{ padding:20px 14px 30px; }
+            .ems-create-heading{ align-items:flex-start; }
+            .ems-create-heading h1{ font-size:31px; }
+            .ems-create-heading p{ font-size:14px; }
+            .ems-create-preregistro{ grid-template-columns:minmax(0,1fr); gap:8px; }
+            .ems-create-steps{ gap:7px; }
+            .ems-create-step{ flex-direction:column; align-items:flex-start; gap:6px; padding:0 4px; }
+            .ems-create-step:not(:last-child)::after{ left:48px; right:-6px; top:21px; }
+            .ems-create-step-copy{ padding-right:3px; }
+            .ems-create-step-copy strong{ font-size:12px; }
+            .ems-create-step-copy small{ font-size:10px; }
+            .ems-create-step-number{ width:38px; height:38px; font-size:14px; }
+            .ems-create-main{ padding:16px; }
+            .ems-create-form-heading{ align-items:flex-start; flex-wrap:wrap; }
+            .ems-create-form-heading h2{ font-size:19px; }
+            .ems-create-required-note{ width:100%; margin-left:62px; }
+            .ems-create-page .section-block{ padding:14px; }
+            .ems-create-summary-column{ grid-template-columns:1fr; }
+            .ems-create-actions{ margin:16px -16px -16px; padding:12px 16px; }
+            .ems-create-actions .ml-auto{ width:100%; }
+            .ems-create-actions .btn-dorado{ min-width:0; flex:1 1 auto; }
+        }
+        @media (max-width: 575.98px){
+            .ems-create-summary-list{ grid-template-columns:1fr; }
+            .ems-create-summary-section-title{ grid-column:auto; }
+            .ems-create-summary-row.is-stack{ grid-column:auto; }
+        }
+        @media (max-width: 420px){
+            .ems-create-step-copy small{ display:none; }
+            .ems-create-step-copy strong{ font-size:11px; }
+        }
     </style>
 
     <div
@@ -1246,7 +1542,18 @@
         </div>
     </div>
 
-    <div class="plantilla-wrap">
+    <div class="plantilla-wrap {{ $this->isCreateEms ? 'ems-create-page' : '' }}">
+        @if ($this->isCreateEms)
+            <div class="ems-create-topbar">
+                <div class="ems-create-brand">
+                    <span class="ems-create-brand-icon"><i class="fas fa-box" aria-hidden="true"></i></span>
+                    <span>DELIVERY EXPRESS</span>
+                </div>
+                <a class="ems-create-topbar-link" href="{{ route('paquetes-ems.index') }}">
+                    <i class="fas fa-arrow-left" aria-hidden="true"></i> Volver a paquetes EMS
+                </a>
+            </div>
+        @endif
         <div class="card card-app">
             <div class="header-app {{ $this->isCreateEms ? 'is-create' : '' }} {{ $this->isAlmacenEms ? 'is-almacen' : '' }} {{ $this->isVentanillaEms ? 'is-ventanilla' : '' }}">
                 <div class="header-app-shell">
@@ -1610,6 +1917,43 @@
 
             <div class="card-body">
                 @if ($this->isCreateEms)
+                    <div class="ems-create-content">
+                        <div class="ems-create-heading">
+                            <div>
+                                <div class="ems-create-breadcrumb">Paquetes <i class="fas fa-chevron-right" aria-hidden="true"></i> Nuevo env&iacute;o</div>
+                                <h1>Prepara tu env&iacute;o</h1>
+                                <p>Completa los datos del paquete para continuar.</p>
+                            </div>
+                        </div>
+
+                        <div class="ems-create-preregistro">
+                            <div>
+                                <label class="ems-create-preregistro-label" for="createPreregistroCodigo">Autocompletar con preregistro</label>
+                                <span class="ems-create-preregistro-help">Pega el c&oacute;digo del preregistro para cargar sus datos.</span>
+                            </div>
+                            <input
+                                id="createPreregistroCodigo"
+                                type="text"
+                                class="form-control"
+                                placeholder="PRE00000001 o 00000001"
+                                wire:model.live.debounce.400ms="preregistro_codigo"
+                            >
+                            @if($preregistroAutofillMessage)
+                                <div class="ems-create-preregistro-message {{ str_contains(strtolower($preregistroAutofillMessage), 'no existe') || str_contains(strtolower($preregistroAutofillMessage), 'ya fue validado') ? 'is-error' : '' }}">
+                                    {{ $preregistroAutofillMessage }}
+                                </div>
+                            @endif
+                        </div>
+
+                        <nav class="ems-create-steps" aria-label="Secciones del formulario">
+                            <a class="ems-create-step is-active" href="#ems-create-service">
+                                <span class="ems-create-step-number">1</span>
+                                <span class="ems-create-step-copy"><strong>Servicio</strong><small>Paquete y ruta</small></span>
+                            </a>
+                        </nav>
+
+                        <div class="ems-create-grid">
+                            <main class="ems-create-main">
                     @if ($activeTarifarioVersion)
                         <div class="alert alert-success py-2 mb-3">
                             <strong>Tarifario vigente:</strong> {{ $activeTarifarioVersion->tarifarioPadre->nombre ?? 'Tarifario' }} ·
@@ -1668,12 +2012,18 @@
                         <div class="alert alert-warning">No hay servicios asociados al tarifario padre vigente. Solicita al administrador que asocie servicios o seleccione otro tarifario.</div>
                     @endif
                     <form wire:submit.prevent="save">
-                        <div class="required-note">
-                            Campos con <span class="required-star">*</span> son obligatorios.
+                        <div class="ems-create-form-heading">
+                            <span class="ems-create-icon"><i class="fas fa-box-open" aria-hidden="true"></i></span>
+                            <div>
+                                <h2>Datos del servicio</h2>
+                                <p>Elige la ruta y completa la informaci&oacute;n del paquete.</p>
+                            </div>
+                            <span class="ems-create-required-note"><span class="required-star">*</span> Campos obligatorios</span>
                         </div>
+                        <div class="required-note">Campos con <span class="required-star">*</span> son obligatorios.</div>
 
-                        <div class="section-block">
-                            <div class="section-title">Datos generales</div>
+                        <div class="section-block" id="ems-create-service">
+                            <div class="section-title">Paquete y ruta</div>
                             @php
                                 $tipoCorrespondenciaActual = strtoupper(trim((string) $tipo_correspondencia));
                                 $observacionOficialRequerida = $tipoCorrespondenciaActual !== '' && str_contains($tipoCorrespondenciaActual, 'OFICIAL');
@@ -1716,7 +2066,7 @@
                                 </div>
                                 <div class="form-group col-md-8">
                                     <label>Observacion: que se esta mandando @if($observacionOficialRequerida)<span class="required-star">*</span>@endif</label>
-                                    <input type="text" wire:model.defer="observacion" class="form-control" placeholder="Describa brevemente que se esta enviando">
+                                    <input type="text" wire:model.live.debounce.400ms="observacion" class="form-control" placeholder="Describa brevemente que se esta enviando">
                                     @error('observacion') <small class="text-danger">{{ $message }}</small> @enderror
                                     <small class="text-muted">Obligatorio cuando el tipo de correspondencia es OFICIAL.</small>
                                 </div>
@@ -1725,7 +2075,7 @@
                             <div class="form-row">
                                 <div class="form-group col-md-6">
                                     <label>Servicio especial</label>
-                                    <select wire:model.defer="servicio_especial" class="form-control">
+                                    <select wire:model.live="servicio_especial" class="form-control">
                                         <option value="">Seleccione...</option>
                                         <option value="IDA">IDA</option>
                                         <option value="POR COBRAR">POR COBRAR</option>
@@ -1735,7 +2085,7 @@
                                 </div>
                                 <div class="form-group col-md-6">
                                     <label>Correo electronico</label>
-                                    <input type="email" wire:model.defer="correo_electronico" class="form-control" maxlength="255" placeholder="cliente@ejemplo.com">
+                                    <input type="email" wire:model.live.debounce.400ms="correo_electronico" class="form-control" maxlength="255" placeholder="cliente@ejemplo.com">
                                     @error('correo_electronico') <small class="text-danger">{{ $message }}</small> @enderror
                                     <small class="text-muted">Opcional. Se enviara la confirmacion de recepcion con la boleta EMS adjunta.</small>
                                 </div>
@@ -1744,7 +2094,7 @@
                             <div class="form-row">
                                 <div class="form-group col-12">
                                     <label>Contenido<span class="required-star">*</span></label>
-                                    <textarea wire:model.defer="contenido" class="form-control" rows="2" placeholder="Detalle el contenido del paquete" required></textarea>
+                                    <textarea wire:model.live.debounce.400ms="contenido" class="form-control" rows="2" placeholder="Detalle el contenido del paquete" required></textarea>
                                     @error('contenido') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
@@ -1752,7 +2102,7 @@
                             <div class="form-row">
                                 <div class="form-group col-md-4">
                                     <label>Cantidad<span class="required-star">*</span></label>
-                                    <input type="number" wire:model.defer="cantidad" class="form-control" min="1" required>
+                                    <input type="number" wire:model.live.debounce.400ms="cantidad" class="form-control" min="1" required>
                                     @error('cantidad') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                                 <div class="form-group col-md-4">
@@ -1775,7 +2125,7 @@
                             <div class="form-row">
                                 <div class="form-group col-md-4">
                                     <label>Codigo<span class="required-star">*</span></label>
-                                    <input type="text" wire:model.defer="codigo" class="form-control" @if($auto_codigo) readonly @endif required>
+                                    <input type="text" wire:model.live.debounce.400ms="codigo" class="form-control" @if($auto_codigo) readonly @endif required>
                                     @error('codigo') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                                 <div class="form-group col-md-4">
@@ -1804,18 +2154,18 @@
                             </div>
                         </div>
 
-                        <div class="section-block">
+                        <div class="section-block" id="ems-create-sender">
                             <div class="section-title">Datos del remitente</div>
 
                             <div class="form-row">
                                 <div class="form-group col-md-6">
                                     <label>Nombre remitente<span class="required-star">*</span></label>
-                                    <input type="text" wire:model.defer="nombre_remitente" class="form-control" required>
+                                    <input type="text" wire:model.live.debounce.400ms="nombre_remitente" class="form-control" required>
                                     @error('nombre_remitente') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                                 <div class="form-group col-md-3">
                                     <label>Carnet remitente<span class="required-star">*</span></label>
-                                    <input type="text" wire:model.defer="carnet" class="form-control" required>
+                                    <input type="text" wire:model.live.debounce.400ms="carnet" class="form-control" required>
                                     @error('carnet') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                                 <div class="form-group col-md-3">
@@ -1847,7 +2197,7 @@
                                 @if ($mostrar_empresa)
                                     <div class="form-group col-md-8">
                                         <label>Nombre de la empresa</label>
-                                        <input type="text" wire:model.defer="nombre_envia" class="form-control" placeholder="Ingrese la razon social o nombre comercial">
+                                        <input type="text" wire:model.live.debounce.400ms="nombre_envia" class="form-control" placeholder="Ingrese la razon social o nombre comercial">
                                         @error('nombre_envia') <small class="text-danger">{{ $message }}</small> @enderror
                                     </div>
                                 @endif
@@ -1855,13 +2205,13 @@
 
                         </div>
 
-                        <div class="section-block">
+                        <div class="section-block" id="ems-create-recipient">
                             <div class="section-title">Datos del destinatario</div>
 
                             <div class="form-row">
                                 <div class="form-group col-md-5">
                                     <label>Nombre destinatario<span class="required-star">*</span></label>
-                                    <input type="text" wire:model.defer="nombre_destinatario" class="form-control" required>
+                                    <input type="text" wire:model.live.debounce.400ms="nombre_destinatario" class="form-control" required>
                                     @error('nombre_destinatario') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                                 <div class="form-group col-md-3">
@@ -1891,18 +2241,18 @@
                             <div class="form-row">
                                 <div class="form-group col-md-8">
                                     <label>Direccion destinatario<span class="required-star">*</span></label>
-                                    <input type="text" wire:model.defer="direccion" class="form-control" required>
+                                    <input type="text" wire:model.live.debounce.400ms="direccion" class="form-control" required>
                                     @error('direccion') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                                 <div class="form-group col-md-4">
                                     <label>Referencia</label>
-                                    <input type="text" wire:model.defer="referencia" class="form-control">
+                                    <input type="text" wire:model.live.debounce.400ms="referencia" class="form-control">
                                     @error('referencia') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
                         </div>
 
-                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div class="ems-create-actions d-flex justify-content-between align-items-center flex-wrap gap-2">
                             <div class="submit-loader-note" wire:loading.flex wire:target="save, saveConfirmed">
                                 <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                                 <span>Guardando admision EMS, espera un momento...</span>
@@ -1927,6 +2277,86 @@
                             </div>
                         </div>
                     </form>
+                            </main>
+
+                            @php
+                                $createSelectedService = $servicios->firstWhere('id', $servicio_id);
+                                $createSelectedDestination = $destinos->firstWhere('id', $destino_id);
+                            @endphp
+                            <aside class="ems-create-summary-column" aria-label="Resumen del env&iacute;o">
+                                <section class="ems-create-summary-card">
+                                    <div class="ems-create-summary-heading">
+                                        <span class="ems-create-icon"><i class="fas fa-cube" aria-hidden="true"></i></span>
+                                        <h2>Resumen del env&iacute;o</h2>
+                                    </div>
+                                    <div class="ems-create-route">
+                                        <div class="ems-create-route-symbols" aria-hidden="true">
+                                            <i class="fas fa-circle" style="font-size:12px"></i>
+                                            <span class="route-line"></span>
+                                            <i class="fas fa-map-marker-alt" style="font-size:18px"></i>
+                                        </div>
+                                        <div>
+                                            <div class="ems-create-route-point">
+                                                <span class="ems-create-route-label">Origen</span>
+                                                <strong class="ems-create-route-value">{{ $origen ?: 'Se asigna automaticamente' }}</strong>
+                                            </div>
+                                            <div class="ems-create-route-point">
+                                                <span class="ems-create-route-label">Destino</span>
+                                                <strong class="ems-create-route-value">{{ $createSelectedDestination->nombre_ems ?? 'Por seleccionar' }}</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="ems-create-summary-list">
+                                        <div class="ems-create-summary-section-title">Paquete y servicio</div>
+                                        <div class="ems-create-summary-row"><span>Servicio</span><strong>{{ $createSelectedService->nombre_servicio ?? 'Por seleccionar' }}</strong></div>
+                                        <div class="ems-create-summary-row"><span>Tipo de correspondencia</span><strong>{{ $tipo_correspondencia ?: '-' }}</strong></div>
+                                        <div class="ems-create-summary-row"><span>Servicio especial</span><strong>{{ $servicio_especial ?: '-' }}</strong></div>
+                                        <div class="ems-create-summary-row is-stack"><span>Observaci&oacute;n</span><strong>{{ $observacion ?: '-' }}</strong></div>
+                                        <div class="ems-create-summary-row is-stack"><span>Correo electr&oacute;nico</span><strong>{{ $correo_electronico ?: '-' }}</strong></div>
+                                        <div class="ems-create-summary-row is-stack"><span>Contenido</span><strong>{{ $contenido ?: '-' }}</strong></div>
+                                        <div class="ems-create-summary-row"><span>Cantidad</span><strong>{{ $cantidad ?: '-' }}</strong></div>
+                                        <div class="ems-create-summary-row"><span>Peso</span><strong>{{ $peso !== '' ? $peso . ' kg' : '-' }}</strong></div>
+                                        <div class="ems-create-summary-row"><span>C&oacute;digo</span><strong>{{ $codigo ?: 'Automatico' }}</strong></div>
+                                        <div class="ems-create-summary-row"><span>C&oacute;digo autom&aacute;tico</span><strong>{{ $auto_codigo ? 'Si' : 'No' }}</strong></div>
+                                        <div class="ems-create-summary-row"><span>Recargo por dimensiones</span><strong>{{ $anadir_recargo_30 ? '30 % aplicado' : 'No aplicado' }}</strong></div>
+
+                                        <div class="ems-create-summary-section-title">Remitente</div>
+                                        <div class="ems-create-summary-row is-stack"><span>Nombre</span><strong>{{ $nombre_remitente ?: '-' }}</strong></div>
+                                        <div class="ems-create-summary-row"><span>Carnet</span><strong>{{ $carnet ?: '-' }}</strong></div>
+                                        <div class="ems-create-summary-row"><span>Tel&eacute;fono</span><strong>{{ $telefono_remitente ?: '-' }}</strong></div>
+                                        <div class="ems-create-summary-row"><span>Env&iacute;a como empresa</span><strong>{{ $mostrar_empresa ? 'Si' : 'No' }}</strong></div>
+                                        @if ($mostrar_empresa)
+                                            <div class="ems-create-summary-row is-stack"><span>Empresa</span><strong>{{ $nombre_envia ?: '-' }}</strong></div>
+                                        @endif
+
+                                        <div class="ems-create-summary-section-title">Destinatario</div>
+                                        <div class="ems-create-summary-row is-stack"><span>Nombre</span><strong>{{ $nombre_destinatario ?: '-' }}</strong></div>
+                                        <div class="ems-create-summary-row"><span>Tel&eacute;fono</span><strong>{{ $telefono_destinatario ?: '-' }}</strong></div>
+                                        <div class="ems-create-summary-row"><span>Ciudad</span><strong>{{ $ciudad ?: '-' }}</strong></div>
+                                        <div class="ems-create-summary-row is-stack"><span>Direcci&oacute;n</span><strong>{{ $direccion ?: '-' }}</strong></div>
+                                        <div class="ems-create-summary-row is-stack"><span>Referencia</span><strong>{{ $referencia ?: '-' }}</strong></div>
+                                    </div>
+                                    <div class="ems-create-price">
+                                        <span class="ems-create-price-label">Precio del env&iacute;o</span>
+                                        @if (is_numeric($precio))
+                                            <strong class="ems-create-price-value">Bs {{ number_format((float) $precio, 2, ',', '.') }}</strong>
+                                            <span class="ems-create-price-help">Calculado con el peso y el tarifario vigente.</span>
+                                        @else
+                                            <strong class="ems-create-price-value">Por calcular</strong>
+                                            <span class="ems-create-price-help">Completa los datos del paquete para conocer el precio.</span>
+                                        @endif
+                                    </div>
+                                </section>
+                                <section class="ems-create-info-card">
+                                    <span class="ems-create-info-icon"><i class="fas fa-weight-hanging" aria-hidden="true"></i></span>
+                                    <div>
+                                        <strong>Revisa el peso del paquete</strong>
+                                        <p>El precio se actualiza con el peso registrado. El recargo del 30 % aplica cuando el paquete supera 2 metros de alto o ancho.</p>
+                                    </div>
+                                </section>
+                            </aside>
+                        </div>
+                    </div>
                 @else
                 @if ($this->isAlmacenEms && $showCn33Reprint && $canEmsReprintCn33)
                     <div class="section-block mb-3">
