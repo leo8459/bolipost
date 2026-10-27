@@ -151,7 +151,7 @@ class FacturacionCartService
         return $cart;
     }
 
-    public function addPaqueteEms(User $user, PaqueteEms $paquete): object
+    public function addPaqueteEms(User $user, PaqueteEms $paquete, bool $confirmarReagregar = false): object
     {
         $this->assertFacturacionPermission($user);
 
@@ -177,6 +177,7 @@ class FacturacionCartService
             [
             'origen_tipo' => PaqueteEms::class,
             'origen_id' => (int) $paquete->id,
+            'confirmar_reagregar' => $confirmarReagregar,
             'codigo' => (string) ($paquete->codigo ?? ''),
             'titulo' => $tituloServicio,
             'nombre_servicio' => $tituloServicio,
@@ -468,7 +469,7 @@ class FacturacionCartService
         }
     }
 
-    public function addPaqueteCerti(User $user, PaqueteCerti $paquete): object
+    public function addPaqueteCerti(User $user, PaqueteCerti $paquete, bool $confirmarReagregar = false): object
     {
         $this->assertFacturacionPermission($user);
 
@@ -497,6 +498,7 @@ class FacturacionCartService
             [
             'origen_tipo' => PaqueteCerti::class,
             'origen_id' => (int) $paquete->id,
+            'confirmar_reagregar' => $confirmarReagregar,
             'codigo' => (string) ($paquete->codigo ?? ''),
             'titulo' => $tituloServicio,
             'nombre_servicio' => $tituloServicio,
@@ -534,7 +536,7 @@ class FacturacionCartService
         return $cart;
     }
 
-    public function addPaqueteInt(User $user, PaqueteInt $paquete): object
+    public function addPaqueteInt(User $user, PaqueteInt $paquete, bool $confirmarReagregar = false): object
     {
         $this->assertFacturacionPermission($user);
 
@@ -571,6 +573,7 @@ class FacturacionCartService
             [
                 'origen_tipo' => PaqueteInt::class,
                 'origen_id' => (int) $paquete->id,
+                'confirmar_reagregar' => $confirmarReagregar,
                 'codigo' => $codigo,
                 'titulo' => $tituloServicio,
                 'nombre_servicio' => $tituloServicio,
@@ -614,7 +617,7 @@ class FacturacionCartService
         return $cart;
     }
 
-    public function addPaqueteContrato(User $user, Recojo $paquete): object
+    public function addPaqueteContrato(User $user, Recojo $paquete, bool $confirmarReagregar = false): object
     {
         $this->assertFacturacionPermission($user);
 
@@ -635,6 +638,7 @@ class FacturacionCartService
             [
                 'origen_tipo' => Recojo::class,
                 'origen_id' => (int) $paquete->id,
+                'confirmar_reagregar' => $confirmarReagregar,
                 'codigo' => (string) ($paquete->codigo ?? ''),
                 'titulo' => (string) ($servicio->nombre_servicio ?? 'Paquete contrato'),
                 'nombre_servicio' => (string) ($servicio->nombre_servicio ?? 'PAQUETE CONTRATO'),
@@ -746,7 +750,7 @@ class FacturacionCartService
         return $this->normalizeDraftCodesAfterMutation($user, $cart);
     }
 
-    public function addInternationalPackages(User $user, ConceptoFacturacion $concepto, ?string $descripcionServicio, array $paquetes): object
+    public function addInternationalPackages(User $user, ConceptoFacturacion $concepto, ?string $descripcionServicio, array $paquetes, ?string $confirmarReagregarCodigo = null): object
     {
         $this->assertFacturacionPermission($user);
 
@@ -764,6 +768,7 @@ class FacturacionCartService
         $ctx = $this->getRemoteContextForUser($user);
         $cart = $ctx['draft'] ?? null;
         $codigoServicio = strtoupper(trim((string) $concepto->codigo));
+        $confirmarReagregarCodigo = strtoupper(trim((string) $confirmarReagregarCodigo));
         $codigosRegistrados = collect($cart?->items ?? [])
             ->filter(function ($item) use ($codigoServicio, $concepto) {
                 return ltrim((string) data_get($item, 'origen_tipo', ''), '\\') === ltrim(ConceptoFacturacion::class, '\\')
@@ -772,6 +777,7 @@ class FacturacionCartService
             })
             ->mapWithKeys(fn ($item) => [mb_strtoupper(trim((string) data_get($item, 'resumen_origen.codigo_paquete', ''))) => true])
             ->all();
+        $codigosSolicitados = [];
         $nextOriginId = collect($cart?->items ?? [])
             ->filter(fn ($item) => ltrim((string) data_get($item, 'origen_tipo', ''), '\\') === ltrim(ConceptoFacturacion::class, '\\'))
             ->map(fn ($item) => (int) data_get($item, 'origen_id', 0))
@@ -787,7 +793,15 @@ class FacturacionCartService
             }
 
             $codigoNormalizado = mb_strtoupper($codigoPaquete);
+            if (isset($codigosSolicitados[$codigoNormalizado])) {
+                throw new \InvalidArgumentException('El codigo de paquete ' . $codigoPaquete . ' esta repetido en este registro.');
+            }
+            $codigosSolicitados[$codigoNormalizado] = true;
+
             if (isset($codigosRegistrados[$codigoNormalizado])) {
+                if ($confirmarReagregarCodigo !== '') {
+                    continue;
+                }
                 throw new \InvalidArgumentException('El codigo de paquete ' . $codigoPaquete . ' ya esta registrado para este servicio.');
             }
             $codigosRegistrados[$codigoNormalizado] = true;
@@ -804,6 +818,8 @@ class FacturacionCartService
             );
             $payload['codigo_paquete'] = $codigoPaquete;
             $payload['peso'] = $peso;
+            $payload['confirmar_reagregar'] = $confirmarReagregarCodigo !== ''
+                && $codigoNormalizado === $confirmarReagregarCodigo;
             $payload['resumen_origen']['codigo_paquete'] = $codigoPaquete;
             $payload['resumen_origen']['codigo_servicio'] = $codigoServicio;
             $payload['resumen_origen']['peso'] = $peso;
@@ -975,11 +991,11 @@ class FacturacionCartService
         $record = $match['record'];
 
         $cart = match ($match['type']) {
-            'contrato' => $this->addPaqueteContrato($user, $record),
-            'ordinario' => $this->addPaqueteOrdi($user, $record),
-            'certificado' => $this->addPaqueteCerti($user, $record),
-            'interno' => $this->addPaqueteInt($user, $record),
-            'ems' => $this->addPaqueteEms($user, $record),
+            'contrato' => $this->addPaqueteContrato($user, $record, $confirmarReagregar),
+            'ordinario' => $this->addPaqueteOrdi($user, $record, $confirmarReagregar),
+            'certificado' => $this->addPaqueteCerti($user, $record, $confirmarReagregar),
+            'interno' => $this->addPaqueteInt($user, $record, $confirmarReagregar),
+            'ems' => $this->addPaqueteEms($user, $record, $confirmarReagregar),
             'solicitud_ems' => $this->addSolicitudEms($user, $record, $confirmarReagregar),
             default => throw new \RuntimeException('El codigo escaneado no tiene un modulo compatible con Facturacion.'),
         };
@@ -1084,7 +1100,9 @@ class FacturacionCartService
                     'codigo_detalle_enviado' => (string) ($solicitud->codigo_solicitud ?? ''),
                     'codigo_servicio' => $this->buildServicioAnalyticsCodigo($nombreServicio, (string) $fiscalData['codigo_producto']),
                     'servicio_nombre' => $this->normalizeServicioAnalyticsNombre($nombreServicio),
-                    'servicio_familia' => 'EMS',
+                    'servicio_familia' => $this->isSolicitudDeliveryExpress(strtoupper($nombreServicio))
+                        ? 'DELIVERY_EXPRESS'
+                        : 'EMS',
                     'codigo_producto_fiscal' => (string) $fiscalData['codigo_producto'],
                     'confirmar_reagregar' => $confirmarReagregar,
                 ])
@@ -1120,8 +1138,11 @@ class FacturacionCartService
                     'codigo_detalle_enviado' => (string) ($solicitud->codigo_solicitud ?? ''),
                     'codigo_servicio' => $this->buildServicioAnalyticsCodigo($nombreServicio, (string) $fiscalData['codigo_producto']),
                     'servicio_nombre' => $this->normalizeServicioAnalyticsNombre($nombreServicio),
-                    'servicio_familia' => 'EMS',
+                    'servicio_familia' => $this->isSolicitudDeliveryExpress(strtoupper($nombreServicio))
+                        ? 'DELIVERY_EXPRESS'
+                        : 'EMS',
                     'codigo_producto_fiscal' => (string) $fiscalData['codigo_producto'],
+                    'importe_facturado_snapshot' => $montoBase,
                 ]),
                 'cantidad' => $cantidadInicial,
                 'monto_base' => $montoBase,
@@ -1226,7 +1247,7 @@ class FacturacionCartService
             );
     }
 
-    public function addPaqueteOrdi(User $user, PaqueteOrdi $paquete): object
+    public function addPaqueteOrdi(User $user, PaqueteOrdi $paquete, bool $confirmarReagregar = false): object
     {
         $this->assertFacturacionPermission($user);
 
@@ -1255,6 +1276,7 @@ class FacturacionCartService
             [
             'origen_tipo' => PaqueteOrdi::class,
             'origen_id' => (int) $paquete->id,
+            'confirmar_reagregar' => $confirmarReagregar,
             'codigo' => (string) ($paquete->codigo ?? ''),
             'titulo' => $tituloServicio,
             'nombre_servicio' => $tituloServicio,
@@ -1367,6 +1389,22 @@ class FacturacionCartService
 
         if (!$existingItem) {
             throw new ModelNotFoundException('Item de facturacion no encontrado.');
+        }
+
+        if ($this->isDraftItemPriceLocked($existingItem)) {
+            $lockedPrice = $this->resolveDraftItemLockedPrice($existingItem);
+            $requestedPrice = round((float) ($payload['precio'] ?? 0), 2);
+
+            if (abs($requestedPrice - $lockedPrice) >= 0.01) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'precio' => $this->resolveDraftItemLockedPriceMessage($existingItem),
+                ]);
+            }
+
+            $payload['precio'] = $lockedPrice;
+            $payload['monto_base'] = $lockedPrice;
+            $extras = round((float) data_get($existingItem, 'monto_extras', 0), 2);
+            $payload['total_linea'] = round(($lockedPrice + $extras) * max(1, (int) ($payload['cantidad'] ?? 1)), 2);
         }
 
         if (preg_match('/^(SRVE-(?:2|3|4|11|12))(?:\.\d+|\s*-)/i', trim((string) ($payload['codigo'] ?? '')), $matches)) {
@@ -1519,7 +1557,10 @@ class FacturacionCartService
             throw new \RuntimeException('Debes completar exactamente ' . $effectiveQuantity . ' espacios para este item agrupado.');
         }
 
-        $currentBase = $this->resolveEffectiveDraftItemUnitBaseAmount($existingItem);
+        $priceLocked = $this->isDraftItemPriceLocked($existingItem);
+        $currentBase = $priceLocked
+            ? $this->resolveDraftItemLockedPrice($existingItem)
+            : $this->resolveEffectiveDraftItemUnitBaseAmount($existingItem);
         $currentExtras = round((float) data_get($existingItem, 'monto_extras', 0), 2);
         $currentDescription = (string) data_get($existingItem, 'resumen_origen.descripcion_servicio', '');
         $currentCode = (string) data_get($existingItem, 'codigo', '');
@@ -1531,6 +1572,12 @@ class FacturacionCartService
                 'precio' => round((float) ($entry['precio'] ?? $currentBase), 2),
             ];
         });
+
+        if ($priceLocked && $normalizedEntries->contains(fn (array $entry) => abs(round((float) ($entry['precio'] ?? $currentBase), 2) - $currentBase) >= 0.01)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'entries' => $this->resolveDraftItemLockedPriceMessage($existingItem),
+            ]);
+        }
 
         $changedEntries = $normalizedEntries->filter(function (array $entry) use ($currentBase, $currentDescription, $currentCode) {
             return trim((string) ($entry['codigo'] ?? $currentCode)) !== $currentCode
@@ -2426,6 +2473,50 @@ class FacturacionCartService
         ];
     }
 
+    private function resolveDuplicateConfirmationItemLabel(array $payload): ?string
+    {
+        $originType = ltrim(trim((string) ($payload['origen_tipo'] ?? '')), '\\');
+        $packageLabels = [
+            ltrim(PaqueteEms::class, '\\') => 'Paquete EMS',
+            ltrim(PaqueteCerti::class, '\\') => 'Paquete certificado',
+            ltrim(PaqueteOrdi::class, '\\') => 'Paquete ordinario',
+            ltrim(PaqueteInt::class, '\\') => 'Paquete interno',
+            ltrim(Recojo::class, '\\') => 'Paquete contrato',
+        ];
+
+        if (isset($packageLabels[$originType])) {
+            return $packageLabels[$originType];
+        }
+
+        if ($originType === ltrim(ConceptoFacturacion::class, '\\')) {
+            $serviceCode = strtoupper(trim((string) data_get($payload, 'resumen_origen.codigo_servicio', '')));
+            $packageCode = strtoupper(trim((string) data_get($payload, 'resumen_origen.codigo_paquete', '')));
+            $itemCode = strtoupper(trim((string) ($payload['codigo'] ?? '')));
+            $internationalServiceCodes = ['SRVE-2', 'SRVE-3', 'SRVE-4', 'SRVE-11', 'SRVE-12'];
+
+            return in_array($serviceCode, $internationalServiceCodes, true)
+                && $packageCode !== ''
+                && $itemCode === $serviceCode . '-' . $packageCode
+                ? 'Paquete internacional'
+                : null;
+        }
+
+        if ($originType !== ltrim(SolicitudCliente::class, '\\')) {
+            return null;
+        }
+
+        $serviceFamily = strtoupper(trim((string) data_get($payload, 'resumen_origen.servicio_familia', '')));
+        $serviceName = strtoupper(trim(implode(' ', array_filter([
+            (string) ($payload['titulo'] ?? ''),
+            (string) ($payload['nombre_servicio'] ?? ''),
+            (string) data_get($payload, 'resumen_origen.servicio', ''),
+        ]))));
+
+        return $serviceFamily === 'DELIVERY_EXPRESS' || $this->isSolicitudDeliveryExpress($serviceName)
+            ? 'Solicitud de Delivery'
+            : 'Solicitud';
+    }
+
     private function request(string $method, string $path, array $payload = []): array
     {
         $timeout = (int) config('services.facturacion_bridge.timeout', 30);
@@ -2460,16 +2551,23 @@ class FacturacionCartService
                 'status' => $response->status(),
                 'body' => $body ?: trim((string) $response->body()),
             ]);
+            $confirmationItemLabel = $this->resolveDuplicateConfirmationItemLabel($payload);
+            $duplicateConfirmationCode = (string) ($body['code'] ?? '');
             if (
                 $response->status() === 409
                 && is_array($body)
-                && (string) ($body['code'] ?? '') === 'solicitud_ya_pagada_o_facturada'
+                && in_array($duplicateConfirmationCode, [
+                    'solicitud_ya_pagada_o_facturada',
+                    'paquete_ya_pagado_o_facturado',
+                ], true)
                 && !empty($body['requires_confirmation'])
+                && $confirmationItemLabel !== null
             ) {
                 throw new FacturacionSolicitudConfirmationRequired(
-                    (string) ($body['message'] ?? 'La solicitud ya tiene un pago o factura vinculada.'),
-                    (string) ($body['solicitud_codigo'] ?? ''),
-                    (array) ($body['existing'] ?? [])
+                    (string) ($body['message'] ?? 'El registro ya tiene un pago o factura vinculada.'),
+                    (string) ($body['item_codigo'] ?? $body['solicitud_codigo'] ?? $payload['codigo'] ?? data_get($payload, 'resumen_origen.codigo', '')),
+                    (array) ($body['existing'] ?? []),
+                    $confirmationItemLabel
                 );
             }
             $msg = is_array($body)
@@ -2622,6 +2720,7 @@ class FacturacionCartService
                 'servicio_nombre' => $this->normalizeServicioAnalyticsNombre($conceptoNormalizado['nombre_servicio']),
                 'servicio_familia' => 'CONCEPTO_FACTURABLE',
                 'codigo_producto_fiscal' => $resolvedCode,
+                'importe_facturado_snapshot' => $montoBase,
                 'tarifario_manual_referencia' => $versionManual,
             ],
             'cantidad' => $cantidad,
@@ -2726,6 +2825,59 @@ class FacturacionCartService
         $derivedBase = round(($totalLinea / $explicitQuantity) - $montoExtras, 2);
 
         return $derivedBase > 0 ? $derivedBase : $explicitBase;
+    }
+
+    private function isDraftItemPriceLocked(object $item): bool
+    {
+        $originType = ltrim((string) data_get($item, 'origen_tipo', ''), '\\');
+
+        if (in_array($originType, [
+            ltrim(PaqueteEms::class, '\\'),
+            ltrim(ConceptoFacturacion::class, '\\'),
+            'cliente_online',
+        ], true)) {
+            return true;
+        }
+
+        if ($originType !== ltrim(SolicitudCliente::class, '\\')) {
+            return false;
+        }
+
+        if (strtoupper(trim((string) data_get($item, 'resumen_origen.servicio_familia', ''))) === 'DELIVERY_EXPRESS') {
+            return true;
+        }
+
+        $serviceName = strtoupper(trim(implode(' ', array_filter([
+            (string) data_get($item, 'titulo', ''),
+            (string) data_get($item, 'nombre_servicio', ''),
+            (string) data_get($item, 'resumen_origen.servicio', ''),
+        ]))));
+
+        return $this->isSolicitudDeliveryExpress($serviceName);
+    }
+
+    private function resolveDraftItemLockedPrice(object $item): float
+    {
+        $snapshotPrice = data_get($item, 'resumen_origen.importe_facturado_snapshot');
+
+        return is_numeric($snapshotPrice)
+            ? round((float) $snapshotPrice, 2)
+            : $this->resolveEffectiveDraftItemUnitBaseAmount($item);
+    }
+
+    private function resolveDraftItemLockedPriceMessage(object $item): string
+    {
+        $originType = ltrim((string) data_get($item, 'origen_tipo', ''), '\\');
+
+        if ($originType === ltrim(PaqueteEms::class, '\\')) {
+            return 'El precio del paquete EMS se calcula con el tarifario y no se puede cambiar.';
+        }
+
+        if ($originType === ltrim(ConceptoFacturacion::class, '\\')) {
+            return 'El precio del concepto facturable queda registrado al agregarlo y no se puede cambiar en el carrito.';
+        }
+
+        return 'El precio de Delivery Express queda fijado por la tarifa cotizada y no se puede cambiar.';
     }
 
     private function resolveConceptoDraftOriginId(?object $draft, ConceptoFacturacion $concepto): int

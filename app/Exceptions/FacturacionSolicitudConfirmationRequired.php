@@ -9,7 +9,8 @@ class FacturacionSolicitudConfirmationRequired extends RuntimeException
     public function __construct(
         string $message,
         private readonly string $solicitudCodigo,
-        private readonly array $existing
+        private readonly array $existing,
+        private readonly string $itemLabel = 'Solicitud'
     ) {
         parent::__construct($message);
     }
@@ -22,5 +23,10 @@ class FacturacionSolicitudConfirmationRequired extends RuntimeException
     public function existing(): array
     {
         return $this->existing;
+    }
+
+    public function itemLabel(): string
+    {
+        return $this->itemLabel;
     }
 }

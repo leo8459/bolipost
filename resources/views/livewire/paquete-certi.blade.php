@@ -487,15 +487,16 @@
                         <div class="form-row">
                             <div class="form-group col-md-6">
                                 <label>Codigo</label>
-                                <input type="text" wire:model.defer="codigo" class="form-control uppercase-input">
+                                <input type="text" wire:model.blur="codigo" class="form-control uppercase-input" autocomplete="off">
                                 @error('codigo') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Cod. especial</label>
                                 <input
                                     type="text"
-                                    wire:model.defer="cod_especial"
+                                    wire:model.blur="cod_especial"
                                     class="form-control uppercase-input"
+                                    autocomplete="off"
                                     placeholder="Se genera automaticamente al despachar"
                                 >
                                 @error('cod_especial') <small class="text-danger">{{ $message }}</small> @enderror
@@ -508,12 +509,12 @@
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Destinatario</label>
-                                <input type="text" wire:model.defer="destinatario" class="form-control uppercase-input" autocomplete="off">
+                                <input type="text" wire:model.blur="destinatario" class="form-control uppercase-input" autocomplete="off">
                                 @error('destinatario') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Telefono</label>
-                                <input type="number" wire:model.defer="telefono" class="form-control" autocomplete="off">
+                                <input type="number" wire:model.blur="telefono" class="form-control" autocomplete="off">
                                 @error('telefono') <small class="text-danger">{{ $message }}</small> @enderror
                             </div>
                             <div class="form-group col-md-6">
@@ -539,7 +540,7 @@
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Zona</label>
-                                <input type="text" wire:model.defer="zona" class="form-control uppercase-input" list="zonas-list" placeholder="Seleccione o escriba una zona" autocomplete="off">
+                                <input type="text" wire:model.blur="zona" class="form-control uppercase-input" list="zonas-list" placeholder="Seleccione o escriba una zona" autocomplete="off">
                                 <datalist id="zonas-list">
                                     <option value="ACHACHICALA">
                                     <option value="ACHUMANI">

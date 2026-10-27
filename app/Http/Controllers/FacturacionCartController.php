@@ -489,14 +489,19 @@ class FacturacionCartController extends Controller
             throw $e;
         } catch (FacturacionSolicitudConfirmationRequired $e) {
             $existing = $e->existing();
+            $itemLabel = trim($e->itemLabel()) ?: 'Solicitud';
+            $itemCode = $e->solicitudCodigo() ?: trim((string) ($validated['scan_code'] ?? ''));
+            $isSolicitud = str_starts_with(mb_strtolower($itemLabel), 'solicitud');
+            $subject = ($isSolicitud ? 'La ' : 'El ') . mb_strtolower($itemLabel);
+            $addPronoun = $isSolicitud ? 'agregarla' : 'agregarlo';
             $details = array_values(array_filter([
                 !empty($existing['codigo_orden']) ? 'Orden ' . trim((string) $existing['codigo_orden']) : null,
                 !empty($existing['numero_factura']) ? 'Factura ' . trim((string) $existing['numero_factura']) : null,
             ]));
             $feedback = [
                 'type' => 'warning',
-                'title' => 'Solicitud ya pagada o facturada',
-                'message' => 'La solicitud ' . ($e->solicitudCodigo() ?: trim((string) ($validated['scan_code'] ?? ''))) . ' ya registra un pago o una factura. ¿Estás seguro de que deseas agregarla al carrito? Puedes continuar si confirmas.',
+                'title' => $isSolicitud ? 'Solicitud ya pagada o facturada' : 'Paquete ya pagado o facturado',
+                'message' => $subject . ($itemCode !== '' ? ' ' . $itemCode : '') . ' ya registra un pago o una factura. ¿Estás seguro de que deseas ' . $addPronoun . ' al carrito? Puedes continuar si confirmas.',
                 'detail' => $details !== [] ? implode(' · ', $details) : trim($e->getMessage()),
                 'action' => 'scan_add_confirm_duplicate',
             ];
@@ -505,7 +510,9 @@ class FacturacionCartController extends Controller
                 return response()->json([
                     'ok' => false,
                     'requires_confirmation' => true,
-                    'solicitud_codigo' => $e->solicitudCodigo(),
+                    'item_codigo' => $itemCode,
+                    'item_tipo' => $itemLabel,
+                    'solicitud_codigo' => $isSolicitud ? $itemCode : null,
                     'existing' => $existing,
                     'feedback' => $feedback,
                 ], 409);
@@ -1600,6 +1607,8 @@ class FacturacionCartController extends Controller
                 'paquetes.*.codigo' => ['nullable', 'string', 'max:120'],
                 'paquetes.*.peso' => ['nullable', 'numeric', 'gt:0'],
                 'paquetes.*.precio' => ['nullable', 'numeric', 'gt:0'],
+                'confirmar_reagregar' => ['nullable', 'boolean'],
+                'confirmar_reagregar_codigo' => ['nullable', 'string', 'max:120'],
             ]);
 
             $concepto = ConceptoFacturacion::query()
@@ -1688,7 +1697,10 @@ class FacturacionCartController extends Controller
                     $user,
                     $concepto,
                     $descripcionServicio !== '' ? $descripcionServicio : null,
-                    $paquetesEms
+                    $paquetesEms,
+                    isset($validated['confirmar_reagregar_codigo'])
+                        ? (string) $validated['confirmar_reagregar_codigo']
+                        : null
                 );
             } else {
                 $cart = $service->addConceptoFacturacion(
@@ -1783,6 +1795,36 @@ class FacturacionCartController extends Controller
             }
 
             return back()->withInput()->with('facturacion_feedback', $feedback);
+        } catch (FacturacionSolicitudConfirmationRequired $e) {
+            $existing = $e->existing();
+            $itemLabel = trim($e->itemLabel()) ?: 'Paquete';
+            $itemCode = $e->solicitudCodigo();
+            $details = array_values(array_filter([
+                !empty($existing['codigo_orden']) ? 'Orden ' . trim((string) $existing['codigo_orden']) : null,
+                !empty($existing['numero_factura']) ? 'Factura ' . trim((string) $existing['numero_factura']) : null,
+            ]));
+            $feedback = [
+                'type' => 'warning',
+                'title' => 'Paquete ya pagado o facturado',
+                'message' => 'El ' . mb_strtolower($itemLabel) . ($itemCode !== '' ? ' ' . $itemCode : '') . ' ya registra un pago o una factura. ¿Estás seguro de que deseas agregarlo al carrito? Puedes continuar si confirmas.',
+                'detail' => $details !== [] ? implode(' · ', $details) : trim($e->getMessage()),
+                'action' => 'scan_add_confirm_duplicate',
+            ];
+
+            if ($expectsJson) {
+                return response()->json([
+                    'ok' => false,
+                    'requires_confirmation' => true,
+                    'item_codigo' => $itemCode,
+                    'item_tipo' => $itemLabel,
+                    'existing' => $existing,
+                    'feedback' => $feedback,
+                ], 409);
+            }
+
+            return back()
+                ->withInput()
+                ->with('facturacion_feedback', $feedback);
         } catch (\RuntimeException $e) {
             $feedback = [
                 'type' => 'warning',
