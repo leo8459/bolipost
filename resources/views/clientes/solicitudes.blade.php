@@ -139,6 +139,9 @@
                                 <option value="destino" @selected(old('forma_pago') === 'destino')>Pagar en destino</option>
                             </select>
                             <small id="forma-pago-ayuda" class="form-text text-muted" aria-live="polite">Elige d&oacute;nde se realizar&aacute; el pago.</small>
+                            <div id="recargo-destino-aviso" class="alert alert-warning mt-2 mb-0 py-2" role="status" aria-live="polite" hidden>
+                                Por pagar en destino, se a&ntilde;adir&aacute; un recargo de Bs 2,50 a la tarifa.
+                            </div>
                         </div>
                         <div id="tipo-pago-container" class="col-md-6 form-group mb-0" @if(old('forma_pago') !== 'origen') hidden @endif>
                             <label for="tipo_pago">Tipo de pago <span id="tipo-pago-obligatorio" class="text-danger" aria-hidden="true" @if(old('forma_pago') !== 'origen') hidden @endif>*</span></label>
@@ -313,6 +316,9 @@
                             <div id="resumen-solicitud-datos" class="solicitud-summary"></div>
                             <div class="solicitud-total mt-3">
                                 <strong id="resumen-solicitud-precio"></strong>
+                                <small id="resumen-solicitud-recargo-destino" class="d-block mt-1" hidden>
+                                    Recargo por pago en destino: Bs 2,50 (incluido en el total).
+                                </small>
                                 <small class="d-block">Al momento del recojo verificaremos las medidas y el peso. Cada paquete debe medir menos de 50 × 40 × 30 cm y pesar menos de 3 kg. Si supera alguno de estos límites, agrega el recargo de Bs 10.</small>
                             </div>
 
@@ -431,10 +437,17 @@
 .solicitud-total { padding: 16px; border-radius: 10px; background: #eaf5ef; color: #21583b; }
 .solicitud-total strong { font-size: 1.2rem; }
 .solicitud-total small { margin-top: 4px; }
+#precio_solicitud { min-height: 110px; display: flex; align-items: center; padding: 20px 24px !important; font-size: 1.5rem; font-weight: 700; line-height: 1.5; }
+#resumen-solicitud-precio { display: block; font-size: 1.55rem; line-height: 1.4; }
+#resumen-solicitud-recargo-destino { font-size: 1.05rem; }
+#resumen-solicitud-pago-detalle { font-size: 1rem !important; line-height: 1.5; }
+#precio-recargo-toggle { min-height: 42px; padding: .55rem .95rem !important; font-size: 1rem; }
 @media (max-width: 575.98px) {
     .solicitud-card-header { align-items: flex-start; padding: 19px 17px; }
     .solicitud-card-header__badge { padding: 6px 9px; font-size: .72rem; }
     .solicitud-card .card-body { padding: 16px; }
+    #precio_solicitud { min-height: 120px; padding: 18px !important; font-size: 1.25rem; }
+    #resumen-solicitud-precio { font-size: 1.3rem; }
     .solicitud-wizard-progress { padding: 14px 12px 12px; }
     .solicitud-wizard-steps { gap: 4px; }
     .solicitud-wizard-step { flex-direction: column; gap: 5px; padding: 2px; text-align: center; }
@@ -465,6 +478,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const origenSelect = document.getElementById('origen');
     const destinoSelect = document.getElementById('destino_id');
     const formaPagoSelect = document.getElementById('forma_pago');
+    const recargoDestinoAviso = document.getElementById('recargo-destino-aviso');
     const tipoPagoSelect = document.getElementById('tipo_pago');
     const tipoPagoContainer = document.getElementById('tipo-pago-container');
     const tipoPagoObligatorio = document.getElementById('tipo-pago-obligatorio');
@@ -498,6 +512,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let solicitudRegistrada = false;
     let qrPendienteActivo = false;
     let qrAttemptActivo = '';
+    const ticketsDescargados = new Set();
     let consultaPagoTimer = null;
     let consultaPagoEnCurso = false;
     let qrConsultaDetenida = false;
@@ -622,10 +637,13 @@ document.addEventListener('DOMContentLoaded', function () {
             section.append(heading, list);
             container.append(section);
         });
-        document.getElementById('resumen-solicitud-precio').textContent = precioSolicitud.textContent;
-
         const pagaEnDestino = formaPagoSelect.value === 'destino';
         const pagaConQr = !pagaEnDestino && tipoPagoSelect.value === 'qr';
+        const totalCotizado = Number(precioCotizado.value);
+        document.getElementById('resumen-solicitud-precio').textContent = Number.isFinite(totalCotizado) && totalCotizado > 0
+            ? (pagaEnDestino ? 'Total por cobrar: Bs ' : 'Precio total: Bs ') + totalCotizado.toFixed(2)
+            : precioSolicitud.textContent;
+        document.getElementById('resumen-solicitud-recargo-destino').hidden = !pagaEnDestino;
         const pagoTitulo = document.getElementById('resumen-solicitud-pago-titulo');
         const pagoDetalle = document.getElementById('resumen-solicitud-pago-detalle');
         const pagoResumen = document.getElementById('resumen-solicitud-pago');
@@ -634,7 +652,7 @@ document.addEventListener('DOMContentLoaded', function () {
         pagoDetalle.textContent = pagaConQr
             ? 'Se generará un QR. La solicitud y la guía se registrarán cuando se confirme el pago.'
             : (pagaEnDestino
-                ? 'La solicitud se registrará ahora para que el pago se realice en destino.'
+                ? 'La solicitud se registrará ahora para que el pago se realice en destino. Se añadirá un recargo de Bs 2,50 a la tarifa.'
                 : 'La solicitud se registrará ahora y la guía indicará cobrar en origen.');
         document.getElementById('resumen-solicitud-instruccion').textContent = pagaConQr
             ? 'Revisa el importe y los datos antes de generar el QR.'
@@ -661,10 +679,11 @@ document.addEventListener('DOMContentLoaded', function () {
             field.required = pagaConQr;
         });
         ayuda.textContent = pagaEnDestino
-            ? 'El envío se pagará en destino.'
+            ? 'El envío se pagará en destino. Se añadirá un recargo de Bs 2,50 a la tarifa.'
             : pagaEnOrigen
                 ? 'El pago en origen se realiza únicamente por QR.'
                 : 'Elige dónde se realizará el pago.';
+        recargoDestinoAviso.hidden = !pagaEnDestino;
         tipoAyuda.textContent = pagaConQr
             ? 'Se generará un QR y la guía se creará al confirmarse el pago.'
             : 'Elige pagar en origen para generar un QR.';
@@ -716,7 +735,12 @@ document.addEventListener('DOMContentLoaded', function () {
         if (focus && permiteEdicion) billingEmail.focus();
     }
 
-    formaPagoSelect.addEventListener('change', actualizarAyudaFormaPago);
+    formaPagoSelect.addEventListener('change', function () {
+        actualizarAyudaFormaPago();
+        if (precioBaseCotizado !== null && Number.isFinite(precioBaseCotizado)) {
+            setPrecio('Precio: Bs ' + precioBaseCotizado.toFixed(2) + '.', 'success', precioBaseCotizado);
+        }
+    });
     tipoPagoSelect.addEventListener('change', actualizarAyudaFormaPago);
     billingDocumentNumber.addEventListener('input', detectarDocumentacion);
     editBillingEmail.addEventListener('change', function () {
@@ -784,6 +808,16 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         if (payload.ticket_url) {
+            if (payload.solicitud_codigo && !ticketsDescargados.has(payload.ticket_url)) {
+                ticketsDescargados.add(payload.ticket_url);
+                const descargaAutomatica = document.createElement('a');
+                descargaAutomatica.href = payload.ticket_url;
+                descargaAutomatica.hidden = true;
+                document.body.appendChild(descargaAutomatica);
+                descargaAutomatica.click();
+                descargaAutomatica.remove();
+            }
+
             const ticket = document.createElement('a');
             ticket.href = payload.ticket_url;
             ticket.target = '_blank';
@@ -1039,6 +1073,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     const precioCotizado = document.getElementById('precio_cotizado');
+    const recargoPagoDestino = Number(@json(\App\Models\SolicitudCliente::RECARGO_PAGO_DESTINO));
     let quoteSequence = 0;
     let precioBaseCotizado = null;
     let recargoVolumenAplicado = false;
@@ -1055,12 +1090,18 @@ document.addEventListener('DOMContentLoaded', function () {
         recargoVolumenButton.classList.toggle('btn-outline-success', !recargoVolumenAplicado);
 
         if (precioBaseCotizado !== null && Number.isFinite(precioBaseCotizado)) {
-            const total = precioBaseCotizado + (recargoVolumenAplicado ? 10 : 0);
+            const recargoDestinoAplicado = formaPagoSelect.value === 'destino' ? recargoPagoDestino : 0;
+            const total = precioBaseCotizado + (recargoVolumenAplicado ? 10 : 0) + recargoDestinoAplicado;
             precioCotizado.value = total.toFixed(2);
-            if (type === 'success') {
-                message = 'Precio: Bs ' + total.toFixed(2) + (recargoVolumenAplicado ? ' (incluye recargo de Bs 10).' : '.');
-            } else if (type === 'warning') {
-                message = 'La tarifa cambió. Nuevo precio: Bs ' + total.toFixed(2) + (recargoVolumenAplicado ? ' (incluye recargo de Bs 10).' : '.') + ' Revísalo antes de confirmar.';
+            if (type === 'success' || type === 'warning') {
+                const recargos = [];
+                if (recargoVolumenAplicado) recargos.push('recargo por volumen Bs 10.00');
+                if (recargoDestinoAplicado) recargos.push('recargo por pago en destino Bs 2,50');
+                const detallePrecio = recargos.length
+                    ? 'Precio base: Bs ' + precioBaseCotizado.toFixed(2) + ' + ' + recargos.join(' + ') + ' = Total: Bs ' + total.toFixed(2)
+                    : 'Precio: Bs ' + total.toFixed(2);
+                message = (type === 'warning' ? 'La tarifa cambió. ' : '') + detallePrecio
+                    + (type === 'warning' ? '. Revísalo antes de confirmar.' : '.');
             }
         } else {
             precioCotizado.value = '';

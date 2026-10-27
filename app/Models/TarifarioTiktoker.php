@@ -38,7 +38,11 @@ class TarifarioTiktoker extends Model
 
     protected static function booted(): void
     {
-        static::saving(function (TarifarioTiktoker $tarifario): void {
+        static::creating(function (TarifarioTiktoker $tarifario): void {
+            if ($tarifario->peso1 !== null) {
+                return;
+            }
+
             $origen = (string) Origen::query()->whereKey($tarifario->origen_id)->value('nombre_origen');
             $destino = (string) Destino::query()->whereKey($tarifario->destino_id)->value('nombre_destino');
 
@@ -48,9 +52,6 @@ class TarifarioTiktoker extends Model
             $tarifario->peso1 = $mismoDestino
                 ? self::PRECIO_MISMO_DESTINO
                 : self::PRECIO_OTRO_DESTINO;
-            $tarifario->peso2 = null;
-            $tarifario->peso3 = null;
-            $tarifario->peso_extra = null;
         });
     }
 

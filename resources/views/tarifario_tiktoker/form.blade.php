@@ -64,9 +64,9 @@
         <div class="row">
             <div class="col-md-4">
                 <div class="form-group mb-3">
-                    <label for="peso1">Precio fijo</label>
-                    <input type="number" step="0.01" id="peso1" name="peso1" value="{{ old('peso1', $tarifa->peso1 ?? 20) }}" class="form-control @error('peso1') is-invalid @enderror" readonly>
-                    <small class="form-text text-muted">Bs 15 cuando origen y destino coinciden; Bs 20 para las demas rutas. No depende del peso.</small>
+                    <label for="peso1">Peso 1 (hasta 3 kg)</label>
+                    <input type="number" min="0" step="0.01" id="peso1" name="peso1" value="{{ old('peso1', $tarifa->peso1 ?? '') }}" class="form-control @error('peso1') is-invalid @enderror" {{ $tarifa->exists ? 'required' : '' }}>
+                    <small class="form-text text-muted">Precio base en Bs. Si se deja vacio al crear, se aplica la tarifa predeterminada de la ruta.</small>
                     @error('peso1')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
@@ -74,9 +74,8 @@
             </div>
             <div class="col-md-4">
                 <div class="form-group mb-3">
-                    <label for="peso2">Peso 2 (no utilizado)</label>
-                    <input type="number" id="peso2" name="peso2" value="" class="form-control @error('peso2') is-invalid @enderror" readonly>
-                    <small class="form-text text-muted">Se guarda como NULL.</small>
+                    <label for="peso2">Peso 2 (hasta 5 kg)</label>
+                    <input type="number" min="0" step="0.01" id="peso2" name="peso2" value="{{ old('peso2', $tarifa->peso2 ?? '') }}" class="form-control @error('peso2') is-invalid @enderror">
                     @error('peso2')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
@@ -84,9 +83,8 @@
             </div>
             <div class="col-md-4">
                 <div class="form-group mb-3">
-                    <label for="peso_extra">Peso extra (no utilizado)</label>
-                    <input type="number" id="peso_extra" name="peso_extra" value="" class="form-control @error('peso_extra') is-invalid @enderror" readonly>
-                    <small class="form-text text-muted">Se guarda como NULL.</small>
+                    <label for="peso_extra">Peso extra (+ de 5 kg)</label>
+                    <input type="number" min="0" step="0.01" id="peso_extra" name="peso_extra" value="{{ old('peso_extra', $tarifa->peso_extra ?? '') }}" class="form-control @error('peso_extra') is-invalid @enderror">
                     @error('peso_extra')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
@@ -97,9 +95,8 @@
         <div class="row">
             <div class="col-md-4">
                 <div class="form-group mb-3">
-                    <label for="peso3">Peso 3 (no utilizado)</label>
-                    <input type="number" id="peso3" name="peso3" value="" class="form-control @error('peso3') is-invalid @enderror" readonly>
-                    <small class="form-text text-muted">Se guarda como NULL.</small>
+                    <label for="peso3">Peso 3 (opcional)</label>
+                    <input type="number" min="0" step="0.01" id="peso3" name="peso3" value="{{ old('peso3', $tarifa->peso3 ?? '') }}" class="form-control @error('peso3') is-invalid @enderror">
                     @error('peso3')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror

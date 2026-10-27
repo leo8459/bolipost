@@ -481,13 +481,30 @@ class CarterosController extends Controller
     {
         $this->authorizeRoutePermission('carteros.domicilio');
 
-        return $this->combinedDataResponse(
+        $response = $this->combinedDataResponse(
             $request,
             $this->resolveEstadoByName('ENTREGADO'),
             null,
             false,
             true
         );
+
+        $payload = $response->getData(true);
+        $payload['data'] = collect($payload['data'] ?? [])->map(function (array $row) {
+            $image = $row['imagen'] ?? $row['foto'] ?? null;
+            $row['imagen_url'] = ! empty($image)
+                ? route('delivery-images.package', [
+                    'type' => strtolower((string) ($row['tipo_paquete'] ?? '')),
+                    'id' => (int) ($row['id'] ?? 0),
+                ])
+                : null;
+
+            unset($row['imagen'], $row['foto'], $row['imagen_devolucion']);
+
+            return $row;
+        })->all();
+
+        return response()->json($payload, $response->getStatusCode());
     }
 
     public function assign(Request $request): JsonResponse

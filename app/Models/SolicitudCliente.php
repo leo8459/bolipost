@@ -11,6 +11,8 @@ class SolicitudCliente extends Model
 {
     use HasFactory;
 
+    public const RECARGO_PAGO_DESTINO = 2.50;
+
     protected $table = 'solicitud_clientes';
 
     protected $fillable = [
@@ -27,6 +29,7 @@ class SolicitudCliente extends Model
         'cantidad',
         'peso',
         'precio',
+        'recargo_pago_destino',
         'paquete_muy_grande',
         'pago_destinatario',
         'forma_pago',
@@ -53,6 +56,7 @@ class SolicitudCliente extends Model
     protected $casts = [
         'peso' => 'decimal:3',
         'precio' => 'decimal:2',
+        'recargo_pago_destino' => 'decimal:2',
         'paquete_muy_grande' => 'boolean',
         'pago_destinatario' => 'boolean',
         'envio_cn33' => 'datetime',
@@ -62,9 +66,9 @@ class SolicitudCliente extends Model
     {
         $label = match ($this->attributes['forma_pago'] ?? null) {
             'origen' => 'Pagar en origen',
-            'destino' => 'Pagar en destino',
+            'destino' => 'POR COBRAR',
             'pagado' => 'Pagado',
-            default => $this->pago_destinatario ? 'Pagar en destino' : 'Pagado',
+            default => $this->pago_destinatario ? 'POR COBRAR' : 'Pagado',
         };
 
         return $label === 'Pagar en origen' && ($this->attributes['tipo_pago'] ?? null) === 'efectivo'

@@ -675,6 +675,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::post('/tarifario-tiktoker', [TarifarioTiktokerController::class, 'store'])->name('tarifario-tiktoker.store');
     Route::get('/tarifario-tiktoker/{tarifarioTiktoker}/edit', [TarifarioTiktokerController::class, 'edit'])->name('tarifario-tiktoker.edit');
     Route::put('/tarifario-tiktoker/{tarifarioTiktoker}', [TarifarioTiktokerController::class, 'update'])->name('tarifario-tiktoker.update');
+    Route::patch('/tarifario-tiktoker/{tarifarioTiktoker}/precio', [TarifarioTiktokerController::class, 'updatePrice'])->name('tarifario-tiktoker.price.update');
     Route::delete('/tarifario-tiktoker/{tarifarioTiktoker}', [TarifarioTiktokerController::class, 'destroy'])->name('tarifario-tiktoker.destroy');
     Route::get('/bitacoras', [BitacoraController::class, 'index'])->name('bitacoras.index');
     Route::get('/bitacoras/export/excel', [BitacoraController::class, 'exportExcel'])->name('bitacoras.export-excel');

@@ -439,7 +439,11 @@
             </section>
 
             <div class="total-box">
-                <span class="total-label">Precio</span>
+                @if((float) ($solicitud->recargo_pago_destino ?? 0) > 0)
+                    <span class="total-label">Recargo por pago en destino</span>
+                    <span class="value">Bs {{ \App\Support\BolivianNumber::format((float) $solicitud->recargo_pago_destino, 2, '.', '') }}</span>
+                @endif
+                <span class="total-label">{{ $solicitud->forma_pago_label === 'POR COBRAR' ? 'Total por cobrar' : 'Precio' }}</span>
                 <span class="price">Bs {{ $solicitud->precio !== null ? \App\Support\BolivianNumber::format((float) $solicitud->precio, 2, '.', '') : '0.00' }}</span>
             </div>
 

@@ -32,8 +32,6 @@ class ClienteSolicitudController extends Controller
 
     private const DIRECCION_DESTINATARIO_VENTANILLA = 'CORREOS DE BOLIVIA';
 
-    private const PICKUP_CONFIRMATION_MESSAGE = 'Se comunicará un operario dentro de las próximas 24 horas para confirmar el recojo. Si nadie se comunica, por favor contáctese al 71522163.';
-
     private const CIUDADES_BOLIVIA = [
         'LA PAZ',
         'SANTA CRUZ',
@@ -163,7 +161,7 @@ class ClienteSolicitudController extends Controller
         ]);
     }
 
-    public function store(Request $request): JsonResponse|RedirectResponse
+    public function store(Request $request): JsonResponse|RedirectResponse|\Illuminate\Http\Response
     {
         if (! ServiceAvailability::isEnabled('solicitud')) {
             if ($request->expectsJson()) {
@@ -238,12 +236,6 @@ class ClienteSolicitudController extends Controller
                     'codigo_solicitud' => $solicitud->codigo_solicitud,
                 ], 201);
             }
-
-            return redirect()
-                ->route('clientes.solicitudes.history')
-                ->with('success', $message)
-                ->with('pickup_notice', self::PICKUP_CONFIRMATION_MESSAGE)
-                ->with('warning', 'La solicitud se registro, pero no se pudo enviar el correo automatico. Revisa la configuracion SMTP.');
         }
 
         if ($request->expectsJson()) {
@@ -253,10 +245,7 @@ class ClienteSolicitudController extends Controller
             ], 201);
         }
 
-        return redirect()
-            ->route('clientes.solicitudes.history')
-            ->with('success', $message)
-            ->with('pickup_notice', self::PICKUP_CONFIRMATION_MESSAGE);
+        return $this->downloadTicket($solicitud);
     }
 
     private function persistirSolicitud(Cliente $cliente, array $data): SolicitudCliente
@@ -272,6 +261,10 @@ class ClienteSolicitudController extends Controller
         $direccionEntrega = $this->isPuertaAVentanillaService($servicioExtra)
             ? self::DIRECCION_DESTINATARIO_VENTANILLA
             : trim((string) $data['direccion_entrega']);
+        $recargoPagoDestino = ! array_key_exists('precio_pagado', $data)
+            && ($data['forma_pago'] ?? 'destino') === 'destino'
+                ? SolicitudCliente::RECARGO_PAGO_DESTINO
+                : 0;
 
         $solicitud = SolicitudCliente::query()->create([
             'cliente_id' => (int) $cliente->id,
@@ -285,7 +278,8 @@ class ClienteSolicitudController extends Controller
             'peso' => null,
             'precio' => array_key_exists('precio_pagado', $data)
                 ? round((float) $data['precio_pagado'], 2)
-                : round((float) $tarifarioTiktoker->peso1 + (!empty($data['recargo_volumen']) ? 10 : 0), 2),
+                : round((float) $tarifarioTiktoker->peso1 + (!empty($data['recargo_volumen']) ? 10 : 0) + $recargoPagoDestino, 2),
+            'recargo_pago_destino' => $recargoPagoDestino,
             'forma_pago' => (string) ($data['forma_pago'] ?? 'destino'),
             'tipo_pago' => $data['tipo_pago'] ?? null,
             'pago_destinatario' => ($data['forma_pago'] ?? 'destino') === 'destino',

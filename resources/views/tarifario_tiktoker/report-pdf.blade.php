@@ -110,7 +110,7 @@
         $regionalLabel = fn ($name) => $regionalNameMap[strtoupper(trim((string) $name))] ?? strtoupper(trim((string) $name));
     @endphp
     <div class="header">
-        <div class="title">Reporte Tarifario Delivery Express</div>
+        <div class="title">Reporte Tarifario Delivery Express por origen</div>
         <table class="meta">
             <tr>
                 <td><strong>Fecha de generacion:</strong> {{ $generatedAt->format('d/m/Y H:i') }}</td>
@@ -128,18 +128,14 @@
 
     @forelse ($groupedTarifas as $department => $items)
         <div class="department-block">
-            <div class="department-title">{{ $department }}</div>
+            <div class="department-title">Origen: {{ $department }}</div>
             <table class="report-table">
                 <thead>
                     <tr>
-                        <th style="width: 20%;">Destino</th>
-                        <th style="width: 20%;">Servicio extra</th>
-                        <th style="width: 11%;">Peso 1 <span class="head-note">hasta 2 kg</span></th>
-                        <th style="width: 11%;">Peso 2 <span class="head-note">hasta 5 kg</span></th>
-                        <th style="width: 10%;">Peso 3 <span class="head-note">opcional</span></th>
-                        <th style="width: 11%;">Peso extra <span class="head-note">+ de 5 kg</span></th>
-                        <th style="width: 10%;">Entrega</th>
-                        <th style="width: 7%;">Referencia <span class="head-note">5 kg + 1 kg extra</span></th>
+                        <th style="width: 28%;">Destino</th>
+                        <th style="width: 38%;">Servicio extra</th>
+                        <th style="width: 18%;">Peso 1 <span class="head-note">hasta 3 kg</span></th>
+                        <th style="width: 16%;">Entrega</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -148,11 +144,7 @@
                             <td>{{ $regionalLabel(optional($item->destino)->nombre_destino) }}</td>
                             <td>{{ $item->servicioExtra?->nombre ?? 'General' }}</td>
                             <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $item->peso1, 2, '.', ',') }}</td>
-                            <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $item->peso2, 2, '.', ',') }}</td>
-                            <td class="text-right">{{ $item->peso3 !== null ? \App\Support\BolivianNumber::format((float) $item->peso3, 2, '.', ',') : '-' }}</td>
-                            <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $item->peso_extra, 2, '.', ',') }}</td>
                             <td class="text-center">{{ (int) $item->tiempo_entrega }} h</td>
-                            <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $item->peso2 + (float) $item->peso_extra, 2, '.', ',') }}</td>
                         </tr>
                     @endforeach
                 </tbody>
