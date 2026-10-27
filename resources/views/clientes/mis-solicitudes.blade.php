@@ -1190,6 +1190,22 @@
         </div>
     @endif
 
+    @if (session('ticket_download_url'))
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const ticketDownload = document.createElement('a');
+                ticketDownload.href = @json(session('ticket_download_url'));
+                ticketDownload.setAttribute('aria-hidden', 'true');
+                ticketDownload.tabIndex = -1;
+                ticketDownload.style.position = 'fixed';
+                ticketDownload.style.left = '-9999px';
+                document.body.appendChild(ticketDownload);
+                ticketDownload.click();
+                ticketDownload.remove();
+            });
+        </script>
+    @endif
+
     @if ($qrHistoryWarning)
         <div class="alert alert-warning" role="status">{{ $qrHistoryWarning }}</div>
     @endif

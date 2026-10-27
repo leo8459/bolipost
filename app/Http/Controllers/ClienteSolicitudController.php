@@ -32,6 +32,8 @@ class ClienteSolicitudController extends Controller
 
     private const DIRECCION_DESTINATARIO_VENTANILLA = 'CORREOS DE BOLIVIA';
 
+    private const PICKUP_CONFIRMATION_MESSAGE = 'Se comunicará un operario dentro de las próximas 24 horas para confirmar el recojo. Si nadie se comunica, por favor contáctese al 71522163.';
+
     private const CIUDADES_BOLIVIA = [
         'LA PAZ',
         'SANTA CRUZ',
@@ -161,7 +163,7 @@ class ClienteSolicitudController extends Controller
         ]);
     }
 
-    public function store(Request $request): JsonResponse|RedirectResponse|\Illuminate\Http\Response
+    public function store(Request $request): JsonResponse|RedirectResponse
     {
         if (! ServiceAvailability::isEnabled('solicitud')) {
             if ($request->expectsJson()) {
@@ -218,6 +220,7 @@ class ClienteSolicitudController extends Controller
         }
 
         $message = 'Solicitud registrada correctamente con codigo '.$solicitud->codigo_solicitud.'.';
+        $mailWarning = null;
 
         try {
             Mail::to($cliente->email)->send(new SolicitudClienteCreadaMail($solicitud, $cliente));
@@ -236,6 +239,8 @@ class ClienteSolicitudController extends Controller
                     'codigo_solicitud' => $solicitud->codigo_solicitud,
                 ], 201);
             }
+
+            $mailWarning = 'La solicitud se registro, pero no se pudo enviar el correo automatico. Revisa la configuracion SMTP.';
         }
 
         if ($request->expectsJson()) {
@@ -245,7 +250,17 @@ class ClienteSolicitudController extends Controller
             ], 201);
         }
 
-        return $this->downloadTicket($solicitud);
+        $redirect = redirect()
+            ->route('clientes.solicitudes.history')
+            ->with('success', $message)
+            ->with('pickup_notice', self::PICKUP_CONFIRMATION_MESSAGE)
+            ->with('ticket_download_url', route('clientes.solicitudes.ticket', ['solicitud' => $solicitud->id]));
+
+        if ($mailWarning !== null) {
+            $redirect->with('warning', $mailWarning);
+        }
+
+        return $redirect;
     }
 
     private function persistirSolicitud(Cliente $cliente, array $data): SolicitudCliente

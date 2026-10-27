@@ -71,11 +71,19 @@
                     </div>
                     <div class="solicitud-wizard-caption" aria-live="polite"><span id="solicitud-wizard-current">Datos del servicio</span><span>Paso <strong id="solicitud-wizard-number">1</strong> de 3</span></div>
                 </div>
-                <p class="text-muted mb-4"><span class="text-danger">*</span> Los campos con asterisco son obligatorios.</p>
                 <div class="solicitud-section mb-4" data-wizard-panel="0">
-                    <h5 class="solicitud-section-title"><span class="solicitud-step">1</span>Datos del servicio</h5><p class="text-muted small mb-3">Elige el servicio y las ciudades de tu env&iacute;o.</p>
-                    <div class="row">
-                        <div class="col-md-6 form-group">
+                    <div class="solicitud-service-layout">
+                        <div class="solicitud-service-form">
+                            <div class="solicitud-service-heading">
+                                <span class="solicitud-service-icon"><i class="fas fa-box" aria-hidden="true"></i></span>
+                                <div class="flex-grow-1">
+                                    <h5 class="solicitud-section-title mb-1">Datos del servicio</h5>
+                                    <p class="text-muted small mb-0">Elige el servicio y completa la informaci&oacute;n del paquete.</p>
+                                </div>
+                                <small class="solicitud-required-note"><span class="text-warning">*</span> Campos obligatorios</small>
+                            </div>
+                            <div class="row">
+                        <div class="col-12 form-group">
                             <label for="servicio_extra_id">Servicio <span class="text-danger" aria-hidden="true">*</span></label>
                             <select name="servicio_extra_id" required id="servicio_extra_id" class="form-control">
                                 <option value="">Selecciona una opci&oacute;n...</option>
@@ -115,23 +123,11 @@
                                 Cada caja o paquete debe contar con su propia gu&iacute;a. Si necesitas enviar varios, crea un env&iacute;o por cada caja o paquete.
                             </small>
                         </div>
-                        <div class="col-md-6 form-group mb-0">
+                        <div class="col-12 form-group mb-0">
                             <label for="contenido">Contenido <span class="text-danger" aria-hidden="true">*</span></label>
                             <textarea id="contenido" name="contenido" required placeholder="Ej.: documentos, ropa o accesorios" rows="2" class="form-control">{{ old('contenido') }}</textarea>
                         </div>
-                        <div class="col-md-6 form-group mb-0">
-                            <label>Precio de la solicitud</label>
-                            <div id="precio_solicitud" class="alert alert-light border mb-0 py-2" role="status" aria-live="polite">
-                                Seleccione el servicio, origen y destino para conocer el precio.
-                            </div>
-                            <button type="button" id="precio-recargo-toggle" class="btn btn-outline-success btn-sm mt-2" aria-pressed="false" disabled>
-                                <i class="fas fa-plus mr-1" aria-hidden="true"></i><span>Aumentar precio en Bs 10</span>
-                            </button>
-                            <small class="form-text text-muted">
-                                Al momento del recojo verificaremos las medidas y el peso. Cada paquete debe medir menos de 50 × 40 × 30 cm y pesar menos de 3 kg. Si supera alguno de estos límites, agrega el recargo de Bs 10.
-                            </small>
-                        </div>
-                        <div class="col-md-6 form-group mb-0">
+                        <div class="col-12 form-group mb-0">
                             <label for="forma_pago">Forma de pago <span class="text-danger" aria-hidden="true">*</span></label>
                             <select name="forma_pago" id="forma_pago" required class="form-control">
                                 <option value="">Selecciona una opci&oacute;n...</option>
@@ -231,12 +227,63 @@
                                 </div>
                             </div>
                         </div>
+                            </div>
+                        </div>
+                        <aside class="solicitud-live-summary" aria-labelledby="resumen-lateral-titulo">
+                            <div class="solicitud-summary-heading">
+                                <span class="solicitud-service-icon"><i class="fas fa-box" aria-hidden="true"></i></span>
+                                <h5 id="resumen-lateral-titulo" class="mb-0">Resumen del env&iacute;o</h5>
+                            </div>
+                            <div class="solicitud-route-summary">
+                                <div class="solicitud-route-point">
+                                    <span class="solicitud-route-marker origin"><i class="fas fa-circle" aria-hidden="true"></i></span>
+                                    <div><span>Origen</span><strong id="resumen-lateral-origen">Por seleccionar</strong></div>
+                                </div>
+                                <div class="solicitud-route-connector" aria-hidden="true"></div>
+                                <div class="solicitud-route-point">
+                                    <span class="solicitud-route-marker"><i class="fas fa-map-marker-alt" aria-hidden="true"></i></span>
+                                    <div><span>Destino</span><strong id="resumen-lateral-destino">Por seleccionar</strong></div>
+                                </div>
+                            </div>
+                            <dl class="solicitud-live-details">
+                                <div><dt>Servicio</dt><dd id="resumen-lateral-servicio">Por seleccionar</dd></div>
+                                <div><dt>Contenido</dt><dd id="resumen-lateral-contenido">Por definir</dd></div>
+                            </dl>
+                            <div class="solicitud-live-price">
+                                <span class="solicitud-live-price-label">Precio del env&iacute;o</span>
+                                <div id="precio_solicitud" class="alert alert-light border mb-0 py-2" role="status" aria-live="polite">
+                                    Completa los datos para conocer el precio.
+                                </div>
+                                <div id="resumen-lateral-recargo" class="solicitud-destination-fee" hidden>
+                                    <i class="fas fa-info-circle" aria-hidden="true"></i> Incluye Bs 2,50 por pago en destino
+                                </div>
+                                <button type="button" id="precio-recargo-toggle" class="btn btn-outline-primary btn-block mt-3" aria-pressed="false" disabled>
+                                    <span><i class="fas fa-plus-circle mr-2" aria-hidden="true"></i><span class="precio-recargo-label">Agregar recargo</span></span><strong>+ Bs 10</strong>
+                                </button>
+                            </div>
+                            <div class="solicitud-package-notice">
+                                <span class="solicitud-package-icon"><i class="fas fa-box-open" aria-hidden="true"></i></span>
+                                <div>
+                                    <strong>Medidas del paquete</strong>
+                                    <p>Menos de 3 kg y de 50 × 40 × 30 cm. Si supera los l&iacute;mites, se aplica un recargo de Bs 10.</p>
+                                </div>
+                            </div>
+                        </aside>
                     </div>
                 </div>
 
                 <div class="solicitud-section mb-4" data-wizard-panel="1" hidden>
-                    <h5 class="solicitud-section-title"><span class="solicitud-step">2</span>Datos del remitente</h5><p class="text-muted small mb-3">Indica qui&eacute;n env&iacute;a el paquete y d&oacute;nde lo recogemos.</p>
-                    <div class="row">
+                    <div class="solicitud-service-layout">
+                        <div class="solicitud-service-form">
+                            <div class="solicitud-service-heading">
+                                <span class="solicitud-service-icon"><i class="fas fa-user" aria-hidden="true"></i></span>
+                                <div class="flex-grow-1">
+                                    <h5 class="solicitud-section-title mb-1">Datos del remitente</h5>
+                                    <p class="text-muted small mb-0">Indica qui&eacute;n env&iacute;a el paquete y d&oacute;nde lo recogemos.</p>
+                                </div>
+                                <small class="solicitud-required-note"><span class="text-warning">*</span> Campos obligatorios</small>
+                            </div>
+                            <div class="row">
                         <div class="col-md-6 form-group">
                             <label for="nombre_remitente">Nombre completo <span class="text-danger" aria-hidden="true">*</span></label>
                             <input type="text" id="nombre_remitente" name="nombre_remitente" required value="{{ old('nombre_remitente', $cliente->name) }}" class="form-control">
@@ -259,11 +306,23 @@
                             <input type="text" id="direccion_recojo" name="direccion_recojo" required value="{{ old('direccion_recojo', $cliente->direccion) }}" class="form-control">
                         </div>
                     </div>
+                        </div>
+                        @include('clientes.partials.solicitud-resumen-lateral', ['resumenId' => 'resumen-paso2', 'mostrarRemitente' => true, 'mostrarDestinatario' => false])
+                    </div>
                 </div>
 
                 <div class="solicitud-section" data-wizard-panel="2" hidden>
-                    <h5 class="solicitud-section-title"><span class="solicitud-step">3</span>Datos del destinatario</h5><p class="text-muted small mb-3">Indica qui&eacute;n recibir&aacute; el paquete y su direcci&oacute;n.</p>
-                    <div class="row">
+                    <div class="solicitud-service-layout">
+                        <div class="solicitud-service-form">
+                            <div class="solicitud-service-heading">
+                                <span class="solicitud-service-icon"><i class="fas fa-map-marker-alt" aria-hidden="true"></i></span>
+                                <div class="flex-grow-1">
+                                    <h5 class="solicitud-section-title mb-1">Datos del destinatario</h5>
+                                    <p class="text-muted small mb-0">Indica qui&eacute;n recibir&aacute; el paquete y su direcci&oacute;n.</p>
+                                </div>
+                                <small class="solicitud-required-note"><span class="text-warning">*</span> Campos obligatorios</small>
+                            </div>
+                            <div class="row">
                         <div class="col-md-6 form-group">
                             <label for="nombre_destinatario">Nombre completo <span class="text-danger" aria-hidden="true">*</span></label>
                             <input type="text" id="nombre_destinatario" name="nombre_destinatario" required value="{{ old('nombre_destinatario') }}" class="form-control">
@@ -282,6 +341,9 @@
                                 class="form-control"
                             >
                         </div>
+                    </div>
+                        </div>
+                        @include('clientes.partials.solicitud-resumen-lateral', ['resumenId' => 'resumen-paso3', 'mostrarRemitente' => true, 'mostrarDestinatario' => true])
                     </div>
                 </div>
             </div>
@@ -411,6 +473,46 @@
 @keyframes solicitud-panel-in { from { opacity: .55; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 .solicitud-section { padding: 22px; border: 1px solid #e4e8ee; border-radius: 12px; background: #fff; transition: border-color .2s ease, box-shadow .2s ease; }
 .solicitud-section:hover { border-color: #d1dfef; box-shadow: 0 6px 18px rgba(25, 48, 78, .045); }
+.solicitud-section[data-wizard-panel="0"], .solicitud-section[data-wizard-panel="1"], .solicitud-section[data-wizard-panel="2"] { padding: 0; border: 0; background: transparent; box-shadow: none; }
+.solicitud-section[data-wizard-panel="0"]:hover, .solicitud-section[data-wizard-panel="1"]:hover, .solicitud-section[data-wizard-panel="2"]:hover { border: 0; box-shadow: none; }
+.solicitud-service-layout { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(300px, .95fr); align-items: start; gap: 20px; }
+.solicitud-service-form, .solicitud-live-summary { min-width: 0; padding: 22px; border: 1px solid #dfe5ed; border-radius: 14px; background: #fff; box-shadow: 0 4px 14px rgba(26, 52, 83, .035); }
+.solicitud-service-heading, .solicitud-summary-heading { display: flex; align-items: center; gap: 13px; margin-bottom: 22px; }
+.solicitud-service-heading .solicitud-section-title { margin-top: 0; color: #122b50; font-size: 1.3rem; }
+.solicitud-service-icon { display: inline-flex; flex: 0 0 48px; width: 48px; height: 48px; align-items: center; justify-content: center; border-radius: 13px; background: #ffcf35; color: #17375f; font-size: 1.25rem; }
+.solicitud-required-note { margin-left: auto; color: #667085; white-space: nowrap; }
+.solicitud-live-summary { padding: 22px; }
+.solicitud-summary-heading { margin-bottom: 18px; color: #122b50; }
+.solicitud-summary-heading h5 { font-size: 1.2rem; font-weight: 800; }
+.solicitud-route-summary { position: relative; padding: 3px 0 16px; border-bottom: 1px solid #e4e8ee; }
+.solicitud-route-point { position: relative; z-index: 1; display: flex; align-items: center; gap: 14px; min-height: 52px; background: #fff; }
+.solicitud-route-point > div, .solicitud-live-details > div { min-width: 0; }
+.solicitud-route-point span:not(.solicitud-route-marker) { display: block; color: #667085; font-size: .84rem; }
+.solicitud-route-point strong { display: block; overflow-wrap: anywhere; color: #102b50; font-size: 1.05rem; }
+.solicitud-route-marker { display: inline-flex; flex: 0 0 28px; width: 28px; height: 28px; align-items: center; justify-content: center; color: #173b6a; font-size: 1.1rem; }
+.solicitud-route-marker.origin { font-size: .7rem; }
+.solicitud-route-connector { position: absolute; top: 34px; bottom: 32px; left: 13px; border-left: 2px dotted #8fa0b5; }
+.solicitud-live-details { display: grid; gap: 11px; margin: 14px 0 0; padding: 0 0 14px; border-bottom: 1px solid #e4e8ee; }
+.solicitud-live-details > div { display: grid; grid-template-columns: minmax(75px, .8fr) minmax(0, 1.2fr); gap: 10px; }
+.solicitud-live-details dt { color: #667085; font-size: .86rem; font-weight: 500; }
+.solicitud-live-details dd { margin: 0; overflow-wrap: anywhere; color: #243b5a; font-size: .92rem; font-weight: 600; }
+.solicitud-live-contact { display: grid; gap: 8px; padding: 14px 0; border-bottom: 1px solid #e4e8ee; }
+.solicitud-live-contact h6 { margin: 0 0 2px; color: #17375f; font-size: .92rem; font-weight: 800; }
+.solicitud-live-contact > div { display: grid; grid-template-columns: minmax(82px, .8fr) minmax(0, 1.2fr); gap: 9px; }
+.solicitud-live-contact span { color: #667085; font-size: .8rem; }
+.solicitud-live-contact strong { overflow-wrap: anywhere; color: #243b5a; font-size: .84rem; font-weight: 600; }
+.solicitud-live-price { padding: 16px 0; }
+.solicitud-live-price-label { display: block; margin-bottom: 8px; color: #122b50; font-weight: 800; }
+.solicitud-step-price > strong { display: block; color: #102b50; font-size: 1.55rem; line-height: 1.35; }
+.solicitud-step-price .solicitud-destination-fee { display: block; }
+.solicitud-live-summary #precio_solicitud { min-height: 120px; padding: 16px !important; font-size: 1.12rem; }
+.solicitud-destination-fee { margin-top: 9px; color: #80600a; font-size: .9rem; font-weight: 700; }
+.solicitud-live-summary #precio-recargo-toggle { display: flex; align-items: center; justify-content: space-between; text-align: left; }
+.solicitud-live-summary #precio-recargo-toggle span { display: inline-flex; align-items: center; }
+.solicitud-package-notice { display: flex; align-items: flex-start; gap: 13px; padding: 15px; border: 1px solid #e3e8ef; border-radius: 12px; background: #f8fafc; }
+.solicitud-package-icon { display: inline-flex; flex: 0 0 42px; width: 42px; height: 42px; align-items: center; justify-content: center; border-radius: 12px; background: #edf1f6; color: #334e70; font-size: 1.1rem; }
+.solicitud-package-notice strong { display: block; margin-bottom: 4px; color: #233b5b; }
+.solicitud-package-notice p { margin: 0; color: #667085; font-size: .82rem; line-height: 1.45; }
 .solicitud-section-title { display: flex; align-items: center; gap: 10px; color: #203957; font-size: 1.1rem; font-weight: 700; }
 .solicitud-step { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: #fff3cd; color: #735500; font-size: .9rem; }
 .solicitud-card .form-control { border: 1px solid #d9e2ed; border-radius: 8px; transition: border-color .18s ease, box-shadow .18s ease; }
@@ -442,6 +544,9 @@
 #resumen-solicitud-recargo-destino { font-size: 1.05rem; }
 #resumen-solicitud-pago-detalle { font-size: 1rem !important; line-height: 1.5; }
 #precio-recargo-toggle { min-height: 42px; padding: .55rem .95rem !important; font-size: 1rem; }
+@media (max-width: 991.98px) {
+    .solicitud-service-layout { grid-template-columns: minmax(0, 1fr); }
+}
 @media (max-width: 575.98px) {
     .solicitud-card-header { align-items: flex-start; padding: 19px 17px; }
     .solicitud-card-header__badge { padding: 6px 9px; font-size: .72rem; }
@@ -458,6 +563,9 @@
     .solicitud-wizard-footer { align-items: stretch; }
     .solicitud-wizard-footer-actions { width: auto; }
     .solicitud-section { padding: 16px; }
+    .solicitud-service-form, .solicitud-live-summary { padding: 16px; }
+    .solicitud-service-heading { align-items: flex-start; flex-wrap: wrap; }
+    .solicitud-required-note { width: 100%; margin-left: 61px; }
     .solicitud-billing-card { padding: 15px; }
     .solicitud-summary { grid-template-columns: 1fr; }
     #resumen-solicitud-modal .modal-body, #qr-pago-modal .modal-body { padding: 16px; }
@@ -494,7 +602,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const precioSolicitud = document.getElementById('precio_solicitud');
     const recargoVolumenInput = document.getElementById('recargo_volumen');
     const recargoVolumenButton = document.getElementById('precio-recargo-toggle');
-    const recargoVolumenButtonLabel = recargoVolumenButton.querySelector('span');
+    const recargoVolumenButtonLabel = recargoVolumenButton.querySelector('.precio-recargo-label');
+    const recargoVolumenButtonAmount = recargoVolumenButton.querySelector('strong');
     const quoteUrl = @json(route('clientes.solicitudes.quote'));
     const qrGenerateUrl = @json(route('clientes.solicitudes.qr.generate'));
     const qrStatusUrl = @json(route('clientes.solicitudes.qr.status'));
@@ -688,6 +797,49 @@ document.addEventListener('DOMContentLoaded', function () {
             ? 'Se generará un QR y la guía se creará al confirmarse el pago.'
             : 'Elige pagar en origen para generar un QR.';
     }
+
+    function actualizarResumenLateral() {
+        const textoSeleccionado = (select, vacio) => select.value
+            ? (select.selectedOptions[0]?.textContent.trim() || vacio)
+            : vacio;
+        const textoCampo = name => form.elements.namedItem(name).value.trim() || 'Por completar';
+        const total = Number(precioCotizado.value);
+        const precioResumen = Number.isFinite(total) && total > 0
+            ? (formaPagoSelect.value === 'destino' ? 'Total por cobrar: Bs ' : 'Total del envío: Bs ') + total.toFixed(2)
+            : 'Por calcular';
+
+        ['resumen-lateral', 'resumen-paso2', 'resumen-paso3'].forEach(prefix => {
+            const setText = (suffix, value) => {
+                const element = document.getElementById(prefix + '-' + suffix);
+                if (element) element.textContent = value;
+            };
+
+            setText('servicio', textoSeleccionado(servicioSelect, 'Por seleccionar'));
+            setText('origen', textoSeleccionado(origenSelect, 'Por seleccionar'));
+            setText('destino', textoSeleccionado(destinoSelect, 'Por seleccionar'));
+            setText('contenido', form.elements.namedItem('contenido').value.trim() || 'Por definir');
+            setText('precio', precioResumen);
+
+            const recargo = document.getElementById(prefix + '-recargo');
+            if (recargo) recargo.hidden = formaPagoSelect.value !== 'destino';
+        });
+
+        [
+            ['resumen-paso2-nombre-remitente', 'nombre_remitente'],
+            ['resumen-paso2-telefono-remitente', 'telefono_remitente'],
+            ['resumen-paso2-direccion-recojo', 'direccion_recojo'],
+            ['resumen-paso3-nombre-remitente', 'nombre_remitente'],
+            ['resumen-paso3-telefono-remitente', 'telefono_remitente'],
+            ['resumen-paso3-direccion-recojo', 'direccion_recojo'],
+            ['resumen-paso3-nombre-destinatario', 'nombre_destinatario'],
+            ['resumen-paso3-telefono-destinatario', 'telefono_destinatario'],
+            ['resumen-paso3-direccion-entrega', 'direccion_entrega'],
+        ].forEach(([id, field]) => {
+            const element = document.getElementById(id);
+            if (element) element.textContent = textoCampo(field);
+        });
+    }
+
     function actualizarComplementoDocumento() {
         const permiteComplemento = ['1', '2'].includes(billingDocumentType.value);
         billingDocumentComplement.disabled = !permiteComplemento;
@@ -737,6 +889,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     formaPagoSelect.addEventListener('change', function () {
         actualizarAyudaFormaPago();
+        actualizarResumenLateral();
         if (precioBaseCotizado !== null && Number.isFinite(precioBaseCotizado)) {
             setPrecio('Precio: Bs ' + precioBaseCotizado.toFixed(2) + '.', 'success', precioBaseCotizado);
         }
@@ -1085,7 +1238,8 @@ document.addEventListener('DOMContentLoaded', function () {
         recargoVolumenInput.value = recargoVolumenAplicado ? '1' : '0';
         recargoVolumenButton.disabled = precioBaseCotizado === null || !Number.isFinite(precioBaseCotizado);
         recargoVolumenButton.setAttribute('aria-pressed', recargoVolumenAplicado ? 'true' : 'false');
-        recargoVolumenButtonLabel.textContent = recargoVolumenAplicado ? 'Quitar recargo de Bs 10' : 'Aumentar precio en Bs 10';
+        recargoVolumenButtonLabel.textContent = recargoVolumenAplicado ? 'Quitar recargo' : 'Agregar recargo';
+        recargoVolumenButtonAmount.textContent = recargoVolumenAplicado ? '− Bs 10' : '+ Bs 10';
         recargoVolumenButton.classList.toggle('btn-success', recargoVolumenAplicado);
         recargoVolumenButton.classList.toggle('btn-outline-success', !recargoVolumenAplicado);
 
@@ -1110,6 +1264,7 @@ document.addEventListener('DOMContentLoaded', function () {
         precioSolicitud.textContent = message;
         precioSolicitud.className = 'alert border mb-0 py-2 alert-' + type;
         document.getElementById('resumen-solicitud-precio').textContent = message;
+        actualizarResumenLateral();
     }
 
     recargoVolumenButton.addEventListener('click', function () {
@@ -1170,9 +1325,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
     servicioSelect.addEventListener('change', syncDireccionEntrega);
     servicioSelect.addEventListener('change', cotizarSolicitud);
+    servicioSelect.addEventListener('change', actualizarResumenLateral);
     origenSelect?.addEventListener('change', cotizarSolicitud);
+    origenSelect?.addEventListener('change', actualizarResumenLateral);
     destinoSelect?.addEventListener('change', cotizarSolicitud);
+    destinoSelect?.addEventListener('change', actualizarResumenLateral);
+    form.elements.namedItem('contenido').addEventListener('input', actualizarResumenLateral);
+    ['nombre_remitente', 'telefono_remitente', 'direccion_recojo', 'nombre_destinatario', 'telefono_destinatario', 'direccion_entrega']
+        .forEach(name => form.elements.namedItem(name).addEventListener('input', actualizarResumenLateral));
     syncDireccionEntrega();
+    actualizarResumenLateral();
     cotizarSolicitud();
 });
 </script>

@@ -478,11 +478,10 @@
                                     @php
                                         $estadoNombre = (string) optional($solicitud->estadoRegistro)->nombre_estado;
                                         $estaPagada = $solicitud->forma_pago === 'pagado';
-                                        $pagaEnDestino = $solicitud->forma_pago === 'destino'
+                                        $porCobrar = $solicitud->forma_pago === 'destino'
                                             || ($solicitud->forma_pago === null && $solicitud->pago_destinatario);
-                                        $filaVerde = $estaPagada || $pagaEnDestino;
                                     @endphp
-                                    <tr class="{{ $filaVerde ? 'solicitud-pagada' : 'solicitud-pendiente' }}">
+                                    <tr class="{{ $estaPagada ? 'solicitud-pagada' : 'solicitud-pendiente' }}">
                                         <td>
                                             <input
                                                 type="checkbox"
@@ -507,8 +506,8 @@
                                         <td>{{ $solicitud->peso !== null ? \App\Support\BolivianNumber::format((float) $solicitud->peso, 3, '.', '') : '-' }}</td>
                                         <td>{{ $solicitud->precio !== null ? \App\Support\BolivianNumber::format((float) $solicitud->precio, 2, '.', '') : '-' }}</td>
                                         <td>
-                                            <span class="badge badge-{{ $filaVerde ? 'success' : 'danger' }}">
-                                                {{ $estaPagada ? 'Pagado' : ($pagaEnDestino ? 'Pagar en destino' : 'Pendiente de pago') }}
+                                            <span class="badge badge-{{ $estaPagada ? 'success' : 'danger' }}">
+                                                {{ $estaPagada ? 'Pagado' : ($porCobrar ? 'Por cobrar' : 'Pendiente de pago') }}
                                             </span>
                                         </td>
                                         <td>
