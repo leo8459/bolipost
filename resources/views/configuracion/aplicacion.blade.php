@@ -115,7 +115,7 @@
                 <hr>
 
                 <h5 class="mb-3">Facturacion</h5>
-                <p class="text-muted">Controla si los botones de emision aparecen o no dentro del modal de facturacion.</p>
+                <p class="text-muted">Estos controles habilitan o deshabilitan los botones globalmente. Los metodos permitidos para cada rol se configuran en Roles, al editar el rol.</p>
 
                 <div class="form-group form-check">
                     <input type="hidden" name="facturacionShowFacturaElectronica" value="0">

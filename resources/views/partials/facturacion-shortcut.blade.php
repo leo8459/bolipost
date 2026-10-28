@@ -22,9 +22,11 @@
     $facturacionVersionManualActual = $canOpenFacturacionShortcut && \Illuminate\Support\Facades\Schema::hasTable('tarifario_referencias_manuales')
         ? \App\Models\TarifarioReferenciaManual::actual()
         : null;
-    $showFacturaElectronicaButton = \App\Models\AppSetting::getValue('facturacion.show_factura_electronica', '1') === '1';
-    $showQrFacturaButton = \App\Models\AppSetting::getValue('facturacion.show_qr_factura', '1') === '1';
-    $showQrSoloButton = \App\Models\AppSetting::getValue('facturacion.show_qr_solo', '1') === '1';
+    $facturacionModePolicy = app(\App\Support\FacturacionModePolicy::class);
+    $facturacionModeUser = auth()->user();
+    $showFacturaElectronicaButton = $canOpenFacturacionShortcut && $facturacionModeUser && $facturacionModePolicy->allows($facturacionModeUser, 'efectivo');
+    $showQrFacturaButton = $canOpenFacturacionShortcut && $facturacionModeUser && $facturacionModePolicy->allows($facturacionModeUser, 'qr_factura');
+    $showQrSoloButton = $canOpenFacturacionShortcut && $facturacionModeUser && $facturacionModePolicy->allows($facturacionModeUser, 'qr_solo');
     $facturacionMonitorDefaultUrl = \App\Models\AppSetting::getValue('facturacion.monitor_default_url', '');
     $activeFacturacionCart = $facturacionContext['draft'] ?? null;
     $ultimaFacturacionEmitida = $facturacionContext['last'] ?? null;
@@ -146,6 +148,7 @@
         'qr_factura' => $showQrFacturaButton,
         'qr_solo' => $showQrSoloButton,
     ])->filter()->keys()->values();
+    $hasAvailableInvoiceMode = $availableInvoiceModes->isNotEmpty();
     if (!$availableInvoiceModes->contains($activeInvoiceMode) && $availableInvoiceModes->isNotEmpty()) {
         $activeInvoiceMode = (string) $availableInvoiceModes->first();
         [$activeInvoiceChannel, $activeAutoEmitInvoice] = match ($activeInvoiceMode) {
@@ -488,6 +491,11 @@
                             </button>
                             @endif
                         </div>
+                        @unless($hasAvailableInvoiceMode)
+                            <div class="alert alert-warning mt-3 mb-0" role="status">
+                                Tu rol no tiene un metodo de cobro habilitado. Solicita al administrador que configure los permisos de Facturacion.
+                            </div>
+                        @endunless
                     </div>
                 </div>
 
@@ -867,7 +875,7 @@
                                 <button
                                     type="submit"
                                     class="global-shortcut-emit-btn"
-                                    @disabled($facturacionItems->isEmpty())
+                                    @disabled($facturacionItems->isEmpty() || !$hasAvailableInvoiceMode)
                                 >
                                     {{ $isRejectedDraft ? 'Reintentar emision' : 'Emitir nueva factura' }}
                                 </button>
@@ -899,6 +907,7 @@
                                 <button
                                     type="submit"
                                     class="global-shortcut-emit-btn"
+                                    @disabled(!$hasAvailableInvoiceMode)
                                 >
                                     {{ $emitActionLabel }}
                                 </button>
@@ -10308,8 +10317,11 @@
                 if (facturacionAutoEmitInvoiceInput) {
                     facturacionAutoEmitInvoiceInput.value = String(facturacionAutoEmitInvoiceInput.value || '') === '0' ? '0' : '1';
                 }
+                const visibleInvoiceModes = new Set(Array.from(invoiceChannelButtons)
+                    .map((button) => String(button.dataset.invoiceChannelChoice || '').toLowerCase())
+                    .filter((mode) => ['factura_electronica', 'qr_factura', 'qr_solo'].includes(mode)));
                 const storedInvoiceMode = readStoredInvoiceMode();
-                if (['factura_electronica', 'qr_factura', 'qr_solo'].includes(storedInvoiceMode)) {
+                if (visibleInvoiceModes.has(storedInvoiceMode)) {
                     if (facturacionInvoiceChannelInput instanceof HTMLInputElement) {
                         facturacionInvoiceChannelInput.value = storedInvoiceMode === 'factura_electronica' ? 'factura_electronica' : 'qr';
                     }
@@ -10321,6 +10333,24 @@
                             candidate.classList.toggle('is-active', String(candidate.dataset.invoiceChannelChoice || '').toLowerCase() === storedInvoiceMode);
                         }
                     });
+                } else {
+                    const fallbackButton = Array.from(invoiceChannelButtons).find((button) => button.classList.contains('is-active'))
+                        || invoiceChannelButtons[0];
+                    const fallbackMode = String(fallbackButton?.dataset.invoiceChannelChoice || '').toLowerCase();
+                    if (visibleInvoiceModes.has(fallbackMode)) {
+                        if (facturacionInvoiceChannelInput instanceof HTMLInputElement) {
+                            facturacionInvoiceChannelInput.value = fallbackMode === 'factura_electronica' ? 'factura_electronica' : 'qr';
+                        }
+                        if (facturacionAutoEmitInvoiceInput instanceof HTMLInputElement) {
+                            facturacionAutoEmitInvoiceInput.value = fallbackMode === 'qr_solo' ? '0' : '1';
+                        }
+                        invoiceChannelButtons.forEach((candidate) => {
+                            if (candidate instanceof HTMLElement) {
+                                candidate.classList.toggle('is-active', candidate === fallbackButton);
+                            }
+                        });
+                        storeInvoiceMode(fallbackMode);
+                    }
                 }
 
                 invoiceChannelButtons.forEach((button) => {

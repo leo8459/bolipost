@@ -6,6 +6,7 @@ use App\Http\Controllers\FacturacionCartController;
 use App\Models\User;
 use App\Services\FacturacionCartService;
 use App\Services\FacturacionClienteFrecuenteService;
+use App\Support\FacturacionModePolicy;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Mockery;
@@ -42,7 +43,7 @@ class FacturacionCartEmitValidationTest extends TestCase
         $frequentClients = Mockery::mock(FacturacionClienteFrecuenteService::class);
 
         try {
-            (new FacturacionCartController())->emitir($request, $service, $frequentClients);
+            (new FacturacionCartController())->emitir($request, $service, $frequentClients, new FacturacionModePolicy());
             $this->fail('La emision debio fallar por validacion de datos fiscales obligatorios.');
         } catch (ValidationException $exception) {
             $errors = $exception->errors();

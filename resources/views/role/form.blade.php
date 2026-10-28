@@ -2,6 +2,32 @@
     $selectedPermissions = collect(old('permissions', $selectedPermissions ?? []))
         ->map(fn ($permission) => (string) $permission)
         ->all();
+    $facturacionModeOptions = [
+        'facturacion.mode.efectivo' => [
+            'label' => 'Factura electronica / efectivo',
+            'hint' => 'Emite la factura directamente y registra el pago como efectivo, sin QR.',
+        ],
+        'facturacion.mode.qr_factura' => [
+            'label' => 'QR + factura',
+            'hint' => 'Cobra por QR y emite la factura cuando el pago quede confirmado.',
+        ],
+        'facturacion.mode.qr_solo' => [
+            'label' => 'QR solo pago',
+            'hint' => 'Cobra por QR sin emitir automaticamente una factura.',
+        ],
+    ];
+    $facturacionPermissionNames = array_keys($facturacionModeOptions);
+    $technicalPermissionGroups = collect($permissionGroups ?? [])
+        ->map(function (array $group) use ($facturacionPermissionNames): array {
+            $group['permissions'] = collect($group['permissions'] ?? [])
+                ->reject(fn (array $permission): bool => in_array($permission['name'] ?? '', $facturacionPermissionNames, true))
+                ->values()
+                ->all();
+
+            return $group;
+        })
+        ->filter(fn (array $group): bool => ($group['permissions'] ?? []) !== [])
+        ->values();
 @endphp
 
 <div class="box box-info padding-1">
@@ -589,6 +615,39 @@
             </div>
         @endif
 
+        <input type="hidden" name="facturacion_modes_configured" value="1">
+        <section class="permission-module mb-4">
+            <div class="permission-module-header">
+                <strong>Facturacion: metodos permitidos para este rol</strong>
+                <p class="text-muted mb-0 mt-1">
+                    Elige que opciones podra usar en el boton flotante Facturacion. Estos permisos se aplican junto con el acceso general a Facturacion.
+                </p>
+            </div>
+            <div class="permission-items">
+                @foreach ($facturacionModeOptions as $permissionName => $option)
+                    @php $permissionId = 'permission_' . \Illuminate\Support\Str::slug($permissionName, '_'); @endphp
+                    <label class="list-group-item mb-0" for="{{ $permissionId }}">
+                        <div class="custom-control custom-checkbox">
+                            <input
+                                type="checkbox"
+                                name="permissions[]"
+                                value="{{ $permissionName }}"
+                                id="{{ $permissionId }}"
+                                class="custom-control-input js-permission-item"
+                                data-module="facturacion"
+                                data-permission-name="{{ $permissionName }}"
+                                {{ in_array($permissionName, $selectedPermissions, true) ? 'checked' : '' }}
+                            >
+                            <span class="custom-control-label">
+                                {{ $option['label'] }}
+                                <small class="d-block text-primary">{{ $option['hint'] }}</small>
+                            </span>
+                        </div>
+                    </label>
+                @endforeach
+            </div>
+        </section>
+
         <div class="technical-permissions">
             <button type="button" class="technical-toggle js-menu-node-toggle mb-3" data-target="technical_permissions_body" aria-expanded="false">
                 <span>Vista tecnica de permisos</span>
@@ -605,7 +664,7 @@
                     </div>
                 </div>
 
-                @foreach ($permissionGroups as $group)
+                @foreach ($technicalPermissionGroups as $group)
                     @php
                         $moduleId = 'module_' . \Illuminate\Support\Str::slug($group['module_key'], '_');
                         $moduleBodyId = $moduleId . '_body';

@@ -7,6 +7,7 @@ use App\Exceptions\FacturacionSolicitudConfirmationRequired;
 use App\Models\ConceptoFacturacion;
 use App\Services\FacturacionCartService;
 use App\Services\FacturacionClienteFrecuenteService;
+use App\Support\FacturacionModePolicy;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -70,7 +71,7 @@ class FacturacionCartController extends Controller
         ]);
     }
 
-    public function updateBillingData(Request $request, FacturacionCartService $service)
+    public function updateBillingData(Request $request, FacturacionCartService $service, FacturacionModePolicy $modePolicy)
     {
         $user = $request->user();
         $this->authorizeFacturacionAccess($user);
@@ -84,6 +85,14 @@ class FacturacionCartController extends Controller
             'razon_social' => ['nullable', 'string', 'max:255'],
             'correo_facturacion' => ['nullable', 'email', 'max:50'],
         ]);
+
+        if (($validated['canal_emision'] ?? null) === 'factura_electronica') {
+            $this->authorizeFacturacionMode($user, $modePolicy, 'efectivo');
+        } elseif (($validated['canal_emision'] ?? null) === 'qr' && ! $modePolicy->allowsAnyQr($user)) {
+            throw ValidationException::withMessages([
+                'canal_emision' => 'Tu rol no tiene habilitado ningun modo de cobro por QR.',
+            ]);
+        }
 
         $cart = $service->updateDraftBillingData($user, $validated);
 
@@ -613,7 +622,8 @@ class FacturacionCartController extends Controller
     public function emitir(
         Request $request,
         FacturacionCartService $service,
-        FacturacionClienteFrecuenteService $frequentClients
+        FacturacionClienteFrecuenteService $frequentClients,
+        FacturacionModePolicy $modePolicy
     ): RedirectResponse|JsonResponse
     {
         $user = $request->user();
@@ -629,7 +639,7 @@ class FacturacionCartController extends Controller
 
         $billingSnapshot = $request->validate([
             'modalidad_facturacion' => ['nullable', 'in:con_datos,sin_cliente'],
-            'canal_emision' => ['nullable', 'in:factura_electronica,qr'],
+            'canal_emision' => ['required', 'in:factura_electronica,qr'],
             'tipo_documento' => ['nullable', 'string', 'max:20', Rule::in(array_keys(\App\Models\Cliente::tiposDocumentoIdentidad()))],
             'numero_documento' => ['required', 'string', 'max:80', $requiredBillingText('numero de documento')],
             'complemento_documento' => ['nullable', 'string', 'max:30'],
@@ -642,6 +652,8 @@ class FacturacionCartController extends Controller
         $autoEmitInvoice = $request->has('auto_emit_invoice')
             ? $request->boolean('auto_emit_invoice')
             : strtolower((string) ($billingSnapshot['canal_emision'] ?? 'factura_electronica')) !== 'qr';
+        $mode = $modePolicy->modeFor((string) $billingSnapshot['canal_emision'], $autoEmitInvoice);
+        $this->authorizeFacturacionMode($user, $modePolicy, $mode);
 
         $billingSnapshot = array_filter($billingSnapshot, static fn ($value) => $value !== null);
         if ($billingSnapshot !== []) {
@@ -779,7 +791,8 @@ class FacturacionCartController extends Controller
     public function consultar(
         Request $request,
         FacturacionCartService $service,
-        FacturacionClienteFrecuenteService $frequentClients
+        FacturacionClienteFrecuenteService $frequentClients,
+        FacturacionModePolicy $modePolicy
     ): RedirectResponse|JsonResponse
     {
         $user = $request->user();
@@ -788,7 +801,10 @@ class FacturacionCartController extends Controller
         try {
             $codigoSeguimiento = trim((string) $request->input('codigo_seguimiento', ''));
             $cartId = $request->integer('cart_id') ?: null;
-            $autoEmitInvoice = $request->boolean('auto_emit_invoice');
+            // A status poll may trigger the automatic invoice after a QR payment.
+            // Apply both the role permission and the global method switch.
+            $autoEmitInvoice = $request->boolean('auto_emit_invoice')
+                && $modePolicy->allows($user, 'qr_factura');
             $allowPendingRetry = !$request->expectsJson();
             if ($cartId !== null) {
                 $resultado = $service->consultarEstadoEmision($user, $cartId, $autoEmitInvoice, $allowPendingRetry);
@@ -870,7 +886,7 @@ class FacturacionCartController extends Controller
         }
     }
 
-    public function verQr(Request $request, FacturacionCartService $service): RedirectResponse|JsonResponse
+    public function verQr(Request $request, FacturacionCartService $service, FacturacionModePolicy $modePolicy): RedirectResponse|JsonResponse
     {
         $user = $request->user();
         $this->authorizeFacturacionAccess($user);
@@ -902,6 +918,7 @@ class FacturacionCartController extends Controller
                 (float) ($cart->total ?? 0)
             );
             $shouldOpenQrViewer = $this->shouldShowQrSessionData($qrPayload);
+            $autoEmitInvoice = $shouldOpenQrViewer && $modePolicy->allows($user, 'qr_factura');
 
             $feedback = $this->buildBridgeFeedback($respuesta, 'consultar');
 
@@ -910,14 +927,16 @@ class FacturacionCartController extends Controller
                     'type' => 'info',
                     'title' => 'QR actualizado',
                     'message' => 'Se consulto el estado actual del QR y se mostro para continuar con el cobro.',
-                    'detail' => 'Si el cliente paga mientras este visor sigue abierto, continuaremos automaticamente con la factura electronica.',
+                    'detail' => $autoEmitInvoice
+                        ? 'Si el cliente paga mientras este visor sigue abierto, continuaremos automaticamente con la factura electronica.'
+                        : 'El estado del pago se consultara, pero este rol no tiene habilitada la emision automatica de factura despues del pago QR.',
                     'action' => 'ver_qr',
                 ];
             }
 
             if ($request->expectsJson()) {
                 $cartPayload = $this->buildCartPayload($cart) ?? [];
-                $cartPayload['auto_emit_invoice'] = $shouldOpenQrViewer ? '1' : '0';
+                $cartPayload['auto_emit_invoice'] = $autoEmitInvoice ? '1' : '0';
 
                 return response()->json([
                     'ok' => true,
@@ -932,7 +951,7 @@ class FacturacionCartController extends Controller
             if ($shouldOpenQrViewer) {
                 $redirect
                     ->with('facturacion_qr_data', $qrPayload)
-                    ->with('facturacion_qr_auto_emit_invoice', '1')
+                    ->with('facturacion_qr_auto_emit_invoice', $autoEmitInvoice ? '1' : '0')
                     ->with('facturacion_qr_force_open', '1');
             }
 
@@ -1874,6 +1893,15 @@ class FacturacionCartController extends Controller
             }
 
             throw $e;
+        }
+    }
+
+    private function authorizeFacturacionMode($user, FacturacionModePolicy $modePolicy, string $mode): void
+    {
+        if (! $user || ! $modePolicy->allows($user, $mode)) {
+            throw ValidationException::withMessages([
+                'canal_emision' => 'Tu rol no tiene habilitado el modo de cobro seleccionado.',
+            ]);
         }
     }
 

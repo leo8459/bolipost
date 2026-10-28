@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Support\AclPermissionRegistry;
+use App\Support\FacturacionModePolicy;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
@@ -87,6 +88,9 @@ class RoleController extends Controller
             'permissions.*' => 'string|exists:permissions,name',
         ]);
         [$normalizedPermissions, $duplicatePermissionsRemoved] = $this->normalizeSubmittedPermissions($validated['permissions'] ?? []);
+        if ($request->boolean('facturacion_modes_configured')) {
+            $normalizedPermissions[] = FacturacionModePolicy::CONFIGURED_PERMISSION;
+        }
 
         $role = Role::create([
             'name' => $validated['name'],
@@ -122,6 +126,12 @@ class RoleController extends Controller
         $permissionGroups = AclPermissionRegistry::groupedPermissionsForMatrix($guardName);
         $menuPermissionSummary = AclPermissionRegistry::menuPermissionSummary($permissionGroups);
         $selectedPermissions = $role->permissions()->pluck('name')->all();
+        if (
+            in_array('feature.dashboard.facturacion', $selectedPermissions, true)
+            && ! app(FacturacionModePolicy::class)->roleHasExplicitModeConfiguration($role)
+        ) {
+            $selectedPermissions = array_merge($selectedPermissions, FacturacionModePolicy::modePermissionNames());
+        }
 
         return view('role.edit', compact('role', 'permissionGroups', 'menuPermissionSummary', 'selectedPermissions'));
     }
@@ -148,6 +158,9 @@ class RoleController extends Controller
             'permissions.*' => 'string|exists:permissions,name',
         ]);
         [$normalizedPermissions, $duplicatePermissionsRemoved] = $this->normalizeSubmittedPermissions($validated['permissions'] ?? []);
+        if ($request->boolean('facturacion_modes_configured')) {
+            $normalizedPermissions[] = FacturacionModePolicy::CONFIGURED_PERMISSION;
+        }
 
         $role->update([
             'name' => $validated['name'],

@@ -77,9 +77,9 @@ class MisVentasController extends Controller
         return $this->exportVentasPdf($request, $service, 'branch', 'branch');
     }
 
-    public function kardex(Request $request, FacturacionCartService $service, SitraTrackingDestinationClient $destinationClient, SitraTrackingEventsClient $eventsClient): View
+    public function kardex(Request $request, FacturacionCartService $service, SitraIpsClient $ipsClient, SitraTrackingDestinationClient $destinationClient, SitraTrackingEventsClient $eventsClient): View
     {
-        $report = $this->buildKardexReport($request, $service, $destinationClient, $eventsClient);
+        $report = $this->buildKardexReport($request, $service, $ipsClient, $destinationClient, $eventsClient);
 
         return view('facturacion.kardex', array_merge($report, [
             'scope' => 'own',
@@ -88,9 +88,9 @@ class MisVentasController extends Controller
         ]));
     }
 
-    public function exportKardexPdf(Request $request, FacturacionCartService $service, SitraTrackingDestinationClient $destinationClient, SitraTrackingEventsClient $eventsClient): Response
+    public function exportKardexPdf(Request $request, FacturacionCartService $service, SitraIpsClient $ipsClient, SitraTrackingDestinationClient $destinationClient, SitraTrackingEventsClient $eventsClient): Response
     {
-        $report = $this->buildKardexReport($request, $service, $destinationClient, $eventsClient);
+        $report = $this->buildKardexReport($request, $service, $ipsClient, $destinationClient, $eventsClient);
         $pdf = Pdf::loadView('facturacion.kardex-pdf', array_merge($report, [
             'generatedAt' => now(),
         ]))->setPaper('A4', 'landscape');
@@ -103,9 +103,9 @@ class MisVentasController extends Controller
         ]);
     }
 
-    public function exportKardexExcel(Request $request, FacturacionCartService $service, SitraTrackingDestinationClient $destinationClient, SitraTrackingEventsClient $eventsClient): StreamedResponse
+    public function exportKardexExcel(Request $request, FacturacionCartService $service, SitraIpsClient $ipsClient, SitraTrackingDestinationClient $destinationClient, SitraTrackingEventsClient $eventsClient): StreamedResponse
     {
-        $report = $this->buildKardexReport($request, $service, $destinationClient, $eventsClient);
+        $report = $this->buildKardexReport($request, $service, $ipsClient, $destinationClient, $eventsClient);
         $spreadsheet = $this->buildKardexSpreadsheet($report);
         $filename = 'kardex-facturacion-' . now()->format('Ymd-His') . '.xlsx';
 
@@ -115,7 +115,7 @@ class MisVentasController extends Controller
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
     }
-    private function buildKardexReport(Request $request, FacturacionCartService $service, SitraTrackingDestinationClient $destinationClient, SitraTrackingEventsClient $eventsClient): array
+    private function buildKardexReport(Request $request, FacturacionCartService $service, SitraIpsClient $ipsClient, SitraTrackingDestinationClient $destinationClient, SitraTrackingEventsClient $eventsClient): array
     {
         [$user, $filters] = $this->resolveRequestContext($request, 'own');
         $kardexError = null;
@@ -123,7 +123,7 @@ class MisVentasController extends Controller
         try {
             // Carga los registros del cajero en formato de detalle Kardex y complementa sus destinos mediante tracking.
             [$sales] = $this->loadScopedVentas($service, $user, array_merge($filters, ['q' => '']), 'own');
-            $rows = $this->buildKardexViewRows($sales, $destinationClient, $eventsClient);
+            $rows = $this->buildKardexViewRows($sales, $ipsClient, $destinationClient, $eventsClient);
             $summary = array_merge($this->emptySummary(), [
                 'totalVentas' => $rows->unique('venta_group_key')->count(),
                 'montoTotal' => round((float) $rows->sum(fn ($row) => (float) data_get($row, 'importe', 0)), 2),
@@ -1798,9 +1798,41 @@ class MisVentasController extends Controller
         })->values();
     }
 
-    private function buildKardexViewRows(Collection $carts, SitraTrackingDestinationClient $destinationClient, SitraTrackingEventsClient $eventsClient): Collection
+    private function buildKardexViewRows(Collection $carts, SitraIpsClient $ipsClient, SitraTrackingDestinationClient $destinationClient, SitraTrackingEventsClient $eventsClient): Collection
     {
         $pdfRows = $this->buildPdfRows($carts, true);
+        $packageCodes = $pdfRows
+            ->flatMap(fn (array $row) => collect($row['detalle_codigos'] ?? [])
+                ->filter(fn (array $entry): bool => $this->isKardexPackageEntry($entry))
+                ->pluck('codigo'))
+            ->map(fn ($code) => $this->normalizeKardexPackageLookupCode((string) $code))
+            ->filter()
+            ->unique()
+            ->values();
+        $ipsServices = $ipsClient->packageServices($packageCodes->all());
+        $localPackageServices = $this->lookupLocalKardexPackageServices($pdfRows);
+        $pdfRows = $pdfRows->map(function (array $row) use ($ipsServices, $localPackageServices): array {
+            $row['detalle_codigos'] = collect($row['detalle_codigos'] ?? [])
+                ->map(function (array $entry) use ($ipsServices, $localPackageServices): array {
+                    if (! $this->isKardexPackageEntry($entry)) {
+                        return $entry;
+                    }
+
+                    $code = $this->normalizeKardexPackageLookupCode((string) ($entry['codigo'] ?? ''));
+                    $source = $entry['source'] ?? null;
+                    $origin = is_object($source) ? ltrim(trim((string) data_get($source, 'origen_tipo', '')), '\\') : '';
+                    $originId = is_object($source) ? (int) data_get($source, 'origen_id', 0) : 0;
+                    $localKey = $origin !== '' && $originId > 0 ? $origin.'#'.$originId : '';
+                    $entry['servicio'] = $ipsServices[$code]
+                        ?? ($localKey !== '' ? ($localPackageServices[$localKey] ?? null) : null)
+                        ?? 'NO VERIFICADO EN IPS';
+
+                    return $entry;
+                });
+
+            return $row;
+        });
+
         $destinationEntries = $pdfRows->flatMap(function (array $row): Collection {
             $detalleCodigos = collect($row['detalle_codigos'] ?? []);
             $esCasilla = $this->isKardexCasillaService(
@@ -2162,6 +2194,15 @@ class MisVentasController extends Controller
             if ($hasPackageItems) {
                 $packageCodes = $detalleCodigos->pluck('codigo')->filter()->values();
                 $row['codigo_referencia'] = $packageCodes->isNotEmpty() ? $packageCodes->implode(', ') : '-';
+                $serviceNames = $detalleCodigos
+                    ->pluck('servicio')
+                    ->map(fn ($service) => trim((string) $service))
+                    ->filter()
+                    ->unique()
+                    ->values();
+                if ($serviceNames->isNotEmpty()) {
+                    $row['tipo_envio'] = $serviceNames->implode(' / ');
+                }
             } else {
                 $row['codigo_referencia'] = '-';
                 $row['kardex_non_package_service'] = true;
@@ -3077,6 +3118,68 @@ class MisVentasController extends Controller
             ->map(fn ($item) => is_array($item) ? (object) $item : $item)
             ->filter(fn ($item) => is_object($item))
             ->values();
+    }
+
+    private function lookupLocalKardexPackageServices(Collection $pdfRows): array
+    {
+        $packageOrigins = [
+            ltrim(PaqueteEms::class, '\\'),
+            ltrim(PaqueteInt::class, '\\'),
+            ltrim(PaqueteOrdi::class, '\\'),
+            ltrim(PaqueteCerti::class, '\\'),
+        ];
+        $idsByOrigin = [];
+
+        foreach ($pdfRows as $row) {
+            foreach ($row['detalle_codigos'] ?? [] as $entry) {
+                if (! $this->isKardexPackageEntry($entry)) {
+                    continue;
+                }
+
+                $source = $entry['source'] ?? null;
+                $origin = is_object($source) ? ltrim(trim((string) data_get($source, 'origen_tipo', '')), '\\') : '';
+                $originId = is_object($source) ? (int) data_get($source, 'origen_id', 0) : 0;
+                if ($originId > 0 && in_array($origin, $packageOrigins, true)) {
+                    $idsByOrigin[$origin][] = $originId;
+                }
+            }
+        }
+
+        $services = [];
+        foreach ($idsByOrigin as $origin => $ids) {
+            $ids = array_values(array_unique($ids));
+
+            if ($origin === ltrim(PaqueteEms::class, '\\')) {
+                $packages = PaqueteEms::query()->with('tarifario.servicio')->whereIn('id', $ids)->get();
+                foreach ($packages as $package) {
+                    $name = trim((string) ($package->tarifario?->servicio?->nombre_servicio ?? ''));
+                    if ($name !== '') {
+                        $services[$origin.'#'.$package->id] = $name;
+                    }
+                }
+
+                continue;
+            }
+
+            $model = match ($origin) {
+                ltrim(PaqueteInt::class, '\\') => PaqueteInt::class,
+                ltrim(PaqueteOrdi::class, '\\') => PaqueteOrdi::class,
+                ltrim(PaqueteCerti::class, '\\') => PaqueteCerti::class,
+                default => null,
+            };
+            if ($model === null) {
+                continue;
+            }
+
+            foreach ($model::query()->with('servicio')->whereIn('id', $ids)->get() as $package) {
+                $name = trim((string) ($package->servicio?->nombre_servicio ?? ''));
+                if ($name !== '') {
+                    $services[$origin.'#'.$package->id] = $name;
+                }
+            }
+        }
+
+        return $services;
     }
 
     private function buildTicketData(object $cart, $user, array $snapshot = []): array

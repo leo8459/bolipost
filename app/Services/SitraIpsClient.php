@@ -3,10 +3,16 @@
 namespace App\Services;
 
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Pool;
+use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 class SitraIpsClient
 {
+    private const PACKAGE_SERVICE_CACHE_MINUTES = 360;
+    private const PACKAGE_SERVICE_CONCURRENCY = 6;
+
     public function users(array $filters = []): array
     {
         return $this->client()
@@ -69,6 +75,115 @@ class SitraIpsClient
     {
         return $this->client()->get($this->url('/api/v1/ips/paquetes/'.rawurlencode(strtoupper($codigo))), array_filter(['office_cd' => $office]))
             ->throw()->json('data');
+    }
+
+    /**
+     * Resolve the postal class for each tracking code from IPS.
+     *
+     * @param  array<int, string>  $codes
+     * @return array<string, string> Service labels keyed by normalized tracking code.
+     */
+    public function packageServices(array $codes): array
+    {
+        $codes = collect($codes)
+            ->map(fn ($code) => strtoupper(trim((string) $code)))
+            ->filter(fn (string $code) => $code !== '' && strlen($code) <= 40 && preg_match('/^[A-Z0-9-]+$/', $code) === 1)
+            ->unique()
+            ->values();
+        if ($codes->isEmpty()) {
+            return [];
+        }
+
+        $classifications = [];
+        $pending = [];
+        foreach ($codes as $code) {
+            $cached = Cache::get($this->packageServiceCacheKey($code));
+            if (is_array($cached) && trim((string) ($cached['mail_class'] ?? '')) !== '') {
+                $classifications[$code] = $cached;
+            } else {
+                $pending[] = $code;
+            }
+        }
+
+        $token = $this->normalizeBearerToken((string) config('services.sitra_ips.token'));
+        $baseUrl = rtrim((string) config('services.sitra_ips.base_url'), '/');
+        if ($pending !== [] && $token !== '' && $baseUrl !== '') {
+            $timeout = max(1, min(15, (int) config('services.sitra_ips.classification_timeout', config('services.sitra_ips.timeout', 15))));
+            $connectTimeout = max(1, min(5, (int) config('services.sitra_ips.connect_timeout', 3)));
+            $verify = (bool) config('services.sitra_ips.ssl_verify', false);
+
+            foreach (array_chunk($pending, self::PACKAGE_SERVICE_CONCURRENCY) as $chunk) {
+                try {
+                    $responses = Http::pool(function (Pool $pool) use ($chunk, $token, $timeout, $connectTimeout, $verify): array {
+                        $requests = [];
+                        foreach ($chunk as $code) {
+                            $requests[] = $pool->as($code)
+                                ->acceptJson()
+                                ->withToken($token)
+                                ->connectTimeout($connectTimeout)
+                                ->timeout($timeout)
+                                ->withOptions(['verify' => $verify])
+                                ->get($this->url('/api/v1/ips/paquetes/'.rawurlencode($code)));
+                        }
+
+                        return $requests;
+                    });
+                } catch (\Throwable) {
+                    continue;
+                }
+
+                foreach ($chunk as $code) {
+                    $response = $responses[$code] ?? null;
+                    if (! $response instanceof Response || ! $response->successful()) {
+                        continue;
+                    }
+
+                    $package = (array) $response->json('data.package', []);
+                    $mailClass = trim((string) ($package['mail_class'] ?? ''));
+                    if ($mailClass === '') {
+                        continue;
+                    }
+
+                    $classifications[$code] = [
+                        'mail_class' => $mailClass,
+                        'product_type' => trim((string) ($package['product_type'] ?? '')),
+                    ];
+                    Cache::put(
+                        $this->packageServiceCacheKey($code),
+                        $classifications[$code],
+                        now()->addMinutes(self::PACKAGE_SERVICE_CACHE_MINUTES)
+                    );
+                }
+            }
+        }
+
+        $classNames = [];
+        if ($classifications !== []) {
+            try {
+                $classNames = Cache::remember('sitra_ips.mail_class_names.v1', now()->addHours(12), function (): array {
+                    $catalog = $this->catalog();
+
+                    return collect(data_get($catalog, 'mail_classes', []))
+                        ->mapWithKeys(function ($item): array {
+                            $code = strtoupper(trim((string) data_get($item, 'MAIL_CLASS_CD', '')));
+                            $name = trim((string) data_get($item, 'MAIL_CLASS_NM', ''));
+
+                            return $code !== '' && $name !== '' ? [$code => $name] : [];
+                        })
+                        ->all();
+                });
+            } catch (\Throwable) {
+                $classNames = [];
+            }
+        }
+
+        $services = [];
+        foreach ($classifications as $code => $classification) {
+            $mailClass = trim((string) ($classification['mail_class'] ?? ''));
+            $services[$code] = $classNames[strtoupper($mailClass)] ?? $mailClass;
+        }
+
+        return $services;
     }
 
     public function receptacle(string $codigo, int $office): array
@@ -172,5 +287,10 @@ class SitraIpsClient
         return str_starts_with(strtolower($token), 'bearer ')
             ? trim(substr($token, 7))
             : $token;
+    }
+
+    private function packageServiceCacheKey(string $code): string
+    {
+        return 'sitra_ips.package_service.v1.'.strtoupper(trim($code));
     }
 }

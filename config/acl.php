@@ -106,6 +106,10 @@ return [
     |
     */
     'custom_permissions' => [
+        'facturacion.mode.efectivo',
+        'facturacion.mode.qr_factura',
+        'facturacion.mode.qr_solo',
+        'facturacion.modes.configured',
         'feature.solicitudes-cambio.create',
         'feature.solicitudes-cambio.manage',
         'pulse',
@@ -396,6 +400,7 @@ return [
     */
     'module_labels' => [
         'users' => 'Usuarios',
+        'facturacion' => 'Facturacion',
         'internacional' => 'Internacional',
         'users.empresas' => 'Usuarios empresas',
         'roles' => 'Roles',

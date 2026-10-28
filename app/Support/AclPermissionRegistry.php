@@ -2042,6 +2042,9 @@ class AclPermissionRegistry
             'feature.malencaminados.report' => 'Boton: Ver reporte / Generar reporte',
             'feature.malencaminados.export' => 'Boton: Exportar PDF',
             'feature.dashboard.facturacion' => 'Boton: Acceso rapido Facturacion',
+            'facturacion.mode.efectivo' => 'Boton: Factura electronica / efectivo',
+            'facturacion.mode.qr_factura' => 'Boton: QR + factura',
+            'facturacion.mode.qr_solo' => 'Boton: QR solo pago',
             'feature.conciliacion.conciliaciones.conciliar' => 'Botón 1: Subir o editar Excel/PDF',
             'feature.conciliacion.conciliaciones.conciliado' => 'Botón 2: Marcar Conciliado',
             'feature.conciliacion.conciliaciones.por-cobrar' => 'Botón 3: Por cobrar / Asociar factura',
@@ -2470,6 +2473,9 @@ class AclPermissionRegistry
             'feature.malencaminados.report' => 'Controla el boton Ver reporte y Generar reporte dentro del modulo Malencaminados.',
             'feature.malencaminados.export' => 'Controla el boton Exportar PDF dentro del reporte de Malencaminados.',
             'feature.dashboard.facturacion' => 'Controla el boton flotante Facturacion del dashboard y sus accesos rapidos a pantallas de tarifas.',
+            'facturacion.mode.efectivo' => 'Permite emitir directamente la factura electronica, registrada como pago en efectivo y sin QR.',
+            'facturacion.mode.qr_factura' => 'Permite cobrar por QR y emitir la factura electronica cuando se confirme el pago.',
+            'facturacion.mode.qr_solo' => 'Permite cobrar por QR sin emitir automaticamente una factura electronica.',
             'feature.conciliacion.conciliaciones.conciliar' => 'Permite subir y reemplazar el documento Excel o PDF del paso 1 solamente antes de marcar Conciliado.',
             'feature.conciliacion.conciliaciones.conciliado' => 'Permite aprobar el documento y marcar la empresa como Conciliada en el paso 2.',
             'feature.conciliacion.conciliaciones.por-cobrar' => 'Permite consultar la API y asociar una factura en el paso 3.',
@@ -2668,6 +2674,10 @@ class AclPermissionRegistry
 
     private static function shouldHidePermissionFromMatrix(string $permissionName): bool
     {
+        if ($permissionName === 'facturacion.modes.configured') {
+            return true;
+        }
+
         $legacyFeaturePrefixes = [
             'feature.despachos.',
             'feature.paquetes-contrato.',
