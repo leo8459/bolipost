@@ -101,18 +101,27 @@ class AuthenticatedSessionController extends Controller
 
     public function destroyViaGet(Request $request): RedirectResponse
     {
-        $redirectTo = $this->logoutRedirectUrl($request->user());
+        $inactive = $request->query('motivo') === 'inactividad';
+        $redirectTo = $inactive
+            ? route(Auth::guard('cliente')->check() ? 'clientes.login' : 'login', absolute: false)
+            : $this->logoutRedirectUrl($request->user());
         $this->markCurrentLoginAsLoggedOut($request);
 
         if (Auth::guard('web')->check()) {
             Auth::guard('web')->logout();
         }
 
+        if ($inactive && Auth::guard('cliente')->check()) {
+            Auth::guard('cliente')->logout();
+        }
+
         $request->session()->invalidate();
         $request->session()->regenerateToken();
         $request->session()->forget('url.intended');
 
-        return redirect()->to($redirectTo);
+        return redirect()->to($redirectTo)->with('status', $inactive
+            ? 'Su sesion se cerro automaticamente tras 2 horas de inactividad. Ingrese nuevamente.'
+            : null);
     }
 
     private function markCurrentLoginAsLoggedOut(Request $request): void

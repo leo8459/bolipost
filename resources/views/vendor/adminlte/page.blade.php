@@ -206,42 +206,6 @@
     @auth
     <script>
         (function () {
-            const inactivityLimitMs = {{ (int) config('session.lifetime', 60) * 60 * 1000 }};
-            const logoutUrl = @json(route('logout.get', absolute: false));
-            let inactivityTimer = null;
-
-            const triggerAutoLogout = function () {
-                window.location.href = logoutUrl + '?motivo=inactividad';
-            };
-
-            const resetInactivityTimer = function () {
-                if (inactivityTimer) {
-                    window.clearTimeout(inactivityTimer);
-                }
-                inactivityTimer = window.setTimeout(triggerAutoLogout, inactivityLimitMs);
-            };
-
-            [
-                'mousemove',
-                'mousedown',
-                'keydown',
-                'scroll',
-                'touchstart',
-                'click'
-            ].forEach(function (eventName) {
-                window.addEventListener(eventName, resetInactivityTimer, { passive: true });
-            });
-
-            document.addEventListener('visibilitychange', function () {
-                if (!document.hidden) {
-                    resetInactivityTimer();
-                }
-            });
-
-            resetInactivityTimer();
-        })();
-
-        (function () {
             const alerts = document.querySelectorAll('[data-contract-alert]');
             if (!alerts.length) {
                 return;
