@@ -1125,15 +1125,84 @@
             line-height: 1.55;
         }
 
+        .order-success-modal__tracking {
+            display: grid;
+            gap: 5px;
+            margin-top: 14px;
+            color: #26384f;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .order-success-modal__code {
+            color: #103f81;
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: .04em;
+        }
+
+        .order-success-modal__share-code {
+            display: inline-block;
+            margin-top: 4px;
+            padding: 7px 10px;
+            border-radius: 8px;
+            color: #8a4b00;
+            background: #fff0a8;
+            font-weight: 800;
+            text-decoration: underline;
+            text-decoration-color: #e08b00;
+            text-decoration-thickness: 2px;
+            text-underline-offset: 3px;
+        }
+
+        .order-success-modal__tracking a {
+            color: #103f81;
+            font-weight: 700;
+            text-decoration: underline;
+        }
+
+        .order-success-modal__print-hint {
+            margin: 12px 0 0;
+            color: #64748b;
+            font-size: 13px;
+        }
+
+        .order-success-modal__actions {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 22px;
+        }
+
         .order-success-modal__button {
             min-width: 150px;
-            margin-top: 22px;
             padding: 10px 24px;
             border: 0;
             border-radius: 999px;
             color: #fff;
             background: #103f81;
             font-weight: 700;
+        }
+
+        .order-success-modal__download {
+            display: inline-flex;
+            min-height: 42px;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 18px;
+            border: 1px solid #103f81;
+            border-radius: 999px;
+            color: #103f81;
+            font-weight: 700;
+        }
+
+        .order-success-modal__download:hover,
+        .order-success-modal__download:focus {
+            color: #fff;
+            background: #103f81;
+            text-decoration: none;
         }
     </style>
 @endsection
@@ -1506,7 +1575,22 @@
                             <strong>Alerta:</strong><br>
                             {{ session('pickup_notice') }}
                         </div>
-                        <button type="button" class="order-success-modal__button" data-dismiss="modal">Entendido</button>
+                        <div class="order-success-modal__tracking">
+                            <strong>Guarde su c&oacute;digo de seguimiento:</strong>
+                            <span class="order-success-modal__code">{{ session('pickup_code') }}</span>
+                            <span class="order-success-modal__share-code">Comparta este c&oacute;digo con su cliente destinatario para que pueda rastrear el env&iacute;o en Correos de Bolivia.</span>
+                            <span>Env&iacute;ele tambi&eacute;n el comprobante para que pueda verificar el costo del servicio. Consulte el rastreo en
+                                <a href="https://trackingbo.correos.gob.bo/" target="_blank" rel="noopener noreferrer">TrackingBO</a>.
+                                Si paga por QR, conserve tambi&eacute;n el comprobante del pago.
+                            </span>
+                        </div>
+                        <p class="order-success-modal__print-hint">Descargue el comprobante para guardarlo o imprimirlo.</p>
+                        <div class="order-success-modal__actions">
+                            <a class="order-success-modal__download" href="{{ session('ticket_download_url') }}">
+                                <i class="fas fa-file-pdf" aria-hidden="true"></i>Descargar comprobante
+                            </a>
+                            <button type="button" class="order-success-modal__button" data-dismiss="modal">Entendido</button>
+                        </div>
                     </div>
                 </div>
             </div>

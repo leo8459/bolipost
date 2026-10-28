@@ -512,6 +512,10 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/paquetes-ems/solicitudes', [PaquetesEmsController::class, 'indexSolicitudes'])->name('paquetes-ems.solicitudes.index');
     Route::get('/delivery-express/paquetes-faro', [DeliveryExpressControlController::class, 'index'])
         ->name('delivery-express.paquetes-faro.index');
+    Route::get('/delivery-express/paquetes-faro/factura/{cliente}/{cart}', [DeliveryExpressControlController::class, 'downloadInvoice'])
+        ->whereNumber('cliente')
+        ->whereNumber('cart')
+        ->name('delivery-express.paquetes-faro.invoice');
     Route::get('/paquetes-ems/solicitudes/nueva', [PaquetesEmsController::class, 'createSolicitud'])->name('paquetes-ems.solicitudes.create');
     Route::get('/paquetes-ems/solicitudes/buscar', [PaquetesEmsController::class, 'findSolicitud'])->name('paquetes-ems.solicitudes.find');
     Route::get('/paquetes-ems/solicitudes/cotizar', [PaquetesEmsController::class, 'quoteSolicitud'])->name('paquetes-ems.solicitudes.quote');

@@ -254,6 +254,7 @@ class ClienteSolicitudController extends Controller
             ->route('clientes.solicitudes.history')
             ->with('success', $message)
             ->with('pickup_notice', self::PICKUP_CONFIRMATION_MESSAGE)
+            ->with('pickup_code', $solicitud->codigo_solicitud)
             ->with('ticket_download_url', route('clientes.solicitudes.ticket', ['solicitud' => $solicitud->id]));
 
         if ($mailWarning !== null) {

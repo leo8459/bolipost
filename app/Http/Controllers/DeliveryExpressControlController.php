@@ -5,11 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Cliente;
 use App\Models\Estado;
 use App\Models\SolicitudCliente;
+use App\Models\User;
 use App\Services\ClienteSolicitudFacturacionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class DeliveryExpressControlController extends Controller
@@ -18,7 +21,7 @@ class DeliveryExpressControlController extends Controller
     {
         $validated = $request->validate([
             'q' => ['nullable', 'string', 'max:180'],
-            'pago' => ['nullable', 'in:todos,qr,destino'],
+            'pago' => ['nullable', 'in:todos,qr,pendiente,destino'],
             'estado' => ['nullable', 'string', 'max:100'],
             'fecha_desde' => ['nullable', 'date'],
             'fecha_hasta' => ['nullable', 'date', 'after_or_equal:fecha_desde'],
@@ -31,6 +34,7 @@ class DeliveryExpressControlController extends Controller
             'fecha_desde' => trim((string) ($validated['fecha_desde'] ?? '')),
             'fecha_hasta' => trim((string) ($validated['fecha_hasta'] ?? '')),
         ];
+        $departmentScope = $this->resolveDepartmentScope($request->user());
 
         $baseQuery = SolicitudCliente::query()
             ->with([
@@ -38,7 +42,26 @@ class DeliveryExpressControlController extends Controller
                 'estadoRegistro:id,nombre_estado',
                 'servicioExtra:id,nombre,descripcion',
                 'destino:id,nombre_destino',
-            ])
+            ]);
+
+        if ($departmentScope !== null) {
+            if ($departmentScope === []) {
+                $baseQuery->whereRaw('1 = 0');
+            } else {
+                $baseQuery->where(function ($departmentQuery) use ($departmentScope): void {
+                    foreach ($departmentScope as $department) {
+                        $departmentQuery
+                            ->orWhereRaw("trim(upper(coalesce(origen, ''))) = ?", [$department])
+                            ->orWhereRaw("trim(upper(coalesce(ciudad, ''))) = ?", [$department])
+                            ->orWhereHas('destino', fn ($destinationQuery) =>
+                                $destinationQuery->whereRaw("trim(upper(coalesce(nombre_destino, ''))) = ?", [$department])
+                            );
+                    }
+                });
+            }
+        }
+
+        $baseQuery = $baseQuery
             ->when($filters['q'] !== '', function ($query) use ($filters): void {
                 $search = $filters['q'];
                 $query->where(function ($inner) use ($search): void {
@@ -56,6 +79,7 @@ class DeliveryExpressControlController extends Controller
                 });
             })
             ->when($filters['pago'] === 'qr', fn ($query) => $query->where('forma_pago', 'pagado'))
+            ->when($filters['pago'] === 'pendiente', fn ($query) => $query->where('forma_pago', 'origen'))
             ->when($filters['pago'] === 'destino', function ($query): void {
                 $query->where(function ($inner): void {
                     $inner->where('forma_pago', 'destino')
@@ -73,6 +97,7 @@ class DeliveryExpressControlController extends Controller
         $summary = [
             'total' => (clone $baseQuery)->count(),
             'qr' => (clone $baseQuery)->where('forma_pago', 'pagado')->count(),
+            'pending' => (clone $baseQuery)->where('forma_pago', 'origen')->count(),
             'destino' => (clone $baseQuery)->where(function ($query): void {
                 $query->where('forma_pago', 'destino')->orWhere('pago_destinatario', true);
             })->count(),
@@ -84,7 +109,7 @@ class DeliveryExpressControlController extends Controller
             ->paginate(30)
             ->withQueryString();
 
-        [$qrSinSolicitud, $pendingQrLookupError] = $this->loadOutstandingQrAttempts($facturacion, $filters);
+        [$qrSinSolicitud, $pendingQrLookupError] = $this->loadOutstandingQrAttempts($facturacion, $filters, $departmentScope);
         $invoiceBySolicitud = $this->loadQrInvoiceStatuses($solicitudes->getCollection(), $facturacion);
         $hasInvoiceLookupError = $pendingQrLookupError;
 
@@ -93,7 +118,7 @@ class DeliveryExpressControlController extends Controller
                 $solicitud->setAttribute('_control_invoice', [
                     'status' => 'NO_VERIFICADA',
                     'number' => '',
-                    'message' => 'Sin factura QR vinculada; pago previsto en destino',
+                    'message' => 'Sin factura QR vinculada; envío por cobrar',
                 ]);
                 continue;
             }
@@ -107,7 +132,7 @@ class DeliveryExpressControlController extends Controller
         }
 
         $estados = Estado::query()
-            ->whereIn('id', SolicitudCliente::query()->whereNotNull('estado_id')->select('estado_id')->distinct())
+            ->whereIn('id', (clone $baseQuery)->whereNotNull('estado_id')->select('estado_id')->distinct())
             ->orderBy('nombre_estado')
             ->pluck('nombre_estado')
             ->filter()
@@ -122,7 +147,61 @@ class DeliveryExpressControlController extends Controller
             'estados' => $estados,
             'hasInvoiceLookupError' => $hasInvoiceLookupError,
             'qrSinSolicitud' => $qrSinSolicitud,
+            'departmentScope' => $departmentScope,
         ]);
+    }
+
+    public function downloadInvoice(Request $request, int $cliente, int $cart, ClienteSolicitudFacturacionService $facturacion)
+    {
+        $customer = Cliente::query()->findOrFail($cliente);
+
+        try {
+            $payment = $facturacion->consultarPagoQrPorUsuario('cliente_online_'.$customer->id, $cart);
+            $remoteCart = (array) ($payment['cart'] ?? []);
+            abort_unless((int) ($remoteCart['id'] ?? 0) === $cart, 404);
+            $remoteOriginUserId = trim((string) ($remoteCart['origen_usuario_id'] ?? ''));
+            abort_unless($remoteOriginUserId === '' || $remoteOriginUserId === 'cliente_online_'.$customer->id, 404);
+
+            $isClientOnlineCart = collect((array) ($remoteCart['items'] ?? []))
+                ->contains(fn ($item) => strtolower((string) data_get($item, 'origen_tipo', '')) === 'cliente_online');
+            abort_unless($isClientOnlineCart, 404);
+            $departmentScope = $this->resolveDepartmentScope($request->user());
+            $qrSummary = $this->qrSummaryFromCart($remoteCart);
+            abort_unless($this->matchesDepartmentScope($departmentScope, [
+                $qrSummary['origen'] ?? '',
+                $qrSummary['destino'] ?? '',
+            ]), 404);
+            abort_unless($this->normalizeQrPaymentStatus((string) ($payment['payment_status'] ?? '')) === 'pagado', 409, 'El pago todavía no está confirmado.');
+            abort_unless(strtoupper((string) ($payment['invoice_status'] ?? '')) === 'FACTURADA', 409, 'La factura todavía no está emitida.');
+
+            $url = trim((string) ($payment['invoice_pdf_url'] ?? ''));
+            abort_unless($this->isAllowedInvoicePdfUrl($url), 404, 'El PDF de esta factura todavía no está disponible.');
+
+            $response = Http::connectTimeout(10)->timeout(45)
+                ->withoutRedirecting()->accept('application/pdf')->get($url);
+            if (!$response->successful() || !str_starts_with($response->body(), '%PDF-')) {
+                throw new \RuntimeException('Facturación no devolvió un PDF válido para la factura QR.');
+            }
+
+            $invoiceNumber = trim((string) ($payment['invoice_number'] ?? ''));
+            $safeNumber = preg_replace('/[^A-Za-z0-9_-]/', '', $invoiceNumber) ?: (string) $cart;
+
+            return response($response->body(), 200, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="factura-'.$safeNumber.'.pdf"',
+                'Cache-Control' => 'private, no-store',
+            ]);
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $exception) {
+            throw $exception;
+        } catch (\Throwable $exception) {
+            Log::warning('No se pudo reimprimir la factura QR desde el control Delivery Express.', [
+                'cliente_id' => $customer->id,
+                'cart_id' => $cart,
+                'error' => $exception->getMessage(),
+            ]);
+
+            abort(502, 'No se pudo descargar la factura. Inténtalo nuevamente en unos minutos.');
+        }
     }
 
     /**
@@ -131,7 +210,7 @@ class DeliveryExpressControlController extends Controller
      *
      * @return array{0:array<int, array<string, mixed>>, 1:bool}
      */
-    private function loadOutstandingQrAttempts(ClienteSolicitudFacturacionService $facturacion, array $filters): array
+    private function loadOutstandingQrAttempts(ClienteSolicitudFacturacionService $facturacion, array $filters, ?array $departmentScope): array
     {
         if ($filters['pago'] === 'destino' || $filters['estado'] !== '') {
             return [[], false];
@@ -164,12 +243,21 @@ class DeliveryExpressControlController extends Controller
                     if ($summary === []) {
                         continue;
                     }
+                    if (!$this->matchesDepartmentScope($departmentScope, [
+                        $summary['origen'] ?? '',
+                        $summary['destino'] ?? '',
+                    ])) {
+                        continue;
+                    }
 
                     $paymentStatus = $this->normalizeQrPaymentStatus((string) ($cart['estado_pago'] ?? ''));
                     if (!in_array($paymentStatus, ['pagado', 'pendiente'], true)) {
                         continue;
                     }
                     if ($filters['pago'] === 'qr' && $paymentStatus !== 'pagado') {
+                        continue;
+                    }
+                    if ($filters['pago'] === 'pendiente' && $paymentStatus !== 'pendiente') {
                         continue;
                     }
 
@@ -292,6 +380,7 @@ class DeliveryExpressControlController extends Controller
 
             $rows[] = [
                 'code' => $candidate['code'],
+                'client_id' => $candidate['client_id'],
                 'client_name' => $client?->name ?: 'Cliente no identificado',
                 'client_code' => $client?->codigo_cliente ?: '—',
                 'service' => $candidate['service'] !== '' ? $candidate['service'] : 'Delivery Express',
@@ -452,8 +541,85 @@ class DeliveryExpressControlController extends Controller
         return [
             'status' => $status,
             'number' => $number,
+            'cart_id' => (int) ($cart['id'] ?? 0),
             'message' => $status === 'SIN_DATO' ? 'Sin dato de Facturación' : '',
         ];
+    }
+
+    private function isAllowedInvoicePdfUrl(string $url): bool
+    {
+        $base = rtrim((string) config('services.facturacion_bridge.sefe_public_base_url', 'https://sefe.agetic.gob.bo'), '/');
+        $baseParts = parse_url($base);
+        $urlParts = parse_url($url);
+        if (!is_array($baseParts) || !is_array($urlParts)) {
+            return false;
+        }
+
+        $sameOrigin = strtolower((string) ($urlParts['scheme'] ?? '')) === strtolower((string) ($baseParts['scheme'] ?? ''))
+            && strtolower((string) ($urlParts['host'] ?? '')) === strtolower((string) ($baseParts['host'] ?? ''))
+            && (int) ($urlParts['port'] ?? 0) === (int) ($baseParts['port'] ?? 0)
+            && !isset($urlParts['user'])
+            && !isset($urlParts['pass']);
+        $path = (string) ($urlParts['path'] ?? '');
+
+        return $sameOrigin
+            && !isset($urlParts['query'])
+            && !isset($urlParts['fragment'])
+            && preg_match('#^/public/facturas_pdf/[A-Za-z0-9_-]+\.pdf$#i', $path) === 1;
+    }
+
+    private function resolveDepartmentScope(?User $user): ?array
+    {
+        if (!$user) {
+            return [];
+        }
+
+        $roles = $user->getRoleNames()->map(
+            fn ($role) => str_replace(
+                [' ', '-'],
+                '_',
+                mb_strtolower(Str::ascii(trim((string) $role)))
+            )
+        );
+
+        $hasGlobalAccess = $user->hasGlobalDepartmentAccess()
+            || $roles->contains(fn ($role) => in_array($role, [
+                'admin',
+                'administrador',
+                'super_admin',
+                'superadmin',
+                'super_administrador',
+                'superadministrador',
+                'gestor',
+                'administrador_operaciones',
+                'administrador_de_operaciones',
+            ], true));
+
+        if ($hasGlobalAccess) {
+            return null;
+        }
+
+        return $user->regionalesLista();
+    }
+
+    private function matchesDepartmentScope(?array $departmentScope, array $locations): bool
+    {
+        if ($departmentScope === null) {
+            return true;
+        }
+
+        if ($departmentScope === []) {
+            return false;
+        }
+
+        $departments = collect($departmentScope)
+            ->map(fn ($department) => mb_strtoupper(trim((string) $department)))
+            ->filter()
+            ->all();
+
+        return collect($locations)
+            ->map(fn ($location) => mb_strtoupper(trim((string) $location)))
+            ->contains(fn ($location) => $location !== '' && in_array($location, $departments, true));
     }
 
     private function matchLegacySolicitud(Collection $requests, array $summary, array $cart): ?SolicitudCliente
