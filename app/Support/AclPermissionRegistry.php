@@ -531,6 +531,7 @@ class AclPermissionRegistry
      * @var array<string, array<int, string>>
      */
     private const ROUTE_ACCESS_PERMISSION_OVERRIDES = [
+        'paquetes-ems.todos' => ['paquetes-ems.todos'],
         'delivery-express.paquetes-faro.index' => ['paquetes-ems.solicitudes.index'],
         'delivery-express.paquetes-faro.invoice' => ['paquetes-ems.solicitudes.index'],
         'solicitudes-cambio.store' => ['feature.solicitudes-cambio.create'],
@@ -740,6 +741,9 @@ class AclPermissionRegistry
             'todos-paquetes.guia',
             'feature.todos-paquetes.index.print',
             'feature.todos-paquetes.index.edit',
+            'feature.paquetes-ems.index.print',
+            'feature.paquetes-contrato.index.print',
+            'feature.paquetes-ems.solicitudes.index.print',
             'paquetes-ems.encargado',
             'feature.paquetes-ems.encargado.print',
         ],
@@ -1998,6 +2002,7 @@ class AclPermissionRegistry
     private static function actionLabel(string $permissionName, string $actionKey): string
     {
         $specialLabels = [
+            'paquetes-ems.todos' => 'Acceso: Todos los paquetes EMS, contratos y Delivery Express',
             'internacional.section' => 'Acceso: Secciones de Internacional',
             'internacional.warehouse' => 'Acceso: Almacén internacional',
             'internacional.selection.add' => 'Botón: Agregar entrega a la bandeja',
@@ -2426,6 +2431,7 @@ class AclPermissionRegistry
     private static function permissionHint(string $permissionName, string $moduleKey, string $actionKey): ?string
     {
         $specialHints = [
+            'paquetes-ems.todos' => 'Controla el acceso al listado de consulta de EMS, contratos y Delivery Express.',
             'internacional.section' => 'Controla el acceso a las ventanas de recorrido nacional, rezago y consulta de paquetes internacionales.',
             'internacional.warehouse' => 'Controla el acceso a las vistas de entregas del Almacén internacional.',
             'internacional.selection.add' => 'Controla agregar paquetes a la bandeja de entregas internacionales.',

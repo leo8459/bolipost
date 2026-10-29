@@ -508,6 +508,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
         ->whereNumber('id')
         ->name('bastiones.recuperar');
     Route::get('/paquetes-ems', [PaquetesEmsController::class, 'index'])->name('paquetes-ems.index');
+    Route::get('/paquetes-ems/todos', [TodosPaquetesController::class, 'indexEms'])->name('paquetes-ems.todos');
     Route::get('/paquetes-ems/create', [PaquetesEmsController::class, 'create'])->name('paquetes-ems.create');
     Route::get('/paquetes-ems/solicitudes', [PaquetesEmsController::class, 'indexSolicitudes'])->name('paquetes-ems.solicitudes.index');
     Route::get('/delivery-express/paquetes-faro', [DeliveryExpressControlController::class, 'index'])

@@ -179,6 +179,7 @@ class TodosPaquetesController extends Controller
     public function index(Request $request)
     {
         $filters = $this->validatedPackageFilters($request);
+        $scopeEms = $filters['scope_ems'];
         $search = $filters['search'];
         $type = $filters['type'];
         $estadoId = $filters['estado_id'];
@@ -197,10 +198,19 @@ class TodosPaquetesController extends Controller
         $estados = Estado::query()->orderBy('nombre_estado')->get(['id', 'nombre_estado']);
         $editing = $this->resolveEditing($request);
 
+        $availableTypes = $scopeEms
+            ? array_intersect_key(self::TYPES, array_flip(['ems', 'contrato', 'solicitud']))
+            : self::TYPES;
+
+        if ($scopeEms) {
+            $availableTypes['solicitud']['label'] = 'DELIVERY EXPRESS';
+        }
+
         return view('todos_paquetes.index', [
             'paquetes' => $paquetes,
             'estados' => $estados,
-            'types' => self::TYPES,
+            'types' => $availableTypes,
+            'scopeEms' => $scopeEms,
             'carteros' => $this->carterosDisponibles($request),
             'departamentos' => self::DEPARTAMENTOS,
             'servicios' => DB::table('servicio')->orderBy('nombre_servicio')->get(['id', 'nombre_servicio']),
@@ -214,6 +224,13 @@ class TodosPaquetesController extends Controller
             'editing' => $editing,
             'showCreateModal' => $request->boolean('create') || old('package_type') !== null,
         ]);
+    }
+
+    public function indexEms(Request $request)
+    {
+        $request->query->set('grupo', 'ems');
+
+        return $this->index($request);
     }
 
     public function exportExcel(Request $request)
@@ -740,6 +757,7 @@ class TodosPaquetesController extends Controller
                 ->unique()->values()->all(),
             'peso_min' => $pesoMin,
             'peso_max' => $pesoMax,
+            'scope_ems' => $request->query('grupo') === 'ems',
         ];
     }
 
@@ -934,6 +952,7 @@ class TodosPaquetesController extends Controller
     private function filteredPackagesQuery(array $filters)
     {
         $query = DB::query()->fromSub($this->buildUnionQuery(), 'p')
+            ->when($filters['scope_ems'] ?? false, fn ($query) => $query->whereIn('type_key', ['ems', 'contrato', 'solicitud']))
             ->when(array_key_exists($filters['type'], self::TYPES), fn ($query) => $query->where('type_key', $filters['type']))
             ->when(! empty($filters['estado_id']), fn ($query) => $query->whereIn('estado_id', $filters['estado_id']))
             ->when($filters['search'] !== '', function ($query) use ($filters) {

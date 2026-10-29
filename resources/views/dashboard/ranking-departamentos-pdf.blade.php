@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Competencia departamentos</title>
+    <title>Ranking de registros por departamento</title>
     <style>
         @page { margin: 18px; }
         body { font-family: Verdana, DejaVu Sans, sans-serif; font-size: 9px; color: #172033; }
@@ -29,7 +29,7 @@
 @endphp
 
 <div class="header">
-    <h1>Competencia de cumplimiento por departamentos</h1>
+    <h1>Ranking de registros por departamento</h1>
     <div class="meta">
         Rango: {{ $rangoLabel }} |
         Modulos: {{ collect($modulosSeleccionados)->map(fn($m) => $modulosDisponibles[$m]['label'] ?? strtoupper($m))->implode(', ') }} |
@@ -39,9 +39,9 @@
 
 @if($leader)
     <div class="leader">
-        <strong>Departamento lider:</strong> {{ $leader->departamento }}
-        tiene <strong>{{ \App\Support\BolivianNumber::format((float) $leader->cumplimiento, 1) }}%</strong>
-        de cumplimiento.
+        <strong>Departamento con más registros:</strong> {{ $leader->departamento }}
+        con <strong>{{ \App\Support\BolivianNumber::format((int) $leader->total) }}</strong>
+        registros y {{ \App\Support\BolivianNumber::format((float) $leader->cumplimiento, 1) }}% de cumplimiento.
         Mejor entregador: <strong>{{ $leader->top_entregador }}</strong>
         ({{ \App\Support\BolivianNumber::format((int) $leader->top_entregador_total) }} entregas).
     </div>

@@ -410,7 +410,7 @@
 </table>
 
 <div class="section">
-    <div class="h">Ranking de departamentos por cumplimiento</div>
+    <div class="h">Ranking de departamentos por registros</div>
     <div class="b">
         @if(($rankingDepartamentos ?? collect())->isNotEmpty())
             @php
@@ -418,8 +418,8 @@
             @endphp
             <p style="margin-top:0;">
                 <strong>#1 {{ $topDepartamento->departamento }}</strong> tiene
-                <strong>{{ \App\Support\BolivianNumber::format((float) $topDepartamento->cumplimiento, 1) }}%</strong>
-                de cumplimiento.
+                <strong>{{ \App\Support\BolivianNumber::format((int) $topDepartamento->total) }}</strong>
+                registros y {{ \App\Support\BolivianNumber::format((float) $topDepartamento->cumplimiento, 1) }}% de cumplimiento.
                 Mayor cantidad de entregas: <strong>{{ $topDepartamento->top_entregador }}</strong>
                 ({{ \App\Support\BolivianNumber::format((int) $topDepartamento->top_entregador_total) }} entregas).
             </p>

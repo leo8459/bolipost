@@ -725,6 +725,13 @@ $config = [
             'icon' => 'fas fa-box',
             'submenu' => [
                 [
+                    'text' => 'Todos los paquetes',
+                    'url' => 'paquetes-ems/todos',
+                    'icon' => 'fas fa-list',
+                    'can' => 'paquetes-ems.todos',
+                    'active' => ['paquetes-ems/todos'],
+                ],
+                [
                     'text' => 'ALMACEN EMS',
                     'url' => 'paquetes-ems/almacen',
                     'icon' => 'fas fa-warehouse',

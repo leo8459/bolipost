@@ -504,7 +504,7 @@
     <div class="card mb-3" data-widget="ranking_departamentos">
         <div class="card-header">
             <div class="d-flex justify-content-between align-items-center flex-wrap">
-                <strong>Ranking de cumplimiento por departamento</strong>
+                <strong>Ranking de registros por departamento</strong>
                 <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
                     @if(($rankingDepartamentos ?? collect())->isNotEmpty())
                         @php($topDepartamento = ($rankingDepartamentos ?? collect())->first())
@@ -525,7 +525,7 @@
                             <i class="fas fa-file-excel mr-1"></i> Reporte rendimiento Excel
                         </a>
                         <span class="badge badge-success">
-                            #1 {{ $topDepartamento->departamento }} - cumplimiento {{ \App\Support\BolivianNumber::format((float) $topDepartamento->cumplimiento, 1) }}%
+                            #1 {{ $topDepartamento->departamento }} - {{ \App\Support\BolivianNumber::format((int) $topDepartamento->total) }} registros
                         </span>
                     @endif
                 </div>

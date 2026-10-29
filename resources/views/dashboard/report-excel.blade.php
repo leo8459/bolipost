@@ -74,12 +74,12 @@
 
 <table>
     <tr><td colspan="7"></td></tr>
-    <tr><td colspan="7"><strong>RANKING DEPARTAMENTOS POR CUMPLIMIENTO</strong></td></tr>
+    <tr><td colspan="7"><strong>RANKING DEPARTAMENTOS POR REGISTROS</strong></td></tr>
     @if(($rankingDepartamentos ?? collect())->isNotEmpty())
         @php($topDepartamento = ($rankingDepartamentos ?? collect())->first())
         <tr>
             <td colspan="7">
-                #1 {{ $topDepartamento->departamento }} - {{ $topDepartamento->cumplimiento ?? 0 }}% cumplimiento.
+                #1 {{ $topDepartamento->departamento }} - {{ $topDepartamento->total }} registros.
                 Mejor entregador: {{ $topDepartamento->top_entregador }} ({{ $topDepartamento->top_entregador_total }} entregas)
             </td>
         </tr>

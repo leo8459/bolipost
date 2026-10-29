@@ -2444,7 +2444,19 @@ class DashboardController extends Controller
             });
 
         return $rows
-            ->sortByDesc(fn ($row) => (float) $row->cumplimiento)
+            ->sort(function ($left, $right) {
+                $registeredComparison = (int) $right->total <=> (int) $left->total;
+                if ($registeredComparison !== 0) {
+                    return $registeredComparison;
+                }
+
+                $complianceComparison = (float) $right->cumplimiento <=> (float) $left->cumplimiento;
+                if ($complianceComparison !== 0) {
+                    return $complianceComparison;
+                }
+
+                return strcmp((string) $left->departamento, (string) $right->departamento);
+            })
             ->values()
             ->map(function ($row, int $index) {
                 $row->puesto = $index + 1;
@@ -3249,7 +3261,7 @@ class DashboardController extends Controller
             $hallazgos[] = 'Top registrador: ' . $topRegistrador->name . ' (' . number_format((int) $topRegistrador->total_registrados) . ' registros).';
         }
         if ($topDepartamento) {
-            $hallazgos[] = 'Departamento #1: ' . $topDepartamento->departamento . ' con ' . number_format((float) $topDepartamento->cumplimiento, 1) . '% de cumplimiento y ' . number_format((int) $topDepartamento->entregados) . ' entregados.';
+            $hallazgos[] = 'Departamento con mas registros (#1): ' . $topDepartamento->departamento . ' con ' . number_format((int) $topDepartamento->total) . ' registros y ' . number_format((float) $topDepartamento->cumplimiento, 1) . '% de cumplimiento.';
         }
 
         $recomendaciones = [];

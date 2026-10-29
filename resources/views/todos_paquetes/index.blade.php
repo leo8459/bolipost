@@ -1,12 +1,12 @@
 @extends('adminlte::page')
 
-@section('title', 'Todos los paquetes')
+@section('title', $scopeEms ? 'Todos los paquetes EMS, contratos y Delivery Express' : 'Todos los paquetes')
 
 @section('content_header')
     <div class="tp-page-heading">
         <div>
-            <h1 class="mb-1">Todos los paquetes</h1>
-            <p class="mb-0">Consulta y administra todos los servicios desde un solo lugar.</p>
+            <h1 class="mb-1">{{ $scopeEms ? 'Todos los paquetes EMS' : 'Todos los paquetes' }}</h1>
+            <p class="mb-0">{{ $scopeEms ? 'EMS, contratos y Delivery Express en una sola tabla.' : 'Consulta y administra todos los servicios desde un solo lugar.' }}</p>
         </div>
     </div>
 @endsection
@@ -31,12 +31,12 @@
                     <span class="tp-heading-icon"><i class="fas fa-search"></i></span>
                     <div>
                         <h3 class="card-title">Busqueda unificada</h3>
-                        <div class="tp-muted">Busca en EMS, contratos, certificados, ordinarios y solicitudes.</div>
+                        <div class="tp-muted">{{ $scopeEms ? 'Busca en EMS, contratos y Delivery Express.' : 'Busca en EMS, contratos, certificados, ordinarios y solicitudes.' }}</div>
                     </div>
                 </div>
             </div>
             <div class="card-body">
-                <form method="GET" action="{{ route('todos-paquetes.index') }}" class="row align-items-end">
+                <form method="GET" action="{{ $scopeEms ? route('paquetes-ems.todos') : route('todos-paquetes.index') }}" class="row align-items-end">
                     <div class="col-xl-4 col-lg-4 col-md-12 mb-3">
                         <label class="small font-weight-bold">Buscar por cualquier campo</label>
                         <input
@@ -102,7 +102,7 @@
                     <div class="col-xl-2 col-lg-2 col-md-4 mb-3">
                         <div class="tp-actions">
                             <button type="submit" class="btn btn-primary">Buscar</button>
-                            <a href="{{ route('todos-paquetes.index') }}" class="btn btn-outline-secondary">Limpiar</a>
+                            <a href="{{ $scopeEms ? route('paquetes-ems.todos') : route('todos-paquetes.index') }}" class="btn btn-outline-secondary">Limpiar</a>
                         </div>
                     </div>
                 </form>
@@ -126,7 +126,8 @@
                 </div>
                 <div class="tp-results-tools">
                     <span class="tp-total-pill"><strong>{{ \App\Support\BolivianNumber::format($paquetes->total()) }}</strong> registros</span>
-                    @aclcan('print', null, 'todos-paquetes.index')
+                    @if(!$scopeEms)
+                        @aclcan('print', null, 'todos-paquetes.index')
                         <button
                             type="button"
                             class="btn btn-outline-danger tp-create-btn"
@@ -138,14 +139,14 @@
                             <span>Reporte de historial</span>
                         </button>
                         <a
-                            href="{{ route('todos-paquetes.export.excel', request()->except(['page', 'create', 'edit_type', 'edit_id'])) }}"
+                            href="{{ route('todos-paquetes.export.excel', array_merge(request()->except(['page', 'create', 'edit_type', 'edit_id']), $scopeEms ? ['grupo' => 'ems'] : [])) }}"
                             class="btn btn-outline-success tp-create-btn"
                         >
                             <i class="fas fa-file-excel"></i>
                             <span>Exportar Excel</span>
                         </a>
-                    @endaclcan
-                    @aclcan('create', null, 'todos-paquetes.index')
+                        @endaclcan
+                        @aclcan('create', null, 'todos-paquetes.index')
                         <a
                             href="{{ route('todos-paquetes.index', array_merge(request()->except(['edit_type', 'edit_id']), ['create' => 1])) }}"
                             class="btn btn-success tp-create-btn"
@@ -153,7 +154,8 @@
                             <i class="fas fa-plus-circle"></i>
                             <span>Crear nuevo</span>
                         </a>
-                    @endaclcan
+                        @endaclcan
+                    @endif
                 </div>
             </div>
             <div class="card-body p-0">
@@ -166,7 +168,9 @@
                                 <th>Empresa</th>
                                 <th>Destinatario</th>
                                 <th>Peso / Precio</th>
-                                <th>Reporte</th>
+                                @if(!$scopeEms)
+                                    <th>Reporte</th>
+                                @endif
                                 <th>Estado</th>
                                 <th>Fecha de recojo</th>
                                 <th>Fecha de creación</th>
@@ -177,7 +181,7 @@
                             @forelse($paquetes as $paquete)
                                 <tr>
                                     <td class="tp-shipment-cell">
-                                        <span class="tp-badge">{{ $paquete->tipo }}</span>
+                                        <span class="tp-badge">{{ $scopeEms && $paquete->type_key === 'solicitud' ? 'DELIVERY EXPRESS' : $paquete->tipo }}</span>
                                         <strong>{{ $paquete->codigo ?: 'SIN CODIGO' }}</strong>
                                         @if($paquete->codigo_madre)
                                             <small>Madre: {{ $paquete->codigo_madre }}</small>
@@ -204,6 +208,7 @@
                                             <span><small>Precio</small>{{ $paquete->precio !== '' ? \App\Support\BolivianNumber::format($paquete->precio, 2) : '-' }}</span>
                                         </div>
                                     </td>
+                                    @if(!$scopeEms)
                                     <td>
                                         @if(!empty($paquete->salida_report_codigo))
                                             <a
@@ -230,7 +235,11 @@
                                             <span class="text-muted small">Sin reporte</span>
                                         @endif
                                     </td>
+                                    @endif
                                     <td class="tp-state-cell">
+                                        @if($scopeEms)
+                                            <span class="badge badge-secondary">{{ $paquete->estado_nombre ?: 'SIN ESTADO' }}</span>
+                                        @else
                                         <form method="POST" action="{{ route('todos-paquetes.estado', ['type' => $paquete->type_key, 'id' => $paquete->record_id]) }}">
                                             @csrf
                                             @method('PATCH')
@@ -247,6 +256,7 @@
                                                 @endforeach
                                             </select>
                                         </form>
+                                        @endif
                                     </td>
                                     <td>
                                         <div class="tp-updated">
@@ -274,13 +284,15 @@
                                                 <a
                                                     href="{{ route('todos-paquetes.guia', ['type' => $paquete->type_key, 'id' => $paquete->record_id]) }}"
                                                     class="btn btn-sm btn-outline-success"
-                                                    title="{{ $paquete->type_key === 'ems' ? 'Reimprimir boleta EMS' : ($paquete->type_key === 'solicitud' ? 'Reimprimir solicitud' : 'Reimprimir guia de empresa') }}"
+                                                    title="{{ $paquete->type_key === 'ems' ? 'Reimprimir boleta EMS' : ($paquete->type_key === 'solicitud' ? 'Reimprimir Delivery Express' : 'Reimprimir guia de empresa') }}"
                                                     target="_blank"
                                                 >
                                                     <i class="fas fa-print"></i>
+                                                    <span>Reimprimir</span>
                                                 </a>
                                             @endif
-                                            @aclcan('edit', null, 'todos-paquetes.index')
+                                            @if(!$scopeEms)
+                                                @aclcan('edit', null, 'todos-paquetes.index')
                                                 <a
                                                     href="{{ route('todos-paquetes.index', array_merge(request()->except(['create']), ['edit_type' => $paquete->type_key, 'edit_id' => $paquete->record_id])) }}"
                                                     class="btn btn-sm btn-outline-primary tp-edit-btn"
@@ -289,13 +301,14 @@
                                                     <i class="fas fa-pencil-alt"></i>
                                                     <span>Editar</span>
                                                 </a>
-                                            @endaclcan
+                                                @endaclcan
+                                            @endif
                                         </div>
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="10" class="text-center text-muted py-5">No hay paquetes con los filtros seleccionados.</td>
+                                    <td colspan="{{ $scopeEms ? 9 : 10 }}" class="text-center text-muted py-5">No hay paquetes con los filtros seleccionados.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -307,7 +320,7 @@
                         <article class="tp-package-card">
                             <div class="tp-package-card-head">
                                 <div>
-                                    <span class="tp-badge">{{ $paquete->tipo }}</span>
+                                    <span class="tp-badge">{{ $scopeEms && $paquete->type_key === 'solicitud' ? 'DELIVERY EXPRESS' : $paquete->tipo }}</span>
                                     <h4>{{ $paquete->codigo ?: 'SIN CODIGO' }}</h4>
                                     @if($paquete->codigo_madre)
                                         <small>Madre: {{ $paquete->codigo_madre }}</small>
@@ -330,6 +343,12 @@
                                 <div><small>Telefono</small><strong>{{ $paquete->telefono ?: '-' }}</strong></div>
                                 <div><small>Peso / Precio</small><strong>{{ $paquete->peso !== '' ? \App\Support\BolivianNumber::format($paquete->peso, 3) : '-' }} / {{ $paquete->precio !== '' ? \App\Support\BolivianNumber::format($paquete->precio, 2) : '-' }}</strong></div>
                             </div>
+                            @if($scopeEms)
+                                <div class="tp-mobile-state">
+                                    <label>Estado</label>
+                                    <span class="badge badge-secondary">{{ $paquete->estado_nombre ?: 'SIN ESTADO' }}</span>
+                                </div>
+                            @else
                             <form method="POST" action="{{ route('todos-paquetes.estado', ['type' => $paquete->type_key, 'id' => $paquete->record_id]) }}" class="tp-mobile-state">
                                 @csrf
                                 @method('PATCH')
@@ -347,6 +366,7 @@
                                     @endforeach
                                 </select>
                             </form>
+                            @endif
                             @if($paquete->justificacion)
                                 <div class="tp-mobile-note"><strong>Justificacion:</strong> {{ $paquete->justificacion }}</div>
                             @endif
@@ -356,7 +376,7 @@
                                     'codigo' => $paquete->codigo,
                                     'class' => 'btn btn-outline-info',
                                 ])
-                                @if(!empty($paquete->salida_report_codigo))
+                                @if(!$scopeEms && !empty($paquete->salida_report_codigo))
                                     <a href="{{ route('todos-paquetes.reporte-salida', ['codigo' => $paquete->salida_report_codigo]) }}"
                                        class="btn btn-outline-warning" target="_blank">
                                         <i class="fas fa-file-pdf"></i> Reporte
@@ -365,15 +385,17 @@
                                 @if(in_array($paquete->type_key, ['contrato', 'ems', 'solicitud'], true))
                                     <a href="{{ route('todos-paquetes.guia', ['type' => $paquete->type_key, 'id' => $paquete->record_id]) }}"
                                        class="btn btn-outline-success" target="_blank">
-                                        <i class="fas fa-print"></i> {{ $paquete->type_key === 'ems' ? 'Boleta EMS' : ($paquete->type_key === 'solicitud' ? 'Solicitud' : 'Guia') }}
+                                        <i class="fas fa-print"></i> Reimprimir
                                     </a>
                                 @endif
-                                @aclcan('edit', null, 'todos-paquetes.index')
+                                @if(!$scopeEms)
+                                    @aclcan('edit', null, 'todos-paquetes.index')
                                     <a href="{{ route('todos-paquetes.index', array_merge(request()->except(['create']), ['edit_type' => $paquete->type_key, 'edit_id' => $paquete->record_id])) }}"
                                        class="btn btn-primary">
                                         <i class="fas fa-pencil-alt"></i> Editar
                                     </a>
-                                @endaclcan
+                                    @endaclcan
+                                @endif
                             </div>
                         </article>
                     @empty
@@ -387,6 +409,7 @@
         </div>
     </div>
 
+    @if(!$scopeEms)
     @aclcan('create', null, 'todos-paquetes.index')
         @include('todos_paquetes.partials.create-modal')
     @endaclcan
@@ -566,6 +589,7 @@
             </div>
         </div>
     @endaclcan
+    @endif
 @endsection
 
 @section('css')
