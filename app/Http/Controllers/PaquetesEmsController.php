@@ -209,6 +209,8 @@ class PaquetesEmsController extends Controller
                     'origen',
                     'precio',
                     'paquete_muy_grande',
+                    'recargo_volumen',
+                    'pago_destinatario',
                     'tarifario_tiktoker_id',
                     'created_at',
                 ])
@@ -244,6 +246,8 @@ class PaquetesEmsController extends Controller
                         'origen' => $solicitud->origen,
                         'precio_base' => (float) ($solicitud->tarifarioTiktoker?->peso1 ?? $solicitud->precio ?? 0),
                         'paquete_muy_grande' => (bool) $solicitud->paquete_muy_grande,
+                        'recargo_volumen' => (bool) $solicitud->recargo_volumen,
+                        'pago_destinatario' => (bool) $solicitud->pago_destinatario,
                         'created_at' => optional($solicitud->created_at)->format('d/m/Y H:i'),
                     ];
                 })
@@ -321,7 +325,8 @@ class PaquetesEmsController extends Controller
                     (string) $solicitud->origen,
                     (int) $solicitud->destino_id,
                     (float) ($solicitud->peso ?? 0),
-                    (bool) $solicitud->pago_destinatario
+                    (bool) $solicitud->pago_destinatario,
+                    (bool) $solicitud->recargo_volumen
                 );
 
                 $esMuyGrande = (bool) ($paquetesMuyGrandes[(int) $solicitud->id] ?? false);
@@ -333,7 +338,8 @@ class PaquetesEmsController extends Controller
                         $tarifario,
                         (float) ($solicitud->peso ?? 0),
                         (bool) $solicitud->pago_destinatario,
-                        $esMuyGrande
+                        $esMuyGrande,
+                        (bool) $solicitud->recargo_volumen
                     ),
                     'paquete_muy_grande' => $esMuyGrande,
                 ]);
@@ -414,6 +420,9 @@ class PaquetesEmsController extends Controller
             'telefono_destinatario' => $solicitud->telefono_destinatario,
             'direccion_entrega' => $direccionEntrega,
             'pago_destinatario' => (bool) $solicitud->pago_destinatario,
+            'forma_pago' => $solicitud->forma_pago
+                ?: ($solicitud->pago_destinatario ? 'destino' : 'origen'),
+            'recargo_volumen' => (bool) $solicitud->recargo_volumen,
         ]);
     }
 
@@ -435,8 +444,15 @@ class PaquetesEmsController extends Controller
             'origen' => ['required', 'string'],
             'destino_id' => ['required', 'integer', 'exists:destino,id'],
             'peso' => ['required', 'numeric', 'min:0.001'],
+            'forma_pago' => ['nullable', 'in:origen,destino,pagado'],
             'pago_destinatario' => ['nullable', 'boolean'],
+            'recargo_volumen' => ['nullable', 'boolean'],
         ]);
+
+        $formaPago = (string) $request->input(
+            'forma_pago',
+            $request->boolean('pago_destinatario') ? 'destino' : 'origen'
+        );
 
         try {
             [$tarifario, $precio] = $this->resolveTarifarioYPrecio(
@@ -444,7 +460,8 @@ class PaquetesEmsController extends Controller
                 (string) $request->input('origen'),
                 (int) $request->input('destino_id'),
                 (float) $request->input('peso'),
-                (bool) $request->boolean('pago_destinatario')
+                $formaPago === 'destino',
+                $request->boolean('recargo_volumen')
             );
         } catch (\RuntimeException $exception) {
             return response()->json([
@@ -455,6 +472,13 @@ class PaquetesEmsController extends Controller
         return response()->json([
             'tarifario_tiktoker_id' => (int) $tarifario->id,
             'precio' => number_format($precio, 2, '.', ''),
+            'precio_base' => number_format((float) $tarifario->peso1, 2, '.', ''),
+            'recargo_pago_destino' => number_format(
+                $formaPago === 'destino' ? SolicitudCliente::RECARGO_PAGO_DESTINO : 0,
+                2,
+                '.',
+                ''
+            ),
             'tiempo_entrega' => (int) $tarifario->tiempo_entrega,
         ]);
     }
@@ -485,7 +509,9 @@ class PaquetesEmsController extends Controller
             'destino_id' => ['required', 'integer', 'exists:destino,id'],
             'cantidad' => ['required', 'integer', 'min:1'],
             'peso' => ['required', 'numeric', 'min:0.001'],
+            'forma_pago' => ['required', 'in:origen,destino,pagado'],
             'pago_destinatario' => ['nullable', 'boolean'],
+            'recargo_volumen' => ['nullable', 'boolean'],
             'contenido' => ['required', 'string'],
             'nombre_remitente' => ['required', 'string', 'max:255'],
             'carnet' => ['required', 'string', 'max:255'],
@@ -503,7 +529,8 @@ class PaquetesEmsController extends Controller
                 (string) $data['origen'],
                 (int) $data['destino_id'],
                 (float) $data['peso'],
-                (bool) ($data['pago_destinatario'] ?? false)
+                $data['forma_pago'] === 'destino',
+                (bool) ($data['recargo_volumen'] ?? false)
             );
         } catch (\RuntimeException $exception) {
             return redirect()
@@ -547,7 +574,12 @@ class PaquetesEmsController extends Controller
             'cantidad' => (int) $data['cantidad'],
             'peso' => (float) $data['peso'],
             'precio' => $precio,
-            'pago_destinatario' => (bool) ($data['pago_destinatario'] ?? false),
+            'pago_destinatario' => $data['forma_pago'] === 'destino',
+            'forma_pago' => (string) $data['forma_pago'],
+            'recargo_pago_destino' => $data['forma_pago'] === 'destino'
+                ? SolicitudCliente::RECARGO_PAGO_DESTINO
+                : 0,
+            'recargo_volumen' => (bool) ($data['recargo_volumen'] ?? false),
             'nombre_remitente' => strtoupper(trim((string) $data['nombre_remitente'])),
             'nombre_envia' => null,
             'carnet' => trim((string) $data['carnet']),
@@ -2731,7 +2763,14 @@ class PaquetesEmsController extends Controller
         return self::PROVINCIAS_POR_DEPARTAMENTO;
     }
 
-    private function resolveTarifarioYPrecio(int $servicioExtraId, string $origen, int $destinoId, float $peso, bool $pagoDestinatario = false): array
+    private function resolveTarifarioYPrecio(
+        int $servicioExtraId,
+        string $origen,
+        int $destinoId,
+        float $peso,
+        bool $pagoDestinatario = false,
+        bool $recargoVolumen = false
+    ): array
     {
         $origenNombre = strtoupper(trim($origen));
 
@@ -2753,12 +2792,23 @@ class PaquetesEmsController extends Controller
             throw new \RuntimeException('No existe tarifario Delivery Express para el servicio, origen y destino seleccionados.');
         }
 
-        return [$tarifario, $this->calculatePrecioTiktoker($tarifario, $peso, $pagoDestinatario)];
+        return [$tarifario, $this->calculatePrecioTiktoker($tarifario, $peso, $pagoDestinatario, $recargoVolumen)];
     }
 
-    private function calculatePrecioTiktoker(TarifarioTiktoker $tarifario, float $peso, bool $pagoDestinatario = false): float
+    private function calculatePrecioTiktoker(
+        TarifarioTiktoker $tarifario,
+        float $peso,
+        bool $pagoDestinatario = false,
+        bool $recargoVolumen = false
+    ): float
     {
-        return TiktokerTariffPriceCalculator::calculate($tarifario, $peso, $pagoDestinatario);
+        return TiktokerTariffPriceCalculator::calculate(
+            $tarifario,
+            $peso,
+            $pagoDestinatario,
+            false,
+            $recargoVolumen
+        );
     }
 
     private function nullableTrim(?string $value): ?string

@@ -88,7 +88,11 @@
 
             <div style="margin-top:18px;padding:18px 20px;border-radius:14px;background:#fff3cd;border:2px solid #e0a800;color:#5f4600;text-align:center;">
                 <p style="margin:0;font-size:14px;line-height:1.7;font-weight:800;">
-                    <strong>Importante:</strong> Si el volumen del paquete es muy grande, se a&ntilde;adir&aacute; un recargo de Bs 10 al precio indicado.
+                    @if($solicitud->recargo_volumen)
+                        <strong>Recargo aplicado:</strong> Se a&ntilde;adieron Bs 10 por tama&ntilde;o excesivo.
+                    @else
+                        <strong>Importante:</strong> Si el volumen del paquete es muy grande, se a&ntilde;adir&aacute; un recargo de Bs 10 al precio indicado.
+                    @endif
                 </p>
             </div>
 

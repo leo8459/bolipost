@@ -443,12 +443,20 @@
                     <span class="total-label">Recargo por pago en destino</span>
                     <span class="value">Bs {{ \App\Support\BolivianNumber::format((float) $solicitud->recargo_pago_destino, 2, '.', '') }}</span>
                 @endif
+                @if($solicitud->recargo_volumen)
+                    <span class="total-label">Recargo por tama&ntilde;o excesivo</span>
+                    <span class="value">Bs {{ \App\Support\BolivianNumber::format(\App\Models\SolicitudCliente::RECARGO_VOLUMEN, 2, '.', '') }}</span>
+                @endif
                 <span class="total-label">{{ $solicitud->forma_pago_label === 'POR COBRAR' ? 'Total por cobrar' : 'Precio' }}</span>
                 <span class="price">Bs {{ $solicitud->precio !== null ? \App\Support\BolivianNumber::format((float) $solicitud->precio, 2, '.', '') : '0.00' }}</span>
             </div>
 
             <div class="volume-notice">
-                Importante: Si el volumen del paquete es muy grande, se a&ntilde;adir&aacute; un recargo de Bs 10 al precio indicado.
+                @if($solicitud->recargo_volumen)
+                    Se aplic&oacute; un recargo de Bs 10 por tama&ntilde;o excesivo.
+                @else
+                    Importante: Si el volumen del paquete es muy grande, se a&ntilde;adir&aacute; un recargo de Bs 10 al precio indicado.
+                @endif
             </div>
 
             <div class="pickup-notice">

@@ -296,6 +296,7 @@ class ClienteSolicitudController extends Controller
                 ? round((float) $data['precio_pagado'], 2)
                 : round((float) $tarifarioTiktoker->peso1 + (!empty($data['recargo_volumen']) ? 10 : 0) + $recargoPagoDestino, 2),
             'recargo_pago_destino' => $recargoPagoDestino,
+            'recargo_volumen' => (bool) ($data['recargo_volumen'] ?? false),
             'forma_pago' => (string) ($data['forma_pago'] ?? 'destino'),
             'tipo_pago' => $data['tipo_pago'] ?? null,
             'pago_destinatario' => ($data['forma_pago'] ?? 'destino') === 'destino',
