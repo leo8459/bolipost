@@ -225,12 +225,41 @@ class BusquedaController extends Controller
             (string) ($eventos->first()->servicio ?? 'EMS')
         );
 
+        $pasoPagoSolicitud = $progress['steps'][$progress['current_index']] ?? null;
+        $avisoPagoQr = null;
+        if (
+            Schema::hasTable('solicitud_clientes')
+            && in_array($pasoPagoSolicitud, ['Expedicion', 'Ventanilla', 'Cartero'], true)
+            && ! ($progress['is_cancelled'] ?? false)
+            && ! ($progress['is_returning'] ?? false)
+        ) {
+            $solicitud = DB::table('solicitud_clientes')
+                ->where(function ($query) use ($codigo): void {
+                    $query->whereRaw('TRIM(UPPER(COALESCE(codigo_solicitud, ?))) = ?', ['', strtoupper(trim($codigo))])
+                        ->orWhereRaw('TRIM(UPPER(COALESCE(barcode, ?))) = ?', ['', strtoupper(trim($codigo))]);
+                })
+                ->first(['forma_pago', 'pago_destinatario', 'precio']);
+
+            $formaPago = mb_strtolower(trim((string) ($solicitud->forma_pago ?? '')));
+            $porCobrar = $formaPago === 'destino'
+                || ($formaPago === '' && (bool) ($solicitud->pago_destinatario ?? false));
+            $importeFinal = is_numeric($solicitud->precio ?? null) ? (float) $solicitud->precio : 0.0;
+
+            if ($solicitud && $porCobrar && $importeFinal > 0) {
+                $avisoPagoQr = [
+                    'etapa' => $pasoPagoSolicitud,
+                    'importe' => number_format($importeFinal, 2, ',', '.'),
+                ];
+            }
+        }
+
         return view('tracking-demo', [
             'codigo' => strtoupper($codigo),
             'eventos' => $eventos,
             'ultimoEvento' => $eventos->first(),
             'fuenteTracking' => $resultado['fuente'],
             'trackingProgress' => $progress,
+            'avisoPagoQr' => $avisoPagoQr,
             'landingAnnouncement' => $this->landingAnnouncement(),
             'landingNewsTicker' => $this->landingNewsTicker(),
             'preregistroDestinos' => $this->cachedPreregistroDestinos(),

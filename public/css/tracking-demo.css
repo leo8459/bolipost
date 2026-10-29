@@ -1309,3 +1309,269 @@ body {
     animation: none !important;
   }
 }
+
+.tracking-payment-modal[hidden] {
+  display: none !important;
+}
+
+.tracking-payment-modal:not([hidden]) {
+  position: fixed;
+  z-index: 12000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  padding: 1.2rem;
+  background: rgba(7, 25, 52, 0.66);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: trackingPaymentFadeIn 180ms ease-out both;
+}
+
+body.tracking-payment-modal-open {
+  overflow: hidden;
+}
+
+.tracking-payment-modal__panel {
+  position: relative;
+  width: min(100%, 490px);
+  max-height: min(92vh, 760px);
+  overflow-y: auto;
+  padding: 2.1rem 2.2rem 1.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at 100% 0, rgba(254, 203, 52, 0.18), transparent 35%),
+    linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+  box-shadow: 0 30px 90px rgba(4, 24, 55, 0.34);
+  text-align: center;
+  animation: trackingPaymentRise 260ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+
+.tracking-payment-modal__panel::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 6px;
+  background: linear-gradient(90deg, var(--yellow), #f3b727 43%, var(--blue-3));
+  content: "";
+}
+
+.tracking-payment-modal__close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid #d9e4f3;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.88);
+  color: #526d8f;
+  font-size: 1.45rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.tracking-payment-modal__close:hover {
+  transform: rotate(90deg);
+  background: #edf4ff;
+  color: var(--blue-2);
+}
+
+.tracking-payment-modal__close:focus-visible,
+.tracking-payment-modal__action:focus-visible {
+  outline: 3px solid rgba(45, 127, 215, 0.36);
+  outline-offset: 3px;
+}
+
+.tracking-payment-modal__icon {
+  display: grid;
+  width: 68px;
+  height: 68px;
+  margin: 0 auto 1rem;
+  place-items: center;
+  border: 1px solid rgba(254, 203, 52, 0.72);
+  border-radius: 22px;
+  background: linear-gradient(145deg, #fff9e8, #ffedba);
+  color: var(--blue-1);
+  box-shadow: 0 12px 28px rgba(239, 174, 35, 0.17);
+}
+
+.tracking-payment-modal__icon svg {
+  width: 36px;
+  height: 36px;
+}
+
+.tracking-payment-modal__eyebrow {
+  display: block;
+  margin-bottom: 0.55rem;
+  color: #b17c0b;
+  font-size: 0.69rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.tracking-payment-modal__panel h2 {
+  margin: 0 auto 0.75rem;
+  color: #153c70;
+  font-size: clamp(1.35rem, 4vw, 1.75rem);
+  font-weight: 800;
+  line-height: 1.22;
+}
+
+.tracking-payment-modal__description {
+  max-width: 390px;
+  margin: 0 auto 1.3rem;
+  color: #58708e;
+  font-size: 0.91rem;
+  line-height: 1.65;
+}
+
+.tracking-payment-modal__amount {
+  padding: 1.05rem 1.1rem 0.9rem;
+  border: 1px solid #d7e4f5;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #f1f7ff 0%, #ffffff 100%);
+}
+
+.tracking-payment-modal__amount > span {
+  display: block;
+  color: #597393;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.tracking-payment-modal__amount strong {
+  display: block;
+  margin: 0.24rem 0;
+  color: var(--blue-1);
+  font-size: clamp(2rem, 7vw, 2.6rem);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 1.15;
+}
+
+.tracking-payment-modal__amount strong small {
+  margin-right: 0.1rem;
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  vertical-align: 0.55em;
+}
+
+.tracking-payment-modal__amount p {
+  margin: 0;
+  color: #7488a2;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.tracking-payment-modal__tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.68rem;
+  margin: 0.9rem 0 1.25rem;
+  padding: 0.78rem 0.85rem;
+  border: 1px solid #f4e3b0;
+  border-radius: 14px;
+  background: #fffaf0;
+  color: #715a2a;
+  text-align: left;
+}
+
+.tracking-payment-modal__tip-icon {
+  display: grid;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--yellow);
+  color: #25486f;
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.tracking-payment-modal__tip p {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.tracking-payment-modal__action {
+  width: 100%;
+  min-height: 48px;
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--blue-1), var(--blue-2));
+  box-shadow: 0 11px 22px rgba(20, 70, 129, 0.2);
+  color: #fff;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.tracking-payment-modal__action:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 26px rgba(20, 70, 129, 0.26);
+}
+
+.tracking-payment-modal__code {
+  margin: 0.9rem 0 0;
+  color: #8192a8;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.tracking-payment-modal__code strong {
+  color: #506986;
+  font-weight: 800;
+}
+
+@keyframes trackingPaymentFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes trackingPaymentRise {
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (max-width: 520px) {
+  .tracking-payment-modal:not([hidden]) {
+    padding: 0.8rem;
+  }
+
+  .tracking-payment-modal__panel {
+    padding: 1.8rem 1.15rem 1.2rem;
+    border-radius: 21px;
+  }
+
+  .tracking-payment-modal__close {
+    top: 0.8rem;
+    right: 0.8rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tracking-payment-modal:not([hidden]),
+  .tracking-payment-modal__panel,
+  .tracking-payment-modal__close,
+  .tracking-payment-modal__action {
+    animation: none !important;
+    transition: none !important;
+  }
+}

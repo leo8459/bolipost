@@ -1029,6 +1029,74 @@
         </section>
     </main>
 
+    @if (!empty($avisoPagoQr))
+        @php
+            $avisoPagoEnExpedicion = ($avisoPagoQr['etapa'] ?? '') === 'Expedicion';
+            $avisoPagoEnVentanilla = ($avisoPagoQr['etapa'] ?? '') === 'Ventanilla';
+        @endphp
+        <div
+            class="tracking-payment-modal"
+            id="trackingPaymentNotice"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="trackingPaymentTitle"
+            aria-describedby="trackingPaymentDescription"
+            aria-hidden="true"
+            hidden
+        >
+            <section class="tracking-payment-modal__panel" tabindex="-1">
+                <button class="tracking-payment-modal__close" type="button" data-close-tracking-payment aria-label="Cerrar aviso">&times;</button>
+                <div class="tracking-payment-modal__icon" aria-hidden="true">
+                    <svg viewBox="0 0 48 48" fill="none">
+                        <path d="M8 8h12v12H8zM28 8h12v12H28zM8 28h12v12H8z" stroke="currentColor" stroke-width="3" stroke-linejoin="round" />
+                        <path d="M12 12h4v4h-4zM32 12h4v4h-4zM12 32h4v4h-4zM28 28h5v5h-5zM36 28h4v4h-4zM36 36h4v4h-4zM28 37h4" fill="currentColor" />
+                    </svg>
+                </div>
+                <span class="tracking-payment-modal__eyebrow">Información importante de tu envío</span>
+                <h2 id="trackingPaymentTitle">
+                    @if ($avisoPagoEnExpedicion)
+                        Tu paquete sigue en camino
+                    @elseif ($avisoPagoEnVentanilla)
+                        Tu paquete está listo para recoger
+                    @else
+                        Tu paquete va camino a ti
+                    @endif
+                </h2>
+                <p class="tracking-payment-modal__description" id="trackingPaymentDescription">
+                    @if ($avisoPagoEnExpedicion)
+                        Tu envío está avanzando por la red postal. Tiene un pago pendiente de <strong>Bs {{ $avisoPagoQr['importe'] }}</strong>. Cuando llegue a ventanilla o salga a reparto, podrás pagar con QR para completar la entrega.
+                    @elseif ($avisoPagoEnVentanilla)
+                        Para retirar tu paquete en ventanilla, te pedimos pagar el envío con QR. Indica tu código de seguimiento al personal y te ayudarán con el pago.
+                    @else
+                        Tu paquete está con el cartero. Para completar la entrega, por favor realiza el pago con QR al recibirlo.
+                    @endif
+                </p>
+
+                <div class="tracking-payment-modal__amount">
+                    <span>Importe final de tu envío</span>
+                    <strong><small>Bs</small> {{ $avisoPagoQr['importe'] }}</strong>
+                    <p>Este es el total registrado para tu paquete.</p>
+                </div>
+
+                <div class="tracking-payment-modal__tip">
+                    <span class="tracking-payment-modal__tip-icon" aria-hidden="true">i</span>
+                    <p>
+                        @if ($avisoPagoEnExpedicion)
+                            Al llegar el paquete, solicita el QR en ventanilla o al cartero. Ten a mano tu código de seguimiento.
+                        @elseif ($avisoPagoEnVentanilla)
+                            Solicita el QR en la ventanilla al momento de recoger tu paquete.
+                        @else
+                            Solicita el QR al cartero cuando recibas tu paquete.
+                        @endif
+                    </p>
+                </div>
+
+                <button class="tracking-payment-modal__action" type="button" data-close-tracking-payment>Entendido</button>
+                <p class="tracking-payment-modal__code">Código de seguimiento: <strong>{{ $codigo }}</strong></p>
+            </section>
+        </div>
+    @endif
+
     @include('partials.preregistro-modal')
     @include('partials.landing-footer')
 
@@ -1263,6 +1331,63 @@
                 if ((el.textContent || '').trim() !== '') return;
                 const label = regionNames.of(iso);
                 if (label) el.textContent = label;
+            });
+        }
+
+        const trackingPaymentNotice = document.getElementById('trackingPaymentNotice');
+        if (trackingPaymentNotice) {
+            const trackingPaymentPanel = trackingPaymentNotice.querySelector('.tracking-payment-modal__panel');
+            const trackingPaymentCloseButtons = trackingPaymentNotice.querySelectorAll('[data-close-tracking-payment]');
+            const trackingPaymentPreviousFocus = document.activeElement;
+
+            const closeTrackingPaymentNotice = () => {
+                trackingPaymentNotice.hidden = true;
+                trackingPaymentNotice.setAttribute('aria-hidden', 'true');
+                document.body.classList.remove('tracking-payment-modal-open');
+                document.removeEventListener('keydown', handleTrackingPaymentKeydown);
+                if (trackingPaymentPreviousFocus instanceof HTMLElement && trackingPaymentPreviousFocus !== document.body) {
+                    trackingPaymentPreviousFocus.focus({ preventScroll: true });
+                }
+            };
+
+            const handleTrackingPaymentKeydown = (event) => {
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    closeTrackingPaymentNotice();
+                    return;
+                }
+
+                if (event.key !== 'Tab') return;
+                const focusable = [...trackingPaymentNotice.querySelectorAll('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])')]
+                    .filter((element) => element.getClientRects().length > 0);
+                if (focusable.length === 0) {
+                    event.preventDefault();
+                    trackingPaymentPanel?.focus();
+                    return;
+                }
+
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first.focus();
+                }
+            };
+
+            trackingPaymentNotice.hidden = false;
+            trackingPaymentNotice.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('tracking-payment-modal-open');
+            trackingPaymentCloseButtons.forEach((button) => button.addEventListener('click', closeTrackingPaymentNotice));
+            trackingPaymentNotice.addEventListener('click', (event) => {
+                if (event.target === trackingPaymentNotice) closeTrackingPaymentNotice();
+            });
+            document.addEventListener('keydown', handleTrackingPaymentKeydown);
+
+            window.requestAnimationFrame(() => {
+                trackingPaymentNotice.querySelector('.tracking-payment-modal__close')?.focus({ preventScroll: true });
             });
         }
     </script>
