@@ -21,7 +21,7 @@
                 </div>
             </div>
             <div class="card-body">
-                @if (session('success') || session('error') || $errors->has('justificacion'))
+                @if (session('success') || session('error') || $errors->has('justificacion') || $errors->has('imagen'))
                     <div class="ems-alert-stack" id="emsAlertStack">
                         @if (session('success'))
                             <div class="ems-floating-alert is-success" data-alert-card>
@@ -53,6 +53,18 @@
                                 <div class="ems-floating-alert__content">
                                     <div class="ems-floating-alert__title">Justificacion requerida</div>
                                     <div class="ems-floating-alert__message">{{ $errors->first('justificacion') }}</div>
+                                </div>
+                                <button type="button" class="ems-floating-alert__close" data-alert-close aria-label="Cerrar">&times;</button>
+                                <div class="ems-floating-alert__progress"></div>
+                            </div>
+                        @endif
+
+                        @if ($errors->has('imagen'))
+                            <div class="ems-floating-alert is-error" data-alert-card>
+                                <div class="ems-floating-alert__icon">!</div>
+                                <div class="ems-floating-alert__content">
+                                    <div class="ems-floating-alert__title">Imagen no válida</div>
+                                    <div class="ems-floating-alert__message">{{ $errors->first('imagen') }}</div>
                                 </div>
                                 <button type="button" class="ems-floating-alert__close" data-alert-close aria-label="Cerrar">&times;</button>
                                 <div class="ems-floating-alert__progress"></div>
@@ -147,8 +159,10 @@
                                     </td>
                                     <td>
                                         <div class="ems-value-stack">
-                                            <div><span class="ems-value-label">Peso</span> {{ $paquete->peso !== null ? \App\Support\BolivianNumber::format((float) $paquete->peso, 3) . ' kg' : '-' }}</div>
+                                            <div class="ems-weight-value">{{ $paquete->peso !== null ? \App\Support\BolivianNumber::format((float) $paquete->peso, 3) . ' kg' : '-' }}</div>
                                             @if ($canUpdateWeightEncargado)
+                                                <details class="ems-weight-editor">
+                                                    <summary><i class="fas fa-pen" aria-hidden="true"></i> Editar peso</summary>
                                                 <form method="POST" action="{{ route('paquetes-ems.encargado.actualizar-peso') }}" class="ems-weight-form">
                                                     @csrf
                                                     <input type="hidden" name="id" value="{{ $paquete->id }}">
@@ -169,12 +183,14 @@
                                                             data-weight-max="150"
                                                             value="{{ $paquete->peso !== null ? \App\Support\BolivianNumber::format((float) $paquete->peso, 3) : '' }}"
                                                             class="form-control ems-weight-input"
+                                                            aria-label="Nuevo peso en kilogramos"
                                                             placeholder="0,000"
                                                             required
                                                         >
                                                         <button type="submit" class="btn btn-sm ems-btn-save-weight">Guardar</button>
                                                     </div>
                                                 </form>
+                                                </details>
                                             @endif
                                         </div>
                                     </td>
@@ -185,9 +201,20 @@
                                             <div class="ems-date-text">{{ optional($paquete->created_at)->format('d/m/Y H:i') }}</div>
                                         </div>
                                     </td>
-                                    <td>
+                                    <td class="ems-actions-cell">
+                                        <button type="button" class="ems-actions-trigger" data-open-actions
+                                            data-actions-source="emsActions-{{ $paquete->servicio }}-{{ $paquete->id }}"
+                                            data-codigo="{{ $paquete->codigo ?: 'SIN CODIGO' }}"
+                                            data-servicio="{{ $paquete->servicio }}"
+                                            aria-haspopup="dialog" aria-expanded="false" aria-controls="emsActionsModal"
+                                            aria-label="Acciones del paquete {{ $paquete->codigo ?: 'SIN CODIGO' }}">
+                                            <i class="fas fa-sliders-h" aria-hidden="true"></i> Acciones
+                                            <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                                        </button>
+                                        <div id="emsActions-{{ $paquete->servicio }}-{{ $paquete->id }}" hidden>
                                         <div class="ems-action-stack">
                                             @php
+                                                $hasCurrentImage = filled($paquete->imagen ?? null);
                                                 $reprintType = match ($paquete->servicio) {
                                                     'EMS' => 'ems',
                                                     'CONTRATO' => 'contrato',
@@ -198,6 +225,22 @@
                                                 };
                                             @endphp
 
+                                            <div class="ems-action-group-label">Documentos e imagen</div>
+
+                                            <button
+                                                type="button"
+                                                class="btn btn-sm ems-btn-info ems-action-btn"
+                                                data-change-image
+                                                data-id="{{ $paquete->id }}"
+                                                data-servicio="{{ $paquete->servicio }}"
+                                                data-codigo="{{ $paquete->codigo ?: 'SIN CODIGO' }}"
+                                                data-image-url="{{ route('delivery-images.package', ['type' => strtolower((string) $paquete->servicio), 'id' => $paquete->id]) }}"
+                                                data-has-image="{{ $hasCurrentImage ? '1' : '0' }}"
+                                            >
+                                                <span><i class="far fa-image" aria-hidden="true"></i> Cambiar imagen</span>
+                                                <small>{{ $hasCurrentImage ? 'Ver imagen actual o reemplazarla' : 'Sin imagen actual' }}</small>
+                                            </button>
+
                                             @if (($canPrintEncargado ?? false) && $reprintType)
                                                 @if ($paquete->servicio === 'EMS')
                                                     <button
@@ -207,7 +250,7 @@
                                                         data-carta="{{ route('paquetes-ems.boleta', ['paquete' => $paquete->id, 'formato' => 'carta'], false) }}"
                                                         title="Reimprimir boleta EMS"
                                                     >
-                                                        <span>Reimprimir EMS</span>
+                                                        <span><i class="fas fa-print" aria-hidden="true"></i> Reimprimir EMS</span>
                                                         <small>Termica o carta</small>
                                                     </button>
                                                 @else
@@ -217,12 +260,15 @@
                                                         target="_blank"
                                                         title="Reimprimir guia"
                                                     >
-                                                        <span>Reimprimir</span>
+                                                        <span><i class="fas fa-print" aria-hidden="true"></i> Reimprimir</span>
                                                         <small>Guia / reporte</small>
                                                     </a>
                                                 @endif
                                             @endif
 
+                                            @if ($canChangeCarteroEncargado || ($canRemoveCarteroEncargado ?? false))
+                                                <div class="ems-action-group-label">Cartero</div>
+                                            @endif
                                             @if ($canChangeCarteroEncargado)
                                                 <button
                                                     type="button"
@@ -234,7 +280,7 @@
                                                     data-cartero="{{ $paquete->cartero_nombre ?: 'Sin cartero asignado' }}"
                                                     data-cartero-id="{{ (int) ($paquete->cartero_user_id ?? 0) }}"
                                                 >
-                                                    <span>Cambiar cartero</span>
+                                                    <span><i class="fas fa-user-edit" aria-hidden="true"></i> Cambiar cartero</span>
                                                     <small>Solo de tu ciudad</small>
                                                 </button>
                                             @endif
@@ -251,36 +297,21 @@
                                                         <input type="hidden" name="to" value="{{ $fechaHasta }}">
                                                         <input type="hidden" name="page" value="{{ $paquetes->currentPage() }}">
                                                         <button type="submit" class="btn btn-sm ems-btn-warning ems-action-btn">
-                                                            <span>Quitar cartero</span>
+                                                            <span><i class="fas fa-user-minus" aria-hidden="true"></i> Quitar cartero</span>
                                                             <small>Dejar sin asignacion</small>
                                                         </button>
                                                     </form>
                                                 @else
                                                     <button type="button" class="btn btn-sm ems-btn-warning ems-action-btn" disabled title="Este envio ya esta sin cartero asignado">
-                                                        <span>Quitar cartero</span>
+                                                        <span><i class="fas fa-user-minus" aria-hidden="true"></i> Quitar cartero</span>
                                                         <small>Ya esta sin asignacion</small>
                                                     </button>
                                                 @endif
                                             @endif
 
-                                            @if ($canCancelEncargado)
-                                                <form method="POST" action="{{ route('paquetes-ems.encargado.cancelar-envio') }}" class="ems-action-form" data-confirm-form data-confirm-variant="danger" data-confirm-title="Cancelar envio" data-confirm-message="Se marcara este envio como CANCELADO y se registrara el evento con tu usuario.">
-                                                    @csrf
-                                                    <input type="hidden" name="id" value="{{ $paquete->id }}">
-                                                    <input type="hidden" name="servicio" value="{{ $paquete->servicio }}">
-                                                    <input type="hidden" name="current_servicio" value="{{ $servicio }}">
-                                                    <input type="hidden" name="q" value="{{ $search }}">
-                                                    <input type="hidden" name="from" value="{{ $fechaDesde }}">
-                                                    <input type="hidden" name="to" value="{{ $fechaHasta }}">
-                                                    <input type="hidden" name="page" value="{{ $paquetes->currentPage() }}">
-                                                    <input type="hidden" name="justificacion" value="">
-                                                    <button type="submit" class="btn btn-sm ems-btn-danger ems-action-btn">
-                                                        <span>Envio cancelado</span>
-                                                        <small>Registra quien lo hizo</small>
-                                                    </button>
-                                                </form>
+                                            @if ((in_array($paquete->servicio, ['EMS', 'CONTRATO', 'SOLICITUD'], true) && ($canReturnOriginEncargado || $canReturnDestinationEncargado)) || (in_array($paquete->servicio, ['CERTI', 'ORDI'], true) && $canReturnWindowEncargado))
+                                                <div class="ems-action-group-label">Devoluciones</div>
                                             @endif
-
                                             @if (in_array($paquete->servicio, ['EMS', 'CONTRATO', 'SOLICITUD'], true))
                                                 @php($sinFechaRecojo = $paquete->servicio === 'CONTRATO' && blank($paquete->fecha_recojo))
                                                 @if ($canReturnOriginEncargado)
@@ -296,8 +327,8 @@
                                                         <input type="hidden" name="page" value="{{ $paquetes->currentPage() }}">
                                                         <input type="hidden" name="peso" value="">
                                                         <button type="submit" class="btn btn-sm ems-btn-warning ems-action-btn" @disabled($sinFechaRecojo)>
-                                                            <span>Devolver a origen</span>
-                                                            <small>{{ $sinFechaRecojo ? 'Falta fecha de recojo' : 'Registra quien lo hizo' }}</small>
+                                                            <span><i class="fas fa-undo-alt" aria-hidden="true"></i> Devolver a origen</span>
+                                                            <small>{{ $sinFechaRecojo ? 'Falta fecha de recojo' : 'Almacén de origen' }}</small>
                                                         </button>
                                                     </form>
                                                 @endif
@@ -314,8 +345,8 @@
                                                         <input type="hidden" name="page" value="{{ $paquetes->currentPage() }}">
                                                         <input type="hidden" name="peso" value="">
                                                         <button type="submit" class="btn btn-sm ems-btn-info ems-action-btn" @disabled($sinFechaRecojo)>
-                                                            <span>Devolver a destino</span>
-                                                            <small>{{ $sinFechaRecojo ? 'Falta fecha de recojo' : 'Registra quien lo hizo' }}</small>
+                                                            <span><i class="fas fa-warehouse" aria-hidden="true"></i> Devolver a destino</span>
+                                                            <small>{{ $sinFechaRecojo ? 'Falta fecha de recojo' : 'Almacén de destino' }}</small>
                                                         </button>
                                                     </form>
                                                 @endif
@@ -333,11 +364,29 @@
                                                     <input type="hidden" name="to" value="{{ $fechaHasta }}">
                                                     <input type="hidden" name="page" value="{{ $paquetes->currentPage() }}">
                                                     <button type="submit" class="btn btn-sm ems-btn-warning ems-action-btn">
-                                                        <span>Devolver ventanilla</span>
+                                                        <span><i class="fas fa-store" aria-hidden="true"></i> Devolver a ventanilla</span>
                                                         <small>Retorna a punto de entrega</small>
                                                     </button>
                                                 </form>
                                             @endif
+                                            @if ($canCancelEncargado)
+                                                <form method="POST" action="{{ route('paquetes-ems.encargado.cancelar-envio') }}" class="ems-action-form" data-confirm-form data-confirm-variant="danger" data-confirm-title="Cancelar envio" data-confirm-message="Se marcara este envio como CANCELADO y se registrara el evento con tu usuario.">
+                                                    @csrf
+                                                    <input type="hidden" name="id" value="{{ $paquete->id }}">
+                                                    <input type="hidden" name="servicio" value="{{ $paquete->servicio }}">
+                                                    <input type="hidden" name="current_servicio" value="{{ $servicio }}">
+                                                    <input type="hidden" name="q" value="{{ $search }}">
+                                                    <input type="hidden" name="from" value="{{ $fechaDesde }}">
+                                                    <input type="hidden" name="to" value="{{ $fechaHasta }}">
+                                                    <input type="hidden" name="page" value="{{ $paquetes->currentPage() }}">
+                                                    <input type="hidden" name="justificacion" value="">
+                                                    <button type="submit" class="btn btn-sm ems-btn-danger ems-action-btn">
+                                                        <span><i class="fas fa-ban" aria-hidden="true"></i> Cancelar envío</span>
+                                                        <small>Requiere una justificación</small>
+                                                    </button>
+                                                </form>
+                                            @endif
+                                        </div>
                                         </div>
                                     </td>
                                 </tr>
@@ -356,6 +405,20 @@
                     {{ $paquetes->links() }}
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div class="ems-confirm-modal ems-actions-modal" id="emsActionsModal" aria-hidden="true" hidden>
+        <div class="ems-confirm-modal__backdrop" data-actions-close></div>
+        <div class="ems-confirm-modal__dialog ems-actions-dialog" role="dialog" aria-modal="true" aria-labelledby="emsActionsTitle" aria-describedby="emsActionsCode">
+            <div class="ems-actions-heading">
+                <div>
+                    <h4 id="emsActionsTitle">Acciones del envío</h4>
+                    <p><strong id="emsActionsCode"></strong><span id="emsActionsService"></span></p>
+                </div>
+                <button type="button" class="ems-actions-close" data-actions-close aria-label="Cerrar acciones">&times;</button>
+            </div>
+            <div id="emsActionsBody"></div>
         </div>
     </div>
 
@@ -436,6 +499,41 @@
             <div class="ems-confirm-modal__actions">
                 <button type="button" class="ems-confirm-modal__btn is-secondary" data-change-cartero-close>Volver</button>
                 <button type="submit" class="ems-confirm-modal__btn is-primary" @disabled(collect($carterosDisponibles ?? [])->isEmpty())>Cambiar cartero</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="ems-confirm-modal" id="emsChangeImageModal" aria-hidden="true">
+        <div class="ems-confirm-modal__backdrop" data-change-image-close></div>
+        <form method="POST" action="{{ route('paquetes-ems.encargado.cambiar-imagen') }}" enctype="multipart/form-data" class="ems-confirm-modal__dialog ems-image-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="emsChangeImageTitle">
+            @csrf
+            <input type="hidden" name="id" id="emsChangeImageId">
+            <input type="hidden" name="servicio" id="emsChangeImageServicio">
+            <input type="hidden" name="current_servicio" value="{{ $servicio }}">
+            <input type="hidden" name="q" value="{{ $search }}">
+            <input type="hidden" name="from" value="{{ $fechaDesde }}">
+            <input type="hidden" name="to" value="{{ $fechaHasta }}">
+            <input type="hidden" name="page" value="{{ $paquetes->currentPage() }}">
+            <div class="ems-confirm-modal__eyebrow">Imagen del envio</div>
+            <h4 class="ems-confirm-modal__title" id="emsChangeImageTitle">Cambiar imagen</h4>
+            <p class="ems-confirm-modal__message">Paquete: <strong id="emsChangeImageCodigo">-</strong></p>
+            <div class="ems-image-preview-frame" id="emsCurrentImageFrame" hidden>
+                <img src="" alt="Imagen actual del paquete" id="emsCurrentImagePreview">
+                <span>Imagen actual</span>
+            </div>
+            <div class="ems-image-empty" id="emsCurrentImageEmpty" hidden>No hay una imagen guardada para este paquete.</div>
+            <div class="ems-confirm-modal__field">
+                <label for="emsChangeImageFile" class="ems-confirm-modal__label">Selecciona la nueva imagen</label>
+                <input type="file" id="emsChangeImageFile" name="imagen" class="form-control-file" accept="image/*,.heic,.heif" required>
+                <small class="ems-image-help">JPG, PNG, WEBP o HEIC. Tamaño máximo: 10 MB.</small>
+            </div>
+            <div class="ems-image-preview-frame ems-image-preview-frame--new" id="emsNewImageFrame" hidden>
+                <img src="" alt="Vista previa de la nueva imagen" id="emsNewImagePreview">
+                <span>Imagen seleccionada</span>
+            </div>
+            <div class="ems-confirm-modal__actions">
+                <button type="button" class="ems-confirm-modal__btn is-secondary" data-change-image-close>Cancelar</button>
+                <button type="submit" class="ems-confirm-modal__btn is-primary">Guardar imagen</button>
             </div>
         </form>
     </div>
@@ -954,7 +1052,8 @@
         .ems-action-stack {
             display: grid;
             gap: 10px;
-            min-width: 220px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            min-width: 0;
         }
 
         .ems-action-form {
@@ -975,6 +1074,80 @@
         .ems-action-btn small {
             font-size: 0.72rem;
             opacity: 0.9;
+        }
+
+        .ems-actions-cell { width: 145px; }
+        .ems-actions-trigger {
+            display: inline-flex;
+            align-items: center;
+            gap: 9px;
+            min-height: 40px;
+            padding: 0.55rem 0.8rem;
+            border: 1px solid #d6e1f1;
+            border-radius: 10px;
+            background: #f4f7fc;
+            color: #28569b;
+            font-size: 0.84rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .ems-actions-trigger:hover { background: #e9f0fb; border-color: #9eb8dc; }
+        .ems-actions-trigger .fa-chevron-right { font-size: 0.65rem; margin-left: 3px; }
+        .ems-actions-trigger:focus-visible,
+        .ems-actions-close:focus-visible,
+        .ems-action-stack .ems-action-btn:focus-visible,
+        .ems-weight-editor summary:focus-visible { outline: 3px solid #8cb4ee; outline-offset: 3px; }
+        .ems-actions-modal[hidden] { display: none; }
+        .ems-actions-modal .ems-actions-dialog {
+            width: min(600px, 100%);
+            max-height: calc(100dvh - 48px);
+            overflow-y: auto;
+            background: #fff;
+            border-radius: 18px;
+        }
+        .ems-actions-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+        .ems-actions-heading h4 { margin: 0 0 7px; font-size: 1.2rem; font-weight: 700; color: #203253; }
+        .ems-actions-heading p { margin: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 0.85rem; color: #61718b; }
+        #emsActionsService { padding: 3px 7px; border-radius: 5px; background: #edf2f8; font-size: 0.7rem; }
+        .ems-actions-close { border: 0; border-radius: 8px; background: #f1f4f8; color: #61718b; width: 36px; height: 36px; flex-shrink: 0; font-size: 1.5rem; line-height: 1; }
+        .ems-actions-close:hover { background: #e6ecf4; color: #203253; }
+        .ems-action-group-label { grid-column: 1 / -1; padding-top: 9px; color: #7b8799; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+        .ems-action-group-label:first-child { padding-top: 0; }
+        .ems-action-stack .ems-action-btn {
+            height: 100%;
+            min-height: 64px;
+            padding: 11px 12px;
+            gap: 5px;
+            border: 1px solid #e1e7ef;
+            border-radius: 10px;
+            background: #fff;
+            color: #304563;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-align: left;
+            white-space: normal;
+            box-shadow: none;
+            filter: none;
+        }
+        .ems-action-stack .ems-action-btn:hover:not(:disabled) { background: #f5f8fd; border-color: #a9c0e1; color: #244e8b; text-decoration: none; }
+        .ems-action-stack .ems-action-btn span { display: flex; align-items: center; gap: 8px; }
+        .ems-action-stack .ems-action-btn i { width: 18px; color: #5274a5; text-align: center; }
+        .ems-action-stack .ems-action-btn small { color: #728096; opacity: 1; font-weight: 400; padding-left: 26px; }
+        .ems-action-stack .ems-action-btn:disabled { opacity: 0.55; cursor: not-allowed; background: #f8fafc; }
+        .ems-action-stack form[data-confirm-variant="danger"] { grid-column: 1 / -1; border-top: 1px solid #edf0f5; padding-top: 14px; margin-top: 8px; }
+        .ems-action-stack .ems-btn-danger { background: #fff8f8; border-color: #f0dada; color: #af3636; }
+        .ems-action-stack .ems-btn-danger i { color: #af3636; }
+        .ems-action-stack .ems-btn-danger:hover:not(:disabled) { background: #fff0f0; border-color: #e0aaaa; color: #9f2b2b; }
+        .ems-weight-value { white-space: nowrap; font-weight: 600; color: #304563; }
+        .ems-weight-editor summary { width: fit-content; color: #5274a5; font-size: 0.76rem; cursor: pointer; list-style: none; }
+        .ems-weight-editor summary::-webkit-details-marker { display: none; }
+        .ems-weight-editor summary:hover { color: #214e95; text-decoration: underline; }
+        .ems-weight-editor summary i { font-size: 0.65rem; margin-right: 3px; }
+        .ems-weight-editor[open] .ems-weight-form { margin-top: 10px; }
+        @media (max-width: 575px) {
+            .ems-confirm-modal.ems-actions-modal { padding: 12px; }
+            .ems-actions-modal .ems-actions-dialog { max-height: calc(100dvh - 24px); padding: 1rem; }
+            .ems-action-stack { grid-template-columns: 1fr; }
         }
 
         .ems-weight-form {
@@ -1050,6 +1223,66 @@
 
         .ems-confirm-modal.is-open .ems-confirm-modal__dialog {
             transform: translateY(0) scale(1);
+        }
+
+        .ems-image-modal__dialog {
+            width: min(600px, 100%);
+            max-height: calc(100vh - 48px);
+            overflow-y: auto;
+        }
+
+        .ems-image-preview-frame {
+            position: relative;
+            display: flex;
+            min-height: 120px;
+            max-height: 360px;
+            justify-content: center;
+            align-items: center;
+            margin-top: 1rem;
+            padding: 12px;
+            overflow: hidden;
+            border: 1px solid #dce5f3;
+            border-radius: 16px;
+            background: #f2f6fc;
+        }
+
+        .ems-image-preview-frame[hidden],
+        .ems-image-empty[hidden] {
+            display: none;
+        }
+
+        .ems-image-preview-frame img {
+            display: block;
+            max-width: 100%;
+            max-height: 330px;
+            object-fit: contain;
+        }
+
+        .ems-image-preview-frame span {
+            position: absolute;
+            left: 18px;
+            bottom: 16px;
+            padding: 4px 9px;
+            border-radius: 999px;
+            background: rgba(20, 37, 66, .82);
+            color: #fff;
+            font-size: .72rem;
+            font-weight: 800;
+        }
+
+        .ems-image-empty {
+            margin-top: 1rem;
+            padding: 1.25rem;
+            border: 1px dashed #c9d5e8;
+            border-radius: 14px;
+            color: #687892;
+            text-align: center;
+        }
+
+        .ems-image-help {
+            display: block;
+            margin-top: .45rem;
+            color: #71809a;
         }
 
         .ems-confirm-modal__eyebrow {
@@ -1265,6 +1498,11 @@
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const alerts = Array.from(document.querySelectorAll('[data-alert-card]'));
+            const actionsModal = document.getElementById('emsActionsModal');
+            const actionsBody = document.getElementById('emsActionsBody');
+            let actionsSource = null;
+            let actionsTrigger = null;
+            let previousBodyOverflow = '';
             const confirmModal = document.getElementById('emsConfirmModal');
             const confirmTitle = document.getElementById('emsConfirmTitle');
             const confirmMessage = document.getElementById('emsConfirmMessage');
@@ -1286,12 +1524,82 @@
             const changeCarteroCodigo = document.getElementById('emsChangeCarteroCodigo');
             const changeCarteroActual = document.getElementById('emsChangeCarteroActual');
             const changeCarteroUser = document.getElementById('emsChangeCarteroUser');
+            const changeImageModal = document.getElementById('emsChangeImageModal');
+            const changeImageButtons = Array.from(document.querySelectorAll('[data-change-image]'));
+            const changeImageCloseButtons = Array.from(document.querySelectorAll('[data-change-image-close]'));
+            const changeImageId = document.getElementById('emsChangeImageId');
+            const changeImageServicio = document.getElementById('emsChangeImageServicio');
+            const changeImageCodigo = document.getElementById('emsChangeImageCodigo');
+            const changeImageFile = document.getElementById('emsChangeImageFile');
+            const currentImageFrame = document.getElementById('emsCurrentImageFrame');
+            const currentImageEmpty = document.getElementById('emsCurrentImageEmpty');
+            const currentImagePreview = document.getElementById('emsCurrentImagePreview');
+            const newImageFrame = document.getElementById('emsNewImageFrame');
+            const newImagePreview = document.getElementById('emsNewImagePreview');
             const printOptionsModal = document.getElementById('emsPrintOptionsModal');
             const printTermicaLink = document.getElementById('emsPrintTermicaLink');
             const printCartaLink = document.getElementById('emsPrintCartaLink');
             const printCopiesSelect = document.getElementById('emsPrintCopies');
             const printOptionsCloseButtons = Array.from(document.querySelectorAll('[data-print-options-close]'));
             let pendingForm = null;
+            let newImagePreviewUrl = null;
+
+            function closeActionsModal(restoreFocus = true) {
+                if (actionsModal.hidden) return;
+                const stack = actionsBody.querySelector('.ems-action-stack');
+                if (stack && actionsSource) actionsSource.appendChild(stack);
+                actionsModal.classList.remove('is-open');
+                actionsModal.hidden = true;
+                actionsModal.setAttribute('aria-hidden', 'true');
+                document.body.style.overflow = previousBodyOverflow;
+                if (actionsTrigger) {
+                    actionsTrigger.setAttribute('aria-expanded', 'false');
+                    if (restoreFocus) actionsTrigger.focus();
+                }
+                actionsSource = null;
+            }
+
+            document.querySelectorAll('[data-open-actions]').forEach(function (button) {
+                button.addEventListener('click', function () {
+                    closeActionsModal(false);
+                    const source = document.getElementById(button.dataset.actionsSource);
+                    const stack = source?.querySelector('.ems-action-stack');
+                    if (!stack) return;
+                    actionsSource = source;
+                    actionsTrigger = button;
+                    document.getElementById('emsActionsCode').textContent = button.dataset.codigo;
+                    document.getElementById('emsActionsService').textContent = button.dataset.servicio;
+                    // Move the original controls so their forms and listeners stay attached.
+                    actionsBody.appendChild(stack);
+                    previousBodyOverflow = document.body.style.overflow;
+                    document.body.style.overflow = 'hidden';
+                    actionsModal.hidden = false;
+                    actionsModal.classList.add('is-open');
+                    actionsModal.setAttribute('aria-hidden', 'false');
+                    button.setAttribute('aria-expanded', 'true');
+                    actionsModal.querySelector('button[data-actions-close]').focus();
+                });
+            });
+
+            actionsModal.querySelectorAll('[data-actions-close]').forEach(function (button) {
+                button.addEventListener('click', function () { closeActionsModal(); });
+            });
+            actionsBody.addEventListener('click', function (event) {
+                if (event.target.closest('a[href]')) closeActionsModal();
+            });
+            actionsModal.addEventListener('keydown', function (event) {
+                if (event.key !== 'Tab') return;
+                const focusable = Array.from(actionsModal.querySelectorAll('button:not(:disabled), a[href], input:not([type="hidden"]):not(:disabled)'));
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first.focus();
+                }
+            });
 
             function closeAlert(card) {
                 if (!card || card.classList.contains('is-leaving')) {
@@ -1370,6 +1678,8 @@
                     return;
                 }
 
+                closeActionsModal(false);
+
                 pendingForm = form;
                 confirmTitle.textContent = form.getAttribute('data-confirm-title') || 'Confirmar accion';
                 confirmMessage.textContent = form.getAttribute('data-confirm-message') || 'Confirma si deseas continuar.';
@@ -1412,6 +1722,7 @@
 
                 confirmModal.classList.add('is-open');
                 confirmModal.setAttribute('aria-hidden', 'false');
+                if (!requiresJustification && !requiresContractWeight) confirmAccept.focus();
             }
 
             confirmForms.forEach(function (form) {
@@ -1499,6 +1810,7 @@
                 event.preventDefault();
 
                 const termicaUrl = button.dataset.termica || '#';
+                closeActionsModal(false);
                 const cartaUrl = button.dataset.carta || '#';
                 const updatePrintLinks = function () {
                     const copies = Math.max(1, Math.min(5, Number.parseInt(printCopiesSelect?.value || '1', 10) || 1));
@@ -1521,6 +1833,7 @@
                 if (printOptionsModal) {
                     printOptionsModal.classList.add('is-open');
                     printOptionsModal.setAttribute('aria-hidden', 'false');
+                    printTermicaLink?.focus();
                 }
             });
 
@@ -1543,6 +1856,8 @@
                 if (!changeCarteroModal || !button) {
                     return;
                 }
+
+                closeActionsModal(false);
 
                 if (changeCarteroId) {
                     changeCarteroId.value = button.getAttribute('data-id') || '';
@@ -1570,6 +1885,7 @@
 
                 changeCarteroModal.classList.add('is-open');
                 changeCarteroModal.setAttribute('aria-hidden', 'false');
+                changeCarteroUser?.focus();
             }
 
             changeCarteroButtons.forEach(function (button) {
@@ -1584,13 +1900,132 @@
                 });
             });
 
+            function clearNewImagePreview() {
+                if (newImagePreviewUrl) {
+                    URL.revokeObjectURL(newImagePreviewUrl);
+                    newImagePreviewUrl = null;
+                }
+                if (newImagePreview) {
+                    newImagePreview.removeAttribute('src');
+                }
+                if (newImageFrame) {
+                    newImageFrame.hidden = true;
+                }
+            }
+
+            function closeChangeImageModal() {
+                if (!changeImageModal) {
+                    return;
+                }
+
+                changeImageModal.classList.remove('is-open');
+                changeImageModal.setAttribute('aria-hidden', 'true');
+                clearNewImagePreview();
+                if (changeImageFile) {
+                    changeImageFile.value = '';
+                }
+                if (currentImagePreview) {
+                    currentImagePreview.removeAttribute('src');
+                }
+                if (currentImageFrame) {
+                    currentImageFrame.hidden = true;
+                }
+                if (currentImageEmpty) {
+                    currentImageEmpty.hidden = true;
+                }
+            }
+
+            function openChangeImageModal(button) {
+                if (!changeImageModal || !button) {
+                    return;
+                }
+
+                closeActionsModal(false);
+
+                if (changeImageId) {
+                    changeImageId.value = button.getAttribute('data-id') || '';
+                }
+                if (changeImageServicio) {
+                    changeImageServicio.value = button.getAttribute('data-servicio') || '';
+                }
+                if (changeImageCodigo) {
+                    changeImageCodigo.textContent = button.getAttribute('data-codigo') || '-';
+                }
+
+                clearNewImagePreview();
+                if (changeImageFile) {
+                    changeImageFile.value = '';
+                }
+
+                const hasImage = button.getAttribute('data-has-image') === '1';
+                const imageUrl = button.getAttribute('data-image-url') || '';
+                if (currentImagePreview && currentImageFrame && currentImageEmpty) {
+                    currentImageFrame.hidden = !hasImage;
+                    currentImageEmpty.hidden = hasImage;
+                    currentImagePreview.onerror = function () {
+                        currentImageFrame.hidden = true;
+                        currentImageEmpty.hidden = false;
+                    };
+                    currentImagePreview.onload = function () {
+                        currentImageFrame.hidden = false;
+                        currentImageEmpty.hidden = true;
+                    };
+                    if (hasImage) {
+                        currentImagePreview.src = imageUrl + (imageUrl.includes('?') ? '&' : '?') + 'v=' + Date.now();
+                    } else {
+                        currentImagePreview.removeAttribute('src');
+                    }
+                }
+
+                changeImageModal.classList.add('is-open');
+                changeImageModal.setAttribute('aria-hidden', 'false');
+                changeImageFile?.focus();
+            }
+
+            changeImageButtons.forEach(function (button) {
+                button.addEventListener('click', function () {
+                    openChangeImageModal(button);
+                });
+            });
+
+            changeImageCloseButtons.forEach(function (button) {
+                button.addEventListener('click', closeChangeImageModal);
+            });
+
+            if (changeImageFile) {
+                changeImageFile.addEventListener('change', function () {
+                    clearNewImagePreview();
+                    const file = changeImageFile.files && changeImageFile.files[0];
+                    if (!file || !newImageFrame || !newImagePreview) {
+                        return;
+                    }
+
+                    newImagePreviewUrl = URL.createObjectURL(file);
+                    newImagePreview.onload = function () {
+                        newImageFrame.hidden = false;
+                    };
+                    newImagePreview.onerror = function () {
+                        newImageFrame.hidden = true;
+                    };
+                    newImagePreview.src = newImagePreviewUrl;
+                });
+            }
+
             document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && !actionsModal.hidden) {
+                    closeActionsModal();
+                    return;
+                }
                 if (event.key === 'Escape' && confirmModal && confirmModal.classList.contains('is-open')) {
                     closeConfirmModal();
                 }
 
                 if (event.key === 'Escape' && changeCarteroModal && changeCarteroModal.classList.contains('is-open')) {
                     closeChangeCarteroModal();
+                }
+
+                if (event.key === 'Escape' && changeImageModal && changeImageModal.classList.contains('is-open')) {
+                    closeChangeImageModal();
                 }
             });
         });

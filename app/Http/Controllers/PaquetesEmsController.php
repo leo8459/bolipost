@@ -800,6 +800,7 @@ class PaquetesEmsController extends Controller
                 DB::raw("coalesce(paquetes_ems.telefono_destinatario::text, '') as telefono_destinatario"),
                 'paquetes_ems.peso',
                 'paquetes_ems.precio',
+                DB::raw("COALESCE(NULLIF(cartero_asignacion.imagen, ''), paquetes_ems.imagen) as imagen"),
                 'paquetes_ems.created_at',
                 DB::raw('NULL as fecha_recojo'),
                 DB::raw("'EMS' as servicio"),
@@ -838,6 +839,7 @@ class PaquetesEmsController extends Controller
                 DB::raw("coalesce(paquetes_contrato.telefono_d::text, '') as telefono_destinatario"),
                 'paquetes_contrato.peso',
                 'paquetes_contrato.precio',
+                DB::raw("COALESCE(NULLIF(cartero_asignacion.imagen, ''), paquetes_contrato.imagen) as imagen"),
                 'paquetes_contrato.created_at',
                 'paquetes_contrato.fecha_recojo',
                 DB::raw("'CONTRATO' as servicio"),
@@ -873,6 +875,7 @@ class PaquetesEmsController extends Controller
                 DB::raw("coalesce(paquetes_certi.telefono::text, '') as telefono_destinatario"),
                 'paquetes_certi.peso',
                 'paquetes_certi.precio',
+                DB::raw("COALESCE(NULLIF(cartero_asignacion.imagen, ''), paquetes_certi.imagen) as imagen"),
                 'paquetes_certi.created_at',
                 DB::raw('NULL as fecha_recojo'),
                 DB::raw("'CERTI' as servicio"),
@@ -908,6 +911,7 @@ class PaquetesEmsController extends Controller
                 DB::raw("coalesce(paquetes_ordi.telefono::text, '') as telefono_destinatario"),
                 'paquetes_ordi.peso',
                 'paquetes_ordi.precio',
+                DB::raw("COALESCE(NULLIF(cartero_asignacion.imagen, ''), paquetes_ordi.imagen) as imagen"),
                 'paquetes_ordi.created_at',
                 DB::raw('NULL as fecha_recojo'),
                 DB::raw("'ORDI' as servicio"),
@@ -943,6 +947,7 @@ class PaquetesEmsController extends Controller
                 DB::raw("coalesce(solicitud_clientes.telefono_destinatario::text, '') as telefono_destinatario"),
                 'solicitud_clientes.peso',
                 'solicitud_clientes.precio',
+                DB::raw("COALESCE(NULLIF(cartero_asignacion.imagen, ''), solicitud_clientes.imagen) as imagen"),
                 'solicitud_clientes.created_at',
                 DB::raw('NULL as fecha_recojo'),
                 DB::raw("'SOLICITUD' as servicio"),
@@ -1420,6 +1425,58 @@ class PaquetesEmsController extends Controller
                     ? 'El peso fue actualizado y se registro su evento.'
                     : 'No se pudo actualizar el peso del envio seleccionado.'
             );
+    }
+
+    public function cambiarImagenEncargado(Request $request)
+    {
+        $this->authorizeAnyPermission($request, [
+            'paquetes-ems.encargado',
+        ]);
+
+        $data = $request->validate([
+            'id' => ['required', 'integer', 'min:1'],
+            'servicio' => ['required', 'string', Rule::in(['EMS', 'CONTRATO', 'CERTI', 'ORDI', 'SOLICITUD'])],
+            'imagen' => ['required', 'file', 'max:10240', 'mimes:jpg,jpeg,png,webp,heic,heif'],
+            'q' => ['nullable', 'string'],
+            'from' => ['nullable', 'string'],
+            'to' => ['nullable', 'string'],
+        ], [], [
+            'id' => 'registro',
+            'servicio' => 'servicio',
+            'imagen' => 'imagen',
+        ]);
+
+        $id = (int) $data['id'];
+        $servicio = mb_strtoupper(trim((string) $data['servicio']));
+        $record = $this->findEncargadoRecordForService($servicio, $id);
+
+        if (! $record) {
+            return $this->redirectToEncargadoWithFilters($request)
+                ->with('error', 'No se encontro el envio seleccionado.');
+        }
+
+        $image = StoredImage::fromUploadedFile($request->file('imagen'));
+        if (! $image) {
+            return $this->redirectToEncargadoWithFilters($request)
+                ->with('error', 'No se pudo procesar la imagen seleccionada.');
+        }
+
+        $assignmentColumn = $this->encargadoCarteroPackageColumn($servicio);
+
+        DB::transaction(function () use ($record, $assignmentColumn, $id, $image) {
+            $record->imagen = $image;
+            $record->save();
+
+            Cartero::query()
+                ->where($assignmentColumn, $id)
+                ->update([
+                    'imagen' => $image,
+                    'updated_at' => now(),
+                ]);
+        });
+
+        return $this->redirectToEncargadoWithFilters($request)
+            ->with('success', 'La imagen del envio fue actualizada correctamente.');
     }
 
     public function cambiarCarteroEncargado(Request $request)

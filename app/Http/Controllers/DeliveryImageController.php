@@ -185,8 +185,8 @@ class DeliveryImageController extends Controller
     private function imageExpression(string $kind, string $packageAlias)
     {
         return DB::raw(strtolower($kind) === 'devolucion'
-            ? 'COALESCE(c.imagen_devolucion, c.imagen, ' . $packageAlias . '.imagen)'
-            : 'COALESCE(c.imagen, ' . $packageAlias . '.imagen)');
+            ? 'COALESCE(NULLIF(c.imagen_devolucion, \'\'), NULLIF(c.imagen, \'\'), ' . $packageAlias . '.imagen)'
+            : 'COALESCE(NULLIF(c.imagen, \'\'), ' . $packageAlias . '.imagen)');
     }
 
     private function imageResponse(string $image, bool $download): Response
