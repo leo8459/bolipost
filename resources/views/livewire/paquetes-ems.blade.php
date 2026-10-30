@@ -894,6 +894,108 @@
                 width:100%;
             }
         }
+        .header-app.is-devolucion{
+            background:linear-gradient(135deg,#24589b 0%,#1b4a86 100%);
+            padding:22px clamp(16px,2.2vw,30px);
+        }
+        .header-app.is-devolucion .header-app-shell{
+            display:grid;
+            grid-template-columns:minmax(0,1fr);
+            gap:18px;
+        }
+        .header-app.is-devolucion .header-app-main{
+            min-width:0;
+            width:100%;
+        }
+        .header-app.is-devolucion .header-app-main h4{
+            font-size:clamp(1.35rem,2vw,1.75rem);
+            letter-spacing:-.02em;
+        }
+        .header-app.is-devolucion .header-chip{
+            background:rgba(255,255,255,.16);
+            border-color:rgba(255,255,255,.42);
+        }
+        .header-app.is-devolucion .header-app-tools{
+            display:grid;
+            grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);
+            align-items:stretch;
+            gap:16px;
+            width:100%;
+            min-width:0;
+        }
+        .header-app.is-devolucion .header-search-row,
+        .header-app.is-devolucion .header-search-cluster,
+        .header-app.is-devolucion .header-search-form{
+            width:100%;
+            max-width:none;
+            min-width:0;
+        }
+        .header-app.is-devolucion .header-search-row,
+        .header-app.is-devolucion .header-search-cluster{
+            justify-content:stretch;
+        }
+        .header-app.is-devolucion .header-search-form .search-input{
+            min-width:0;
+            box-shadow:0 5px 16px rgba(10,31,68,.13);
+        }
+        .header-app.is-devolucion .header-actions-row{
+            display:block;
+            width:100%;
+        }
+        .header-app.is-devolucion .ems-action-groups--compact{
+            display:block;
+            width:100%;
+        }
+        .header-app.is-devolucion .ems-action-group{
+            height:100%;
+            padding:15px 16px;
+            border-color:rgba(255,255,255,.28);
+            background:rgba(255,255,255,.12);
+            box-shadow:inset 0 1px rgba(255,255,255,.08),0 8px 20px rgba(10,31,68,.12);
+        }
+        .header-app.is-devolucion .ems-action-heading{
+            margin-bottom:12px;
+        }
+        .header-app.is-devolucion .ems-action-heading-icon{
+            background:rgba(255,255,255,.2);
+        }
+        .header-app.is-devolucion .ems-action-heading small{
+            color:rgba(255,255,255,.86);
+        }
+        .header-app.is-devolucion .ems-action-list--devolucion{
+            display:block;
+        }
+        .header-app.is-devolucion .ems-action-primary-stack{
+            display:grid;
+            gap:9px;
+        }
+        .header-app.is-devolucion .ems-action-primary-stack .ems-action-button{
+            justify-content:center;
+            width:100%;
+            min-height:46px;
+        }
+        .header-app.is-devolucion .ems-action-help{
+            display:flex;
+            align-items:flex-start;
+            gap:7px;
+            padding:0 3px;
+            color:rgba(255,255,255,.92);
+            font-size:11px;
+            line-height:1.4;
+        }
+        .header-app.is-devolucion .ems-action-help i{
+            flex:0 0 auto;
+            margin-top:1px;
+            color:#ffda64;
+        }
+        @media (max-width: 991.98px){
+            .header-app.is-devolucion .header-app-shell{gap:16px;}
+        }
+        @media (max-width: 767.98px){
+            .header-app.is-devolucion{padding:18px 16px;}
+            .header-app.is-devolucion .header-app-tools{grid-template-columns:minmax(0,1fr);gap:12px;}
+            .header-app.is-devolucion .header-actions-row{padding:0;}
+        }
         .table-scroll-wrap{
             max-height: 56vh;
             overflow: auto;
@@ -911,6 +1013,589 @@
         }
         .table-scroll-wrap-sm{
             max-height: 36vh;
+        }
+        .table-scroll-wrap--devolucion{
+            max-height: 62vh;
+        }
+        .table-devolucion-ems{
+            width:100%;
+            min-width:1432px;
+            table-layout:fixed;
+            border-collapse:separate;
+            border-spacing:0;
+        }
+        .table-devolucion-ems th,
+        .table-devolucion-ems td{
+            padding:.75rem .55rem;
+            overflow-wrap:normal;
+            word-break:normal;
+        }
+        .table-devolucion-ems thead th{
+            background:#eef1f7;
+            color:#20539A;
+            border-bottom:1px solid #d7deea;
+            text-align:center;
+        }
+        .table-devolucion-ems tbody td{
+            background:#f8f9fb;
+            border-top:1px solid #e2e6ed;
+            color:#344054;
+        }
+        .table-devolucion-ems.table-hover tbody tr:hover td{
+            background:#f0f5ff;
+        }
+        .table-devolucion-ems tbody td:first-child,
+        .table-devolucion-ems .action-cell{
+            text-align:center;
+        }
+        .table-devolucion-ems th:nth-child(1){width:42px;}
+        .table-devolucion-ems th:nth-child(2){width:150px;}
+        .table-devolucion-ems th:nth-child(3){width:150px;}
+        .table-devolucion-ems th:nth-child(4){width:245px;}
+        .table-devolucion-ems th:nth-child(5){width:325px;}
+        .table-devolucion-ems th:nth-child(6){width:72px;}
+        .table-devolucion-ems th:nth-child(7){width:170px;}
+        .table-devolucion-ems th:nth-child(8){width:150px;}
+        .table-devolucion-ems th:nth-child(9){width:128px;}
+        .table-devolucion-ems td:nth-child(2),
+        .table-devolucion-ems td:nth-child(3),
+        .table-devolucion-ems td:nth-child(6),
+        .table-devolucion-ems td:nth-child(8),
+        .table-devolucion-ems td:nth-child(9){white-space:nowrap;}
+        .table-devolucion-ems td:nth-child(2) .pill-id{white-space:nowrap;}
+        .table-ems-admision{
+            width:100%;
+            min-width:1407px;
+            table-layout:fixed;
+            border-collapse:separate;
+            border-spacing:0;
+        }
+        .table-ems-admision th,
+        .table-ems-admision td{
+            padding:.75rem .55rem;
+            overflow-wrap:normal;
+            word-break:normal;
+        }
+        .table-ems-admision thead th{
+            background:#eef1f7;
+            color:#20539A;
+            border-bottom:1px solid #d7deea;
+            text-align:center;
+        }
+        .table-ems-admision tbody td{
+            background:#f8f9fb;
+            border-top:1px solid #e2e6ed;
+            color:#344054;
+        }
+        .table-ems-admision.table-hover tbody tr:hover td{background:#f0f5ff;}
+        .table-ems-admision th:nth-child(1){width:42px;}
+        .table-ems-admision th:nth-child(2){width:150px;}
+        .table-ems-admision th:nth-child(3){width:95px;}
+        .table-ems-admision th:nth-child(4){width:130px;}
+        .table-ems-admision th:nth-child(5){width:215px;}
+        .table-ems-admision th:nth-child(6){width:290px;}
+        .table-ems-admision th:nth-child(7){width:72px;}
+        .table-ems-admision th:nth-child(8){width:145px;}
+        .table-ems-admision th:nth-child(9){width:140px;}
+        .table-ems-admision th:nth-child(10){width:128px;}
+        .table-ems-admision td:nth-child(2),
+        .table-ems-admision td:nth-child(3),
+        .table-ems-admision td:nth-child(4),
+        .table-ems-admision td:nth-child(7),
+        .table-ems-admision td:nth-child(9),
+        .table-ems-admision td:nth-child(10){white-space:nowrap;}
+        .table-ems-admision .pill-id,
+        .table-ems-admision .ems-admision-type{white-space:nowrap;}
+        .table-ems-admision .ems-admision-type{
+            display:inline-block;
+            padding:5px 9px;
+            border-radius:999px;
+            background:#edf1f7;
+            color:#475467;
+            font-size:11px;
+            font-weight:800;
+        }
+        .table-ems-admision .ems-admision-route{
+            display:grid;
+            grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
+            align-items:center;
+            gap:8px;
+        }
+        .table-ems-admision .ems-admision-route span,
+        .table-ems-admision .ems-admision-address span{
+            display:block;
+            color:#718096;
+            font-size:10px;
+            font-weight:800;
+            letter-spacing:.04em;
+            text-transform:uppercase;
+        }
+        .table-ems-admision .ems-admision-route strong{
+            display:block;
+            color:#243b64;
+            font-size:12px;
+            line-height:1.35;
+        }
+        .table-ems-admision .ems-admision-address div{
+            font-size:12px;
+            line-height:1.45;
+        }
+        .table-ems-admision .ems-admision-address div + span{margin-top:8px;}
+        .table-ems-admision .action-cell{width:128px;min-width:128px;}
+        @media (max-width: 767.98px){
+            .table-scroll-wrap--admision{
+                max-height:none;
+                overflow:visible;
+                border:0;
+                background:transparent;
+            }
+            .table-scroll-wrap--admision > .table-responsive{overflow:visible;}
+            .table-ems-admision{
+                min-width:0;
+                table-layout:auto;
+                border-spacing:0 12px;
+                margin-top:-12px;
+            }
+            .table-ems-admision thead{display:none;}
+            .table-ems-admision tbody{display:grid;grid-template-columns:1fr;gap:12px;}
+            .table-ems-admision tbody tr{
+                display:grid;
+                grid-template-columns:repeat(2,minmax(0,1fr));
+                overflow:hidden;
+                border:1px solid #e2e8f0;
+                border-radius:14px;
+                background:#fff;
+                box-shadow:0 5px 16px rgba(15,23,42,.06);
+            }
+            .table-ems-admision tbody tr:hover{background:#fff;}
+            .table-ems-admision tbody td{
+                display:block;
+                min-width:0;
+                width:auto;
+                padding:9px 12px;
+                border:0;
+                background:#fff;
+                white-space:normal !important;
+                overflow-wrap:anywhere;
+            }
+            .table-ems-admision tbody td::before{
+                content:attr(data-label);
+                display:block;
+                margin-bottom:4px;
+                color:#718096;
+                font-size:10px;
+                font-weight:800;
+                letter-spacing:.04em;
+                text-transform:uppercase;
+            }
+            .table-ems-admision tbody td:first-child{
+                grid-column:1 / -1;
+                display:flex;
+                align-items:center;
+                justify-content:space-between;
+                padding-bottom:0;
+            }
+            .table-ems-admision tbody td:nth-child(2),
+            .table-ems-admision tbody td:nth-child(4),
+            .table-ems-admision tbody td:nth-child(5),
+            .table-ems-admision tbody td:nth-child(6),
+            .table-ems-admision tbody td:nth-child(9),
+            .table-ems-admision tbody td:nth-child(10),
+            .table-ems-admision tbody td[colspan]{grid-column:1 / -1;}
+            .table-ems-admision .action-cell{width:auto;min-width:0;border-top:1px solid #edf0f4;}
+            .table-ems-admision .action-stack{flex-direction:row;justify-content:flex-start;flex-wrap:wrap;gap:8px;}
+        }
+        .devolucion-direcciones__line + .devolucion-direcciones__line{margin-top:8px;}
+        .devolucion-direcciones__label{
+            display:block;
+            color:#7b8797;
+            font-size:10px;
+            font-weight:800;
+            letter-spacing:.04em;
+            text-transform:uppercase;
+        }
+        .devolucion-direcciones__value{
+            color:#344054;
+            font-size:12px;
+            line-height:1.45;
+        }
+        .devolucion-route{
+            display:grid;
+            grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
+            align-items:center;
+            gap:8px;
+        }
+        .devolucion-route__point{min-width:0;}
+        .devolucion-route__label{
+            display:block;
+            margin-bottom:2px;
+            color:#718096;
+            font-size:10px;
+            font-weight:800;
+            letter-spacing:.04em;
+            text-transform:uppercase;
+        }
+        .devolucion-route__value{
+            display:block;
+            color:#243b64;
+            font-size:12px;
+            font-weight:800;
+            line-height:1.3;
+        }
+        .devolucion-route__arrow{color:#8091ad;font-size:12px;}
+        .ems-almacen-route{
+            display:grid;
+            grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
+            align-items:center;
+            gap:8px;
+        }
+        .ems-almacen-route__point{min-width:0;}
+        .ems-almacen-route__point:last-child{text-align:right;}
+        .ems-almacen-route__point span{
+            display:block;
+            color:#718096;
+            font-size:10px;
+            font-weight:800;
+            letter-spacing:.04em;
+            text-transform:uppercase;
+        }
+        .ems-almacen-route__point strong{
+            display:block;
+            color:#243b64;
+            font-size:12px;
+            line-height:1.35;
+        }
+        .ems-almacen-route__arrow{color:#8091ad;font-size:12px;}
+        .ems-almacen-mobile-code{display:none;}
+        @media (max-width: 767.98px){
+            .table-scroll-wrap--almacen{
+                max-height:none;
+                overflow:visible;
+                padding:0;
+                border:0;
+                background:transparent;
+            }
+            .table-scroll-wrap--almacen > .table-responsive{overflow:visible;}
+            .table-ems-almacen,
+            .table-ems-almacen.responsive-card-table{
+                display:block !important;
+                width:100% !important;
+                min-width:0 !important;
+                max-width:100% !important;
+                margin:0;
+                border:0 !important;
+                border-spacing:0;
+                background:transparent !important;
+            }
+            .table-ems-almacen > thead{display:none !important;}
+            .table-ems-almacen > tbody{
+                display:grid !important;
+                grid-template-columns:minmax(0,1fr);
+                gap:12px;
+                width:100%;
+                padding:2px;
+            }
+            .table-ems-almacen > tbody > tr{
+                display:grid !important;
+                grid-template-columns:repeat(2,minmax(0,1fr));
+                width:100% !important;
+                max-width:100% !important;
+                overflow:hidden;
+                border:1px solid #dfe6f0 !important;
+                border-radius:16px;
+                background:#fff !important;
+                box-shadow:0 5px 16px rgba(20,45,82,.07);
+            }
+            .table-ems-almacen > tbody > tr > td:not([colspan]){
+                display:block !important;
+                width:auto !important;
+                min-width:0 !important;
+                max-width:100% !important;
+                min-height:0;
+                padding:10px 12px !important;
+                border:0 !important;
+                border-bottom:1px solid #edf1f6 !important;
+                background:#fff !important;
+                color:#344054;
+                text-align:left !important;
+                white-space:normal !important;
+                overflow-wrap:anywhere;
+                word-break:normal;
+            }
+            .table-ems-almacen > tbody > tr > td::before{
+                display:block;
+                margin:0 0 4px;
+                padding:0;
+                color:#718096;
+                font-size:10px;
+                font-weight:800;
+                line-height:1.3;
+                letter-spacing:.04em;
+                text-align:left;
+                text-transform:uppercase;
+                overflow-wrap:normal;
+            }
+            .table-ems-almacen > tbody > tr > td:first-child{
+                display:flex !important;
+                grid-column:1 / -1;
+                align-items:center;
+                justify-content:flex-start;
+                gap:10px;
+                padding:12px 14px !important;
+                border-bottom:1px solid #edf1f6 !important;
+            }
+            .table-ems-almacen > tbody > tr > td:first-child::before,
+            .table-ems-almacen > tbody > tr > td:nth-child(2)::before{content:none !important;}
+            .table-ems-almacen > tbody > tr > td:nth-child(2){display:none !important;}
+            .table-ems-almacen .ems-almacen-mobile-code{
+                display:inline-block;
+                max-width:100%;
+                padding:7px 11px;
+                border-radius:999px;
+                background:#e9effa;
+                color:#20539a;
+                font-size:12px;
+                font-weight:800;
+                line-height:1.25;
+                white-space:normal;
+                overflow-wrap:anywhere;
+            }
+            .table-ems-almacen > tbody > tr > td:nth-child(3),
+            .table-ems-almacen > tbody > tr > td:nth-child(5),
+            .table-ems-almacen > tbody > tr > td:nth-child(4),
+            .table-ems-almacen > tbody > tr > td:nth-child(8),
+            .table-ems-almacen > tbody > tr > td:nth-child(9),
+            .table-ems-almacen > tbody > tr > td[colspan]{grid-column:1 / -1;}
+            .table-ems-almacen > tbody > tr > td:nth-child(3) > span{
+                color:#344054;
+                font-size:13px;
+                font-weight:700;
+                line-height:1.4;
+            }
+            .table-ems-almacen > tbody > tr > td:nth-child(3) > small{display:block;margin-top:3px;}
+            .table-ems-almacen .ems-almacen-route{
+                grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
+                gap:10px;
+                padding:10px;
+                border-radius:11px;
+                background:#f6f8fc;
+            }
+            .table-ems-almacen .ems-almacen-route__point strong{overflow-wrap:anywhere;}
+            .table-ems-almacen > tbody > tr > td:nth-child(5) > small{
+                display:block;
+                margin:4px 0 2px;
+                color:#718096 !important;
+                font-size:10px;
+                font-weight:800;
+                letter-spacing:.04em;
+                text-transform:uppercase;
+            }
+            .table-ems-almacen > tbody > tr > td:nth-child(5) > span{
+                display:block;
+                padding:8px 9px;
+                border-radius:9px;
+                background:#f7f9fc;
+                font-size:12px;
+                line-height:1.5;
+                overflow-wrap:anywhere;
+            }
+            .table-ems-almacen > tbody > tr > td:nth-child(7),
+            .table-ems-almacen > tbody > tr > td:nth-child(8){grid-column:span 1;}
+            .table-ems-almacen > tbody > tr > td:nth-child(9){font-weight:600;}
+            .table-ems-almacen > tbody > tr > td.action-cell{
+                display:flex !important;
+                align-items:center;
+                flex-wrap:wrap;
+                gap:8px;
+                border-bottom:0 !important;
+            }
+            .table-ems-almacen .action-stack{
+                display:flex;
+                flex-direction:row;
+                align-items:center;
+                justify-content:flex-start;
+                flex-wrap:wrap;
+                gap:8px;
+                width:100%;
+            }
+            .table-ems-almacen .action-stack .btn,
+            .table-ems-almacen .action-stack a{
+                flex:0 0 auto;
+                width:auto !important;
+                max-width:100%;
+                min-height:40px;
+            }
+            .table-ems-almacen > tbody > tr > td[colspan]{
+                padding:18px 14px !important;
+                border:0 !important;
+            }
+
+            .table-scroll-wrap--devolucion{
+                max-height:none;
+                overflow:visible;
+                padding:0;
+                border:0;
+                background:transparent;
+            }
+            .table-scroll-wrap--devolucion > .table-responsive{overflow:visible;}
+            .table-devolucion-ems,
+            .table-devolucion-ems.responsive-card-table{
+                display:block !important;
+                width:100% !important;
+                min-width:0 !important;
+                max-width:100% !important;
+                margin:0;
+                border:0 !important;
+                border-spacing:0;
+                background:transparent !important;
+            }
+            .table-devolucion-ems > thead{display:none !important;}
+            .table-devolucion-ems > tbody{
+                display:grid !important;
+                grid-template-columns:minmax(0,1fr);
+                gap:12px;
+                width:100%;
+                padding:2px;
+            }
+            .table-devolucion-ems > tbody > tr{
+                display:grid !important;
+                grid-template-columns:52px minmax(0,1fr);
+                width:100% !important;
+                max-width:100% !important;
+                overflow:hidden;
+                border:1px solid #dfe6f0 !important;
+                border-radius:16px;
+                background:#fff !important;
+                box-shadow:0 5px 16px rgba(20,45,82,.07);
+            }
+            .table-devolucion-ems > tbody > tr > td:not([colspan]){
+                display:block !important;
+                width:auto !important;
+                min-width:0 !important;
+                max-width:100% !important;
+                min-height:0;
+                padding:10px 12px !important;
+                border:0 !important;
+                border-bottom:1px solid #edf1f6 !important;
+                background:#fff !important;
+                color:#344054;
+                text-align:left !important;
+                white-space:normal !important;
+                overflow-wrap:anywhere;
+                word-break:normal;
+            }
+            .table-devolucion-ems > tbody > tr > td::before{
+                display:block;
+                margin:0 0 4px;
+                padding:0;
+                color:#718096;
+                font-size:10px;
+                font-weight:800;
+                line-height:1.3;
+                letter-spacing:.04em;
+                text-align:left;
+                text-transform:uppercase;
+                overflow-wrap:normal;
+            }
+            .table-devolucion-ems > tbody > tr > td:nth-child(1){
+                display:flex !important;
+                grid-column:1;
+                grid-row:1;
+                align-items:center;
+                justify-content:center;
+                padding:12px 4px !important;
+                border-bottom:1px solid #edf1f6 !important;
+            }
+            .table-devolucion-ems > tbody > tr > td:nth-child(1)::before,
+            .table-devolucion-ems > tbody > tr > td:nth-child(2)::before{content:none !important;}
+            .table-devolucion-ems > tbody > tr > td:nth-child(2){
+                display:flex !important;
+                grid-column:2;
+                grid-row:1;
+                align-items:center;
+                padding:9px 12px 9px 4px !important;
+                border-bottom:1px solid #edf1f6 !important;
+            }
+            .table-devolucion-ems td:nth-child(2) .pill-id{
+                display:inline-block;
+                max-width:100%;
+                padding:7px 11px;
+                border-radius:999px;
+                background:#e9effa;
+                color:#20539a;
+                font-size:12px;
+                font-weight:800;
+                line-height:1.25;
+                white-space:normal;
+                overflow-wrap:anywhere;
+            }
+            .table-devolucion-ems > tbody > tr > td:nth-child(3),
+            .table-devolucion-ems > tbody > tr > td:nth-child(4),
+            .table-devolucion-ems > tbody > tr > td:nth-child(5),
+            .table-devolucion-ems > tbody > tr > td:nth-child(8),
+            .table-devolucion-ems > tbody > tr > td:nth-child(9),
+            .table-devolucion-ems > tbody > tr > td[colspan]{grid-column:1 / -1;}
+            .table-devolucion-ems > tbody > tr > td:nth-child(3) > strong{
+                color:#344054;
+                font-size:14px;
+                line-height:1.4;
+            }
+            .table-devolucion-ems > tbody > tr > td:nth-child(3) > small{margin-top:2px;}
+            .table-devolucion-ems .devolucion-route{
+                grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
+                gap:10px;
+                padding:10px;
+                border-radius:11px;
+                background:#f6f8fc;
+            }
+            .table-devolucion-ems .devolucion-route__point:last-child{text-align:right;}
+            .table-devolucion-ems .devolucion-route__value{overflow-wrap:anywhere;}
+            .table-devolucion-ems .devolucion-direcciones__line{
+                padding:9px 10px;
+                border-radius:10px;
+                background:#f7f9fc;
+            }
+            .table-devolucion-ems .devolucion-direcciones__line + .devolucion-direcciones__line{margin-top:8px;}
+            .table-devolucion-ems .devolucion-direcciones__label{margin-bottom:3px;}
+            .table-devolucion-ems .devolucion-direcciones__value{
+                font-size:12px;
+                line-height:1.5;
+                overflow-wrap:anywhere;
+            }
+            .table-devolucion-ems > tbody > tr > td:nth-child(6),
+            .table-devolucion-ems > tbody > tr > td:nth-child(7){grid-column:span 1;}
+            .table-devolucion-ems > tbody > tr > td:nth-child(8){
+                color:#344054;
+                font-weight:600;
+            }
+            .table-devolucion-ems > tbody > tr > td.action-cell{
+                display:flex !important;
+                align-items:center;
+                flex-wrap:wrap;
+                gap:8px;
+                border-bottom:0 !important;
+            }
+            .table-devolucion-ems .action-stack{
+                display:flex;
+                flex-direction:row;
+                align-items:center;
+                justify-content:flex-start;
+                flex-wrap:wrap;
+                gap:8px;
+                width:100%;
+            }
+            .table-devolucion-ems .action-stack .btn,
+            .table-devolucion-ems .action-stack a{
+                flex:0 0 auto;
+                width:auto !important;
+                max-width:100%;
+                min-height:40px;
+            }
+            .table-devolucion-ems > tbody > tr > td[colspan]{
+                grid-column:1 / -1;
+                padding:18px 14px !important;
+                border:0 !important;
+            }
         }
         .autofill-input{
             border: 1px solid #f2c14e !important;
@@ -1555,7 +2240,7 @@
             </div>
         @endif
         <div class="card card-app">
-            <div class="header-app {{ $this->isCreateEms ? 'is-create' : '' }} {{ $this->isAlmacenEms ? 'is-almacen' : '' }} {{ $this->isVentanillaEms ? 'is-ventanilla' : '' }}">
+            <div class="header-app {{ $this->isCreateEms ? 'is-create' : '' }} {{ $this->isAlmacenEms ? 'is-almacen' : '' }} {{ $this->isVentanillaEms ? 'is-ventanilla' : '' }} {{ $this->isDevolucionEms ? 'is-devolucion' : '' }}">
                 <div class="header-app-shell">
                 <div class="header-app-main">
                     <h4 class="fw-bold mb-0">
@@ -1843,10 +2528,16 @@
                                                         <small>Registrar la devolución de envíos</small>
                                                     </span>
                                                 </div>
-                                                <div class="ems-action-list">
-                                                    <button class="ems-action-button ems-action-button--primary" type="button" wire:click="openDevolucionEmsModal">
-                                                        <i class="fas fa-undo" aria-hidden="true"></i> Devolver seleccionados
-                                                    </button>
+                                                <div class="ems-action-list ems-action-list--devolucion">
+                                                    <div class="ems-action-primary-stack">
+                                                        <button class="ems-action-button ems-action-button--primary" type="button" wire:click="openDevolucionEmsModal">
+                                                            <i class="fas fa-undo" aria-hidden="true"></i> Devolver seleccionado
+                                                        </button>
+                                                        <small class="ems-action-help">
+                                                            <i class="fas fa-info-circle" aria-hidden="true"></i>
+                                                            Elige un solo envío para registrar su devolución.
+                                                        </small>
+                                                    </div>
                                                 </div>
                                             </section>
                                         @elseif ($this->isTransitoEms && $canEmsAssign)
@@ -2520,6 +3211,12 @@
                     @endif
                 </div>
 
+                @if ($this->isDevolucionEms && $seleccionadosTotal > 1)
+                    <div class="alert alert-warning py-2 mb-3" role="alert">
+                        Solo puedes hacer una devoluciÃ³n a la vez. Deja seleccionado un solo registro.
+                    </div>
+                @endif
+
                 @php
                     $seleccionadosTotalGlobal = (count($selectedPaquetes) + count($selectedPaquetesInt) + count($selectedContratos) + count($selectedSolicitudes));
                 @endphp
@@ -2640,9 +3337,9 @@
                     </div>
                 @endif
 
-                <div class="table-scroll-wrap">
+                <div class="table-scroll-wrap {{ $this->isDevolucionEms ? 'table-scroll-wrap--devolucion' : ($this->isAlmacenEms ? 'table-scroll-wrap--almacen' : ($this->isAdmision ? 'table-scroll-wrap--admision' : '')) }}">
                     <div class="table-responsive">
-                    <table class="table table-hover align-middle">
+                    <table class="table table-hover align-middle {{ $this->isDevolucionEms ? 'table-devolucion-ems' : ($this->isAlmacenEms ? 'table-ems-almacen' : ($this->isAdmision ? 'table-ems-admision' : '')) }}">
                         <thead>
                             @if ($this->isEnTransitoEms)
                                 <tr>
@@ -2658,7 +3355,9 @@
                                         <th></th>
                                     @endif
                                     <th>Codigo</th>
-                                    <th>Tipo</th>
+                                    @if (!$this->isDevolucionEms && !$this->isAlmacenEms)
+                                        <th>Tipo</th>
+                                    @endif
                                     @if ($this->isAlmacenEms)
                                         <th>Servicio</th>
                                         <th>Ruta</th>
@@ -2666,6 +3365,13 @@
                                         <th>Peso</th>
                                         <th>Destinatario</th>
                                         <th>Creado</th>
+                                    @elseif ($this->isDevolucionEms)
+                                        <th>Servicio</th>
+                                        <th>Ruta</th>
+                                        <th>Direcciones</th>
+                                        <th>Peso</th>
+                                        <th>Destinatario</th>
+                                        <th>Fecha de recojo</th>
                                     @else
                                         <th>Servicio</th>
                                         <th>Serv. especial</th>
@@ -2686,25 +3392,37 @@
                                 </tr>
                             @else
                                 <tr>
-                                    @if ($this->canSelect)
+                                    @if ($this->isAdmision)
                                         <th></th>
+                                        <th>Codigo</th>
+                                        <th>Tipo</th>
+                                        <th>Servicio</th>
+                                        <th>Ruta</th>
+                                        <th>Direcciones</th>
+                                        <th>Peso</th>
+                                        <th>Destinatario</th>
+                                        <th>Creado</th>
+                                    @else
+                                        @if ($this->canSelect)
+                                            <th></th>
+                                        @endif
+                                        <th>Codigo</th>
+                                        <th>Tipo</th>
+                                        <th>Serv. especial</th>
+                                        <th>Servicio</th>
+                                        <th>Destino</th>
+                                        <th>Contenido</th>
+                                        <th>Cantidad</th>
+                                        <th>Peso</th>
+                                        <th>Nombre remitente</th>
+                                        <th>Empresa</th>
+                                        <th>Carnet</th>
+                                        <th>Telefono remitente</th>
+                                        <th>Nombre destinatario</th>
+                                        <th>Telefono destinatario</th>
+                                        <th>Ciudad</th>
+                                        <th>Traspaso</th>
                                     @endif
-                                    <th>Codigo</th>
-                                    <th>Tipo</th>
-                                    <th>Serv. especial</th>
-                                    <th>Servicio</th>
-                                    <th>Destino</th>
-                                    <th>Contenido</th>
-                                    <th>Cantidad</th>
-                                    <th>Peso</th>
-                                    <th>Nombre remitente</th>
-                                    <th>Empresa</th>
-                                    <th>Carnet</th>
-                                    <th>Telefono remitente</th>
-                                    <th>Nombre destinatario</th>
-                                    <th>Telefono destinatario</th>
-                                    <th>Ciudad</th>
-                                    <th>Traspaso</th>
                                     <th class="text-center action-cell">Acciones</th>
                                 </tr>
                             @endif
@@ -2745,7 +3463,15 @@
                                     <tr wire:key="almacen-row-{{ $row->record_type ?? 'row' }}-{{ $row->record_id ?? $loop->index }}">
                                         @if ($this->isAlmacenEms || $this->isTransitoEms || $this->isVentanillaEms || $this->isDevolucionEms)
                                             <td>
-                                                @if (($row->record_type ?? '') === 'EMS')
+                                                @if ($this->isDevolucionEms)
+                                                    @if (($row->record_type ?? '') === 'EMS')
+                                                        <input type="checkbox" value="{{ $row->record_id }}" wire:model.live="selectedPaquetes" wire:key="check-devolucion-ems-{{ $row->record_id }}">
+                                                    @elseif (($row->record_type ?? '') === 'CONTRATO')
+                                                        <input type="checkbox" value="{{ $row->record_id }}" wire:model.live="selectedContratos" wire:key="check-devolucion-contrato-{{ $row->record_id }}">
+                                                    @elseif (($row->record_type ?? '') === 'SOLICITUD')
+                                                        <input type="checkbox" value="{{ $row->record_id }}" wire:model.live="selectedSolicitudes" wire:key="check-devolucion-solicitud-{{ $row->record_id }}">
+                                                    @endif
+                                                @elseif (($row->record_type ?? '') === 'EMS')
                                                     <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedPaquetes" wire:key="check-almacen-ems-{{ $row->record_id }}">
                                                 @elseif (($row->record_type ?? '') === 'INT')
                                                     <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedPaquetesInt" wire:key="check-almacen-int-{{ $row->record_id }}">
@@ -2754,10 +3480,17 @@
                                                 @else
                                                     <input type="checkbox" value="{{ $row->record_id }}" wire:model="selectedSolicitudes" wire:key="check-almacen-solicitud-{{ $row->record_id }}">
                                                 @endif
+                                                @if ($this->isAlmacenEms)
+                                                    <span class="ems-almacen-mobile-code pill-id">{{ $row->codigo }}</span>
+                                                @endif
                                             </td>
                                         @endif
                                         <td><span class="pill-id">{{ $row->codigo }}</span></td>
-                                        <td>{{ $row->tipo }}</td>
+                                        @if (!$this->isDevolucionEms && !$this->isAlmacenEms)
+                                            <td>
+                                                {{ $row->tipo }}
+                                            </td>
+                                        @endif
                                         @if ($this->isAlmacenEms)
                                             <td>
                                                 <span>{{ $row->servicio ?: '-' }}</span>
@@ -2766,10 +3499,17 @@
                                                 @endif
                                             </td>
                                             <td>
-                                                <small class="d-block text-muted">Origen</small>
-                                                <strong>{{ $row->origen ?: '-' }}</strong>
-                                                <small class="d-block text-muted mt-1">Destino</small>
-                                                <strong>{{ $row->destino ?: '-' }}</strong>
+                                                <div class="ems-almacen-route">
+                                                    <div class="ems-almacen-route__point">
+                                                        <span>Origen</span>
+                                                        <strong>{{ $row->origen ?: '-' }}</strong>
+                                                    </div>
+                                                    <i class="fas fa-arrow-right ems-almacen-route__arrow" aria-hidden="true"></i>
+                                                    <div class="ems-almacen-route__point">
+                                                        <span>Destino</span>
+                                                        <strong>{{ $row->destino ?: '-' }}</strong>
+                                                    </div>
+                                                </div>
                                             </td>
                                             <td>
                                                 <small class="d-block text-muted">Remitente</small>
@@ -2780,6 +3520,39 @@
                                             <td>{{ $row->peso }}</td>
                                             <td>{{ $row->destinatario ?: '-' }}</td>
                                             <td>{{ !empty($row->created_at) ? \Illuminate\Support\Carbon::parse($row->created_at)->format('d/m/Y H:i') : '-' }}</td>
+                                        @elseif ($this->isDevolucionEms)
+                                            <td>
+                                                <strong>{{ $row->servicio ?: '-' }}</strong>
+                                                @if (!empty($row->servicio_especial) && $row->servicio_especial !== '-')
+                                                    <small class="d-block text-muted">{{ $row->servicio_especial }}</small>
+                                                @endif
+                                            </td>
+                                            <td>
+                                                <div class="devolucion-route">
+                                                    <div class="devolucion-route__point">
+                                                        <span class="devolucion-route__label">Origen</span>
+                                                        <strong class="devolucion-route__value">{{ $row->origen ?: '-' }}</strong>
+                                                    </div>
+                                                    <i class="fas fa-arrow-right devolucion-route__arrow" aria-hidden="true"></i>
+                                                    <div class="devolucion-route__point">
+                                                        <span class="devolucion-route__label">Destino</span>
+                                                        <strong class="devolucion-route__value">{{ $row->destino ?: '-' }}</strong>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td class="devolucion-direcciones">
+                                                <div class="devolucion-direcciones__line">
+                                                    <span class="devolucion-direcciones__label">Remitente</span>
+                                                    <div class="devolucion-direcciones__value">{{ !empty($row->direccion_r) && $row->direccion_r !== '-' ? $row->direccion_r : 'Sin dirección registrada' }}</div>
+                                                </div>
+                                                <div class="devolucion-direcciones__line">
+                                                    <span class="devolucion-direcciones__label">Destinatario</span>
+                                                    <div class="devolucion-direcciones__value">{{ !empty($row->direccion_d) && $row->direccion_d !== '-' ? $row->direccion_d : 'Sin dirección registrada' }}</div>
+                                                </div>
+                                            </td>
+                                            <td>{{ $row->peso ?? '-' }}</td>
+                                            <td>{{ $row->destinatario ?: '-' }}</td>
+                                            <td>{{ !empty($row->fecha_recojo ?? $row->created_at) ? \Illuminate\Support\Carbon::parse($row->fecha_recojo ?? $row->created_at)->format('d/m/Y H:i') : '-' }}</td>
                                         @else
                                             <td>{{ $row->servicio }}</td>
                                             <td>{{ $row->servicio_especial }}</td>
@@ -2854,7 +3627,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="{{ $this->isAlmacenEms ? 10 : (($this->isTransitoEms || $this->isVentanillaEms || $this->isDevolucionEms) ? 18 : 17) }}" class="text-center py-5">
+                                        <td colspan="{{ ($this->isAlmacenEms || $this->isDevolucionEms) ? 9 : (($this->isTransitoEms || $this->isVentanillaEms) ? 18 : 17) }}" class="text-center py-5">
                                             <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                             <div class="muted">Prueba con otro texto de busqueda.</div>
                                         </td>
@@ -2871,27 +3644,59 @@
                                     @endphp
                                     <tr>
                                         @if ($this->canSelect)
-                                            <td>
+                                            <td data-label="Seleccionar">
                                                 <input type="checkbox" value="{{ $paquete->id }}" wire:model="selectedPaquetes" wire:key="check-admision-ems-{{ $paquete->id }}">
                                             </td>
                                         @endif
-                                        <td><span class="pill-id">{{ $paquete->codigo }}</span></td>
-                                        <td>{{ $formulario->tipo_correspondencia ?? $paquete->tipo_correspondencia }}</td>
-                                        <td>{{ $formulario->servicio_especial ?? $paquete->servicio_especial }}</td>
-                                        <td>{{ $paquete->servicio_nombre ?? '' }}</td>
-                                        <td>{{ $paquete->destino_nombre ?? '' }}</td>
-                                        <td>{{ $formulario->contenido ?? $paquete->contenido }}</td>
-                                        <td>{{ $formulario->cantidad ?? $paquete->cantidad }}</td>
-                                        <td>{{ $formulario->peso ?? $paquete->peso }}</td>
-                                        <td>{{ $formulario->nombre_remitente ?? $paquete->nombre_remitente }}</td>
-                                        <td>{{ $formulario->nombre_envia ?? $paquete->nombre_envia }}</td>
-                                        <td>{{ $formulario->carnet ?? $paquete->carnet }}</td>
-                                        <td>{{ $formulario->telefono_remitente ?? $paquete->telefono_remitente }}</td>
-                                        <td>{{ $formulario->nombre_destinatario ?? $paquete->nombre_destinatario }}</td>
-                                        <td>{{ $formulario->telefono_destinatario ?? $paquete->telefono_destinatario }}</td>
-                                        <td>{{ $formulario->ciudad ?? $paquete->ciudad }}</td>
-                                        <td>{{ optional($paquete->created_at)->format('d/m/Y H:i') ?: '-' }}</td>
-                                        <td class="action-cell">
+                                        <td data-label="Codigo"><span class="pill-id">{{ $paquete->codigo }}</span></td>
+                                        <td data-label="Tipo">
+                                            @if ($this->isAdmision)
+                                                <span class="ems-admision-type">{{ $formulario->tipo_correspondencia ?? $paquete->tipo_correspondencia ?? '-' }}</span>
+                                            @else
+                                                {{ $formulario->tipo_correspondencia ?? $paquete->tipo_correspondencia }}
+                                            @endif
+                                        </td>
+                                        @if ($this->isAdmision)
+                                            <td data-label="Servicio">
+                                                <strong>{{ $paquete->servicio_nombre ?: '-' }}</strong>
+                                                @php $servicioEspecialAdmision = $formulario->servicio_especial ?? $paquete->servicio_especial; @endphp
+                                                @if (!empty($servicioEspecialAdmision) && $servicioEspecialAdmision !== '-')
+                                                    <small class="d-block text-muted">{{ $servicioEspecialAdmision }}</small>
+                                                @endif
+                                            </td>
+                                            <td data-label="Ruta">
+                                                <div class="ems-admision-route">
+                                                    <div><span>Origen</span><strong>{{ $paquete->origen ?: '-' }}</strong></div>
+                                                    <i class="fas fa-arrow-right text-muted" aria-hidden="true"></i>
+                                                    <div><span>Destino</span><strong>{{ $paquete->destino_nombre ?: ($formulario->ciudad ?? $paquete->ciudad ?? '-') }}</strong></div>
+                                                </div>
+                                            </td>
+                                            <td data-label="Direcciones" class="ems-admision-address">
+                                                <span>Remitente</span>
+                                                <div>Sin dirección registrada</div>
+                                                <span>Destinatario</span>
+                                                <div>{{ ($formulario->direccion ?? $paquete->direccion) ?: 'Sin dirección registrada' }}</div>
+                                            </td>
+                                            <td data-label="Peso">{{ $formulario->peso ?? $paquete->peso ?? '-' }}</td>
+                                            <td data-label="Destinatario">{{ $formulario->nombre_destinatario ?? $paquete->nombre_destinatario ?? '-' }}</td>
+                                            <td data-label="Creado">{{ optional($paquete->created_at)->format('d/m/Y H:i') ?: '-' }}</td>
+                                        @else
+                                            <td>{{ $formulario->servicio_especial ?? $paquete->servicio_especial }}</td>
+                                            <td>{{ $paquete->servicio_nombre ?? '' }}</td>
+                                            <td>{{ $paquete->destino_nombre ?? '' }}</td>
+                                            <td>{{ $formulario->contenido ?? $paquete->contenido }}</td>
+                                            <td>{{ $formulario->cantidad ?? $paquete->cantidad }}</td>
+                                            <td>{{ $formulario->peso ?? $paquete->peso }}</td>
+                                            <td>{{ $formulario->nombre_remitente ?? $paquete->nombre_remitente }}</td>
+                                            <td>{{ $formulario->nombre_envia ?? $paquete->nombre_envia }}</td>
+                                            <td>{{ $formulario->carnet ?? $paquete->carnet }}</td>
+                                            <td>{{ $formulario->telefono_remitente ?? $paquete->telefono_remitente }}</td>
+                                            <td>{{ $formulario->nombre_destinatario ?? $paquete->nombre_destinatario }}</td>
+                                            <td>{{ $formulario->telefono_destinatario ?? $paquete->telefono_destinatario }}</td>
+                                            <td>{{ $formulario->ciudad ?? $paquete->ciudad }}</td>
+                                            <td>{{ optional($paquete->created_at)->format('d/m/Y H:i') ?: '-' }}</td>
+                                        @endif
+                                        <td class="action-cell" data-label="Acciones">
                                             <div class="action-stack">
                                             @include('partials.rastreo-eventos-button', [
                                                 'tipo' => 'ems',
@@ -2931,25 +3736,45 @@
                                 @foreach ($paquetesIntAdmision as $paqueteInt)
                                     <tr>
                                         @if ($this->canSelect)
-                                            <td></td>
+                                            <td data-label="Seleccionar"></td>
                                         @endif
-                                        <td><span class="pill-id">{{ $paqueteInt->codigo }}</span></td>
-                                        <td>INT</td>
-                                        <td>-</td>
-                                        <td>{{ optional($paqueteInt->servicio)->nombre_servicio ?? '-' }}</td>
-                                        <td>{{ $paqueteInt->destino ?: '-' }}</td>
-                                        <td>PAQUETE INTERNACIONAL</td>
-                                        <td>1</td>
-                                        <td>{{ \App\Support\BolivianNumber::format((float) $paqueteInt->peso, 3) }}</td>
-                                        <td>-</td>
-                                        <td>-</td>
-                                        <td>-</td>
-                                        <td>-</td>
-                                        <td>-</td>
-                                        <td>-</td>
-                                        <td>{{ $paqueteInt->origen ?: '-' }}</td>
-                                        <td>{{ optional($paqueteInt->created_at)->format('d/m/Y H:i') ?: '-' }}</td>
-                                        <td class="action-cell">
+                                        <td data-label="Codigo"><span class="pill-id">{{ $paqueteInt->codigo }}</span></td>
+                                        <td data-label="Tipo"><span class="ems-admision-type">INT</span></td>
+                                        @if ($this->isAdmision)
+                                            <td data-label="Servicio">{{ optional($paqueteInt->servicio)->nombre_servicio ?? '-' }}</td>
+                                            <td data-label="Ruta">
+                                                <div class="ems-admision-route">
+                                                    <div><span>Origen</span><strong>{{ $paqueteInt->origen ?: '-' }}</strong></div>
+                                                    <i class="fas fa-arrow-right text-muted" aria-hidden="true"></i>
+                                                    <div><span>Destino</span><strong>{{ $paqueteInt->destino ?: '-' }}</strong></div>
+                                                </div>
+                                            </td>
+                                            <td data-label="Direcciones" class="ems-admision-address">
+                                                <span>Remitente</span>
+                                                <div>Sin dirección registrada</div>
+                                                <span>Destinatario</span>
+                                                <div>Sin dirección registrada</div>
+                                            </td>
+                                            <td data-label="Peso">{{ \App\Support\BolivianNumber::format((float) $paqueteInt->peso, 3) }}</td>
+                                            <td data-label="Destinatario">-</td>
+                                            <td data-label="Creado">{{ optional($paqueteInt->created_at)->format('d/m/Y H:i') ?: '-' }}</td>
+                                        @else
+                                            <td>-</td>
+                                            <td>{{ optional($paqueteInt->servicio)->nombre_servicio ?? '-' }}</td>
+                                            <td>{{ $paqueteInt->destino ?: '-' }}</td>
+                                            <td>PAQUETE INTERNACIONAL</td>
+                                            <td>1</td>
+                                            <td>{{ \App\Support\BolivianNumber::format((float) $paqueteInt->peso, 3) }}</td>
+                                            <td>-</td>
+                                            <td>-</td>
+                                            <td>-</td>
+                                            <td>-</td>
+                                            <td>-</td>
+                                            <td>-</td>
+                                            <td>{{ $paqueteInt->origen ?: '-' }}</td>
+                                            <td>{{ optional($paqueteInt->created_at)->format('d/m/Y H:i') ?: '-' }}</td>
+                                        @endif
+                                        <td class="action-cell" data-label="Acciones">
                                             <div class="action-stack">
                                                 <span class="badge badge-warning">INT</span>
                                             </div>
@@ -2959,7 +3784,7 @@
 
                                 @if (!$hayPaquetesAdmision && !$hayPaquetesIntAdmision)
                                     <tr>
-                                        <td colspan="{{ $this->canSelect ? 18 : 17 }}" class="text-center py-5">
+                                        <td colspan="{{ $this->isAdmision ? 10 : ($this->canSelect ? 18 : 17) }}" class="text-center py-5">
                                             <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                             <div class="muted">Prueba con otro texto de busqueda.</div>
                                         </td>
@@ -4626,14 +5451,25 @@
                     <div class="form-group mb-0">
                         <label>Imagen de la guia</label>
                         <input type="file" class="form-control-file" wire:model="devolucionImagen" accept="image/*">
+                        <div wire:loading wire:target="devolucionImagen" class="text-muted small mt-2">
+                            Cargando imagen...
+                        </div>
                         @error('devolucionImagen') <small class="text-danger d-block">{{ $message }}</small> @enderror
-                        <small class="text-muted">Se guardara la misma imagen para los registros seleccionados.</small>
+                        @if ($devolucionImagen)
+                            <div class="mt-3">
+                                <img src="{{ $devolucionImagen->temporaryUrl() }}"
+                                     alt="Vista previa de la imagen de devolución"
+                                     class="img-fluid rounded border"
+                                     style="max-height: 220px; object-fit: contain;">
+                            </div>
+                        @endif
+                        <small class="text-muted">Se guardará esta imagen para el registro seleccionado.</small>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
                     @if ($canEmsDeliver)
-                    <button type="button" class="btn btn-primary" wire:click="confirmarDevolucionEms">
+                    <button type="button" class="btn btn-primary" wire:click="confirmarDevolucionEms" wire:loading.attr="disabled" wire:target="confirmarDevolucionEms">
                         Confirmar devolucion
                     </button>
                     @endif

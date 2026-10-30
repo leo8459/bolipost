@@ -647,8 +647,10 @@ document.addEventListener('DOMContentLoaded', function () {
             const mismoDestino = normalize(item.origen) !== '' && normalize(item.origen) === normalize(item.ciudad);
             const precioBase = Number(item.precio_base || 0);
             const recargo = item.paquete_muy_grande ? (mismoDestino ? 5 : 10) : 0;
+            const recargoPagoDestino = item.pago_destinatario ? 2.5 : 0;
+            const recargoVolumen = item.recargo_volumen ? 10 : 0;
             const priceCell = document.createElement('td');
-            priceCell.textContent = 'Bs ' + window.BolivianNumber.format(precioBase + recargo, 2);
+            priceCell.textContent = 'Bs ' + window.BolivianNumber.format(precioBase + recargo + recargoPagoDestino + recargoVolumen, 2);
             row.appendChild(priceCell);
 
             const largeCell = document.createElement('td');

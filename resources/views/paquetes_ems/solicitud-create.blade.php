@@ -393,6 +393,32 @@
                             </div>
                             <small id="precio_estado" class="form-text text-muted"></small>
                         </div>
+                        <div class="col-md-6 form-group">
+                            <label for="forma_pago">Forma de pago</label>
+                            <select name="forma_pago" id="forma_pago" class="form-control" required>
+                                <option value="">Seleccione...</option>
+                                <option value="origen" @selected(old('forma_pago') === 'origen')>Pagar en origen</option>
+                                <option value="destino" @selected(old('forma_pago') === 'destino')>Pagar en destino</option>
+                                <option value="pagado" @selected(old('forma_pago') === 'pagado')>Pagado</option>
+                            </select>
+                            <small class="form-text text-muted">Si el pago es en destino, se suma Bs 2,50 al precio.</small>
+                            <div id="recargo_destino_aviso" class="small text-warning mt-1" hidden>Se a&ntilde;adir&aacute; un recargo de Bs 2,50 por pago en destino.</div>
+                        </div>
+                        <div class="col-md-6 form-group">
+                            <label>Tama&ntilde;o del paquete</label>
+                            <div class="custom-control custom-checkbox mt-2">
+                                <input
+                                    type="checkbox"
+                                    class="custom-control-input"
+                                    id="recargo_volumen"
+                                    name="recargo_volumen"
+                                    value="1"
+                                    @checked(old('recargo_volumen'))
+                                >
+                                <label class="custom-control-label" for="recargo_volumen">A&ntilde;adir Bs 10 por tama&ntilde;o excesivo</label>
+                            </div>
+                            <small class="form-text text-muted">Marca esta opci&oacute;n si el paquete requiere el recargo por volumen.</small>
+                        </div>
                         <div class="col-md-12 form-group mb-0">
                             <label>Contenido</label>
                             <textarea name="contenido" rows="2" class="form-control">{{ old('contenido') }}</textarea>
@@ -443,22 +469,6 @@
                                 class="form-control"
                             >
                         </div>
-                        <div class="col-md-12 form-group mt-3 mb-0">
-                            <div class="custom-control custom-checkbox">
-                                <input
-                                    type="checkbox"
-                                    class="custom-control-input"
-                                    id="pago_destinatario"
-                                    name="pago_destinatario"
-                                    value="1"
-                                    @checked(old('pago_destinatario'))
-                                >
-                                <label class="custom-control-label" for="pago_destinatario">
-                                    Pago en destinatario
-                                </label>
-                            </div>
-                            <small class="form-text text-muted">Si esta marcado, se suma Bs 2.50 al precio.</small>
-                        </div>
                     </div>
                 </div>
                     </div>
@@ -490,12 +500,14 @@ document.addEventListener('DOMContentLoaded', function () {
     const direccionInput = document.getElementById('direccion_entrega');
     const origenSelect = document.querySelector('select[name="origen"]');
     const destinoSelect = document.querySelector('select[name="destino_id"]');
+    const formaPagoSelect = document.getElementById('forma_pago');
+    const recargoDestinoAviso = document.getElementById('recargo_destino_aviso');
+    const recargoVolumenCheckbox = document.getElementById('recargo_volumen');
     const cantidadInput = document.querySelector('input[name="cantidad"]');
     const pesoInput = document.querySelector('input[name="peso"]');
     const precioInput = document.getElementById('precio_preview');
     const precioReferencialInput = document.getElementById('precio_referencial');
     const precioEstado = document.getElementById('precio_estado');
-    const pagoDestinatarioCheckbox = document.getElementById('pago_destinatario');
     const contenidoInput = document.querySelector('textarea[name="contenido"]');
     const nombreRemitenteInput = document.querySelector('input[name="nombre_remitente"]');
     const carnetInput = document.querySelector('input[name="carnet"]');
@@ -541,6 +553,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (direccionInput.value === direccionVentanilla && defaultDireccion !== direccionVentanilla) {
             direccionInput.value = defaultDireccion;
+        }
+    }
+
+    function syncRecargos() {
+        if (recargoDestinoAviso) {
+            recargoDestinoAviso.hidden = formaPagoSelect?.value !== 'destino';
         }
     }
 
@@ -631,10 +649,12 @@ document.addEventListener('DOMContentLoaded', function () {
             if (nombreDestinatarioInput) nombreDestinatarioInput.value = payload.nombre_destinatario ?? '';
             if (telefonoDestinatarioInput) telefonoDestinatarioInput.value = payload.telefono_destinatario ?? '';
             if (direccionInput) direccionInput.value = payload.direccion_entrega ?? '';
-            if (pagoDestinatarioCheckbox) pagoDestinatarioCheckbox.checked = Boolean(payload.pago_destinatario);
+            setSelectValue(formaPagoSelect, payload.forma_pago || (payload.pago_destinatario ? 'destino' : 'origen'));
+            if (recargoVolumenCheckbox) recargoVolumenCheckbox.checked = Boolean(payload.recargo_volumen);
             if (pesoInput) pesoInput.focus();
 
             syncDireccionEntrega();
+            syncRecargos();
             cotizarSolicitud();
             setStatus('Solicitud ' + (payload.codigo_solicitud || codigo) + ' cargada correctamente.', 'success');
         } catch (error) {
@@ -650,7 +670,8 @@ document.addEventListener('DOMContentLoaded', function () {
         const origen = origenSelect?.value || '';
         const destinoId = destinoSelect?.value || '';
         const peso = pesoInput?.value || '';
-        const pagoDestinatario = pagoDestinatarioCheckbox?.checked ? '1' : '0';
+        const formaPago = formaPagoSelect?.value || '';
+        const recargoVolumen = recargoVolumenCheckbox?.checked ? '1' : '0';
 
         if (precioInput) {
             precioInput.value = '';
@@ -659,8 +680,8 @@ document.addEventListener('DOMContentLoaded', function () {
             precioReferencialInput.value = '';
         }
 
-        if (!servicioExtraId || !origen || !destinoId || !peso) {
-            setPrecioEstado('Selecciona servicio, origen, destino y peso. El precio se tomara de peso1.', 'info');
+        if (!servicioExtraId || !origen || !destinoId || !peso || !formaPago) {
+            setPrecioEstado('Selecciona servicio, origen, destino, forma de pago y peso para calcular el precio.', 'info');
             return;
         }
 
@@ -673,7 +694,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 + '&origen=' + encodeURIComponent(origen)
                 + '&destino_id=' + encodeURIComponent(destinoId)
                 + '&peso=' + encodeURIComponent(peso)
-                + '&pago_destinatario=' + encodeURIComponent(pagoDestinatario),
+                + '&forma_pago=' + encodeURIComponent(formaPago)
+                + '&recargo_volumen=' + encodeURIComponent(recargoVolumen),
                 {
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest',
@@ -695,7 +717,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 precioReferencialInput.value = payload.precio;
             }
 
-            setPrecioEstado('Precio de peso1: Bs ' + payload.precio + '. Tiempo de entrega: ' + payload.tiempo_entrega + ' horas.', 'success');
+            const recargos = [];
+            if (Number(payload.recargo_pago_destino) > 0) recargos.push('pago en destino Bs ' + Number(payload.recargo_pago_destino).toFixed(2));
+            if (recargoVolumen === '1') recargos.push('volumen Bs 10.00');
+            const detallePrecio = recargos.length
+                ? 'Base Bs ' + Number(payload.precio_base).toFixed(2) + ' + ' + recargos.join(' + ') + ' = Bs ' + payload.precio
+                : 'Precio: Bs ' + payload.precio;
+            setPrecioEstado(detallePrecio + '. Tiempo de entrega: ' + payload.tiempo_entrega + ' horas.', 'success');
         } catch (error) {
             setPrecioEstado(error.message || 'No se pudo calcular el precio.', 'error');
         }
@@ -706,7 +734,11 @@ document.addEventListener('DOMContentLoaded', function () {
     origenSelect?.addEventListener('change', cotizarSolicitud);
     destinoSelect?.addEventListener('change', cotizarSolicitud);
     pesoInput?.addEventListener('input', cotizarSolicitud);
-    pagoDestinatarioCheckbox?.addEventListener('change', cotizarSolicitud);
+    formaPagoSelect?.addEventListener('change', function () {
+        syncRecargos();
+        cotizarSolicitud();
+    });
+    recargoVolumenCheckbox?.addEventListener('change', cotizarSolicitud);
     buscarSolicitudBtn?.addEventListener('click', cargarSolicitudPorCodigo);
     codigoSolicitudInput?.addEventListener('keydown', function (event) {
         if (event.key === 'Enter') {
@@ -715,6 +747,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
     syncDireccionEntrega();
+    syncRecargos();
     cotizarSolicitud();
 });
 </script>

@@ -810,8 +810,10 @@ class PaquetesEms extends Component
                 $this->search = '';
                 $this->searchQuery = '';
                 $this->resetPage();
-                $this->dispatch('openDevolucionEmsModal');
-                session()->flash('success', 'Paquete EMS seleccionado automaticamente por codigo.');
+                $this->openDevolucionEmsModal();
+                if (count($this->selectedPaquetes) + count($this->selectedPaquetesInt) + count($this->selectedContratos) + count($this->selectedSolicitudes) === 1) {
+                    session()->flash('success', 'Paquete EMS seleccionado automaticamente por codigo.');
+                }
                 return;
             }
 
@@ -860,8 +862,10 @@ class PaquetesEms extends Component
                 $this->search = '';
                 $this->searchQuery = '';
                 $this->resetPage();
-                $this->dispatch('openDevolucionEmsModal');
-                session()->flash('success', 'Contrato seleccionado automaticamente por codigo.');
+                $this->openDevolucionEmsModal();
+                if (count($this->selectedPaquetes) + count($this->selectedPaquetesInt) + count($this->selectedContratos) + count($this->selectedSolicitudes) === 1) {
+                    session()->flash('success', 'Contrato seleccionado automaticamente por codigo.');
+                }
                 return;
             }
 
@@ -884,8 +888,10 @@ class PaquetesEms extends Component
                 $this->search = '';
                 $this->searchQuery = '';
                 $this->resetPage();
-                $this->dispatch('openDevolucionEmsModal');
-                session()->flash('success', 'Solicitud seleccionada automaticamente por codigo.');
+                $this->openDevolucionEmsModal();
+                if (count($this->selectedPaquetes) + count($this->selectedPaquetesInt) + count($this->selectedContratos) + count($this->selectedSolicitudes) === 1) {
+                    session()->flash('success', 'Solicitud seleccionada automaticamente por codigo.');
+                }
                 return;
             }
 
@@ -2114,7 +2120,8 @@ class PaquetesEms extends Component
                 (int) $solicitud->destino_id,
                 (float) $validated['tiktokerPeso'],
                 (bool) $solicitud->pago_destinatario,
-                (bool) $solicitud->paquete_muy_grande
+                (bool) $solicitud->paquete_muy_grande,
+                (bool) $solicitud->recargo_volumen
             );
         } catch (\RuntimeException $exception) {
             $this->addError('tiktokerPeso', $exception->getMessage());
@@ -2207,6 +2214,7 @@ class PaquetesEms extends Component
                 'destino_id',
                 'pago_destinatario',
                 'paquete_muy_grande',
+                'recargo_volumen',
                 'nombre_remitente',
                 'nombre_destinatario',
                 'telefono_destinatario',
@@ -4747,11 +4755,15 @@ class PaquetesEms extends Component
         }
 
         $idsEms = collect($this->selectedPaquetes)->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
+        $idsInt = collect($this->selectedPaquetesInt)->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
         $idsContratos = collect($this->selectedContratos)->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
         $idsSolicitudes = collect($this->selectedSolicitudes)->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
 
-        if (empty($idsEms) && empty($idsContratos) && empty($idsSolicitudes)) {
-            session()->flash('error', 'Selecciona al menos un paquete, contrato o solicitud.');
+        $totalSeleccionados = count($idsEms) + count($idsInt) + count($idsContratos) + count($idsSolicitudes);
+        $totalDevolvibles = count($idsEms) + count($idsContratos) + count($idsSolicitudes);
+
+        if ($totalSeleccionados !== 1 || $totalDevolvibles !== 1) {
+            session()->flash('error', 'Solo puedes hacer una devolucion a la vez. Deja seleccionado un solo registro.');
             return;
         }
 
@@ -4775,20 +4787,24 @@ class PaquetesEms extends Component
             return;
         }
 
+        $idsEms = collect($this->selectedPaquetes)->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
+        $idsInt = collect($this->selectedPaquetesInt)->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
+        $idsContratos = collect($this->selectedContratos)->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
+        $idsSolicitudes = collect($this->selectedSolicitudes)->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
+
+        $totalSeleccionados = count($idsEms) + count($idsInt) + count($idsContratos) + count($idsSolicitudes);
+        $totalDevolvibles = count($idsEms) + count($idsContratos) + count($idsSolicitudes);
+
+        if ($totalSeleccionados !== 1 || $totalDevolvibles !== 1) {
+            session()->flash('error', 'Solo puedes hacer una devolucion a la vez. Deja seleccionado un solo registro.');
+            return;
+        }
+
         $this->validate([
             'devolucionRecibidoPor' => ['required', 'string', 'max:255'],
             'devolucionDescripcion' => ['nullable', 'string'],
             'devolucionImagen' => ['required', 'image', 'max:5120'],
         ]);
-
-        $idsEms = collect($this->selectedPaquetes)->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
-        $idsContratos = collect($this->selectedContratos)->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
-        $idsSolicitudes = collect($this->selectedSolicitudes)->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
-
-        if (empty($idsEms) && empty($idsContratos) && empty($idsSolicitudes)) {
-            session()->flash('error', 'Selecciona al menos un paquete, contrato o solicitud.');
-            return;
-        }
 
         $estadoDevolucionId = $this->findEstadoId('DEVOLUCION');
         if (!$estadoDevolucionId) {
@@ -7126,7 +7142,8 @@ class PaquetesEms extends Component
             ->selectRaw("coalesce(formulario.direccion, paquetes_ems.direccion, '-') as direccion_d")
             ->selectRaw("'-' as empresa")
             ->selectRaw('paquetes_ems.cod_especial as cod_especial')
-            ->selectRaw('paquetes_ems.created_at as created_at');
+            ->selectRaw('paquetes_ems.created_at as created_at')
+            ->selectRaw('null as fecha_recojo');
 
         $emsQuery->when($isModoEnTransito, function ($query) use ($estadoTransitoId, $isEnTransitoCn33Search) {
             if ($isEnTransitoCn33Search) {
@@ -7291,6 +7308,7 @@ class PaquetesEms extends Component
             )
             ->selectRaw('paquetes_contrato.cod_especial as cod_especial')
             ->selectRaw('paquetes_contrato.created_at as created_at')
+            ->selectRaw('paquetes_contrato.fecha_recojo as fecha_recojo')
             ->when($isModoEnTransito, function ($query) use ($estadoTransitoId, $isEnTransitoCn33Search) {
                 if ($isEnTransitoCn33Search) {
                     return;
@@ -7464,6 +7482,7 @@ class PaquetesEms extends Component
             ->selectRaw("'CLIENTE' as empresa")
             ->selectRaw('solicitud_clientes.cod_especial as cod_especial')
             ->selectRaw('solicitud_clientes.created_at as created_at')
+            ->selectRaw('null as fecha_recojo')
             ->when($isModoEnTransito, function ($query) use ($estadoTransitoId, $isEnTransitoCn33Search) {
                 if ($isEnTransitoCn33Search) {
                     return;
@@ -7602,7 +7621,8 @@ class PaquetesEms extends Component
             ->selectRaw("'-' as direccion_d")
             ->selectRaw("'-' as empresa")
             ->selectRaw('paquetes_int.cod_especial as cod_especial')
-            ->selectRaw('paquetes_int.created_at as created_at');
+            ->selectRaw('paquetes_int.created_at as created_at')
+            ->selectRaw('null as fecha_recojo');
 
         $union = $emsQuery
             ->unionAll($contratosQuery)
@@ -8320,7 +8340,15 @@ class PaquetesEms extends Component
         return 25;
     }
 
-    protected function resolveTarifarioTiktokerYPrecio(int $servicioExtraId, string $origen, int $destinoId, float $peso, bool $pagoDestinatario = false, bool $paqueteMuyGrande = false): array
+    protected function resolveTarifarioTiktokerYPrecio(
+        int $servicioExtraId,
+        string $origen,
+        int $destinoId,
+        float $peso,
+        bool $pagoDestinatario = false,
+        bool $paqueteMuyGrande = false,
+        bool $recargoVolumen = false
+    ): array
     {
         $origenNombre = strtoupper(trim($origen));
 
@@ -8342,7 +8370,13 @@ class PaquetesEms extends Component
             throw new \RuntimeException('No existe tarifario Delivery Express para el servicio, origen y destino seleccionados.');
         }
 
-        return [$tarifario, TiktokerTariffPriceCalculator::calculate($tarifario, $peso, $pagoDestinatario, $paqueteMuyGrande)];
+        return [$tarifario, TiktokerTariffPriceCalculator::calculate(
+            $tarifario,
+            $peso,
+            $pagoDestinatario,
+            $paqueteMuyGrande,
+            $recargoVolumen
+        )];
     }
 
     protected function calculatePrecioTiktokerInterno(TarifarioTiktoker $tarifario, float $peso, bool $pagoDestinatario = false): float
@@ -9990,6 +10024,7 @@ class PaquetesEms extends Component
                                 'origen',
                                 'pago_destinatario',
                                 'paquete_muy_grande',
+                                'recargo_volumen',
                             ]);
 
                         if (!$solicitud) {
@@ -10003,7 +10038,8 @@ class PaquetesEms extends Component
                                 (int) $solicitud->destino_id,
                                 $peso,
                                 (bool) $solicitud->pago_destinatario,
-                                (bool) $solicitud->paquete_muy_grande
+                                (bool) $solicitud->paquete_muy_grande,
+                                (bool) $solicitud->recargo_volumen
                             );
                         } catch (\RuntimeException $exception) {
                             throw new \RuntimeException($key . '|' . $exception->getMessage());

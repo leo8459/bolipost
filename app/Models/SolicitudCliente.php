@@ -12,6 +12,7 @@ class SolicitudCliente extends Model
     use HasFactory;
 
     public const RECARGO_PAGO_DESTINO = 2.50;
+    public const RECARGO_VOLUMEN = 10.00;
 
     protected $table = 'solicitud_clientes';
 
@@ -30,6 +31,7 @@ class SolicitudCliente extends Model
         'peso',
         'precio',
         'recargo_pago_destino',
+        'recargo_volumen',
         'paquete_muy_grande',
         'pago_destinatario',
         'forma_pago',
@@ -57,6 +59,7 @@ class SolicitudCliente extends Model
         'peso' => 'decimal:3',
         'precio' => 'decimal:2',
         'recargo_pago_destino' => 'decimal:2',
+        'recargo_volumen' => 'boolean',
         'paquete_muy_grande' => 'boolean',
         'pago_destinatario' => 'boolean',
         'envio_cn33' => 'datetime',
