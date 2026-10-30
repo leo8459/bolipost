@@ -685,6 +685,7 @@ class FacturacionCartController extends Controller
             }
         }
 
+        $draft = null;
         try {
             $ctx = $service->getRemoteContextForUser($user);
             $draft = $ctx['draft'] ?? null;
@@ -713,12 +714,45 @@ class FacturacionCartController extends Controller
 
                 return back()->with('facturacion_feedback', $feedback);
             }
-        } catch (\Throwable) {
-            // Si falla la consulta previa, continúa con el flujo existente.
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo confirmar el carrito antes de emitir.', [
+                'user_id' => $user?->id,
+                'message' => $e->getMessage(),
+            ]);
+            $feedback = [
+                'type' => 'warning',
+                'title' => 'No se pudo confirmar el carrito',
+                'message' => 'No se envió ninguna solicitud de emisión porque no se pudo verificar el borrador exacto.',
+                'detail' => 'Actualiza el carrito e intenta nuevamente.',
+                'action' => 'emitir',
+            ];
+
+            if ($request->expectsJson()) {
+                return response()->json(['ok' => false, 'feedback' => $feedback], 503);
+            }
+
+            return back()->with('facturacion_feedback', $feedback);
+        }
+
+        $targetCartId = (int) data_get($draft, 'id', 0);
+        if ($targetCartId <= 0) {
+            $feedback = [
+                'type' => 'warning',
+                'title' => 'No se pudo identificar el carrito',
+                'message' => 'No se envió ninguna solicitud de emisión porque el borrador no tiene un identificador válido.',
+                'detail' => 'Actualiza el carrito e intenta nuevamente.',
+                'action' => 'emitir',
+            ];
+
+            if ($request->expectsJson()) {
+                return response()->json(['ok' => false, 'feedback' => $feedback], 422);
+            }
+
+            return back()->with('facturacion_feedback', $feedback);
         }
 
         try {
-            $resultado = $service->emitirBorrador($user, $billingSnapshot);
+            $resultado = $service->emitirBorrador($user, $billingSnapshot, $targetCartId);
             $frequentClients->rememberFacturadaCart(data_get($resultado, 'carrito'));
             $respuesta = (array) ($resultado['respuesta'] ?? []);
             $feedback = $this->buildBridgeFeedback($respuesta, 'emitir');

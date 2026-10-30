@@ -384,13 +384,25 @@
                                 ])->filter()->implode(' + ');
 
                                 $respuesta = (array) data_get($cart, 'respuesta_emision', []);
-                                $pdfUrl = trim((string) data_get($respuesta, 'factura.pdfUrl', ''));
+                                $pdfUrl = trim((string) (
+                                    data_get($cart, 'pdf_url')
+                                    ?: data_get($respuesta, 'factura.pdfUrl')
+                                    ?: data_get($respuesta, 'factura.pdf_url')
+                                    ?: ''
+                                ));
                                 $numeroFactura = trim((string) (
-                                    data_get($respuesta, 'factura.nroFactura')
-                                    ?? data_get($respuesta, 'factura.numeroFactura')
-                                    ?? data_get($respuesta, 'nroFactura')
-                                    ?? data_get($respuesta, 'numeroFactura')
-                                    ?? data_get($respuesta, 'consultaSefe.nroFactura')
+                                    data_get($cart, 'numero_factura')
+                                    ?: data_get($respuesta, 'factura.nroFactura')
+                                    ?: data_get($respuesta, 'factura.numeroFactura')
+                                    ?: data_get($respuesta, 'nroFactura')
+                                    ?: data_get($respuesta, 'numeroFactura')
+                                    ?: data_get($respuesta, 'consultaSefe.nroFactura')
+                                ));
+                                $cufFactura = trim((string) (
+                                    data_get($cart, 'cuf')
+                                    ?: data_get($respuesta, 'factura.cuf')
+                                    ?: data_get($respuesta, 'cuf')
+                                    ?: ''
                                 ));
                                 $facturaEstado = strtoupper((string) data_get($cart, 'estado_emision', ''));
                                 $estadoPago = strtolower(trim((string) data_get($cart, 'estado_pago', 'pendiente')));
@@ -405,7 +417,11 @@
                                 $razonSocial = trim((string) data_get($cart, 'razon_social', ''));
                                 $modalidadFacturacion = (string) data_get($cart, 'modalidad_facturacion', 'con_datos');
                                 $esOficialMeta = (bool) data_get($cart, 'es_oficial', false);
-                                $estadoSufeRaw = strtoupper(trim((string) data_get($cart, 'respuesta_emision.estadoSufe', data_get($cart, 'estado_sufe', ''))));
+                                $estadoSufeRaw = strtoupper(trim((string) (
+                                    data_get($cart, 'estado_sufe')
+                                    ?: data_get($cart, 'respuesta_emision.estadoSufe')
+                                    ?: ''
+                                )));
                                 $canalEmision = strtolower(trim((string) data_get($cart, 'canal_emision', '')));
                                 $metodoPago = strtolower(trim((string) data_get($cart, 'metodo_pago', $canalEmision === 'qr' ? 'qr' : 'efectivo')));
                                 $isOficial = $esOficialMeta
@@ -422,7 +438,12 @@
                                     }
                                 }
                                 $isQrPayment = $metodoPago === 'qr' || trim((string) data_get($cart, 'qr_transaction_id', '')) !== '';
-                                $isQrFacturado = $isQrPayment && $facturaEstado === 'FACTURADA';
+                                $hasFiscalInvoiceReference = $numeroFactura !== ''
+                                    || $cufFactura !== ''
+                                    || $pdfUrl !== ''
+                                    || in_array($estadoSufeRaw, ['FACTURADA', 'PROCESADA'], true);
+                                $facturadaSinDatosFiscales = $facturaEstado === 'FACTURADA' && !$hasFiscalInvoiceReference;
+                                $isQrFacturado = $isQrPayment && $facturaEstado === 'FACTURADA' && $hasFiscalInvoiceReference;
                                 $esCuentaPorCobrar = (bool) data_get($cart, 'es_cuenta_por_cobrar', false);
                                 $empresaContrato = trim((string) data_get($cart, 'empresa_nombre', ''));
 
@@ -542,6 +563,8 @@
                                         <div class="ventas-table__secondary mt-1">Pendiente de pago.</div>
                                     @elseif($isQrPayment && $estadoPago === 'cancelado')
                                         <div class="ventas-table__secondary mt-1">Pago QR cancelado.</div>
+                                    @elseif($isQrPayment && in_array($estadoPago, ['pagado', 'success', 'paid', 'completed', 'approved', 'confirmed'], true) && $qrTransactionId === '')
+                                        <div class="ventas-table__secondary mt-1">Marcado pagado; falta referencia de transacción QR.</div>
                                     @elseif($isQrPayment)
                                         <div class="ventas-table__secondary mt-1">Pago QR confirmado.</div>
                                     @elseif($esCuentaPorCobrar)
@@ -551,7 +574,9 @@
                                     @endif
                                 </td>
                                 <td>
-                                    @if($isQrPayment && $facturaEstado === 'FACTURADA')
+                                    @if($facturadaSinDatosFiscales)
+                                        <span class="ventas-status-chip ventas-status-chip--warning">SIN FACTURA VINCULADA</span>
+                                    @elseif($isQrPayment && $facturaEstado === 'FACTURADA' && $hasFiscalInvoiceReference)
                                         <span class="ventas-status-chip ventas-status-chip--success">QR PAGADO Y FACTURADO</span>
                                     @elseif($isQrPayment && $facturaEstado === 'PENDIENTE')
                                         <span class="ventas-status-chip ventas-status-chip--warning">QR PAGADO - FACTURA EN PROCESO</span>
@@ -565,7 +590,7 @@
                                         <span class="ventas-status-chip ventas-status-chip--danger">QR ANULADO</span>
                                     @elseif($isQrPayment && $facturaEstado === 'NO_APLICA')
                                         <span class="ventas-status-chip ventas-status-chip--warning">QR PENDIENTE DE PAGO</span>
-                                    @elseif($facturaEstado === 'FACTURADA')
+                                    @elseif($facturaEstado === 'FACTURADA' && $hasFiscalInvoiceReference)
                                         <span class="ventas-status-chip ventas-status-chip--success">FACTURADA</span>
                                     @elseif($esOrdenProcesadaSinFactura)
                                         <span class="ventas-status-chip ventas-status-chip--warning">PROCESADA - SIN FACTURA</span>
@@ -586,7 +611,11 @@
                                     @else
                                         <span class="ventas-status-chip ventas-status-chip--muted">{{ $facturaEstado !== '' ? $facturaEstado : 'SIN ESTADO' }}</span>
                                     @endif
-                                    @if($esOrdenProcesadaSinFactura)
+                                    @if($facturadaSinDatosFiscales)
+                                        <div class="ventas-table__secondary ventas-table__secondary--hint">
+                                            El carrito está marcado como facturado, pero no tiene número, CUF ni constancia fiscal vinculados. Requiere verificación y sincronización.
+                                        </div>
+                                    @elseif($esOrdenProcesadaSinFactura)
                                         <div class="ventas-table__secondary ventas-table__secondary--hint">
                                             La orden quedó procesada, pero no tiene número de factura. Consulta el estado antes de emitir nuevamente.
                                         </div>

@@ -714,6 +714,8 @@ class MisVentasController extends Controller
             ? $this->fetchBranchRawRows($service, $user, $filters)
             : $this->fetchOwnRawRows($service, $user, $filters);
 
+        $rawRows = $rawRows->reject(fn ($row) => $this->isUnconsolidatedManualRelease($row));
+
         if ($rawRows->isEmpty()) {
             return [collect(), $this->emptySummary(), [
                 'branch_cashiers' => collect(),
@@ -721,6 +723,7 @@ class MisVentasController extends Controller
         }
 
         $rows = $this->normalizeKardexRows($rawRows)
+            ->reject(fn ($row) => $this->isUnconsolidatedManualRelease($row))
             ->unique(fn ($row) => $this->normalizedVentaRowKey($row))
             ->sortByDesc(fn ($row) => strtotime((string) (data_get($row, 'emitido_en') ?: data_get($row, 'created_at', '1970-01-01 00:00:00'))))
             ->values();
@@ -898,12 +901,12 @@ class MisVentasController extends Controller
 
     private function summaryFromRows(Collection $rows): array
     {
-        $paidStatuses = ['FACTURADA'];
         $effectiveRows = $rows->filter(fn ($row) => strtolower((string) data_get($row, 'estado', '')) === 'emitido'
             && $this->contabilizaEnCaja($row)
             && !$this->isQrPaymentRow($row)
             && strtolower((string) data_get($row, 'estado_pago', 'pendiente')) === 'pagado'
-            && strtoupper((string) data_get($row, 'estado_emision', '')) === 'FACTURADA');
+            && strtoupper((string) data_get($row, 'estado_emision', '')) === 'FACTURADA'
+            && $this->hasFiscalInvoiceRecord($row));
         $qrPaidRows = $rows->filter(fn ($row) => $this->isQrPaymentRow($row)
             && strtolower((string) data_get($row, 'estado', '')) === 'emitido'
             && strtolower((string) data_get($row, 'estado_pago', 'pendiente')) === 'pagado');
@@ -911,12 +914,13 @@ class MisVentasController extends Controller
         $qrPendientes = $rows->filter(fn ($row) => $this->isQrPaymentRow($row)
             && strtolower((string) data_get($row, 'estado', '')) === 'pendiente_pago'
             && strtolower((string) data_get($row, 'estado_pago', 'pendiente')) === 'pendiente')->count();
-        $qrNoFacturados = $qrPaidRows->filter(fn ($row) => strtoupper((string) data_get($row, 'estado_emision', '')) !== 'FACTURADA')->count();
+        $qrNoFacturados = $qrPaidRows->filter(fn ($row) => !$this->hasFiscalInvoiceRecord($row))->count();
 
         return [
             'totalVentas' => $rows->filter(fn ($row) => (string) data_get($row, 'estado', '') === 'emitido')->count(),
             'totalBorradores' => $rows->filter(fn ($row) => (string) data_get($row, 'estado', '') === 'borrador')->count(),
-            'facturadas' => $rows->filter(fn ($row) => in_array(strtoupper((string) data_get($row, 'estado_emision', '')), $paidStatuses, true))->count(),
+            'facturadas' => $rows->filter(fn ($row) => strtoupper((string) data_get($row, 'estado_emision', '')) === 'FACTURADA'
+                && $this->hasFiscalInvoiceRecord($row))->count(),
             'efectivoCount' => $effectiveRows->count(),
             'pendientes' => $pendientes,
             'anuladas' => $rows->filter(fn ($row) => strtolower((string) data_get($row, 'estado', '')) === 'anulado'
@@ -931,8 +935,7 @@ class MisVentasController extends Controller
             })->count(),
             'qrPagados' => $qrPaidRows->count(),
             'qrNoFacturados' => $qrNoFacturados,
-            'qrFacturados' => $qrPaidRows->filter(fn ($row) => strtoupper((string) data_get($row, 'estado_emision', '')) === 'FACTURADA'
-            )->count(),
+            'qrFacturados' => $qrPaidRows->filter(fn ($row) => $this->hasFiscalInvoiceRecord($row))->count(),
             'qrPendientes' => $qrPendientes,
             'pendientesOperativas' => $pendientes + $qrPendientes + $qrNoFacturados,
             'montoQr' => round((float) $qrPaidRows
@@ -946,6 +949,64 @@ class MisVentasController extends Controller
             'montoTotal' => round((float) $effectiveRows
                 ->sum(fn ($row) => (float) data_get($row, 'total', 0)), 2),
         ];
+    }
+
+    private function hasFiscalInvoiceRecord(object|array $row): bool
+    {
+        $response = (array) data_get($row, 'respuesta_emision', []);
+        $numeroFactura = trim((string) (
+            data_get($row, 'numero_factura')
+            ?: data_get($row, 'numeroFactura')
+            ?: data_get($row, 'nroFactura')
+            ?: data_get($response, 'factura.nroFactura')
+            ?: data_get($response, 'factura.numeroFactura')
+            ?: data_get($response, 'nroFactura')
+            ?: data_get($response, 'numeroFactura')
+            ?: ''
+        ));
+        $cuf = trim((string) (
+            data_get($row, 'cuf')
+            ?: data_get($response, 'factura.cuf')
+            ?: data_get($response, 'cuf')
+            ?: ''
+        ));
+        $pdfUrl = trim((string) (
+            data_get($row, 'pdf_url')
+            ?: data_get($row, 'pdfUrl')
+            ?: data_get($response, 'factura.pdfUrl')
+            ?: data_get($response, 'factura.pdf_url')
+            ?: ''
+        ));
+        $estadoSufe = strtoupper(trim((string) (
+            data_get($row, 'estado_sufe')
+            ?: data_get($row, 'estadoSufe')
+            ?: data_get($response, 'estadoSufe')
+            ?: ''
+        )));
+
+        return $numeroFactura !== ''
+            || $cuf !== ''
+            || $pdfUrl !== ''
+            || in_array($estadoSufe, ['FACTURADA', 'PROCESADA'], true);
+    }
+
+    private function isUnconsolidatedManualRelease(object|array $row): bool
+    {
+        $mensaje = strtoupper(trim((string) data_get($row, 'mensaje_emision', '')));
+        $qrReference = trim((string) (
+            data_get($row, 'qr_transaction_id')
+            ?: data_get($row, 'codigo_seguimiento')
+            ?: data_get($row, 'respuesta_emision.transaction_id')
+            ?: ''
+        ));
+
+        $marcaNoConsolidada = str_contains($mensaje, 'LIBERACION_MANUAL_FACTURADA')
+            || str_contains($mensaje, 'NO_CONSOLIDADA');
+
+        return $marcaNoConsolidada
+            && $this->isQrPaymentRow($row)
+            && $qrReference === ''
+            && !$this->hasFiscalInvoiceRecord($row);
     }
 
     private function contabilizaEnCaja(object|array $row): bool
@@ -1557,7 +1618,7 @@ class MisVentasController extends Controller
                 return 'qr_pendiente';
             }
 
-            if ($estadoEmision === 'FACTURADA') {
+            if ($estadoEmision === 'FACTURADA' && $this->hasFiscalInvoiceRecord($cart)) {
                 return 'qr_facturado';
             }
 
@@ -1633,16 +1694,17 @@ class MisVentasController extends Controller
 
             $respuesta = (array) data_get($cart, 'respuesta_emision', []);
             $numeroFactura = trim((string) (
-                data_get($respuesta, 'factura.nroFactura')
-                ?? data_get($respuesta, 'factura.numeroFactura')
-                ?? data_get($respuesta, 'consultaSefe.nroFactura')
-                ?? ''
+                data_get($cart, 'numero_factura')
+                ?: data_get($respuesta, 'factura.nroFactura')
+                ?: data_get($respuesta, 'factura.numeroFactura')
+                ?: data_get($respuesta, 'consultaSefe.nroFactura')
+                ?: ''
             ));
             $cuf = trim((string) (
-                data_get($respuesta, 'factura.cuf')
-                ?? data_get($respuesta, 'cuf')
-                ?? data_get($cart, 'cuf')
-                ?? ''
+                data_get($cart, 'cuf')
+                ?: data_get($respuesta, 'factura.cuf')
+                ?: data_get($respuesta, 'cuf')
+                ?: ''
             ));
             $ventaId = (int) data_get($cart, 'id', data_get($cart, 'venta_id', 0));
             $codigoOrdenOriginal = trim((string) data_get($cart, 'codigo_orden', data_get($cart, 'codigoOrden', '')));
