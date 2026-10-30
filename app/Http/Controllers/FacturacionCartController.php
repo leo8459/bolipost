@@ -77,6 +77,7 @@ class FacturacionCartController extends Controller
         $this->authorizeFacturacionAccess($user);
 
         $validated = $request->validate([
+            'cart_id' => ['nullable', 'integer', 'min:1'],
             'modalidad_facturacion' => ['nullable', 'in:con_datos,sin_cliente'],
             'canal_emision' => ['nullable', 'in:factura_electronica,qr'],
             'tipo_documento' => ['nullable', 'string', 'max:20', Rule::in(array_keys(\App\Models\Cliente::tiposDocumentoIdentidad()))],
@@ -94,7 +95,8 @@ class FacturacionCartController extends Controller
             ]);
         }
 
-        $cart = $service->updateDraftBillingData($user, $validated);
+        $cartId = isset($validated['cart_id']) ? (int) $validated['cart_id'] : null;
+        $cart = $service->updateDraftBillingData($user, $validated, $cartId);
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -638,6 +640,7 @@ class FacturacionCartController extends Controller
         };
 
         $billingSnapshot = $request->validate([
+            'cart_id' => ['nullable', 'integer', 'min:1'],
             'modalidad_facturacion' => ['nullable', 'in:con_datos,sin_cliente'],
             'canal_emision' => ['required', 'in:factura_electronica,qr'],
             'tipo_documento' => ['nullable', 'string', 'max:20', Rule::in(array_keys(\App\Models\Cliente::tiposDocumentoIdentidad()))],
@@ -652,13 +655,14 @@ class FacturacionCartController extends Controller
         $autoEmitInvoice = $request->has('auto_emit_invoice')
             ? $request->boolean('auto_emit_invoice')
             : strtolower((string) ($billingSnapshot['canal_emision'] ?? 'factura_electronica')) !== 'qr';
+        $requestedCartId = isset($billingSnapshot['cart_id']) ? (int) $billingSnapshot['cart_id'] : null;
         $mode = $modePolicy->modeFor((string) $billingSnapshot['canal_emision'], $autoEmitInvoice);
         $this->authorizeFacturacionMode($user, $modePolicy, $mode);
 
         $billingSnapshot = array_filter($billingSnapshot, static fn ($value) => $value !== null);
         if ($billingSnapshot !== []) {
             try {
-                $service->updateDraftBillingData($user, $billingSnapshot);
+                $service->updateDraftBillingData($user, $billingSnapshot, $requestedCartId);
                 Log::debug('Snapshot de facturacion sincronizado antes de emitir.', [
                     'user_id' => $user?->id,
                     'canal_emision' => $billingSnapshot['canal_emision'] ?? null,
@@ -687,10 +691,15 @@ class FacturacionCartController extends Controller
 
         $draft = null;
         try {
-            $ctx = $service->getRemoteContextForUser($user);
-            $draft = $ctx['draft'] ?? null;
+            if ($requestedCartId !== null && $requestedCartId > 0) {
+                $draft = $service->fetchVentaById($user, $requestedCartId);
+            } else {
+                $ctx = $service->getRemoteContextForUser($user);
+                $draft = $ctx['draft'] ?? null;
+            }
             Log::debug('Inicio de emision de facturacion.', [
                 'user_id' => $user?->id,
+                'requested_cart_id' => $requestedCartId,
                 'cart_id' => data_get($draft, 'id'),
                 'canal_emision' => data_get($draft, 'canal_emision'),
                 'items_count' => is_countable(data_get($draft, 'items', [])) ? count(data_get($draft, 'items', [])) : 0,

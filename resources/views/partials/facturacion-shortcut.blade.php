@@ -438,6 +438,7 @@
             >
                 @csrf
                 @method('PUT')
+                <input type="hidden" name="cart_id" value="{{ (string) ($activeFacturacionCart?->id ?? '') }}">
                 <input type="hidden" name="modalidad_facturacion" id="facturacionBillingModeInput" value="con_datos">
                 <input type="hidden" name="canal_emision" id="facturacionInvoiceChannelInput" value="{{ $activeInvoiceChannel }}">
                 <input type="hidden" id="facturacionAutoEmitInvoiceInput" value="{{ $activeAutoEmitInvoice }}">
@@ -864,6 +865,7 @@
                                 data-processing-text="La venta fue registrada. Estamos preparando el comprobante para imprimir..."
                             >
                                 @csrf
+                                <input type="hidden" name="cart_id" value="{{ (string) ($activeFacturacionCart?->id ?? '') }}">
                                 <input type="hidden" name="modalidad_facturacion" value="con_datos" data-emit-sync-field="modalidad_facturacion">
                                 <input type="hidden" name="canal_emision" value="{{ $activeInvoiceChannel }}" data-emit-sync-field="canal_emision">
                                 <input type="hidden" name="auto_emit_invoice" value="{{ $activeAutoEmitInvoice }}" data-emit-sync-field="auto_emit_invoice">
@@ -896,6 +898,7 @@
                                 data-processing-text="La venta fue registrada. Estamos preparando el comprobante para imprimir..."
                             >
                                 @csrf
+                                <input type="hidden" name="cart_id" value="{{ (string) ($activeFacturacionCart?->id ?? '') }}">
                                 <input type="hidden" name="modalidad_facturacion" value="con_datos" data-emit-sync-field="modalidad_facturacion">
                                 <input type="hidden" name="canal_emision" value="{{ $activeInvoiceChannel }}" data-emit-sync-field="canal_emision">
                                 <input type="hidden" name="auto_emit_invoice" value="{{ $activeAutoEmitInvoice }}" data-emit-sync-field="auto_emit_invoice">
