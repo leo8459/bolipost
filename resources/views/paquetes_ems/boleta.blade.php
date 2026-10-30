@@ -86,6 +86,22 @@
             line-height: 1;
             text-transform: uppercase;
         }
+        .service-special-callout {
+            margin: 1mm auto 0;
+            padding: 1mm 2mm;
+            border: 1px solid #000;
+            text-align: center;
+            font-size: 15px;
+            font-weight: 800;
+            line-height: 1.1;
+            text-transform: uppercase;
+        }
+        .service-special-callout-label {
+            display: block;
+            margin-bottom: .5mm;
+            font-size: 7px;
+            letter-spacing: .04em;
+        }
         .code {
             font-size: 11px;
             font-weight: 700;
@@ -323,12 +339,6 @@
                 <span class="label">Descripcion</span>
                 <div class="value value-sm">{{ $contenido !== '' ? $contenido : '-' }}</div>
             </div>
-            @if($mostrarServicioEspecial)
-                <div class="section">
-                    <span class="label">SERVICIO ESPECIAL</span>
-                    <div class="value">{{ $servicioEspecial }}</div>
-                </div>
-            @endif
         </div>
 
         <div class="divider"></div>
@@ -337,6 +347,12 @@
             <div class="verification-block">
                 <img class="verification-qr" src="data:image/png;base64,{{ $verificationQrB64 }}" alt="QR de verificacion">
                 <span class="verification-label">Verificar guia</span>
+            </div>
+        @endif
+        @if($mostrarServicioEspecial)
+            <div class="service-special-callout">
+                <span class="service-special-callout-label">Servicio especial</span>
+                {{ $servicioEspecial }}
             </div>
         @endif
 

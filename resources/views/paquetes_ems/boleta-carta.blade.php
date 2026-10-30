@@ -65,6 +65,22 @@
         .header-verification { display: inline-block; margin-top: 3px; text-align: center; }
         .verification-qr { width: 42px; height: 42px; }
         .verification-label { display: block; margin-top: 2px; font-size: 6px; font-weight: 800; text-transform: uppercase; }
+        .service-special-callout {
+            margin-top: 4px;
+            padding: 4px 8px;
+            border: 2px solid #000;
+            font-size: 16px;
+            font-weight: 900;
+            line-height: 1.1;
+            text-align: center;
+            text-transform: uppercase;
+        }
+        .service-special-callout-label {
+            display: block;
+            margin-bottom: 2px;
+            font-size: 9px;
+            letter-spacing: .04em;
+        }
         .code {
             font-size: 18px;
             font-weight: 800;
@@ -265,6 +281,12 @@
                         <span class="verification-label">Verificar guia</span>
                     </div>
                 @endif
+                @if($mostrarServicioEspecial)
+                    <div class="service-special-callout">
+                        <span class="service-special-callout-label">Servicio especial</span>
+                        {{ $servicioEspecial }}
+                    </div>
+                @endif
                 <div class="subtitle">Comprobante de admision postal</div>
                 @if($servicio !== '')
                     <div class="badge">{{ $servicio }}</div>
@@ -316,9 +338,6 @@
             <div class="grid">
                 <div class="col">
                     <div class="row"><div class="label">Contenido</div><div class="value">{{ $contenido ?: '-' }}</div></div>
-                    @if($mostrarServicioEspecial)
-                        <div class="row"><div class="label">SERVICIO ESPECIAL</div><div class="value">{{ $servicioEspecial }}</div></div>
-                    @endif
                     <div class="row"><div class="label">Usuario</div><div class="value">{{ $usuario ?: '-' }}</div></div>
                 </div>
                 <div class="col">
