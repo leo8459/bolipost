@@ -421,6 +421,12 @@ $config = [
                             'icon' => 'fas fa-user',
                         ],
                         [
+                            'text' => 'Clientes DELIVERY EXPRESS',
+                            'url' => 'clientes-admin',
+                            'icon' => 'fas fa-address-book',
+                            'active' => ['clientes-admin*'],
+                        ],
+                        [
                             'text' => 'Roles',
                             'url' => 'roles',
                             'icon' => 'fas fa-users-cog',
@@ -448,6 +454,13 @@ $config = [
                     'text' => 'APIS',
                     'url' => '/configuracion/apis',
                     'icon' => 'fas fa-key',
+                ],
+                [
+                    'text' => 'Registros de APIs',
+                    'url' => 'administrador/registros-apis',
+                    'icon' => 'fas fa-book',
+                    'can' => 'admin-only-menu',
+                    'active' => ['administrador/registros-apis*'],
                 ],
                 [
                     'text' => 'Cargado de ventanas',

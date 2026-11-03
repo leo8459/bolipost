@@ -57,6 +57,21 @@ class ClienteAuthController extends Controller
     {
         Auth::guard('cliente')->logout();
 
+        $administratorId = (int) $request->session()->get('impersonator_cliente_admin_id', 0);
+        $administrator = Auth::guard('web')->user();
+        if (
+            $administratorId > 0
+            && (int) $administrator?->id === $administratorId
+            && $administrator?->isSuperAdmin()
+        ) {
+            $request->session()->forget('impersonator_cliente_admin_id');
+            $request->session()->regenerate();
+
+            return redirect()
+                ->route('clientes-admin.index')
+                ->with('success', 'Volviste a tu cuenta de administrador.');
+        }
+
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 

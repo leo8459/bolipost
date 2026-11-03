@@ -1,6 +1,6 @@
 @extends('adminlte::page')
 
-@section('title', 'Clientes')
+@section('title', 'Clientes DELIVERY EXPRESS')
 
 @section('content')
     <div class="container-fluid">
@@ -8,12 +8,13 @@
             <div class="col-sm-12">
                 <div class="card">
                     <div class="card-header">
-                        <span>Clientes del portal</span>
+                        <span>Clientes DELIVERY EXPRESS</span>
+                        <span class="badge badge-primary float-right">{{ number_format($clientes->total(), 0, ',', '.') }} clientes</span>
                     </div>
 
                     <div class="card-body">
                         <div class="alert alert-info">
-                            Esta vista te permite revisar las cuentas del portal cliente sin mezclarlo con los usuarios internos.
+                            Aquí se muestran todas las cuentas registradas en el portal de Delivery Express. Usa la paginación para recorrer la lista completa.
                         </div>
 
                         <div class="table-responsive">
@@ -27,6 +28,7 @@
                                         <th>Rol Legacy</th>
                                         <th>Roles Cliente</th>
                                         <th>Proveedor</th>
+                                        <th>Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -48,6 +50,16 @@
                                                 @endif
                                             </td>
                                             <td>{{ strtoupper((string) $cliente->provider) }}</td>
+                                            <td class="text-nowrap">
+                                                @if (auth('web')->user()?->isSuperAdmin() && !session()->has('impersonator_id') && !session()->has('impersonator_cliente_admin_id'))
+                                                    <form method="POST" action="{{ route('clientes-admin.impersonate', $cliente) }}" class="d-inline">
+                                                        @csrf
+                                                        <button type="submit" class="btn btn-sm btn-success" title="Ingresar con este cliente">
+                                                            <i class="fas fa-sign-in-alt mr-1"></i>Ingresar
+                                                        </button>
+                                                    </form>
+                                                @endif
+                                            </td>
                                         </tr>
                                     @endforeach
                                 </tbody>

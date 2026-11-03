@@ -10,6 +10,7 @@ use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
+use App\Http\Controllers\ClientManagementController;
 use App\Http\Controllers\ClienteSolicitudController;
 use Illuminate\Support\Facades\Route;
 
@@ -25,6 +26,8 @@ Route::middleware(['guest.cliente', 'throttle:10,1'])->group(function () {
 Route::middleware(['cliente.guard', 'auth:cliente', 'cliente.acl.sync', 'route.permission.cliente'])->group(function () {
     Route::get('clientes/dashboard', [ClienteAuthController::class, 'dashboard'])
         ->name('clientes.dashboard');
+    Route::post('clientes/admin/impersonation/stop', [ClientManagementController::class, 'stopImpersonating'])
+        ->name('clientes-admin.impersonate.stop');
     Route::post('clientes/logout', [ClienteAuthController::class, 'logout'])->name('clientes.logout');
     Route::get('clientes/completar-perfil', [ClienteAuthController::class, 'showCompleteProfile'])->name('clientes.profile.complete');
     Route::post('clientes/completar-perfil', [ClienteAuthController::class, 'completeProfile'])->name('clientes.profile.complete.store');

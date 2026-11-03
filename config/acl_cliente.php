@@ -12,6 +12,7 @@ return [
         'clientes.register',
         'clientes.register.store',
         'clientes.logout',
+        'clientes-admin.impersonate.stop',
         'clientes.profile.complete',
         'clientes.profile.complete.store',
         'auth.google.redirect',

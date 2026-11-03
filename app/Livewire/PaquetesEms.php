@@ -32,6 +32,7 @@ use App\Support\TiktokerTariffPriceCalculator;
 use App\Support\TiktokerEvent;
 use App\Support\StoredImage;
 use App\Services\FacturacionCartService;
+use App\Services\PaqueteEmsFacturacionService;
 use App\Services\PackageCancellationService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
@@ -180,6 +181,7 @@ class PaquetesEms extends Component
     public $cn38BagCount = 1;
     public $cn38BagWeights = [''];
     public $generadosHoyCount = 0;
+    public array $facturacionAlmacenBloqueados = [];
     public $entregaRecibidoPor = '';
     public $entregaDescripcion = '';
     public $entregaImagen = null;
@@ -5771,9 +5773,9 @@ class PaquetesEms extends Component
             ->when($soloHoy, function ($query) {
                 $query->whereDate('created_at', now()->toDateString());
             })
-            ->with(['user:id,name'])
+            ->with(['user:id,name', 'formulario'])
             ->orderBy('id')
-            ->get(['id', 'codigo', 'user_id', 'created_at']);
+            ->get(['id', 'codigo', 'user_id', 'created_at', 'tipo_correspondencia', 'servicio_especial']);
 
         if ($paquetes->isEmpty() && $paquetesInt->isEmpty()) {
             session()->flash(
@@ -5788,6 +5790,16 @@ class PaquetesEms extends Component
         $actorUserId = (int) optional(Auth::user())->id;
         if ($actorUserId <= 0) {
             session()->flash('error', 'Usuario no autenticado.');
+            return;
+        }
+
+        $paquetesParaFacturacion = $paquetes->map(fn ($paquete) => [
+            'codigo' => $paquete->codigo,
+            'tipo_correspondencia' => $paquete->formulario?->tipo_correspondencia ?: $paquete->tipo_correspondencia,
+            'servicio_especial' => $paquete->formulario?->servicio_especial ?: $paquete->servicio_especial,
+        ])->concat($paquetesInt->map(fn ($paquete) => ['codigo' => $paquete->codigo]))->all();
+
+        if (! $this->validarFacturacionAlmacen($paquetesParaFacturacion)) {
             return;
         }
 
@@ -5849,6 +5861,34 @@ class PaquetesEms extends Component
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
         }, 'reporte-envio-ems-' . $generatedAt->format('Ymd-His') . '.pdf');
+    }
+
+    protected function validarFacturacionAlmacen(array $paquetes): bool
+    {
+        $this->facturacionAlmacenBloqueados = [];
+        $requierenFactura = array_values(array_filter($paquetes, function (array $paquete): bool {
+            $tipo = mb_strtoupper(trim((string) ($paquete['tipo_correspondencia'] ?? '')), 'UTF-8');
+            $servicio = mb_strtoupper(trim((string) ($paquete['servicio_especial'] ?? '')), 'UTF-8');
+
+            return $tipo !== 'OFICIAL' && $servicio !== 'POR COBRAR';
+        }));
+        // Reconsultar al enviar: una factura puede haberse registrado despues
+        // de cargar la tabla. La decision nunca depende de datos del navegador.
+        $statuses = app(PaqueteEmsFacturacionService::class)->statuses($requierenFactura, refresh: true);
+        foreach ($requierenFactura as $paquete) {
+            $codigo = mb_strtoupper(trim((string) ($paquete['codigo'] ?? '')), 'UTF-8');
+            $estado = $statuses[$codigo] ?? 'sin_verificar';
+            if ($estado !== 'facturada') {
+                $this->facturacionAlmacenBloqueados[] = ['codigo' => $codigo, 'estado' => $estado];
+            }
+        }
+
+        if ($this->facturacionAlmacenBloqueados !== []) {
+            $this->dispatch('openFacturacionAlmacenModal');
+            return false;
+        }
+
+        return true;
     }
 
     public function delete($id)
@@ -6125,6 +6165,7 @@ class PaquetesEms extends Component
     {
         $contratosAlmacen = null;
         $almacenRows = null;
+        $emsInvoiceStatuses = [];
         $selectedPreviewRows = collect();
         $cn38DispatchSummaryRows = collect();
         $ventanillaResumenRows = collect();
@@ -6163,6 +6204,7 @@ class PaquetesEms extends Component
                 'canEmsAlmacenAdmisiones' => false,
                 'canContratoAlmacenPrint' => false,
                 'paquetesIntAdmision' => $paquetesIntAdmision,
+                'emsInvoiceStatuses' => $emsInvoiceStatuses,
             ]);
         }
 
@@ -6189,6 +6231,20 @@ class PaquetesEms extends Component
                 ->simplePaginate($this->normalizePerPage($this->perPagePaquetes));
 
             if ($this->isAdmision) {
+                $emsInvoiceStatuses = app(PaqueteEmsFacturacionService::class)->statuses(
+                    $paquetes->getCollection()->map(fn (PaqueteEms $paquete): array => [
+                        'id' => $paquete->id,
+                        'codigo' => $paquete->codigo,
+                        'user_id' => $paquete->user_id,
+                        'origen' => $paquete->origen,
+                        'tipo_correspondencia' => $paquete->formulario?->tipo_correspondencia ?: $paquete->tipo_correspondencia,
+                        'servicio_especial' => $paquete->formulario?->servicio_especial ?: $paquete->servicio_especial,
+                        'servicio_nombre' => $paquete->servicio_nombre,
+                        'precio' => $paquete->precio,
+                        'created_at' => $paquete->created_at,
+                    ])->all()
+                );
+
                 $paquetesIntAdmision = PaqueteInt::query()
                     ->whereRaw('trim(upper(origen)) = trim(upper(?))', [$this->resolveLoggedUserOrigin()])
                     ->when(trim((string) $this->searchQuery) !== '', function ($query) {
@@ -6232,6 +6288,7 @@ class PaquetesEms extends Component
             'canEmsAlmacenAdmisiones' => $this->userCan(self::ALMACEN_ADMISIONES_ROUTE_PERMISSION),
             'canContratoAlmacenPrint' => $this->userCan('feature.paquetes-contrato.almacen.print'),
             'paquetesIntAdmision' => $paquetesIntAdmision,
+            'emsInvoiceStatuses' => $emsInvoiceStatuses,
         ]);
     }
 

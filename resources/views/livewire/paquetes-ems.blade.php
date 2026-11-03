@@ -525,6 +525,72 @@
             display:inline-block;
         }
 
+        .ems-invoice-legend{
+            display:flex;
+            align-items:center;
+            flex-wrap:wrap;
+            gap:8px 18px;
+            margin:0 0 10px;
+            color:#526174;
+            font-size:.82rem;
+        }
+        #facturacionAlmacenModal .modal-dialog{max-width:590px;}
+        #facturacionAlmacenModal .modal-content{border:0;border-top:6px solid #fecc36;border-radius:20px;overflow:hidden;box-shadow:0 24px 80px rgba(15,35,66,.32);}
+        #facturacionAlmacenModal .modal-header{background:#173e75;color:#fff;border:0;padding:20px 24px;align-items:center;gap:12px;}
+        #facturacionAlmacenModal .modal-title{font-size:1.15rem;font-weight:800;color:#fff;}
+        #facturacionAlmacenModal .invoice-warning-kicker{display:block;color:#fecc36;font-size:.68rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin-bottom:5px;}
+        #facturacionAlmacenModal .close{float:none;margin:0;padding:0;width:34px;height:34px;flex-shrink:0;border-radius:50%;background:rgba(255,255,255,.12);color:#fff;opacity:1;text-shadow:none;}
+        #facturacionAlmacenModal .close:hover{background:rgba(255,255,255,.24);}
+        #facturacionAlmacenModal .modal-body{padding:26px 24px 20px;background:#fff;}
+        #facturacionAlmacenModal .invoice-warning-message{display:flex;align-items:flex-start;gap:16px;padding:20px;background:#fff8e5;border:1px solid #f3d98c;border-radius:14px;}
+        #facturacionAlmacenModal .invoice-warning-icon{display:flex;align-items:center;justify-content:center;width:50px;height:50px;flex-shrink:0;border-radius:14px;background:#fecc36;color:#593e05;font-size:23px;}
+        #facturacionAlmacenModal .invoice-warning-message h6{margin:0 0 8px;font-size:1.25rem;line-height:1.3;font-weight:800;color:#493707;}
+        #facturacionAlmacenModal .invoice-warning-message p{margin:0;color:#665322;font-size:.9rem;line-height:1.6;}
+        #facturacionAlmacenModal .invoice-warning-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:24px 0 12px;color:#213c5f;font-size:.85rem;font-weight:800;}
+        #facturacionAlmacenModal .invoice-warning-count{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;padding:0 8px;border-radius:8px;background:#edf2f9;color:#20539a;}
+        #facturacionAlmacenModal .invoice-warning-list{list-style:none;margin:0;padding:0;max-height:240px;overflow-y:auto;}
+        #facturacionAlmacenModal .invoice-warning-item{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid #e5eaf1;border-left:4px solid #df9631;border-radius:10px;background:#fafbfd;}
+        #facturacionAlmacenModal .invoice-warning-item + .invoice-warning-item{margin-top:8px;}
+        #facturacionAlmacenModal .invoice-warning-item > i{color:#8b9ab0;font-size:20px;flex-shrink:0;}
+        #facturacionAlmacenModal .invoice-warning-item > div{min-width:0;}
+        #facturacionAlmacenModal .invoice-warning-code{display:block;color:#173e75;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.98rem;font-weight:800;overflow-wrap:anywhere;}
+        #facturacionAlmacenModal .invoice-warning-status{display:inline-block;margin-top:5px;padding:3px 8px;border-radius:5px;background:#fff0d9;color:#89520b;font-size:.75rem;font-weight:700;}
+        #facturacionAlmacenModal .invoice-warning-status--unknown{background:#eaf0f8;color:#425b7d;}
+        #facturacionAlmacenModal .invoice-warning-official{display:flex;align-items:center;gap:9px;margin:18px 0 0;color:#526780;font-size:.8rem;line-height:1.5;}
+        #facturacionAlmacenModal .invoice-warning-official i{color:#268365;}
+        #facturacionAlmacenModal .modal-footer{display:block;background:#f6f8fc;border-top:1px solid #e7edf5;padding:18px 24px;}
+        #facturacionAlmacenModal .invoice-warning-button{display:block;width:100%;margin:0;padding:13px 18px;border:0;border-radius:10px;background:#fecc36;color:#173e75;font-size:.95rem;font-weight:800;box-shadow:0 4px 10px rgba(177,133,7,.16);}
+        #facturacionAlmacenModal .invoice-warning-button:hover{background:#f6bf1c;}
+        #facturacionAlmacenModal button:focus-visible{outline:3px solid #4785d6;outline-offset:3px;}
+        #facturacionAlmacenModal .invoice-warning-footer-note{display:block;margin-top:10px;text-align:center;color:#68788c;font-size:.75rem;}
+        @media(max-width:575.98px){
+            #facturacionAlmacenModal .modal-dialog{margin:.75rem;}
+            #facturacionAlmacenModal .modal-header,#facturacionAlmacenModal .modal-body,#facturacionAlmacenModal .modal-footer{padding:18px;}
+            #facturacionAlmacenModal .invoice-warning-message{padding:15px;gap:12px;}
+            #facturacionAlmacenModal .invoice-warning-icon{width:38px;height:38px;font-size:19px;border-radius:10px;}
+            #facturacionAlmacenModal .invoice-warning-message h6{font-size:1.1rem;}
+        }
+        .ems-invoice-legend-item{display:inline-flex;align-items:center;gap:6px;}
+        .ems-invoice-legend-dot{width:10px;height:10px;border-radius:50%;display:inline-block;}
+        .ems-invoice-legend-dot--facturada{background:#2e8b57;}
+        .ems-invoice-legend-dot--no-facturada{background:#c0392b;}
+        .ems-invoice-legend-dot--sin-verificar{background:#9aa4b2;}
+        .ems-invoice-legend-dot--oficial{background:#64748b;}
+        .ems-invoice-legend-dot--por-cobrar{background:#ea780e;}
+        .ems-facturacion-row--por-cobrar > td{background-color:#fff4e7 !important;}
+        .ems-invoice-code--por-cobrar{background:#ffdfba;color:#914308;border:1px solid #f5b46d;}
+        .ems-invoice-status--por-cobrar{background:#ffdfba;color:#914308;}
+        .ems-facturacion-row--facturada > td{background-color:#e7f4ea !important;}
+        .ems-facturacion-row--no-facturada > td{background-color:#fdebea !important;}
+        .ems-invoice-code--facturada{background:#d2efda;color:#176b36;border:1px solid #aad9b6;}
+        .ems-invoice-code--no-facturada{background:#f8d7d5;color:#a12b22;border:1px solid #e9b3af;}
+        .ems-invoice-code--sin-verificar{background:#edf0f3;color:#596579;border:1px solid #d5dbe2;}
+        .ems-invoice-code--oficial{background:#edf0f3;color:#475467;border:1px solid #d5dbe2;}
+        .ems-invoice-status--facturada{background:#e7f4ea;color:#176b36;}
+        .ems-invoice-status--no-facturada{background:#fdebea;color:#a12b22;}
+        .ems-invoice-status--sin-verificar{background:#edf0f3;color:#596579;}
+        .ems-invoice-status--oficial{background:#edf0f3;color:#475467;}
+
         .badge-estado{
             background: rgba(185,156,70,.15);
             color: var(--dorado);
@@ -1003,6 +1069,10 @@
             border-radius: 12px;
             background:#fff;
         }
+        .table-scroll-wrap--admision{
+            max-height:none;
+            overflow:visible;
+        }
         .table-scroll-wrap .table{
             margin-bottom:0;
         }
@@ -1065,7 +1135,7 @@
         .table-devolucion-ems td:nth-child(2) .pill-id{white-space:nowrap;}
         .table-ems-admision{
             width:100%;
-            min-width:1407px;
+            min-width:1406px;
             table-layout:fixed;
             border-collapse:separate;
             border-spacing:0;
@@ -1088,24 +1158,24 @@
             color:#344054;
         }
         .table-ems-admision.table-hover tbody tr:hover td{background:#f0f5ff;}
-        .table-ems-admision th:nth-child(1){width:42px;}
-        .table-ems-admision th:nth-child(2){width:150px;}
-        .table-ems-admision th:nth-child(3){width:95px;}
-        .table-ems-admision th:nth-child(4){width:130px;}
-        .table-ems-admision th:nth-child(5){width:215px;}
-        .table-ems-admision th:nth-child(6){width:290px;}
-        .table-ems-admision th:nth-child(7){width:72px;}
-        .table-ems-admision th:nth-child(8){width:145px;}
-        .table-ems-admision th:nth-child(9){width:140px;}
-        .table-ems-admision th:nth-child(10){width:128px;}
-        .table-ems-admision td:nth-child(2),
-        .table-ems-admision td:nth-child(3),
-        .table-ems-admision td:nth-child(4),
-        .table-ems-admision td:nth-child(7),
-        .table-ems-admision td:nth-child(9),
-        .table-ems-admision td:nth-child(10){white-space:nowrap;}
-        .table-ems-admision .pill-id,
-        .table-ems-admision .ems-admision-type{white-space:nowrap;}
+        .table-ems-admision .ems-admision-check-col{width:38px;min-width:38px;}
+        .table-ems-admision .ems-admision-code-cell{width:190px;min-width:190px;white-space:normal;vertical-align:top;}
+        .table-ems-admision .ems-admision-type-col{width:82px;min-width:82px;}
+        .table-ems-admision .ems-admision-service-cell{width:158px;min-width:158px;white-space:normal;}
+        .table-ems-admision .ems-admision-route-cell{width:218px;min-width:218px;}
+        .table-ems-admision .ems-admision-address{width:265px;min-width:265px;overflow-wrap:anywhere;}
+        .table-ems-admision .ems-admision-weight-col{width:65px;min-width:65px;}
+        .table-ems-admision .ems-admision-recipient-col{width:140px;min-width:140px;}
+        .table-ems-admision .ems-admision-created-col{width:132px;min-width:132px;}
+        .table-ems-admision .action-cell{width:118px;min-width:118px;}
+        .table-ems-admision .ems-admision-type{max-width:100%;white-space:normal;overflow-wrap:anywhere;}
+        .table-ems-admision .ems-admision-code-line{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0;}
+        .table-ems-admision .ems-admision-code-value{display:inline-flex;max-width:100%;white-space:normal;overflow-wrap:anywhere;word-break:break-word;font-size:12px;line-height:1.25;}
+        .table-ems-admision .ems-admision-code-status{display:inline-flex;align-items:center;gap:4px;max-width:100%;padding:3px 7px;border-radius:999px;white-space:normal;font-size:10px;line-height:1.25;font-weight:800;}
+        .table-ems-admision .ems-admision-service-cell strong{display:block;white-space:normal;overflow-wrap:anywhere;line-height:1.35;}
+        .table-ems-admision .ems-admision-route{min-width:0;grid-template-columns:minmax(0,1fr) 18px minmax(0,1fr);gap:6px;}
+        .table-ems-admision .ems-admision-route > div{min-width:0;}
+        .table-ems-admision .ems-admision-route strong{overflow-wrap:anywhere;word-break:normal;}
         .table-ems-admision .ems-admision-type{
             display:inline-block;
             padding:5px 9px;
@@ -1141,7 +1211,7 @@
             line-height:1.45;
         }
         .table-ems-admision .ems-admision-address div + span{margin-top:8px;}
-        .table-ems-admision .action-cell{width:128px;min-width:128px;}
+        .table-ems-admision .action-cell{width:118px;min-width:118px;}
         @media (max-width: 767.98px){
             .table-scroll-wrap--admision{
                 max-height:none;
@@ -1188,19 +1258,19 @@
                 letter-spacing:.04em;
                 text-transform:uppercase;
             }
-            .table-ems-admision tbody td:first-child{
+            .table-ems-admision tbody td.ems-admision-check-col{
                 grid-column:1 / -1;
                 display:flex;
                 align-items:center;
                 justify-content:space-between;
                 padding-bottom:0;
             }
-            .table-ems-admision tbody td:nth-child(2),
-            .table-ems-admision tbody td:nth-child(4),
-            .table-ems-admision tbody td:nth-child(5),
-            .table-ems-admision tbody td:nth-child(6),
-            .table-ems-admision tbody td:nth-child(9),
-            .table-ems-admision tbody td:nth-child(10),
+            .table-ems-admision tbody td.ems-admision-code-cell,
+            .table-ems-admision tbody td.ems-admision-service-cell,
+            .table-ems-admision tbody td.ems-admision-route-cell,
+            .table-ems-admision tbody td.ems-admision-address,
+            .table-ems-admision tbody td.ems-admision-created-col,
+            .table-ems-admision tbody td.action-cell,
             .table-ems-admision tbody td[colspan]{grid-column:1 / -1;}
             .table-ems-admision .action-cell{width:auto;min-width:0;border-top:1px solid #edf0f4;}
             .table-ems-admision .action-stack{flex-direction:row;justify-content:flex-start;flex-wrap:wrap;gap:8px;}
@@ -3337,6 +3407,16 @@
                     </div>
                 @endif
 
+                @if ($this->isAdmision && $paquetes->count() > 0)
+                    <div class="ems-invoice-legend" aria-label="Estado de facturacion">
+                        <span class="ems-invoice-legend-item"><i class="ems-invoice-legend-dot ems-invoice-legend-dot--facturada"></i>Facturado</span>
+                        <span class="ems-invoice-legend-item"><i class="ems-invoice-legend-dot ems-invoice-legend-dot--no-facturada"></i>No facturado</span>
+                        <span class="ems-invoice-legend-item"><i class="ems-invoice-legend-dot ems-invoice-legend-dot--sin-verificar"></i>Sin verificar por la API</span>
+                        <span class="ems-invoice-legend-item"><i class="ems-invoice-legend-dot ems-invoice-legend-dot--oficial"></i>Oficial · no requiere factura</span>
+                        <span class="ems-invoice-legend-item"><i class="ems-invoice-legend-dot ems-invoice-legend-dot--por-cobrar"></i>Por cobrar · pago en destino</span>
+                    </div>
+                @endif
+
                 <div class="table-scroll-wrap {{ $this->isDevolucionEms ? 'table-scroll-wrap--devolucion' : ($this->isAlmacenEms ? 'table-scroll-wrap--almacen' : ($this->isAdmision ? 'table-scroll-wrap--admision' : '')) }}">
                     <div class="table-responsive">
                     <table class="table table-hover align-middle {{ $this->isDevolucionEms ? 'table-devolucion-ems' : ($this->isAlmacenEms ? 'table-ems-almacen' : ($this->isAdmision ? 'table-ems-admision' : '')) }}">
@@ -3393,15 +3473,17 @@
                             @else
                                 <tr>
                                     @if ($this->isAdmision)
-                                        <th></th>
-                                        <th>Codigo</th>
-                                        <th>Tipo</th>
-                                        <th>Servicio</th>
-                                        <th>Ruta</th>
-                                        <th>Direcciones</th>
-                                        <th>Peso</th>
-                                        <th>Destinatario</th>
-                                        <th>Creado</th>
+                                        @if ($this->canSelect)
+                                            <th class="ems-admision-check-col"></th>
+                                        @endif
+                                        <th class="ems-admision-code-cell">Codigo</th>
+                                        <th class="ems-admision-type-col">Tipo</th>
+                                        <th class="ems-admision-service-cell">Servicio</th>
+                                        <th class="ems-admision-route-cell">Ruta</th>
+                                        <th class="ems-admision-address">Direcciones</th>
+                                        <th class="ems-admision-weight-col">Peso</th>
+                                        <th class="ems-admision-recipient-col">Destinatario</th>
+                                        <th class="ems-admision-created-col">Creado</th>
                                     @else
                                         @if ($this->canSelect)
                                             <th></th>
@@ -3627,7 +3709,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="{{ ($this->isAlmacenEms || $this->isDevolucionEms) ? 9 : (($this->isTransitoEms || $this->isVentanillaEms) ? 18 : 17) }}" class="text-center py-5">
+                                        <td colspan="{{ $this->isAdmision ? ($this->canSelect ? 10 : 9) : (($this->isAlmacenEms || $this->isDevolucionEms) ? 9 : (($this->isTransitoEms || $this->isVentanillaEms) ? 18 : 17)) }}" class="text-center py-5">
                                             <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                             <div class="muted">Prueba con otro texto de busqueda.</div>
                                         </td>
@@ -3641,15 +3723,38 @@
                                 @forelse ($paquetes as $paquete)
                                     @php
                                         $formulario = $paquete->formulario;
+                                        $facturacionKey = mb_strtoupper(trim((string) $paquete->codigo));
+                                        $facturacionEstado = $emsInvoiceStatuses[$facturacionKey] ?? 'sin_verificar';
+                                        $facturacionEstadoClase = str_replace('_', '-', $facturacionEstado);
                                     @endphp
-                                    <tr>
+                                    <tr wire:key="admision-ems-row-{{ $paquete->id }}" class="ems-facturacion-row--{{ $facturacionEstadoClase }}">
                                         @if ($this->canSelect)
-                                            <td data-label="Seleccionar">
+                                            <td class="ems-admision-check-col" data-label="Seleccionar">
                                                 <input type="checkbox" value="{{ $paquete->id }}" wire:model="selectedPaquetes" wire:key="check-admision-ems-{{ $paquete->id }}">
                                             </td>
                                         @endif
-                                        <td data-label="Codigo"><span class="pill-id">{{ $paquete->codigo }}</span></td>
-                                        <td data-label="Tipo">
+                                        <td class="ems-admision-code-cell" data-label="Codigo">
+                                            <div class="ems-admision-code-line">
+                                                <span class="pill-id ems-admision-code-value ems-invoice-code--{{ $facturacionEstadoClase }}">{{ $paquete->codigo }}</span>
+                                                <small class="ems-admision-code-status ems-invoice-status--{{ $facturacionEstadoClase }}">
+                                                    @if ($facturacionEstado === 'facturada')
+                                                        <i class="fas fa-check-circle" aria-hidden="true"></i>Facturado
+                                                    @elseif ($facturacionEstado === 'no_facturada')
+                                                        <i class="fas fa-times-circle" aria-hidden="true"></i>No facturado
+                                                    @elseif ($facturacionEstado === 'oficial')
+                                                        <i class="fas fa-file-signature" aria-hidden="true"></i>Oficial · no requiere factura
+                                                    @elseif ($facturacionEstado === 'por_cobrar')
+                                                        <i class="fas fa-coins" aria-hidden="true"></i>Por cobrar
+                                                    @else
+                                                        <i class="fas fa-question-circle" aria-hidden="true"></i>Sin verificar
+                                                    @endif
+                                                </small>
+                                                @if ($facturacionEstado === 'por_cobrar')
+                                                    <small style="color:#914308;">Pago en destino</small>
+                                                @endif
+                                            </div>
+                                        </td>
+                                        <td class="ems-admision-type-col" data-label="Tipo">
                                             @if ($this->isAdmision)
                                                 <span class="ems-admision-type">{{ $formulario->tipo_correspondencia ?? $paquete->tipo_correspondencia ?? '-' }}</span>
                                             @else
@@ -3657,14 +3762,14 @@
                                             @endif
                                         </td>
                                         @if ($this->isAdmision)
-                                            <td data-label="Servicio">
+                                            <td class="ems-admision-service-cell" data-label="Servicio">
                                                 <strong>{{ $paquete->servicio_nombre ?: '-' }}</strong>
                                                 @php $servicioEspecialAdmision = $formulario->servicio_especial ?? $paquete->servicio_especial; @endphp
                                                 @if (!empty($servicioEspecialAdmision) && $servicioEspecialAdmision !== '-')
                                                     <small class="d-block text-muted">{{ $servicioEspecialAdmision }}</small>
                                                 @endif
                                             </td>
-                                            <td data-label="Ruta">
+                                            <td class="ems-admision-route-cell" data-label="Ruta">
                                                 <div class="ems-admision-route">
                                                     <div><span>Origen</span><strong>{{ $paquete->origen ?: '-' }}</strong></div>
                                                     <i class="fas fa-arrow-right text-muted" aria-hidden="true"></i>
@@ -3677,9 +3782,9 @@
                                                 <span>Destinatario</span>
                                                 <div>{{ ($formulario->direccion ?? $paquete->direccion) ?: 'Sin dirección registrada' }}</div>
                                             </td>
-                                            <td data-label="Peso">{{ $formulario->peso ?? $paquete->peso ?? '-' }}</td>
-                                            <td data-label="Destinatario">{{ $formulario->nombre_destinatario ?? $paquete->nombre_destinatario ?? '-' }}</td>
-                                            <td data-label="Creado">{{ optional($paquete->created_at)->format('d/m/Y H:i') ?: '-' }}</td>
+                                            <td class="ems-admision-weight-col" data-label="Peso">{{ $formulario->peso ?? $paquete->peso ?? '-' }}</td>
+                                            <td class="ems-admision-recipient-col" data-label="Destinatario">{{ $formulario->nombre_destinatario ?? $paquete->nombre_destinatario ?? '-' }}</td>
+                                            <td class="ems-admision-created-col" data-label="Creado">{{ optional($paquete->created_at)->format('d/m/Y H:i') ?: '-' }}</td>
                                         @else
                                             <td>{{ $formulario->servicio_especial ?? $paquete->servicio_especial }}</td>
                                             <td>{{ $paquete->servicio_nombre ?? '' }}</td>
@@ -3736,13 +3841,13 @@
                                 @foreach ($paquetesIntAdmision as $paqueteInt)
                                     <tr>
                                         @if ($this->canSelect)
-                                            <td data-label="Seleccionar"></td>
+                                            <td class="ems-admision-check-col" data-label="Seleccionar"></td>
                                         @endif
-                                        <td data-label="Codigo"><span class="pill-id">{{ $paqueteInt->codigo }}</span></td>
-                                        <td data-label="Tipo"><span class="ems-admision-type">INT</span></td>
+                                        <td class="ems-admision-code-cell" data-label="Codigo"><span class="pill-id ems-admision-code-value">{{ $paqueteInt->codigo }}</span></td>
+                                        <td class="ems-admision-type-col" data-label="Tipo"><span class="ems-admision-type">INT</span></td>
                                         @if ($this->isAdmision)
-                                            <td data-label="Servicio">{{ optional($paqueteInt->servicio)->nombre_servicio ?? '-' }}</td>
-                                            <td data-label="Ruta">
+                                            <td class="ems-admision-service-cell" data-label="Servicio">{{ optional($paqueteInt->servicio)->nombre_servicio ?? '-' }}</td>
+                                            <td class="ems-admision-route-cell" data-label="Ruta">
                                                 <div class="ems-admision-route">
                                                     <div><span>Origen</span><strong>{{ $paqueteInt->origen ?: '-' }}</strong></div>
                                                     <i class="fas fa-arrow-right text-muted" aria-hidden="true"></i>
@@ -3755,9 +3860,9 @@
                                                 <span>Destinatario</span>
                                                 <div>Sin dirección registrada</div>
                                             </td>
-                                            <td data-label="Peso">{{ \App\Support\BolivianNumber::format((float) $paqueteInt->peso, 3) }}</td>
-                                            <td data-label="Destinatario">-</td>
-                                            <td data-label="Creado">{{ optional($paqueteInt->created_at)->format('d/m/Y H:i') ?: '-' }}</td>
+                                            <td class="ems-admision-weight-col" data-label="Peso">{{ \App\Support\BolivianNumber::format((float) $paqueteInt->peso, 3) }}</td>
+                                            <td class="ems-admision-recipient-col" data-label="Destinatario">-</td>
+                                            <td class="ems-admision-created-col" data-label="Creado">{{ optional($paqueteInt->created_at)->format('d/m/Y H:i') ?: '-' }}</td>
                                         @else
                                             <td>-</td>
                                             <td>{{ optional($paqueteInt->servicio)->nombre_servicio ?? '-' }}</td>
@@ -3784,7 +3889,7 @@
 
                                 @if (!$hayPaquetesAdmision && !$hayPaquetesIntAdmision)
                                     <tr>
-                                        <td colspan="{{ $this->isAdmision ? 10 : ($this->canSelect ? 18 : 17) }}" class="text-center py-5">
+                                        <td colspan="{{ $this->isAdmision ? ($this->canSelect ? 10 : 9) : ($this->canSelect ? 18 : 17) }}" class="text-center py-5">
                                             <div class="fw-bold" style="color:var(--azul);">No hay registros</div>
                                             <div class="muted">Prueba con otro texto de busqueda.</div>
                                         </td>
@@ -4640,6 +4745,49 @@
                     >
                         Cerrar
                     </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="facturacionAlmacenModal" tabindex="-1" aria-labelledby="facturacionAlmacenTitulo" aria-describedby="facturacionAlmacenMensaje" aria-hidden="true" wire:ignore.self>
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <span class="invoice-warning-kicker">Envío a almacén detenido</span>
+                        <h5 class="modal-title" id="facturacionAlmacenTitulo">Facturación pendiente</h5>
+                    </div>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <div class="invoice-warning-message">
+                        <span class="invoice-warning-icon" aria-hidden="true"><i class="fas fa-exclamation-triangle"></i></span>
+                        <div>
+                            <h6>¡Tu envío necesita una factura!</h6>
+                            <p id="facturacionAlmacenMensaje">Factura tu envío por favor antes de mandarlo a <strong>ALMACÉN</strong>.</p>
+                        </div>
+                    </div>
+                    <div class="invoice-warning-summary">
+                        <span>Envíos que necesitan atención</span>
+                        <span class="invoice-warning-count" aria-label="Cantidad de envíos pendientes">{{ count($facturacionAlmacenBloqueados) }}</span>
+                    </div>
+                    <ul class="invoice-warning-list">
+                        @foreach ($facturacionAlmacenBloqueados as $bloqueado)
+                            <li class="invoice-warning-item">
+                                <i class="fas fa-box" aria-hidden="true"></i>
+                                <div>
+                                    <span class="invoice-warning-code">{{ $bloqueado['codigo'] ?: 'Sin código' }}</span>
+                                    <span class="invoice-warning-status {{ $bloqueado['estado'] !== 'no_facturada' ? 'invoice-warning-status--unknown' : '' }}">{{ $bloqueado['estado'] === 'no_facturada' ? 'No facturado' : 'No se pudo verificar la factura; vuelve a intentar.' }}</span>
+                                </div>
+                            </li>
+                        @endforeach
+                    </ul>
+                    <p class="invoice-warning-official"><i class="fas fa-shield-alt" aria-hidden="true"></i><span>Los envíos <strong>OFICIAL</strong> y <strong>POR COBRAR</strong> pueden pasar sin factura. Los envíos por cobrar se pagan en destino.</span></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn invoice-warning-button" data-dismiss="modal"><i class="fas fa-check mr-2" aria-hidden="true"></i>Entendido, revisar mis envíos</button>
+                    <small class="invoice-warning-footer-note">No se envió ningún paquete de esta selección.</small>
                 </div>
             </div>
         </div>
@@ -5659,6 +5807,7 @@
             closeCn38PrintOptionsModal: '#cn38PrintOptionsModal',
             openGeneradosHoyModal: '#generadosHoyModal',
             closeGeneradosHoyModal: '#generadosHoyModal',
+            openFacturacionAlmacenModal: '#facturacionAlmacenModal',
             openRegionalModal: '#regionalModal',
             closeRegionalModal: '#regionalModal',
             openRegionalContratoModal: '#regionalContratoModal',

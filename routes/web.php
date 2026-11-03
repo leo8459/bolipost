@@ -57,6 +57,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QzSecurityController;
 use App\Http\Controllers\RecojoController;
 use App\Http\Controllers\ReportesController;
+use App\Http\Controllers\RegistroApiController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\RoleHasPermissionController;
 use App\Http\Controllers\SacaController;
@@ -377,6 +378,18 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
             ->name('admin.window-load-metrics.index');
         Route::get('/administrador/eventos', [EventosAdministradorController::class, 'index'])
             ->name('eventos-administrador.index');
+        Route::get('/administrador/registros-apis', [RegistroApiController::class, 'index'])
+            ->name('registros-apis.index');
+        Route::get('/administrador/registros-apis/crear', [RegistroApiController::class, 'create'])
+            ->name('registros-apis.create');
+        Route::post('/administrador/registros-apis', [RegistroApiController::class, 'store'])
+            ->name('registros-apis.store');
+        Route::get('/administrador/registros-apis/{registroApi}/editar', [RegistroApiController::class, 'edit'])
+            ->name('registros-apis.edit');
+        Route::put('/administrador/registros-apis/{registroApi}', [RegistroApiController::class, 'update'])
+            ->name('registros-apis.update');
+        Route::delete('/administrador/registros-apis/{registroApi}', [RegistroApiController::class, 'destroy'])
+            ->name('registros-apis.destroy');
         Route::get('/administrador/correo-electronico', [ContractExpirationEmailController::class, 'index'])
             ->name('contract-expiration-email.index');
         Route::put('/administrador/correo-electronico', [ContractExpirationEmailController::class, 'update'])
@@ -467,6 +480,9 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
 
     // Roles de clientes
     Route::get('/clientes-admin', [ClientManagementController::class, 'index'])->name('clientes-admin.index');
+    Route::post('/clientes-admin/{cliente}/ingresar', [ClientManagementController::class, 'impersonate'])
+        ->whereNumber('cliente')
+        ->name('clientes-admin.impersonate');
     Route::get('/cliente-roles', [ClientRoleController::class, 'index'])->name('client-roles.index');
     Route::get('/cliente-roles/create', [ClientRoleController::class, 'create'])->name('client-roles.create');
     Route::post('/cliente-roles', [ClientRoleController::class, 'store'])->name('client-roles.store');
