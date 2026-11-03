@@ -827,7 +827,16 @@ class PaquetesIpsController extends Controller
                 if ($workflow === 'my_delivery') {
                     $this->assertAssignedCourierPackage($current, (string) $link->delivery_agent_cd);
                 }
-                abort_unless(in_array($data['action'], $current['allowed_actions'] ?? [], true), 409, 'La etapa u oficina ya no permite esta acción. Actualice el paquete.');
+                $customsReturnDelivery = $workflow === 'delivery'
+                    && $data['action'] === 'EMI'
+                    && in_array((int) ($current['operational_event_cd'] ?? $current['event_cd']), [31, 34], true)
+                    && (int) ($current['state_cd'] ?? -1) === 1
+                    && in_array('CUSTOMS_RETURN', $current['allowed_actions'] ?? [], true);
+                abort_unless(
+                    in_array($data['action'], $current['allowed_actions'] ?? [], true) || $customsReturnDelivery,
+                    409,
+                    'La etapa u oficina ya no permite esta acción. Actualice el paquete.'
+                );
                 abort_unless($current['event_cd'] === $entry['package']['event_cd'] && $current['event_at'] === $entry['package']['event_at'], 409, 'El paquete cambió desde que se agregó. Quítelo y vuelva a buscarlo.');
                 $payload = [
                     'event' => $data['action'], 'codigo' => $code,
@@ -855,11 +864,11 @@ class PaquetesIpsController extends Controller
                     abort_unless($validReceptacle, 422, 'Seleccione una saca abierta que IPS habilita para este envío.');
                     $payload['domestic_receptacle_pid'] = $receptaclePid;
                 }
-                if ($data['action'] === 'EMI'
-                    && in_array((int) ($current['operational_event_cd'] ?? $current['event_cd']), [31, 34], true)
-                    && (int) ($current['state_cd'] ?? -1) === 1) {
+                if ($customsReturnDelivery) {
                     abort_unless($request->boolean('customs_return_confirmed'), 422, 'Confirme que Aduana devolvió físicamente el envío antes de registrar la entrega.');
                     $payload['customs_return_confirmed'] = true;
+                } else {
+                    abort_unless(! $request->boolean('customs_return_confirmed'), 422, 'La confirmación de devolución de Aduana no corresponde al estado actual del paquete.');
                 }
                 if ($data['action'] === 'EMR') {
                     $receptaclePid = (string) $data['exchange_receptacle_pid'];
@@ -911,7 +920,9 @@ class PaquetesIpsController extends Controller
             $result = ['status' => $payload ? 'uncertain' : 'rejected', 'message' => 'No se pudo confirmar. Reintente la misma acción; se conservará la solicitud original.'];
         }
         $selection[$code]['status'] = $result['status'] ?? 'uncertain';
-        $selection[$code]['message'] = $result['message'] ?? 'Movimiento registrado correctamente en IPS.';
+        $selection[$code]['message'] = ($result['status'] ?? null) === 'succeeded' && ! empty($payload['customs_return_confirmed'])
+            ? 'Devolución de Aduana (38) y entrega al destinatario (37) registradas en IPS.'
+            : ($result['message'] ?? 'Movimiento registrado correctamente en IPS.');
         $selection[$code]['operation_id'] = $result['operation_id'] ?? null;
         $request->session()->put($key, $selection);
         if (($result['status'] ?? null) === 'succeeded') {

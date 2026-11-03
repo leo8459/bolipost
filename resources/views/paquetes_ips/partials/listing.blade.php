@@ -49,7 +49,7 @@
             @if($workflowAction ?? null)
                 <p class="ips-footnote">Cada paquete conserva su propio evento e historial IPS; trabaja en lotes compatibles.</p>
             @elseif($deliveryOnly ?? false)
-                <p class="ips-footnote">Los envíos bajo gestión de Aduana se procesan en Gestión aduanera. Aquí se registran solo movimientos de distribución habilitados por IPS.</p>
+                <p class="ips-footnote">Los envíos en Aduana que habilitan devolución en IPS aparecen aquí. Al confirmar su entrega, SITRA registra primero el retorno de Aduana (38) y luego la entrega al destinatario (37).</p>
             @else
                 <p class="ips-footnote">La etapa se obtiene del historial IPS. Un paquete retornado de aduana aún no equivale a un despacho. La oficina de destino se muestra cuando IPS la registra.</p>
             @endif
