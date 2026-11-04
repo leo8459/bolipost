@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\ClienteAuthController;
+use App\Http\Controllers\Auth\UserAccessFormController;
 use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
@@ -58,6 +59,16 @@ Route::middleware(['cliente.guard', 'auth:cliente', 'cliente.acl.sync', 'route.p
 });
 
 Route::middleware('guest')->group(function () {
+    Route::get('login/formularios/creacion', [UserAccessFormController::class, 'creation'])
+        ->middleware('throttle:20,1')
+        ->name('login.formularios.creacion');
+    Route::get('login/formularios/baja-edicion', [UserAccessFormController::class, 'changes'])
+        ->middleware('throttle:20,1')
+        ->name('login.formularios.cambios');
+    Route::get('login/formularios/cambios-sistema', [UserAccessFormController::class, 'systemChanges'])
+        ->middleware('throttle:20,1')
+        ->name('login.formularios.cambios-sistema');
+
     Route::get('register', [RegisteredUserController::class, 'create'])
         ->name('register');
 
