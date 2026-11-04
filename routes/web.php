@@ -643,7 +643,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
         ->where(['codigo' => '[A-Za-z0-9-]{1,35}', 'note' => '[0-9]+', 'index' => '[0-9]+'])
         ->middleware('can:internacional.section')->name('internacional.sacas.incidents.evidence');
     Route::get('/internacional/{section}', [PaquetesIpsController::class, 'index'])
-        ->where('section', 'almacen|inventario|rezago|todos|recepcion-cambio|despacho-nacional|saca-nacional|recepcion-oficina|cartero|salida-reparto|disponible-retiro|intento-entrega')
+        ->where('section', 'almacen|inventario|rezago|todos|recepcion-cambio|despacho-nacional|saca-nacional|recepcion-oficina|devolucion-aduana|cartero|salida-reparto|disponible-retiro|intento-entrega')
         ->middleware('can:internacional.section')->name('internacional.section');
     Route::get('/internacional/almacen/{warehouseView}', [PaquetesIpsController::class, 'warehouse'])
         ->where('warehouseView', 'por-entregar|asignados-a-mi|entregados|entregados-por-mi')

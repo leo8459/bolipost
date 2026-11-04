@@ -20,6 +20,7 @@ class PaquetesIpsController extends Controller
         'EDN' => 'Despachar paquete por destino',
         'EIB' => 'Agrupar en saca nacional',
         'EMG' => 'Recepción en oficina de entrega',
+        'CUSTOMS_RETURN' => 'Recibir devolución de Aduana',
         'EDH' => 'Disponible para retiro',
         'HANDOVER_AGENT' => 'Asignar al cartero',
         'EDG' => 'Salida a reparto',
@@ -63,7 +64,7 @@ class PaquetesIpsController extends Controller
         'por-entregar' => [
             'stage' => 'warehouse',
             'title' => 'Almacén internacional · Por entregar',
-            'description' => 'Paquetes habilitados para registrar su entrega en tu oficina. Si Aduana los devuelve físicamente, la baja registra ambos eventos en orden.',
+            'description' => 'Paquetes habilitados para distribución en tu oficina. Si el destinatario recibe de inmediato un envío que sigue en Aduana, la entrega registra en orden los eventos 38 y 37.',
         ],
         'asignados-a-mi' => [
             'stage' => 'warehouse',
@@ -112,6 +113,14 @@ class PaquetesIpsController extends Controller
                 ['key' => 'ruta-despacho', 'label' => 'Definir destino del paquete', 'route' => 'internacional.section', 'params' => ['section' => 'despacho-nacional']],
                 ['key' => 'ruta-saca', 'label' => 'Agrupar en saca nacional nueva', 'route' => 'internacional.section', 'params' => ['section' => 'saca-nacional']],
                 ['key' => 'ruta-recepcion', 'label' => 'Recibir paquetes en destino', 'route' => 'internacional.section', 'params' => ['section' => 'recepcion-oficina']],
+            ],
+        ],
+        'aduana' => [
+            'label' => 'Aduana',
+            'start' => ['route' => 'internacional.section', 'params' => ['section' => 'devolucion-aduana']],
+            'description' => 'Registra la devolución física desde Aduana antes de continuar la distribución del paquete.',
+            'tabs' => [
+                ['key' => 'aduana-devolucion', 'label' => 'Recibir devolución de Aduana', 'route' => 'internacional.section', 'params' => ['section' => 'devolucion-aduana']],
             ],
         ],
         'distribucion' => [
@@ -165,6 +174,17 @@ class PaquetesIpsController extends Controller
             'records' => 'La recepción del envío en la oficina de destino.',
             'next' => 'El envío queda disponible para retiro o para el proceso de reparto que corresponda.',
         ],
+        'devolucion-aduana' => [
+            'action' => 'CUSTOMS_RETURN',
+            'stage' => 'all',
+            'event_cd' => [31, 34],
+            'title' => 'Recibir devolución de Aduana en oficina',
+            'description' => 'Este paso solo registra la llegada física a esta oficina después de la devolución de Aduana: evento 38. No registra entrega al destinatario ni agrega el evento 32.',
+            'requires' => 'Aduana ya entregó físicamente el paquete a esta oficina.',
+            'records' => 'La devolución de Aduana y la llegada física a esta oficina (evento 38). El paquete no queda marcado como entregado.',
+            'next' => 'La operación termina con el paquete recibido físicamente en esta oficina. Cualquier movimiento posterior se registra aparte.',
+            'search_only' => true,
+        ],
         'cartero' => [
             'action' => 'HANDOVER_AGENT',
             'stage' => 'pending',
@@ -212,6 +232,7 @@ class PaquetesIpsController extends Controller
         'despacho-nacional' => ['ruta', 'ruta-despacho'],
         'saca-nacional' => ['ruta', 'ruta-saca'],
         'recepcion-oficina' => ['ruta', 'ruta-recepcion'],
+        'devolucion-aduana' => ['aduana', 'aduana-devolucion'],
         'disponible-retiro' => ['distribucion', null],
         'cartero' => ['distribucion', null],
         'salida-reparto' => ['distribucion', null],
@@ -344,6 +365,7 @@ class PaquetesIpsController extends Controller
             'EDN' => 'No hay envíos recibidos o devueltos de Aduana pendientes de despacho en esta oficina.',
             'EIB' => 'No hay envíos despachados pendientes de asociar a una saca en esta oficina.',
             'EMG' => 'No hay envíos de la ruta pendientes de recepción física en esta oficina.',
+            'CUSTOMS_RETURN' => 'Escanea el código exacto de un paquete que Aduana ya devolvió físicamente a esta oficina.',
             default => 'No hay paquetes que coincidan con esta búsqueda y oficina.',
         };
         $workflowKey = $workflowAction ? 'international_'.strtolower($workflowAction) : null;
@@ -379,6 +401,11 @@ class PaquetesIpsController extends Controller
             if ($workflowAction && $search !== '') {
                 try {
                     $package = $ips->package($search, (int) $link->ips_office_cd)['package'];
+                    if ($workflowAction === 'EMG'
+                        && in_array((int) ($package['operational_event_cd'] ?? $package['event_cd'] ?? 0), [31, 34], true)
+                        && (int) ($package['state_cd'] ?? -1) === 1) {
+                        $emptyMessage = 'Este envío sigue en Aduana. Cuando Aduana lo devuelva físicamente, regístralo en Internacional → Aduana → Recibir devolución de Aduana; IPS anotará el evento 38. Después podrá seguir por Almacén internacional.';
+                    }
                     if (in_array($workflowAction, $package['allowed_actions'] ?? [], true)) {
                         $items = collect([$package]);
                         $total = 1;
@@ -481,6 +508,7 @@ class PaquetesIpsController extends Controller
             'EDN' => 'Agrupa solo paquetes compatibles con la misma oficina de destino.',
             'EIB' => 'Añade juntos los paquetes del mismo destino y clase a una saca nacional nueva.',
             'EMG' => 'Selecciona los paquetes que llegaron físicamente a destino y registra su recepción en IPS.',
+            'CUSTOMS_RETURN' => 'Escanea el paquete devuelto físicamente por Aduana. Este paso registra solo el evento 38: llegada a esta oficina, sin marcarlo como entregado.',
             default => null,
         };
         $viewData = compact(
@@ -544,6 +572,11 @@ class PaquetesIpsController extends Controller
                 $this->assertAssignedCourierPackage($package, (string) $link->delivery_agent_cd);
             }
             if ($requiredAction !== null) {
+                if ($requiredAction === 'EMG'
+                    && in_array((int) ($package['operational_event_cd'] ?? $package['event_cd'] ?? 0), [31, 34], true)
+                    && (int) ($package['state_cd'] ?? -1) === 1) {
+                    abort(409, 'Este envío sigue en Aduana. Cuando Aduana lo devuelva físicamente, regístralo en Internacional → Aduana → Recibir devolución de Aduana; IPS anotará el evento 38. Después podrá continuar por Almacén internacional.');
+                }
                 if ($requiredAction === 'EMG'
                     && (int) ($package['operational_event_cd'] ?? $package['event_cd'] ?? 0) === 32
                     && (int) ($package['state_cd'] ?? -1) === 0) {
@@ -807,10 +840,12 @@ class PaquetesIpsController extends Controller
             'customs_office_cd' => ['required_if:action,CUSTOMS_PRESENT', 'nullable', 'integer', 'min:1', 'max:32767'],
             'customs_office_type_cd' => ['required_if:action,CUSTOMS_PRESENT', 'nullable', 'string', 'max:3', 'regex:/^[A-Za-z0-9]+$/'],
         ]);
-        if (in_array($data['action'], ['EMR', 'EMG'], true) && ! $request->boolean('physical_receipt_confirmed')) {
+        if (in_array($data['action'], ['EMR', 'EMG', 'CUSTOMS_RETURN'], true) && ! $request->boolean('physical_receipt_confirmed')) {
             return response()->json([
                 'status' => 'needs_physical_confirmation',
-                'message' => 'Confirme que el envío llegó físicamente a esta oficina antes de registrar la recepción.',
+                'message' => $data['action'] === 'CUSTOMS_RETURN'
+                    ? 'Confirme que Aduana devolvió físicamente el envío a esta oficina.'
+                    : 'Confirme que el envío llegó físicamente a esta oficina antes de registrar la recepción.',
             ], 422);
         }
         $effectiveAt = Carbon::now('America/La_Paz');
@@ -852,7 +887,7 @@ class PaquetesIpsController extends Controller
                     'expected_event_cd' => $current['event_cd'], 'expected_event_at' => $current['event_at'],
                     'idempotency_key' => 'bolipost-'.Str::uuid(),
                 ];
-                if (in_array($data['action'], ['EMR', 'EMG'], true)) {
+                if (in_array($data['action'], ['EMR', 'EMG', 'CUSTOMS_RETURN'], true)) {
                     $payload['physical_receipt_confirmed'] = $request->boolean('physical_receipt_confirmed');
                 }
                 if ($data['action'] === 'EDN') {
@@ -871,6 +906,8 @@ class PaquetesIpsController extends Controller
                 }
                 if ($customsReturnDelivery) {
                     abort_unless($request->boolean('customs_return_confirmed'), 422, 'Confirme que Aduana devolvió físicamente el envío antes de registrar la entrega.');
+                    $payload['customs_return_confirmed'] = true;
+                } elseif ($data['action'] === 'CUSTOMS_RETURN') {
                     $payload['customs_return_confirmed'] = true;
                 } else {
                     abort_unless(! $request->boolean('customs_return_confirmed'), 422, 'La confirmación de devolución de Aduana no corresponde al estado actual del paquete.');
@@ -925,16 +962,20 @@ class PaquetesIpsController extends Controller
             $result = ['status' => $payload ? 'uncertain' : 'rejected', 'message' => 'No se pudo confirmar. Reintente la misma acción; se conservará la solicitud original.'];
         }
         $selection[$code]['status'] = $result['status'] ?? 'uncertain';
-        $selection[$code]['message'] = ($result['status'] ?? null) === 'succeeded' && ! empty($payload['customs_return_confirmed'])
+        $selection[$code]['message'] = ($result['status'] ?? null) === 'succeeded' && ($payload['event'] ?? null) === 'EMI' && ! empty($payload['customs_return_confirmed'])
             ? 'Devolución de Aduana (38) y entrega al destinatario (37) registradas en IPS.'
-            : ($result['message'] ?? 'Movimiento registrado correctamente en IPS.');
+            : (($result['status'] ?? null) === 'succeeded' && ($payload['event'] ?? null) === 'CUSTOMS_RETURN'
+                ? 'Llegada física tras la devolución de Aduana (evento 38) registrada en IPS. No se registró entrega al destinatario.'
+                : ($result['message'] ?? 'Movimiento registrado correctamente en IPS.'));
         $selection[$code]['operation_id'] = $result['operation_id'] ?? null;
         $request->session()->put($key, $selection);
         if (($result['status'] ?? null) === 'succeeded') {
             $trackingEvents?->forget($code);
         }
 
-        return response()->json($result + ['message' => $selection[$code]['message']]);
+        $result['message'] = $selection[$code]['message'];
+
+        return response()->json($result);
     }
 
     // Legacy links now prepare the unified workbench; no unconfirmed write.

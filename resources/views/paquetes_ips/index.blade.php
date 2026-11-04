@@ -123,7 +123,7 @@
                         <small id="ips-batch-target-help" class="ips-help"></small>
                     </div>
                 @endif
-                @if(($workflowAction ?? '') === 'EMR')
+                @if(in_array($workflowAction ?? '', ['EMR', 'CUSTOMS_RETURN'], true))
                     <div id="ips-batch-physical-fields" class="ips-batch-fields mt-3" hidden>
                         <label class="ips-receipt-confirm-label"><input id="ips-batch-physical-confirm" type="checkbox" class="mr-1"><span id="ips-batch-physical-label">Confirmo la recepción física del lote.</span></label>
                     </div>
@@ -353,19 +353,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 batchTarget.value = '';
             }
         }
-        const needsPhysicalReceipt = workflowAction === 'EMR';
+        const needsPhysicalReceipt = ['EMR', 'CUSTOMS_RETURN'].includes(workflowAction);
         let missingPhysicalReceipt = false;
         if (batchPhysicalFields && batchPhysicalConfirm && batchPhysicalLabel) {
             const selectionKey = selectedRows.map(row => row.dataset.code).sort().join('|');
             if (selectionKey !== lastPhysicalSelection) {
-                batchPhysicalConfirm.checked = needsPhysicalReceipt && selectedRows.length > 0
+                batchPhysicalConfirm.checked = workflowAction === 'EMR' && selectedRows.length > 0
                     && selectedRows.every(row => row.dataset.scanned === '1');
                 lastPhysicalSelection = selectionKey;
             }
             batchPhysicalFields.hidden = !needsPhysicalReceipt || selectedRows.length === 0;
             batchPhysicalConfirm.disabled = running || !needsPhysicalReceipt || selectedRows.length === 0;
             batchPhysicalConfirm.required = needsPhysicalReceipt && selectedRows.length > 0;
-            batchPhysicalLabel.textContent = 'Confirmo que estos paquetes están físicamente en el envase recibido y abierto.';
+            batchPhysicalLabel.textContent = workflowAction === 'CUSTOMS_RETURN'
+                ? 'Confirmo que Aduana devolvió físicamente estos paquetes a esta oficina.'
+                : 'Confirmo que estos paquetes están físicamente en el envase recibido y abierto.';
             selectedRows.forEach(row => {
                 const perItemConfirm = row.querySelector('.ips-physical-receipt-confirm');
                 perItemConfirm.checked = batchPhysicalConfirm.checked;
@@ -378,7 +380,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const workspace = document.querySelector('.ips-workspace');
         const deliveryOnly = workspace?.dataset.deliveryOnly === '1';
         const workflowAction = workspace?.dataset.workflowAction || '';
-        const workflowTitles = {EMR: 'Registrar paquetes de la saca', EDN: 'Clasificar paquetes por destino', EIB: 'Agrupar en saca nacional', EMG: 'Recibir paquetes en destino'};
+        const workflowTitles = {EMR: 'Registrar paquetes de la saca', EDN: 'Clasificar paquetes por destino', EIB: 'Agrupar en saca nacional', EMG: 'Recibir paquetes en destino', CUSTOMS_RETURN: 'Recibir devolución de Aduana'};
         if (!deliveryOnly && trayTitle && workflowTitles[workflowAction]) trayTitle.textContent = workflowTitles[workflowAction];
         const candidateRows = rows.filter(row => ['ready','processing','uncertain'].includes(row.dataset.status));
         const availableOptions = [...action.options].map(option => option.value).filter(Boolean);
@@ -501,10 +503,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (trayCount) trayCount.textContent = rows.length + '/50 en bandeja';
         } else {
-            const batchLabels = {EMR: 'Registrar paquetes', EDN: 'Registrar despacho', EIB: 'Asociar a saca', EMG: 'Registrar recepción en IPS', HANDOVER_AGENT: 'Asignar cartero', EDG: 'Registrar salida a reparto', EMH: 'Registrar intento fallido'};
+            const batchLabels = {EMR: 'Registrar paquetes', EDN: 'Registrar despacho', EIB: 'Asociar a saca', EMG: 'Registrar recepción en IPS', CUSTOMS_RETURN: 'Registrar devolución de Aduana (38)', HANDOVER_AGENT: 'Asignar cartero', EDG: 'Registrar salida a reparto', EMH: 'Registrar intento fallido'};
             process.textContent = count
-                ? (action.value === 'EMR' && batchState.missingPhysicalReceipt
-                    ? 'Confirma llegada física · ' + count + (count === 1 ? ' paquete' : ' paquetes')
+                ? (batchState.missingPhysicalReceipt
+                    ? (action.value === 'CUSTOMS_RETURN' ? 'Confirma devolución física de Aduana · ' : 'Confirma llegada física · ') + count + (count === 1 ? ' paquete' : ' paquetes')
                     : (batchLabels[action.value] || 'Registrar movimiento') + ' · ' + count + (count === 1 ? ' paquete' : ' paquetes'))
                 : 'Selecciona paquetes compatibles';
         }
@@ -724,6 +726,7 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const operation = {codigo:row.dataset.code,action:chosenAction,confirmed:true,signatory:row.querySelector('.ips-signatory').value || null};
                 if (chosenAction === 'EMR') operation.physical_receipt_confirmed = batchPhysicalConfirm?.checked || false;
+                if (chosenAction === 'CUSTOMS_RETURN') operation.physical_receipt_confirmed = batchPhysicalConfirm?.checked || false;
                 if (chosenAction === 'EMG') operation.physical_receipt_confirmed = true;
                 if (chosenAction === 'EMI') operation.delivery_mode = row.querySelector('.ips-delivery-mode').value;
                 if (chosenAction === 'EDN') operation.next_office_cd = row.querySelector('.ips-next-office').value;
