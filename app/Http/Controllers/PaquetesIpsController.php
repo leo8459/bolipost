@@ -544,6 +544,11 @@ class PaquetesIpsController extends Controller
                 $this->assertAssignedCourierPackage($package, (string) $link->delivery_agent_cd);
             }
             if ($requiredAction !== null) {
+                if ($requiredAction === 'EMG'
+                    && (int) ($package['operational_event_cd'] ?? $package['event_cd'] ?? 0) === 32
+                    && (int) ($package['state_cd'] ?? -1) === 0) {
+                    abort(409, 'Este paquete ya fue recibido en la oficina (evento 32). No lo recibas otra vez; continúa en Almacén internacional → Por entregar.');
+                }
                 abort_unless(in_array($requiredAction, $package['allowed_actions'] ?? [], true), 409, 'IPS no habilita este movimiento para el paquete y la oficina vinculada.');
                 if ($requiredAction === 'EDN') {
                     abort_unless(! empty($package['next_offices']), 409, 'IPS no tiene una oficina de ruta habilitada para este envío.');
