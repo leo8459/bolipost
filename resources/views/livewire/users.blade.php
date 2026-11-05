@@ -247,6 +247,244 @@
             padding: 0 10px;
         }
 
+        .users-wrap--empresas {
+            background: #eef3f9;
+            padding: 22px;
+        }
+
+        .users-wrap--empresas .users-card {
+            border: 1px solid #e1e8f1;
+            box-shadow: 0 14px 34px rgba(27, 55, 90, 0.1);
+        }
+
+        .users-header--empresas {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 18px;
+            padding: 22px 24px;
+        }
+
+        .users-heading--empresas {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .users-heading-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 48px;
+            height: 48px;
+            flex: 0 0 48px;
+            border-radius: 15px;
+            background: rgba(255, 255, 255, 0.16);
+            color: #fff;
+            font-size: 1.2rem;
+        }
+
+        .users-heading--empresas h4 {
+            font-size: 1.35rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .users-heading--empresas small {
+            color: rgba(255, 255, 255, 0.82);
+            font-size: 0.9rem;
+        }
+
+        .users-toolbar--empresas {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            width: 100%;
+            margin: 0 !important;
+        }
+
+        .users-toolbar--empresas .users-search {
+            flex: 1 1 290px;
+            min-width: 240px !important;
+            min-height: 42px;
+        }
+
+        .users-toolbar--empresas .btn,
+        .users-toolbar--empresas .users-company-select {
+            min-height: 42px;
+        }
+
+        .users-toolbar--empresas .users-company-select {
+            min-width: 220px;
+            max-width: 330px;
+        }
+
+        .users-toolbar--empresas .btn-dorado {
+            background: #ffd84d;
+            color: #26364a;
+        }
+
+        .users-list-summary--empresas {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 0 0 16px;
+            padding: 13px 16px;
+            border: 1px solid #e4eaf2;
+            border-radius: 12px;
+            background: #f8fafc;
+        }
+
+        .users-list-summary--empresas .users-summary-copy {
+            color: #506176;
+        }
+
+        .users-list-summary--empresas .users-summary-copy strong {
+            color: #233c5e;
+        }
+
+        .users-total--empresas {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            flex: 0 0 auto;
+            padding: 7px 12px;
+            border-radius: 999px;
+            background: #e6eef9;
+            color: #20539a;
+            font-size: 0.88rem;
+            font-weight: 800;
+        }
+
+        .users-table-wrap--empresas {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            background: #fff;
+            box-shadow: 0 4px 14px rgba(27, 55, 90, 0.04);
+        }
+
+        .users-table--empresas {
+            min-width: 1180px;
+            margin-bottom: 0;
+        }
+
+        .users-table--empresas thead th {
+            padding: 13px 12px;
+            background: #f1f5fa;
+            border-top: 0;
+            color: #3b5271;
+            font-size: 0.77rem;
+            letter-spacing: 0.035em;
+            text-transform: uppercase;
+        }
+
+        .users-table--empresas tbody td {
+            padding: 13px 12px;
+            border-color: #edf1f6;
+            color: #35465c;
+            font-size: 0.9rem;
+        }
+
+        .users-table--empresas tbody tr {
+            transition: background-color .15s ease;
+        }
+
+        .users-table--empresas tbody tr:hover {
+            background: #f7faff;
+        }
+
+        .users-table--empresas .users-created-at {
+            display: inline-flex;
+            align-items: center;
+            gap: 9px;
+            color: #52657d;
+        }
+
+        .users-created-at__icon {
+            color: #6483aa;
+            font-size: 1rem;
+        }
+
+        .users-created-at__value strong,
+        .users-created-at__value small {
+            display: block;
+        }
+
+        .users-created-at__value strong {
+            color: #354b67;
+            font-size: 0.86rem;
+        }
+
+        .users-created-at__value small {
+            margin-top: 2px;
+            color: #78879a;
+        }
+
+        .users-company-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 180px;
+        }
+
+        .users-company-code {
+            flex: 0 0 auto;
+            padding: 4px 7px;
+            border-radius: 6px;
+            background: #edf3fb;
+            color: #315b91;
+            font-size: 0.76rem;
+            font-weight: 800;
+        }
+
+        .users-company-info__name strong,
+        .users-company-info__name small {
+            display: block;
+        }
+
+        .users-company-info__name strong {
+            color: #35465c;
+            font-weight: 700;
+        }
+
+        .users-company-info__name small {
+            margin-top: 2px;
+            color: #78879a;
+        }
+
+        .users-status--empresas {
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 0.76rem;
+            font-weight: 800;
+        }
+
+        .users-actions--empresas {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        .users-actions--empresas .btn {
+            border-radius: 7px !important;
+        }
+
+        .users-table-hint {
+            display: none;
+        }
+
+        .users-empty--empresas {
+            padding: 38px 16px !important;
+            color: #6b7b90 !important;
+        }
+
+        .users-empty--empresas i {
+            display: block;
+            margin-bottom: 10px;
+            color: #9aacc2;
+            font-size: 1.7rem;
+        }
+
         .users-import-progress {
             display: none;
             margin-top: 10px;
@@ -375,6 +613,57 @@
         }
 
         @media (max-width: 767.98px) {
+            .users-wrap--empresas {
+                padding: 12px;
+            }
+
+            .users-header--empresas {
+                padding: 18px 16px;
+            }
+
+            .users-toolbar--empresas {
+                align-items: stretch;
+            }
+
+            .users-toolbar--empresas .users-search {
+                flex: 1 1 100%;
+                width: 100%;
+                min-width: 100% !important;
+            }
+
+            .users-toolbar--empresas .users-company-select {
+                flex: 1 1 100%;
+                width: 100%;
+                min-width: 100%;
+                max-width: none;
+            }
+
+            .users-toolbar--empresas > .btn,
+            .users-toolbar--empresas > a {
+                flex: 1 1 auto;
+                justify-content: center;
+            }
+
+            .users-list-summary--empresas {
+                align-items: flex-start;
+                padding: 12px;
+            }
+
+            .users-table-hint {
+                display: block;
+                padding: 9px 12px;
+                border: 1px solid #e2e8f0;
+                border-bottom: 0;
+                border-radius: 12px 12px 0 0;
+                background: #f8fafc;
+                color: #66788e;
+                font-size: 0.8rem;
+            }
+
+            .users-table-wrap--empresas {
+                border-radius: 0 0 12px 12px;
+            }
+
             .regional-picker-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
@@ -390,32 +679,53 @@
         }
 
         @media (max-width: 420px) {
+            .users-heading--empresas {
+                align-items: flex-start;
+            }
+
+            .users-heading-icon {
+                width: 42px;
+                height: 42px;
+                flex-basis: 42px;
+                border-radius: 12px;
+            }
+
+            .users-list-summary--empresas {
+                flex-direction: column;
+            }
+
             .regional-picker-grid {
                 grid-template-columns: 1fr;
             }
         }
     </style>
 
-    <div class="users-wrap">
+    <div class="users-wrap {{ $empresaMode ? 'users-wrap--empresas' : '' }}">
         <div class="card users-card">
-            <div class="users-header d-flex flex-column flex-md-row justify-content-between align-items-md-center">
-                <div>
+            <div class="users-header {{ $empresaMode ? 'users-header--empresas' : '' }} d-flex flex-column flex-md-row justify-content-between align-items-md-center">
+                <div class="{{ $empresaMode ? 'users-heading--empresas' : '' }}">
+                    @if($empresaMode)
+                        <span class="users-heading-icon" aria-hidden="true"><i class="fas fa-building"></i></span>
+                    @endif
+                    <div>
                     <h4 class="mb-0">{{ $empresaMode ? 'Usuarios empresas' : 'Gestion de Usuarios' }}</h4>
                     @if($empresaMode)
-                        <small class="d-block mt-1">Usuarios registrados con empresa y rol empresa.</small>
+                        <small class="d-block mt-1">Administra los usuarios asociados a tus empresas.</small>
                     @endif
+                    </div>
                 </div>
 
-                <div class="d-flex flex-wrap align-items-center mt-3 mt-md-0" style="gap: 8px;">
+                <div class="d-flex flex-wrap align-items-center mt-3 mt-md-0 {{ $empresaMode ? 'users-toolbar--empresas' : '' }}" style="gap: 8px;">
                     <input
                         type="text"
                         wire:model="search"
                         wire:keydown.enter="searchUsers"
                         class="form-control users-search"
                         placeholder="Buscar por nombre, alias, email, CI, empresa o sucursal"
+                        aria-label="Buscar usuarios por nombre, alias, correo, CI o empresa"
                         style="min-width: 260px;"
                     >
-                    <button wire:click="searchUsers" class="btn btn-outline-light2" type="button">Buscar</button>
+                    <button wire:click="searchUsers" class="btn btn-outline-light2" type="button"><i class="fas fa-search mr-1" aria-hidden="true"></i>Buscar</button>
                     @unless($empresaMode)
                         <button wire:click="toggleGroupByBillingSucursal" class="btn btn-outline-light2" type="button">
                             {{ $groupByBillingSucursal ? 'Ver lista normal' : 'Agrupar por sucursal facturacion' }}
@@ -438,7 +748,7 @@
                         </div>
                     @endunless
                     @if($showOnlyWithEmpresa || $empresaMode)
-                        <select wire:model.live="filterCodigoCliente" class="form-control users-company-select">
+                        <select wire:model.live="filterCodigoCliente" class="form-control users-company-select" aria-label="Filtrar por código de cliente">
                             <option value="">Todos los codigos de cliente</option>
                             @foreach($codigoClienteOptions as $codigoOption)
                                 <option value="{{ $codigoOption['codigo'] }}">
@@ -448,7 +758,7 @@
                             @endforeach
                         </select>
                         @if($filterCodigoCliente !== '')
-                            <select wire:model.live="filterEmpresaId" class="form-control users-company-select">
+                            <select wire:model.live="filterEmpresaId" class="form-control users-company-select" aria-label="Filtrar por empresa">
                                 <option value="">Todas las empresas del codigo {{ $filterCodigoCliente }}</option>
                                 @foreach($filterEmpresas as $empresa)
                                     <option value="{{ $empresa->id }}">{{ $empresa->nombre }} ({{ $empresa->sigla }})</option>
@@ -467,10 +777,10 @@
                     @endif
                     @if($empresaMode)
                         @canany(['users.empresas.excel', 'users.excel', 'feature.users.empresas.export', 'feature.users.empresas.manage'])
-                            <a href="{{ route('users.empresas.excel', ['codigo_cliente' => $appliedFilterCodigoCliente ?: null, 'empresa_id' => $appliedFilterEmpresaId ?: null]) }}" class="btn btn-success">Excel</a>
+                            <a href="{{ route('users.empresas.excel', ['codigo_cliente' => $appliedFilterCodigoCliente ?: null, 'empresa_id' => $appliedFilterEmpresaId ?: null]) }}" class="btn btn-success"><i class="fas fa-file-excel mr-1" aria-hidden="true"></i>Excel</a>
                         @endcanany
                         @canany(['users.empresas.pdf', 'users.pdf', 'feature.users.empresas.export', 'feature.users.empresas.manage'])
-                            <a href="{{ route('users.empresas.pdf', ['codigo_cliente' => $appliedFilterCodigoCliente ?: null, 'empresa_id' => $appliedFilterEmpresaId ?: null]) }}" class="btn btn-danger">PDF</a>
+                            <a href="{{ route('users.empresas.pdf', ['codigo_cliente' => $appliedFilterCodigoCliente ?: null, 'empresa_id' => $appliedFilterEmpresaId ?: null]) }}" class="btn btn-danger"><i class="fas fa-file-pdf mr-1" aria-hidden="true"></i>PDF</a>
                         @endcanany
                     @else
                         <a href="{{ route('users.excel') }}" class="btn btn-success">Excel</a>
@@ -553,8 +863,8 @@
                 </div>
                 @endunless
 
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <div class="users-muted">
+                <div class="d-flex justify-content-between align-items-center mb-3 {{ $empresaMode ? 'users-list-summary--empresas' : '' }}">
+                    <div class="users-muted {{ $empresaMode ? 'users-summary-copy' : '' }}">
                         @if($searchQuery !== '')
                             Resultado para: <strong>{{ $searchQuery }}</strong>
                             @if($groupByBillingSucursal)
@@ -580,8 +890,10 @@
                             @endif
                         @endif
                     </div>
-                    <div class="users-muted small">
-                        Total: <strong>{{ $groupByBillingSucursal ? $groupedUsers->sum(fn ($group) => $group['users']->count()) : $users->total() }}</strong>
+                    <div class="users-muted small {{ $empresaMode ? 'users-total--empresas' : '' }}">
+                        @if($empresaMode)<i class="fas fa-users" aria-hidden="true"></i>@endif
+                        {{ $empresaMode ? '' : 'Total: ' }}<strong>{{ $groupByBillingSucursal ? $groupedUsers->sum(fn ($group) => $group['users']->count()) : $users->total() }}</strong>
+                        @if($empresaMode)<span>usuarios</span>@endif
                     </div>
                 </div>
 
@@ -632,14 +944,20 @@
                         <div class="text-center py-4 users-muted">No se encontraron usuarios para agrupar.</div>
                     @endforelse
                 @else
-                <div class="table-responsive">
-                    <table class="table table-hover">
+                @if($empresaMode)
+                    <div class="users-table-hint"><i class="fas fa-arrows-alt-h mr-1" aria-hidden="true"></i> Desliza la tabla para ver todas las columnas.</div>
+                @endif
+                <div class="table-responsive users-table-wrap {{ $empresaMode ? 'users-table-wrap--empresas' : '' }}">
+                    <table class="table table-hover {{ $empresaMode ? 'users-table--empresas' : '' }}">
                         <thead>
                             <tr>
                                 <th>#</th>
                                 <th>Nombre</th>
                                 <th>Alias</th>
                                 <th>Email</th>
+                                @if($empresaMode)
+                                    <th>Fecha de creación</th>
+                                @endif
                                 <th>Regional</th>
                                 <th>Provincia origen</th>
                                 @unless($empresaMode)
@@ -659,6 +977,21 @@
                                     <td>{{ $user->name }}</td>
                                     <td><span class="badge badge-primary">{{ $user->alias ?? '-' }}</span></td>
                                     <td>{{ $user->email }}</td>
+                                    @if($empresaMode)
+                                        <td class="text-nowrap">
+                                            @if($user->created_at)
+                                                <span class="users-created-at">
+                                                    <i class="far fa-calendar-alt users-created-at__icon" aria-hidden="true"></i>
+                                                    <span class="users-created-at__value">
+                                                        <strong>{{ $user->created_at->format('d/m/Y') }}</strong>
+                                                        <small>{{ $user->created_at->format('H:i') }}</small>
+                                                    </span>
+                                                </span>
+                                            @else
+                                                <span class="users-muted">-</span>
+                                            @endif
+                                        </td>
+                                    @endif
                                     <td>{{ $user->regionalesTexto() ?: '-' }}</td>
                                     <td>
                                         @if($empresaMode && (int) $provinciaEditingId === (int) $user->id)
@@ -695,14 +1028,26 @@
                                     @endunless
                                     <td>
                                         @if ($user->empresa)
-                                            {{ $user->empresa->codigo_cliente }} - {{ $user->empresa->nombre }} ({{ $user->empresa->sigla }})
+                                            @if($empresaMode)
+                                                <span class="users-company-info">
+                                                    @if(filled($user->empresa->codigo_cliente))
+                                                        <span class="users-company-code">{{ $user->empresa->codigo_cliente }}</span>
+                                                    @endif
+                                                    <span class="users-company-info__name">
+                                                        <strong>{{ $user->empresa->nombre }}</strong>
+                                                        @if(filled($user->empresa->sigla))<small>{{ $user->empresa->sigla }}</small>@endif
+                                                    </span>
+                                                </span>
+                                            @else
+                                                {{ $user->empresa->codigo_cliente }} - {{ $user->empresa->nombre }} ({{ $user->empresa->sigla }})
+                                            @endif
                                         @else
                                             <span class="users-muted">Sin empresa</span>
                                         @endif
                                     </td>
                                     <td>{{ $user->ci }}</td>
                                     <td>
-                                        <span class="badge {{ $user->trashed() ? 'badge-danger' : 'badge-success' }}">
+                                        <span class="badge {{ $user->trashed() ? 'badge-danger' : 'badge-success' }} {{ $empresaMode ? 'users-status--empresas' : '' }}">
                                             {{ $user->trashed() ? 'Inactivo' : 'Activo' }}
                                         </span>
                                     </td>
@@ -714,7 +1059,7 @@
                                         @endforelse
                                     </td>
                                     <td>
-                                        <div class="btn-group" role="group">
+                                        <div class="btn-group {{ $empresaMode ? 'users-actions--empresas' : '' }}" role="group">
                                             @if ($user->trashed())
                                                 @if($empresaMode ? auth()->user()?->can('feature.users.empresas.restore') || auth()->user()?->can('feature.users.empresas.manage') || auth()->user()?->can('users.restore') : auth()->user()?->can('users.restore'))
                                                     <button
@@ -783,7 +1128,10 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="{{ $empresaMode ? 11 : 12 }}" class="text-center py-4 users-muted">No se encontraron usuarios.</td>
+                                    <td colspan="12" class="text-center py-4 users-muted {{ $empresaMode ? 'users-empty--empresas' : '' }}">
+                                        @if($empresaMode)<i class="fas fa-user-friends" aria-hidden="true"></i>@endif
+                                        No se encontraron usuarios.
+                                    </td>
                                 </tr>
                             @endforelse
                         </tbody>
