@@ -44,6 +44,7 @@ class DashboardController extends Controller
     private const DASHBOARD_MAX_EXECUTION_SECONDS = 180;
     private const DASHBOARD_INLINE_DEPARTMENT_MAX_ROWS = 100000;
     private const DASHBOARD_MODULE_KEYS = ['ems', 'contrato'];
+    private const COURIER_PENDING_MODULE_KEYS = ['ems', 'certi', 'contrato', 'ordi', 'solicitud'];
     private const ENTREGAS_EXCLUDED_COURIER_NAMES = [
         'pasante',
         'leonardo doria medina ochoa',
@@ -403,7 +404,7 @@ class DashboardController extends Controller
             'modules' => $moduleKeys,
         ];
 
-        $key = 'dashboard-alerts:v3:' . sha1(json_encode($scope, JSON_UNESCAPED_UNICODE));
+        $key = 'dashboard-alerts:v4:' . sha1(json_encode($scope, JSON_UNESCAPED_UNICODE));
 
         return Cache::remember(
             $key,
@@ -468,18 +469,20 @@ class DashboardController extends Controller
             fn () => $this->buildRegionalPendingAlert($userCity, $hasGlobalDepartmentAccess, $moduleKeys)
         );
 
-        $carteroAlertKey = 'dashboard-alert-part:v4:cartero:' . (int) $authUser->id . ':' . sha1(json_encode($moduleKeys));
+        $carteroAlertKey = 'dashboard-alert-part:v5:cartero:'
+            . (int) $authUser->id . ':'
+            . sha1(json_encode(self::COURIER_PENDING_MODULE_KEYS));
         $carteroAlerts = Cache::remember(
             $carteroAlertKey,
             now()->addSeconds(self::DASHBOARD_HEAVY_ALERT_CACHE_SECONDS),
             fn () => [
-                'alert' => $this->buildCarteroPendingAlert($authUser, $userRoles, $moduleKeys),
+                'alert' => $this->buildCarteroPendingAlert($authUser, $userRoles, self::COURIER_PENDING_MODULE_KEYS),
                 'summary' => $this->buildCarteroPendingSummary(
                     $authUser,
                     $userRoles,
                     $hasGlobalDepartmentAccess,
                     $userCity,
-                    $moduleKeys
+                    self::COURIER_PENDING_MODULE_KEYS
                 ),
             ]
         );
