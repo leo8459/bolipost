@@ -108,6 +108,23 @@
         hideTimer = window.setTimeout(hideModal, 12000);
     };
 
+    window.showReportLoadingModal = (titleText, messageText) => {
+        window.clearTimeout(hideTimer);
+        window.clearTimeout(concealTimer);
+        title.textContent = normalize(titleText) || 'Procesando reporte';
+        message.textContent = normalize(messageText) || 'Espere por favor.';
+        modal.querySelector('.global-pdf-modal-spinner')?.setAttribute('aria-label', title.textContent);
+        modal.classList.remove('is-hidden');
+        window.requestAnimationFrame(() => modal.classList.add('is-visible'));
+    };
+
+    window.updateReportLoadingModal = (messageText, titleText = '') => {
+        if (titleText) title.textContent = normalize(titleText);
+        if (messageText) message.textContent = normalize(messageText);
+    };
+
+    window.hideReportLoadingModal = hideModal;
+
     closeButton?.addEventListener('click', hideModal);
     window.showPdfGenerationModal = showModal;
 

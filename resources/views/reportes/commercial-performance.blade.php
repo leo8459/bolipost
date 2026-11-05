@@ -4,10 +4,10 @@
 
 @section('content_header')
     @php
-        $headingPeriodFiltered = !empty($from) || !empty($to);
-        $headingPeriodLabel = $headingPeriodFiltered
+        $headingPeriodFiltered = !empty($monthFrom) || !empty($monthTo) || !empty($from) || !empty($to);
+        $headingPeriodLabel = $periodLabel ?? ($headingPeriodFiltered
             ? (($from ? date('d/m/Y', strtotime($from)) : 'Inicio') . ' – ' . ($to ? date('d/m/Y', strtotime($to)) : 'Hoy'))
-            : 'Todo el historial';
+            : 'Todo el historial');
     @endphp
     <div class="report-heading d-flex flex-column flex-md-row justify-content-between align-items-md-center">
         <div>
@@ -19,7 +19,7 @@
                     {{ $headingPeriodFiltered ? 'Periodo filtrado: ' : 'Periodo: ' }}{{ $headingPeriodLabel }}
                 </span>
             </div>
-            <p class="mb-0 text-muted">Actividad, entregas y tiempos de servicio en el periodo seleccionado.</p>
+            <p class="mb-0 text-muted">Consulta tu regional, compara su actividad mensual y descarga el reporte.</p>
         </div>
         <a href="{{ route('dashboard') }}" class="btn btn-outline-secondary mt-3 mt-md-0">
             <i class="fas fa-arrow-left mr-1"></i> Volver al dashboard
@@ -68,8 +68,22 @@
         #commercial-performance .value-badge { background: #eef5fb; border-radius: 12px; color: #315a7e; display: inline-block; font-size: .72rem; font-weight: 700; padding: 4px 8px; white-space: nowrap; }
         #commercial-performance .status-pill { background: #e8f5ef; border-radius: 12px; color: #24734f; font-size: .72rem; font-weight: 700; padding: 4px 8px; white-space: nowrap; }
         #commercial-performance .chart-wrap { height: 255px; position: relative; }
+        #commercial-performance .monthly-chart-wrap { height: 290px; position: relative; }
         #commercial-performance .coverage-table { margin-top: 16px; }
         #commercial-performance .empty-state { color: var(--report-muted); padding: 26px 14px !important; text-align: center; }
+        #commercial-performance .regional-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+        #commercial-performance .regional-choice { display: flex; align-items: center; gap: 9px; padding: 10px 12px; border: 1px solid #dce5ee; border-radius: 8px; font-size: .8rem; cursor: pointer; margin: 0; background: #fff; }
+        #commercial-performance .regional-choice:has(input:checked) { background: #eaf3ff; border-color: #2364aa; color: #174e88; }
+        #commercial-performance .regional-choice input { accent-color: #2364aa; width: 16px; height: 16px; }
+        #commercial-performance .filter-regionals { background: #f7f9fc; border: 1px solid #e5ebf1; border-radius: 10px; padding: 16px; margin-top: 20px; }
+        #commercial-performance .report-navigation { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 20px; }
+        #commercial-performance .report-navigation a { padding: 8px 14px; background: #fff; color: #315a7e; border: 1px solid #dce5ee; border-radius: 20px; font-size: .8rem; }
+        #commercial-performance .report-navigation a:hover { background: #eaf3ff; text-decoration: none; }
+        #commercial-performance .report-section { scroll-margin-top: 25px; }
+        #commercial-performance .regional-table { max-height: 430px; overflow: auto; }
+        #commercial-performance .regional-table thead th { position: sticky; top: 0; z-index: 1; }
+        #commercial-performance .scope-badge { display: inline-block; background: #eaf3ff; border-radius: 6px; padding: 5px 9px; margin: 3px 4px 3px 0; color: #315a7e; }
+        #commercial-performance details summary { cursor: pointer; color: #2364aa; padding: 12px 18px; font-weight: 600; font-size: .82rem; }
         @media (max-width: 767.98px) {
             .report-heading h1 { font-size: 1.35rem; }
             #commercial-performance .report-card > .card-body { padding: 15px; }
@@ -77,6 +91,8 @@
             #commercial-performance .metric-value { font-size: 1.45rem; }
             #commercial-performance .report-section-heading { align-items: flex-start; flex-direction: column; }
             #commercial-performance .chart-wrap { height: 220px; }
+            #commercial-performance .monthly-chart-wrap { height: 250px; }
+            #commercial-performance .regional-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         }
     </style>
 @stop
@@ -91,9 +107,10 @@
         $sla = $commercialKpis['sla'] ?? [];
         $heatmap = $commercialKpis['heatmap'] ?? [];
         $selectedLines = $selectedLines ?? [];
-        $periodLabel = !empty($from) || !empty($to)
+        $periodLabel = $periodLabel ?? (!empty($from) || !empty($to)
             ? (($from ? date('d/m/Y', strtotime($from)) : 'Inicio') . ' – ' . ($to ? date('d/m/Y', strtotime($to)) : 'Hoy'))
-            : 'Todo el historial';
+            : 'Todo el historial');
+        $monthlyRows = collect($monthlyRows ?? []);
         $linesLabel = count($selectedLines) ? count($selectedLines) . ' líneas seleccionadas' : 'Todas las líneas';
         $coverageLists = [
             ['title' => 'Principales orígenes', 'rows' => $heatmap['origenes'] ?? [], 'key' => 'ubicacion'],
@@ -107,27 +124,31 @@
             <div class="card-header d-flex flex-column flex-md-row justify-content-between align-items-md-center">
                 <div>
                     <h2 class="report-card-title"><i class="fas fa-sliders-h text-primary mr-2"></i>Filtros del reporte</h2>
-                    <div class="report-card-subtitle">Ajusta el periodo y las líneas que quieres comparar.</div>
+                    <div class="report-card-subtitle">Elige los meses, las líneas de negocio y una o varias regionales.</div>
                 </div>
                 <div class="mt-3 mt-md-0 d-flex">
-                    <a href="{{ route('dashboard.comercial.rendimiento-servicios.excel', request()->query()) }}" class="btn btn-outline-success btn-sm mr-2">
+                    <a href="{{ route('dashboard.comercial.rendimiento-servicios.excel', request()->query()) }}" class="btn btn-outline-success btn-sm mr-2" data-commercial-export="excel">
                         <i class="fas fa-file-excel mr-1"></i> Exportar Excel
                     </a>
-                    <a href="{{ route('dashboard.comercial.rendimiento-servicios.pdf', request()->query()) }}" class="btn btn-outline-danger btn-sm" target="_blank" rel="noopener">
+                    <a href="{{ route('dashboard.comercial.rendimiento-servicios.pdf', request()->query()) }}" class="btn btn-outline-danger btn-sm" target="_blank" rel="noopener" data-commercial-export="pdf">
                         <i class="fas fa-file-pdf mr-1"></i> Exportar PDF
                     </a>
                 </div>
             </div>
-            <form method="GET" action="{{ route('dashboard.comercial.rendimiento-servicios') }}">
+            <form id="commercial-performance-filter" method="GET" action="{{ route('dashboard.comercial.rendimiento-servicios') }}">
+                @if(empty($monthFrom) && empty($monthTo))
+                    @if(!empty($from))<input type="hidden" name="from" value="{{ $from }}">@endif
+                    @if(!empty($to))<input type="hidden" name="to" value="{{ $to }}">@endif
+                @endif
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-3 mb-3 mb-md-0">
-                            <label class="report-filter-label" for="commercial-from">Fecha desde</label>
-                            <input id="commercial-from" type="date" class="form-control" name="from" value="{{ $from }}">
+                            <label class="report-filter-label" for="commercial-month-from">Mes desde</label>
+                            <input id="commercial-month-from" type="month" class="form-control" name="from_month" value="{{ $monthFrom }}">
                         </div>
                         <div class="col-md-3 mb-3 mb-md-0">
-                            <label class="report-filter-label" for="commercial-to">Fecha hasta</label>
-                            <input id="commercial-to" type="date" class="form-control" name="to" value="{{ $to }}">
+                            <label class="report-filter-label" for="commercial-month-to">Mes hasta</label>
+                            <input id="commercial-month-to" type="month" class="form-control" name="to_month" value="{{ $monthTo }}">
                         </div>
                         <div class="col-md-6">
                             <div class="report-filter-label">Líneas de negocio</div>
@@ -143,13 +164,40 @@
                                     <span class="text-muted small">No hay líneas disponibles.</span>
                                 @endforelse
                             </div>
-                            <div class="report-meta mt-1">Si no seleccionas una línea, se mostrarán todas.</div>
+                            <div class="report-meta mt-1">Si no seleccionas una línea, se mostrarán todas. El primer mes se compara con el mes anterior.</div>
                         </div>
+                    </div>
+                    <div class="filter-regionals">
+                        <div class="row mb-3">
+                            <div class="col-md-8">
+                                <div class="report-filter-label"><i class="fas fa-map-marker-alt mr-1"></i> Departamentos / regionales</div>
+                                <p class="report-meta mb-1">Selecciona varias para compararlas. Sin selección se incluyen todas.</p>
+                                <div class="report-meta">Sucre corresponde a Chuquisaca, Trinidad a Beni y Cobija a Pando.</div>
+                            </div>
+                            <div class="col-md-4 mt-2 mt-md-0">
+                                <label for="commercial-regional-type" class="report-filter-label">Consultar por</label>
+                                <select id="commercial-regional-type" name="regional_tipo" class="form-control">
+                                    <option value="origen" {{ $regionalType === 'origen' ? 'selected' : '' }}>Regional de origen</option>
+                                    <option value="destino" {{ $regionalType === 'destino' ? 'selected' : '' }}>Regional de destino</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="regional-options">
+                            @foreach($regionalOptions as $regionalOption)
+                                <label class="regional-choice">
+                                    <input type="checkbox" name="regionales[]" value="{{ $regionalOption }}" {{ in_array($regionalOption, $selectedRegionals, true) ? 'checked' : '' }}>
+                                    <span>{{ $regionalOption }}</span>
+                                </label>
+                            @endforeach
+                        </div>
+                        <button type="button" id="commercial-all-regionals" class="btn btn-link btn-sm px-0 mt-2">Quitar selección y mostrar todas</button>
                     </div>
                 </div>
                 <div class="card-footer bg-white d-flex flex-wrap justify-content-between align-items-center">
                     <div class="report-meta mb-2 mb-md-0">
-                        <strong>Periodo:</strong> {{ $periodLabel }} <span class="mx-1">·</span> <strong>{{ $linesLabel }}</strong>
+                        <span class="scope-badge"><i class="far fa-calendar-alt mr-1"></i>{{ $periodLabel }}</span>
+                        <span class="scope-badge">{{ $regionalLabel }}</span>
+                        <span class="scope-badge">{{ $linesLabel }}</span>
                     </div>
                     <div>
                         <a href="{{ route('dashboard.comercial.rendimiento-servicios') }}" class="btn btn-light border mr-2">Limpiar</a>
@@ -190,7 +238,81 @@
             </div>
         </div>
 
-        <div class="report-section">
+        <nav class="report-navigation" aria-label="Secciones del reporte">
+            <a href="#commercial-regionals"><i class="fas fa-map-marker-alt mr-1"></i> Por regional</a>
+            <a href="#commercial-monthly"><i class="fas fa-chart-line mr-1"></i> Evolución mensual</a>
+            <a href="#commercial-quality">Entregas y tiempos</a>
+            <a href="#commercial-services">Detalle por servicio</a>
+        </nav>
+
+        <div id="commercial-regionals" class="report-section">
+            <div class="report-section-heading">
+                <div><div class="report-section-kicker">COMPARACIÓN REGIONAL</div><h2>Actividad por departamento</h2></div>
+                <div class="report-section-note">{{ $regionalLabel }}</div>
+            </div>
+            <div class="card report-card">
+                @if(count($regionalRows))
+                <div class="card-body">
+                    <div class="chart-wrap"><canvas id="chartCommercialRegionals" aria-label="Cantidad de registros por regional"></canvas></div>
+                </div>
+                @endif
+                <div class="table-responsive regional-table">
+                    @include('reportes.partials.commercial-regional-table')
+                </div>
+            </div>
+        </div>
+
+        <div id="commercial-monthly" class="report-section">
+            <div class="report-section-heading">
+                <div><div class="report-section-kicker">TENDENCIA MENSUAL</div><h2>Actividad y variación frente al mes anterior</h2></div>
+                <div class="report-section-note">El porcentaje se calcula sobre los registros del mes calendario anterior.</div>
+            </div>
+            <div class="card report-card mb-3">
+                <div class="card-header">
+                    <h3 class="report-card-title">Registros y crecimiento mensual</h3>
+                    <div class="report-card-subtitle">La comparación incluye el mes previo al rango como referencia.</div>
+                </div>
+                <div class="card-body"><div class="monthly-chart-wrap"><canvas id="chartCommercialMonthly" aria-label="Registros mensuales y porcentaje de variación"></canvas></div></div>
+            </div>
+            <div class="card report-card">
+                <details>
+                    <summary>Ver detalle mensual · {{ $monthlyRows->count() }} meses</summary>
+                <div class="table-responsive">
+                    <table class="table report-table">
+                        <thead><tr><th>Mes</th><th class="text-right">Registros</th><th class="text-right">Mes anterior</th><th class="text-right">Variación</th><th class="text-right">Crecimiento</th><th class="text-right">Entregados</th><th class="text-right">No entregados</th><th class="text-right">Peso (kg)</th></tr></thead>
+                        <tbody>
+                            @forelse($monthlyRows as $monthRow)
+                                @php
+                                    $growth = $monthRow['variacion_pct'] ?? null;
+                                    $growthClass = $growth === null ? 'text-muted' : ($growth >= 0 ? 'text-success' : 'text-danger');
+                                @endphp
+                                <tr>
+                                    <td class="font-weight-bold">{{ $monthRow['periodo'] }}</td>
+                                    <td class="text-right font-weight-bold">{{ \App\Support\BolivianNumber::format((int) $monthRow['registros']) }}</td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $monthRow['mes_anterior_registros']) }} <small class="text-muted">({{ $monthRow['mes_anterior'] }})</small></td>
+                                    <td class="text-right {{ $growthClass }}">{{ ((int) $monthRow['variacion'] > 0 ? '+' : '') . \App\Support\BolivianNumber::format((int) $monthRow['variacion']) }}</td>
+                                    <td class="text-right font-weight-bold {{ $growthClass }}">
+                                        @if($growth === null)
+                                            {{ (int) $monthRow['registros'] > 0 ? 'Nuevo' : 'Sin base' }}
+                                        @else
+                                            {{ $growth > 0 ? '+' : '' }}{{ \App\Support\BolivianNumber::format((float) $growth, 2) }}%
+                                        @endif
+                                    </td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $monthRow['entregados']) }}</td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $monthRow['no_entregados']) }}</td>
+                                    <td class="text-right">{{ \App\Support\BolivianNumber::format((float) $monthRow['peso'], 3) }}</td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="8" class="empty-state">No hay registros mensuales para los filtros seleccionados.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+                </details>
+            </div>
+        </div>
+
+        <div id="commercial-quality" class="report-section">
             <div class="report-section-heading">
                 <div><div class="report-section-kicker">CALIDAD DEL SERVICIO</div><h2>Entrega y tiempos de atención</h2></div>
                 <div class="report-section-note">Indicadores calculados con los registros del periodo seleccionado.</div>
@@ -284,7 +406,7 @@
             </div>
         </div>
 
-        <div class="report-section">
+        <div id="commercial-services" class="report-section">
             <div class="report-section-heading">
                 <div><div class="report-section-kicker">DESGLOSE</div><h2>Detalle por servicio</h2></div>
                 <div class="report-section-note">Cada servicio se agrupa dentro de su línea de negocio.</div>
@@ -361,7 +483,50 @@
             const slaRows = @json(collect($sla['rows'] ?? [])->take(8)->values());
             const heatOrigins = @json(collect($heatmap['origenes'] ?? [])->take(8)->values());
             const heatRoutes = @json(collect($heatmap['rutas'] ?? [])->take(8)->values());
+            const monthlyRows = @json(collect($monthlyRows ?? [])->values());
             const colors = ['#2364aa', '#25805a', '#bd7c27', '#ba5960', '#7755a6', '#158895', '#d16b3c', '#62758a'];
+            const regionalRows = @json($regionalRows);
+            const regionalCanvas = document.getElementById('chartCommercialRegionals');
+            if (regionalCanvas && regionalRows.length) {
+                new Chart(regionalCanvas, {
+                    type: 'bar',
+                    data: {
+                        labels: regionalRows.map(row => row.regional),
+                        datasets: [{ label: 'Registros', data: regionalRows.map(row => row.registros), backgroundColor: '#2364aa', borderRadius: 5, maxBarThickness: 24 }]
+                    },
+                    options: {
+                        maintainAspectRatio: false,
+                        indexAxis: 'y',
+                        plugins: { legend: { display: false } },
+                        scales: { x: { beginAtZero: true, ticks: { precision: 0 } }, y: { grid: { display: false } } }
+                    }
+                });
+            }
+
+            const monthlyCanvas = document.getElementById('chartCommercialMonthly');
+            if (monthlyCanvas && monthlyRows.length) {
+                new Chart(monthlyCanvas, {
+                    type: 'bar',
+                    data: {
+                        labels: monthlyRows.map(row => row.periodo),
+                        datasets: [
+                            { type: 'bar', label: 'Registros del mes', data: monthlyRows.map(row => Number(row.registros || 0)), backgroundColor: '#2364aa', borderRadius: 4, maxBarThickness: 32, yAxisID: 'y' },
+                            { type: 'bar', label: 'Mes anterior', data: monthlyRows.map(row => Number(row.mes_anterior_registros || 0)), backgroundColor: '#c9d8e8', borderRadius: 4, maxBarThickness: 32, yAxisID: 'y' },
+                            { type: 'line', label: 'Variación (%)', data: monthlyRows.map(row => row.variacion_pct === null ? null : Number(row.variacion_pct)), borderColor: '#25805a', backgroundColor: '#25805a', pointRadius: 3, borderWidth: 2, tension: .2, yAxisID: 'y1' }
+                        ]
+                    },
+                    options: {
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 18 } } },
+                        scales: {
+                            y: { beginAtZero: true, grid: { color: '#edf1f5' }, title: { display: true, text: 'Registros' } },
+                            y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Variación (%)' }, ticks: { callback: value => `${value}%` } },
+                            x: { grid: { display: false } }
+                        }
+                    }
+                });
+            }
 
             const effectivenessCanvas = document.getElementById('chartEffectiveness');
             if (effectivenessCanvas) {
@@ -423,6 +588,113 @@
                     options: { maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, grid: { color: '#edf1f5' } }, y: { grid: { display: false } } } }
                 });
             }
+        })();
+    </script>
+    <script>
+        (function () {
+            const filterForm = document.getElementById('commercial-performance-filter');
+            document.getElementById('commercial-all-regionals')?.addEventListener('click', function () {
+                filterForm.querySelectorAll('input[name="regionales[]"]').forEach(input => { input.checked = false; });
+            });
+            const title = document.getElementById('globalPdfGenerationTitle');
+            const message = document.getElementById('globalPdfGenerationMessage');
+
+            filterForm?.addEventListener('submit', function () {
+                window.showReportLoadingModal?.('Aplicando filtros', 'Espere por favor, estamos actualizando el reporte.');
+            });
+
+            const filenameFrom = (contentDisposition, fallback) => {
+                const match = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(contentDisposition || '');
+                let value = match?.[2] || fallback;
+                if (match?.[1]) {
+                    try { value = decodeURIComponent(match[1]); } catch (error) { value = match[1]; }
+                }
+                return value.replace(/[\\/:*?"<>|]/g, '_');
+            };
+
+            const fetchBlob = async (response, format) => {
+                if (!response.ok) throw new Error('No se pudo generar el archivo. Intenta de nuevo.');
+                const total = Number(response.headers.get('Content-Length') || 0);
+                const reader = response.body?.getReader();
+                if (!reader) return response.blob();
+
+                const chunks = [];
+                let loaded = 0;
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    chunks.push(value);
+                    loaded += value.byteLength;
+                    const loadedMb = (loaded / 1048576).toFixed(1);
+                    const totalMb = (total / 1048576).toFixed(1);
+                    if (window.updateReportLoadingModal) {
+                        window.updateReportLoadingModal(total > 0
+                            ? `Descargando ${format.toUpperCase()}: ${Math.min(100, Math.round((loaded / total) * 100))}% (${loadedMb} de ${totalMb} MB).`
+                            : `Descargando ${format.toUpperCase()}: ${loadedMb} MB.`);
+                    } else if (message) {
+                        message.textContent = `Descargando ${format.toUpperCase()}: ${loadedMb} MB.`;
+                    }
+                }
+
+                return new Blob(chunks, { type: response.headers.get('Content-Type') || 'application/octet-stream' });
+            };
+
+            document.addEventListener('click', async function (event) {
+                const link = event.target.closest?.('[data-commercial-export]');
+                if (!link || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                const format = link.dataset.commercialExport;
+                const popup = format === 'pdf' ? window.open('about:blank', '_blank') : null;
+                const fileTitle = format === 'pdf' ? 'Generando PDF' : 'Generando Excel';
+                window.showReportLoadingModal?.(fileTitle, `Estamos preparando el reporte. Espere por favor.`);
+
+                if (format === 'pdf' && !popup) {
+                    if (title) title.textContent = 'Permite las ventanas emergentes';
+                    if (message) message.textContent = 'El PDF se abrirá en una pestaña nueva. Permite ventanas emergentes para este sitio e intenta de nuevo.';
+                    window.setTimeout(() => window.hideReportLoadingModal?.(), 4500);
+                    return;
+                }
+
+                try {
+                    const response = await fetch(link.href, {
+                        credentials: 'same-origin',
+                        headers: {
+                            Accept: format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                            'X-Pdf-Modal-Ignore': 'true'
+                        }
+                    });
+                    const blob = await fetchBlob(response, format);
+                    const filename = filenameFrom(response.headers.get('Content-Disposition'), `rendimiento-servicios.${format === 'pdf' ? 'pdf' : 'xlsx'}`);
+                    const objectUrl = URL.createObjectURL(blob);
+
+                    if (format === 'pdf' && popup) {
+                        popup.location.href = objectUrl;
+                    } else if (format === 'pdf') {
+                        const pdfWindow = window.open(objectUrl, '_blank');
+                        if (!pdfWindow) throw new Error('El navegador bloqueó la ventana del PDF. Permite las ventanas emergentes e intenta de nuevo.');
+                    } else {
+                        const download = document.createElement('a');
+                        download.href = objectUrl;
+                        download.download = filename;
+                        document.body.appendChild(download);
+                        download.click();
+                        download.remove();
+                    }
+
+                    window.updateReportLoadingModal?.('Reporte listo.');
+                    window.setTimeout(() => {
+                        window.hideReportLoadingModal?.();
+                    }, 900);
+                    window.setTimeout(() => URL.revokeObjectURL(objectUrl), format === 'pdf' ? 60000 : 30000);
+                } catch (error) {
+                    if (popup && !popup.closed) popup.close();
+                    if (title) title.textContent = 'No se pudo generar el reporte';
+                    if (message) message.textContent = error.message || 'Ocurrió un problema al preparar el archivo.';
+                    window.setTimeout(() => window.hideReportLoadingModal?.(), 4500);
+                }
+            }, true);
         })();
     </script>
 @stop

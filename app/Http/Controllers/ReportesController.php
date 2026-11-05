@@ -758,7 +758,33 @@ class ReportesController extends Controller
     {
         @set_time_limit(300);
         @ini_set('memory_limit', '1024M');
-        $request->query->set('limit', 'all');
+
+        $regionalOptions = array_keys($this->departamentoAliasMap());
+        $request->validate([
+            'regionales' => ['nullable', 'array'],
+            'regionales.*' => ['string', \Illuminate\Validation\Rule::in($regionalOptions)],
+            'regional_tipo' => ['nullable', 'in:origen,destino'],
+        ]);
+        $selectedRegionals = array_values(array_unique((array) $request->query('regionales', [])));
+        $regionalType = $request->query('regional_tipo', 'origen') ?: 'origen';
+        $regionalLabel = ($regionalType === 'destino' ? 'Destino: ' : 'Origen: ')
+            . ($selectedRegionals ? implode(', ', $selectedRegionals) : 'Todas las regionales');
+
+        [$monthFrom, $monthTo] = $this->resolveCommercialMonthRange($request);
+        $periodFrom = $monthFrom
+            ? Carbon::createFromFormat('Y-m-d', $monthFrom . '-01')->startOfMonth()
+            : $this->safeCarbon((string) $request->query('from', ''))?->startOfDay();
+        $periodTo = $monthTo
+            ? Carbon::createFromFormat('Y-m-d', $monthTo . '-01')->endOfMonth()
+            : $this->safeCarbon((string) $request->query('to', ''))?->endOfDay();
+        if ($periodFrom && !$periodTo) {
+            $periodTo = $periodFrom->copy()->endOfDay();
+        } elseif ($periodTo && !$periodFrom) {
+            $periodFrom = $periodTo->copy()->startOfDay();
+        }
+        if ($periodFrom && $periodTo && $periodFrom->gt($periodTo)) {
+            [$periodFrom, $periodTo] = [$periodTo->copy()->startOfDay(), $periodFrom->copy()->endOfDay()];
+        }
 
         $selectedLines = collect((array) $request->query('lineas', []))
             ->map(fn ($value) => strtoupper(trim((string) $value)))
@@ -773,48 +799,94 @@ class ReportesController extends Controller
             'PAQUETES EMS' => 'ems',
             'PAQUETES CONTRATOS' => 'contrato',
         ];
-        if ($selectedLines !== []) {
-            $modules = collect($selectedLines)
-                ->map(fn (string $line): ?string => $moduleByLine[$line] ?? null)
-                ->filter()
-                ->values();
-            if ($modules->isEmpty()) {
-                $baseRequest->attributes->set('_commercial_skip_package_modules', true);
+        $loadRows = function (Request $sourceRequest) use ($selectedLines, $moduleByLine, $selectedRegionals, $regionalType): array {
+            $baseRequest = $sourceRequest->duplicate();
+            $baseRequest->query->remove('lineas');
+            $baseRequest->query->set('limit', 'all');
+
+            if ($selectedLines !== []) {
+                $modules = collect($selectedLines)
+                    ->map(fn (string $line): ?string => $moduleByLine[$line] ?? null)
+                    ->filter()
+                    ->values();
+                if ($modules->isEmpty()) {
+                    $baseRequest->attributes->set('_commercial_skip_package_modules', true);
+                } else {
+                    $baseRequest->query->set('modules', $modules->all());
+                }
             } else {
-                $baseRequest->query->set('modules', $modules->all());
+                $baseRequest->query->set('modules', array_values($moduleByLine));
             }
-        } else {
-            $baseRequest->query->set('modules', array_values($moduleByLine));
+
+            $data = $this->buildCommercialBaseRows($baseRequest);
+            $solicitudRows = $selectedLines === [] || in_array('DELIVERY EXPRESS', $selectedLines, true)
+                ? $this->fetchCommercialSolicitudRows($sourceRequest)
+                : collect();
+            $rows = $this->filterRowsWithoutCanceled(
+                collect($data['rows'] ?? [])->concat($solicitudRows)
+            )
+                ->map(function (array $row) {
+                    $line = $this->resolveCommercialLine((string) ($row['servicio'] ?? ''), (string) ($row['modulo_key'] ?? ''));
+                    $serviceName = $this->resolveCommercialServiceName($line, (string) ($row['servicio'] ?? ''), (string) ($row['modulo_key'] ?? ''));
+                    $row['linea_negocio'] = $line;
+                    $row['servicio_comercial'] = $serviceName;
+                    unset($row['precio']);
+
+                    return $row;
+                });
+
+            if (!empty($selectedLines)) {
+                $selectedLineMap = array_fill_keys($selectedLines, true);
+                $rows = $rows
+                    ->filter(fn (array $row) => isset($selectedLineMap[(string) ($row['linea_negocio'] ?? '')]))
+                    ->values();
+            }
+
+            $rows = $this->filterCommercialRowsByRegional($rows, $selectedRegionals, $regionalType);
+
+            $rows = $this->deduplicateCommercialGuidesByMonth(
+                $rows->sortByDesc(fn (array $row) => $row['created_at_ts'] ?? 0)->values()
+            );
+
+            return [$data, $rows];
+        };
+
+        $periodRequest = $request->duplicate();
+        if ($periodFrom && $periodTo) {
+            $periodRequest->query->set('from', $periodFrom->toDateString());
+            $periodRequest->query->set('to', $periodTo->toDateString());
         }
-
-        $data = $this->buildCommercialBaseRows($baseRequest);
-
-        $solicitudRows = $selectedLines === [] || in_array('DELIVERY EXPRESS', $selectedLines, true)
-            ? $this->fetchCommercialSolicitudRows($request)
-            : collect();
-        $rows = $this->filterRowsWithoutCanceled(
-            collect($data['rows'] ?? [])->concat($solicitudRows)
-        )
-            ->map(function (array $row) {
-                $line = $this->resolveCommercialLine((string) ($row['servicio'] ?? ''), (string) ($row['modulo_key'] ?? ''));
-                $serviceName = $this->resolveCommercialServiceName($line, (string) ($row['servicio'] ?? ''), (string) ($row['modulo_key'] ?? ''));
-                $row['linea_negocio'] = $line;
-                $row['servicio_comercial'] = $serviceName;
-                unset($row['precio']);
-
-                return $row;
-            });
-
-        if (!empty($selectedLines)) {
-            $selectedLineMap = array_fill_keys($selectedLines, true);
-            $rows = $rows
-                ->filter(fn (array $row) => isset($selectedLineMap[(string) ($row['linea_negocio'] ?? '')]))
+        $periodRequest->query->remove('from_month');
+        $periodRequest->query->remove('to_month');
+        [$data, $rows] = [[], collect()];
+        $monthlyRows = collect();
+        if ($periodFrom && $periodTo) {
+            $comparisonRequest = $periodRequest->duplicate();
+            $comparisonRequest->query->set('from', $periodFrom->copy()->startOfMonth()->subMonth()->startOfMonth()->toDateString());
+            $comparisonRequest->query->set('to', $periodTo->toDateString());
+            [$data, $monthlyRows] = $loadRows($comparisonRequest);
+            $rows = $monthlyRows
+                ->filter(fn (array $row) => (int) ($row['created_at_ts'] ?? 0) >= $periodFrom->timestamp
+                    && (int) ($row['created_at_ts'] ?? 0) <= $periodTo->timestamp)
                 ->values();
+            $data['from'] = $periodFrom->toDateString();
+            $data['to'] = $periodTo->toDateString();
+        } else {
+            [$data, $rows] = $loadRows($periodRequest);
+            $monthlyRows = $rows;
         }
 
-        $rows = $this->deduplicateCommercialGuidesByMonth(
-            $rows->sortByDesc(fn (array $row) => $row['created_at_ts'] ?? 0)->values()
-        );
+        $monthlySummary = $this->buildCommercialMonthlySummary($monthlyRows, $periodFrom, $periodTo);
+        $regionalRows = $rows->groupBy('regional_comercial')->map(function (Collection $items, string $regional) {
+            return [
+                'regional' => $regional,
+                'registros' => $items->count(),
+                'entregados' => $items->where('is_entregado', true)->count(),
+                'no_entregados' => $items->where('is_entregado', false)->count(),
+                'efectividad' => round($items->where('is_entregado', true)->count() / $items->count() * 100, 2),
+                'peso' => round((float) $items->sum('peso'), 3),
+            ];
+        })->sortByDesc('registros')->values();
 
         $lineRows = $rows
             ->groupBy(fn (array $row) => (string) ($row['linea_negocio'] ?? 'OTRAS LINEAS'))
@@ -887,6 +959,15 @@ class ReportesController extends Controller
             'scopeLabel' => 'Rendimiento de servicios y productos',
             'from' => $data['from'] ?? null,
             'to' => $data['to'] ?? null,
+            'monthFrom' => $monthFrom,
+            'monthTo' => $monthTo,
+            'periodLabel' => $this->commercialPeriodLabel($monthFrom, $monthTo, $data['from'] ?? null, $data['to'] ?? null),
+            'monthlyRows' => $monthlySummary,
+            'regionalOptions' => $regionalOptions,
+            'selectedRegionals' => $selectedRegionals,
+            'regionalType' => $regionalType,
+            'regionalLabel' => $regionalLabel,
+            'regionalRows' => $regionalRows,
             'lineOptions' => self::COMMERCIAL_LINES,
             'selectedLines' => $selectedLines,
             'lineRows' => $lineRows,
@@ -894,6 +975,119 @@ class ReportesController extends Controller
             'commercialTotals' => $commercialTotals,
             'commercialKpis' => $commercialKpis,
         ];
+    }
+
+    private function filterCommercialRowsByRegional(Collection $rows, array $selectedRegionals, string $regionalType): Collection
+    {
+        return $rows->map(function (array $row) use ($regionalType) {
+            $location = $regionalType === 'destino' ? ($row['destino'] ?? '') : ($row['origen_registro'] ?? $row['origen'] ?? '');
+            $row['regional_comercial'] = $this->canonicalDepartamentoName(\Illuminate\Support\Str::ascii((string) $location)) ?: 'SIN REGIONAL IDENTIFICADA';
+
+            return $row;
+        })->filter(fn (array $row) => $selectedRegionals === [] || in_array($row['regional_comercial'], $selectedRegionals, true))->values();
+    }
+
+    private function resolveCommercialMonthRange(Request $request): array
+    {
+        $normalize = function ($value): ?string {
+            $value = trim((string) $value);
+            if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $value)) {
+                return null;
+            }
+
+            return $value;
+        };
+
+        $from = $normalize($request->query('from_month', ''));
+        $to = $normalize($request->query('to_month', ''));
+        if ($from && !$to) {
+            $to = $from;
+        } elseif ($to && !$from) {
+            $from = $to;
+        }
+        if ($from && $to && $from > $to) {
+            [$from, $to] = [$to, $from];
+        }
+
+        return [$from, $to];
+    }
+
+    private function buildCommercialMonthlySummary(Collection $rows, ?Carbon $periodFrom, ?Carbon $periodTo): array
+    {
+        $byMonth = $rows
+            ->groupBy(fn (array $row) => (string) ($row['created_at_month'] ?? ''))
+            ->map(fn (Collection $items) => [
+                'registros' => $items->count(),
+                'entregados' => $items->where('is_entregado', true)->count(),
+                'no_entregados' => $items->where('is_entregado', false)->where('is_cancelado', false)->count(),
+                'peso' => round((float) $items->sum('peso'), 3),
+            ]);
+
+        $start = $periodFrom?->copy()->startOfMonth();
+        $end = $periodTo?->copy()->startOfMonth();
+        if (!$start || !$end) {
+            $months = $byMonth->keys()->filter(fn ($month) => preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', (string) $month))->sort()->values();
+            if ($months->isEmpty()) {
+                return [];
+            }
+            $start ??= Carbon::createFromFormat('Y-m-d', $months->first() . '-01')->startOfMonth();
+            $end ??= Carbon::createFromFormat('Y-m-d', $months->last() . '-01')->startOfMonth();
+        }
+
+        $result = [];
+        $cursor = $start->copy();
+        while ($cursor->lte($end)) {
+            $month = $cursor->format('Y-m');
+            $previousMonth = $cursor->copy()->subMonth()->format('Y-m');
+            $current = $byMonth->get($month, ['registros' => 0, 'entregados' => 0, 'no_entregados' => 0, 'peso' => 0]);
+            $previous = $byMonth->get($previousMonth, ['registros' => 0]);
+            $currentCount = (int) $current['registros'];
+            $previousCount = (int) $previous['registros'];
+
+            $result[] = [
+                'mes' => $month,
+                'periodo' => $this->formatCommercialMonth($month),
+                'registros' => $currentCount,
+                'entregados' => (int) $current['entregados'],
+                'no_entregados' => (int) $current['no_entregados'],
+                'peso' => (float) $current['peso'],
+                'mes_anterior' => $previousMonth,
+                'mes_anterior_registros' => $previousCount,
+                'variacion' => $currentCount - $previousCount,
+                'variacion_pct' => $previousCount > 0 ? round((($currentCount - $previousCount) / $previousCount) * 100, 2) : null,
+            ];
+
+            $cursor->addMonth();
+        }
+
+        return $result;
+    }
+
+    private function commercialPeriodLabel(?string $monthFrom, ?string $monthTo, ?string $from, ?string $to): string
+    {
+        if ($monthFrom && $monthTo) {
+            $fromLabel = $this->formatCommercialMonth($monthFrom);
+            $toLabel = $this->formatCommercialMonth($monthTo);
+
+            return $monthFrom === $monthTo ? $fromLabel : $fromLabel . ' – ' . $toLabel;
+        }
+        if ($from || $to) {
+            return ($from ? date('d/m/Y', strtotime($from)) : 'Inicio') . ' – ' . ($to ? date('d/m/Y', strtotime($to)) : 'Hoy');
+        }
+
+        return 'Todo el historial';
+    }
+
+    private function formatCommercialMonth(string $month): string
+    {
+        $names = [1 => 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+        try {
+            $date = Carbon::createFromFormat('Y-m-d', $month . '-01');
+
+            return ucfirst($names[(int) $date->format('n')]) . ' ' . $date->format('Y');
+        } catch (\Throwable $e) {
+            return $month;
+        }
     }
 
     private function resolveCommercialLine(string $service, string $moduleKey = ''): string

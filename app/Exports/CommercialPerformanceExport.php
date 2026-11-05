@@ -42,11 +42,13 @@ class CommercialPerformanceExport implements WithMultipleSheets
         return [
             new CommercialPerformanceSheetExport(
                 'Resumen comercial',
-                ['Periodo', 'Líneas seleccionadas', 'Total de líneas', 'Registros', 'Entregados', 'No entregados', 'Efectividad %', 'Peso total (kg)', 'Línea con mayor volumen'],
+                ['Periodo', 'Líneas seleccionadas', 'Total de líneas', 'Registros', 'Entregados', 'No entregados', 'Efectividad %', 'Peso total (kg)', 'Línea con mayor volumen', 'Regionales consultadas'],
                 [[
-                    !empty($this->reportData['from']) || !empty($this->reportData['to'])
-                        ? (($this->reportData['from'] ?: 'inicio') . ' - ' . ($this->reportData['to'] ?: 'fin'))
-                        : 'Todo el historial',
+                    (string) ($this->reportData['periodLabel'] ?? (
+                        !empty($this->reportData['from']) || !empty($this->reportData['to'])
+                            ? (($this->reportData['from'] ?: 'inicio') . ' - ' . ($this->reportData['to'] ?: 'fin'))
+                            : 'Todo el historial'
+                    )),
                     !empty($this->reportData['selectedLines']) ? implode(', ', $this->reportData['selectedLines']) : 'Todas',
                     (int) ($totals['lineas'] ?? 0),
                     (int) ($totals['registros'] ?? 0),
@@ -55,7 +57,27 @@ class CommercialPerformanceExport implements WithMultipleSheets
                     (float) data_get($kpis, 'effectiveness.efectividad_pct', 0),
                     (float) ($totals['peso_total'] ?? 0),
                     (string) ($totals['top_linea'] ?? '-'),
+                    (string) ($this->reportData['regionalLabel'] ?? 'Todas las regionales'),
                 ]]
+            ),
+            new CommercialPerformanceMonthlySheetExport(
+                collect($this->reportData['monthlyRows'] ?? [])->values()->map(fn (array $row) => [
+                    (string) ($row['periodo'] ?? $row['mes'] ?? ''),
+                    (int) ($row['registros'] ?? 0),
+                    (int) ($row['mes_anterior_registros'] ?? 0),
+                    (int) ($row['variacion'] ?? 0),
+                    ($row['variacion_pct'] ?? null) === null ? null : (float) $row['variacion_pct'],
+                    (int) ($row['entregados'] ?? 0),
+                    (int) ($row['no_entregados'] ?? 0),
+                    (float) ($row['peso'] ?? 0),
+                ])->all()
+            ),
+            new CommercialPerformanceSheetExport(
+                'Resumen por regional',
+                ['Regional de ' . ($this->reportData['regionalType'] ?? 'origen'), 'Registros', 'Entregados', 'No entregados', 'Efectividad %', 'Peso (kg)'],
+                collect($this->reportData['regionalRows'] ?? [])->map(fn (array $row) => [
+                    $row['regional'], $row['registros'], $row['entregados'], $row['no_entregados'], $row['efectividad'], $row['peso'],
+                ])->all()
             ),
             new CommercialPerformanceSheetExport(
                 'Líneas de negocio',

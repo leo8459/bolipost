@@ -37,9 +37,9 @@
     $effectiveness = $commercialKpis['effectiveness'] ?? [];
     $sla = $commercialKpis['sla'] ?? [];
     $heatmap = $commercialKpis['heatmap'] ?? [];
-    $periodLabel = !empty($from) || !empty($to)
+    $periodLabel = $periodLabel ?? (!empty($from) || !empty($to)
         ? (($from ? date('d/m/Y', strtotime($from)) : 'Inicio') . ' – ' . ($to ? date('d/m/Y', strtotime($to)) : 'Hoy'))
-        : 'Todo el historial';
+        : 'Todo el historial');
 @endphp
 
 <table class="header">
@@ -54,6 +54,8 @@
             <div>{{ $periodLabel }}</div>
             <div style="margin-top:5px"><strong>Líneas</strong></div>
             <div>{{ !empty($selectedLines) ? implode(', ', $selectedLines) : 'Todas' }}</div>
+            <div style="margin-top:5px"><strong>Regionales</strong></div>
+            <div>{{ $regionalLabel }}</div>
             <div style="margin-top:5px">Emitido {{ now()->format('d/m/Y H:i') }}</div>
         </td>
     </tr>
@@ -68,6 +70,32 @@
         <td><div class="k">Peso procesado (kg)</div><div class="v">{{ \App\Support\BolivianNumber::format((float) ($commercialTotals['peso_total'] ?? 0), 3) }}</div></td>
     </tr>
 </table>
+
+<div class="section-title">Actividad mensual y variación</div>
+<div class="section-note">{{ $regionalLabel }}</div>
+<div class="section-note">El cambio porcentual compara los registros de cada mes con el mes calendario anterior.</div>
+<table class="report-table">
+    <thead><tr><th>Mes</th><th class="num">Registros</th><th class="num">Mes anterior</th><th class="num">Variación</th><th class="num">Crecimiento</th><th class="num">Entregados</th><th class="num">No entregados</th><th class="num">Peso (kg)</th></tr></thead>
+    <tbody>
+        @forelse(($monthlyRows ?? []) as $row)
+            <tr>
+                <td>{{ $row['periodo'] }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $row['registros']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $row['mes_anterior_registros']) }}</td>
+                <td class="num">{{ ((int) $row['variacion'] > 0 ? '+' : '') . \App\Support\BolivianNumber::format((int) $row['variacion']) }}</td>
+                <td class="num">{{ $row['variacion_pct'] === null ? ((int) $row['registros'] > 0 ? 'Nuevo' : 'Sin base') : (($row['variacion_pct'] > 0 ? '+' : '') . \App\Support\BolivianNumber::format((float) $row['variacion_pct'], 2) . '%') }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $row['entregados']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((int) $row['no_entregados']) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format((float) $row['peso'], 3) }}</td>
+            </tr>
+        @empty
+            <tr><td colspan="8">No hay registros mensuales para los filtros seleccionados.</td></tr>
+        @endforelse
+    </tbody>
+</table>
+
+<div class="section-title">Resumen por regional</div>
+@include('reportes.partials.commercial-regional-table', ['pdfMode' => true])
 
 <div class="section-title">Desempeño por línea de negocio</div>
 <div class="section-note">Ordenado de mayor a menor por cantidad de registros.</div>
