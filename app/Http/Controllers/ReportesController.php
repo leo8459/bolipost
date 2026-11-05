@@ -26,8 +26,6 @@ class ReportesController extends Controller
     private const COMMERCIAL_LINES = [
         'PAQUETES EMS',
         'PAQUETES CONTRATOS',
-        'PAQUETES CERTI',
-        'PAQUETES ORDI',
         'DELIVERY EXPRESS',
     ];
 
@@ -771,13 +769,11 @@ class ReportesController extends Controller
         $baseRequest = $request->duplicate();
         $baseRequest->query->remove('lineas');
         $baseRequest->query->set('limit', 'all');
+        $moduleByLine = [
+            'PAQUETES EMS' => 'ems',
+            'PAQUETES CONTRATOS' => 'contrato',
+        ];
         if ($selectedLines !== []) {
-            $moduleByLine = [
-                'PAQUETES EMS' => 'ems',
-                'PAQUETES CONTRATOS' => 'contrato',
-                'PAQUETES CERTI' => 'certi',
-                'PAQUETES ORDI' => 'ordi',
-            ];
             $modules = collect($selectedLines)
                 ->map(fn (string $line): ?string => $moduleByLine[$line] ?? null)
                 ->filter()
@@ -787,6 +783,8 @@ class ReportesController extends Controller
             } else {
                 $baseRequest->query->set('modules', $modules->all());
             }
+        } else {
+            $baseRequest->query->set('modules', array_values($moduleByLine));
         }
 
         $data = $this->buildCommercialBaseRows($baseRequest);
@@ -918,7 +916,9 @@ class ReportesController extends Controller
         $moduleKey = strtolower(trim($moduleKey));
 
         if ($moduleKey === 'ems' || $line === 'PAQUETES EMS') {
-            return 'PAQUETES EMS';
+            $serviceName = trim(preg_replace('/[_\s]+/', ' ', $normalizedService) ?: '');
+
+            return $serviceName !== '' ? $serviceName : 'EMS';
         }
 
         return match ($line) {

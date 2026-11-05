@@ -303,6 +303,23 @@
                                                 </a>
                                                 @endaclcan
                                             @endif
+                                            @if(filled($paquete->cod_especial))
+                                                @aclcan('edit', null, 'todos-paquetes.index')
+                                                <button
+                                                    type="button"
+                                                    class="btn btn-sm btn-outline-danger"
+                                                    title="Quitar paquete del CN-33"
+                                                    data-toggle="modal"
+                                                    data-target="#removeCn33Modal"
+                                                    data-remove-action="{{ route('todos-paquetes.cn33.remove', ['type' => $paquete->type_key, 'id' => $paquete->record_id]) }}"
+                                                    data-package-code="{{ $paquete->codigo ?: 'SIN CODIGO' }}"
+                                                    data-cn33-code="{{ $paquete->cod_especial }}"
+                                                >
+                                                    <i class="fas fa-unlink"></i>
+                                                    <span>Quitar paquete del CN-33</span>
+                                                </button>
+                                                @endaclcan
+                                            @endif
                                         </div>
                                     </td>
                                 </tr>
@@ -394,6 +411,21 @@
                                        class="btn btn-primary">
                                         <i class="fas fa-pencil-alt"></i> Editar
                                     </a>
+                                    @endaclcan
+                                @endif
+                                @if(filled($paquete->cod_especial))
+                                    @aclcan('edit', null, 'todos-paquetes.index')
+                                    <button
+                                        type="button"
+                                        class="btn btn-outline-danger"
+                                        data-toggle="modal"
+                                        data-target="#removeCn33Modal"
+                                        data-remove-action="{{ route('todos-paquetes.cn33.remove', ['type' => $paquete->type_key, 'id' => $paquete->record_id]) }}"
+                                        data-package-code="{{ $paquete->codigo ?: 'SIN CODIGO' }}"
+                                        data-cn33-code="{{ $paquete->cod_especial }}"
+                                    >
+                                        <i class="fas fa-unlink"></i> Quitar paquete del CN-33
+                                    </button>
                                     @endaclcan
                                 @endif
                             </div>
@@ -590,10 +622,226 @@
         </div>
     @endaclcan
     @endif
+
+    @aclcan('edit', null, 'todos-paquetes.index')
+        <div class="modal fade tp-cn33-warning-modal" id="removeCn33Modal" tabindex="-1" role="dialog" aria-labelledby="removeCn33ModalTitle" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered tp-cn33-warning-dialog" role="document">
+                <div class="modal-content tp-cn33-warning-card">
+                    <form method="POST" id="removeCn33Form" action="#">
+                        @csrf
+                        @method('DELETE')
+                        <div class="tp-cn33-warning-topline"></div>
+                        <button type="button" class="close tp-cn33-warning-close" data-dismiss="modal" aria-label="Cerrar">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                        <div class="modal-body text-center">
+                            <div class="tp-cn33-warning-icon" aria-hidden="true">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </div>
+                            <span class="tp-cn33-warning-kicker">CONFIRMA ESTA ACCIÓN</span>
+                            <h5 id="removeCn33ModalTitle">¿Quitar paquete del CN-33?</h5>
+                            <p class="tp-cn33-warning-copy">
+                                El paquete quedará sin asignación a este CN-33. El registro del envío se conservará.
+                            </p>
+                            <div class="tp-cn33-warning-details">
+                                <div>
+                                    <small>Paquete</small>
+                                    <strong id="removeCn33PackageCode">-</strong>
+                                </div>
+                                <i class="fas fa-long-arrow-alt-right" aria-hidden="true"></i>
+                                <div>
+                                    <small>CN-33 actual</small>
+                                    <strong id="removeCn33Code">-</strong>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tp-cn33-warning-footer">
+                            <button type="button" class="btn btn-light" data-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-danger" id="removeCn33Submit">
+                                <i class="fas fa-unlink mr-1"></i>
+                                <span id="removeCn33SubmitLabel">Quitar del CN-33</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endaclcan
 @endsection
 
 @section('css')
     <style>
+        .tp-cn33-warning-modal.fade .modal-dialog {
+            max-width:460px;
+            transform:translateY(24px) scale(.94);
+            transition:transform .38s cubic-bezier(.2,.85,.25,1);
+        }
+        .tp-cn33-warning-modal.show .modal-dialog {
+            transform:translateY(0) scale(1);
+        }
+        .tp-cn33-warning-card {
+            position:relative;
+            overflow:hidden;
+            border:0;
+            border-radius:22px;
+            background:#fff;
+            box-shadow:0 28px 80px rgba(15,23,42,.28);
+        }
+        .tp-cn33-warning-topline {
+            height:6px;
+            background:linear-gradient(100deg,#f59e0b,#ef4444,#f97316,#f59e0b);
+            background-size:220% 100%;
+            animation:tp-cn33-warning-shimmer 3s linear infinite;
+        }
+        .tp-cn33-warning-close {
+            position:absolute;
+            top:13px;
+            right:16px;
+            z-index:2;
+            color:#64748b;
+            font-size:1.8rem;
+            text-shadow:none;
+            opacity:.75;
+        }
+        .tp-cn33-warning-close:hover {
+            color:#1e293b;
+            opacity:1;
+        }
+        .tp-cn33-warning-modal .modal-body {
+            padding:30px 30px 24px;
+        }
+        .tp-cn33-warning-icon {
+            position:relative;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            width:76px;
+            height:76px;
+            margin:2px auto 17px;
+            border:1px solid #fed7aa;
+            border-radius:24px;
+            background:linear-gradient(145deg,#fff7ed,#ffedd5);
+            color:#ea580c;
+            font-size:1.8rem;
+            animation:tp-cn33-warning-pop .7s cubic-bezier(.2,.9,.25,1.3) both;
+        }
+        .tp-cn33-warning-icon::after {
+            position:absolute;
+            inset:-7px;
+            border:2px solid rgba(249,115,22,.24);
+            border-radius:29px;
+            content:'';
+            animation:tp-cn33-warning-pulse 2s ease-out .65s infinite;
+        }
+        .tp-cn33-warning-kicker {
+            display:block;
+            margin-bottom:7px;
+            color:#ea580c;
+            font-size:.68rem;
+            font-weight:900;
+            letter-spacing:.14em;
+        }
+        .tp-cn33-warning-modal h5 {
+            margin:0;
+            color:#17233c;
+            font-size:1.35rem;
+            font-weight:850;
+        }
+        .tp-cn33-warning-copy {
+            max-width:350px;
+            margin:10px auto 20px;
+            color:#64748b;
+            font-size:.91rem;
+            line-height:1.55;
+        }
+        .tp-cn33-warning-details {
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            gap:15px;
+            padding:14px 16px;
+            border:1px solid #e2e8f0;
+            border-radius:15px;
+            background:#f8fafc;
+            text-align:left;
+        }
+        .tp-cn33-warning-details > div {
+            min-width:0;
+        }
+        .tp-cn33-warning-details small,
+        .tp-cn33-warning-details strong {
+            display:block;
+        }
+        .tp-cn33-warning-details small {
+            margin-bottom:3px;
+            color:#64748b;
+            font-size:.7rem;
+            font-weight:700;
+            text-transform:uppercase;
+        }
+        .tp-cn33-warning-details strong {
+            overflow-wrap:anywhere;
+            color:#1e293b;
+            font-size:.9rem;
+        }
+        .tp-cn33-warning-details > i {
+            flex:0 0 auto;
+            color:#f97316;
+        }
+        .tp-cn33-warning-footer {
+            display:flex;
+            justify-content:center;
+            gap:10px;
+            padding:0 24px 24px;
+        }
+        .tp-cn33-warning-footer .btn {
+            min-width:138px;
+            padding:10px 15px;
+            border-radius:11px;
+            font-weight:800;
+            transition:transform .18s ease, box-shadow .18s ease;
+        }
+        .tp-cn33-warning-footer .btn:hover {
+            transform:translateY(-2px);
+            box-shadow:0 8px 18px rgba(15,23,42,.12);
+        }
+        @keyframes tp-cn33-warning-pop {
+            0% { opacity:0; transform:scale(.35) rotate(-18deg); }
+            65% { opacity:1; transform:scale(1.1) rotate(4deg); }
+            82% { transform:scale(.96) rotate(-2deg); }
+            100% { transform:scale(1) rotate(0); }
+        }
+        @keyframes tp-cn33-warning-pulse {
+            0% { opacity:.75; transform:scale(.86); }
+            75%, 100% { opacity:0; transform:scale(1.2); }
+        }
+        @keyframes tp-cn33-warning-shimmer {
+            to { background-position:220% 0; }
+        }
+        @media (max-width:575.98px) {
+            .tp-cn33-warning-modal.fade .modal-dialog {
+                max-width:calc(100% - 20px);
+                margin:10px auto;
+            }
+            .tp-cn33-warning-modal .modal-body {
+                padding:26px 20px 20px;
+            }
+            .tp-cn33-warning-footer {
+                padding:0 16px 18px;
+            }
+            .tp-cn33-warning-footer .btn {
+                min-width:0;
+                flex:1 1 0;
+            }
+        }
+        @media (prefers-reduced-motion:reduce) {
+            .tp-cn33-warning-modal *,
+            .tp-cn33-warning-modal *::before,
+            .tp-cn33-warning-modal *::after {
+                animation:none !important;
+                transition:none !important;
+            }
+        }
         .tp-page-heading h1 {
             color:#17233c;
             font-size:1.85rem;
@@ -1272,6 +1520,31 @@
                     codeLabel.textContent = reportCode || '-';
                 }
             });
+
+            $('#removeCn33Modal').on('show.bs.modal', function (event) {
+                const button = event.relatedTarget;
+                const action = button ? button.getAttribute('data-remove-action') : '#';
+                const packageCode = button ? button.getAttribute('data-package-code') : '';
+                const cn33Code = button ? button.getAttribute('data-cn33-code') : '';
+                const form = document.getElementById('removeCn33Form');
+                const packageLabel = document.getElementById('removeCn33PackageCode');
+                const cn33Label = document.getElementById('removeCn33Code');
+
+                if (form) form.setAttribute('action', action || '#');
+                if (packageLabel) packageLabel.textContent = packageCode || 'SIN CODIGO';
+                if (cn33Label) cn33Label.textContent = cn33Code || '-';
+            });
+
+            const removeCn33Form = document.getElementById('removeCn33Form');
+            const removeCn33Submit = document.getElementById('removeCn33Submit');
+            const removeCn33SubmitLabel = document.getElementById('removeCn33SubmitLabel');
+            if (removeCn33Form && removeCn33Submit) {
+                removeCn33Form.addEventListener('submit', function () {
+                    removeCn33Submit.disabled = true;
+                    removeCn33Submit.classList.add('disabled');
+                    if (removeCn33SubmitLabel) removeCn33SubmitLabel.textContent = 'Quitando...';
+                });
+            }
         });
     </script>
 @endsection

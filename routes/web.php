@@ -690,6 +690,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::post('/todos-paquetes/reporte-salida/{codigo}/cambiar-cartero', [TodosPaquetesController::class, 'cambiarCarteroReporte'])->name('todos-paquetes.reporte-salida.cambiar-cartero');
     Route::patch('/todos-paquetes/{type}/{id}/estado', [TodosPaquetesController::class, 'updateEstado'])->name('todos-paquetes.estado');
     Route::put('/todos-paquetes/{type}/{id}/datos', [TodosPaquetesController::class, 'updateDatos'])->name('todos-paquetes.datos');
+    Route::delete('/todos-paquetes/{type}/{id}/cn33', [TodosPaquetesController::class, 'removeFromCn33'])->name('todos-paquetes.cn33.remove');
     Route::post('/tarifa-contrato', [TarifaContratoController::class, 'store'])->name('tarifa-contrato.store');
     Route::get('/tarifa-contrato/{tarifaContrato}/edit', [TarifaContratoController::class, 'edit'])->name('tarifa-contrato.edit');
     Route::put('/tarifa-contrato/{tarifaContrato}', [TarifaContratoController::class, 'update'])->name('tarifa-contrato.update');

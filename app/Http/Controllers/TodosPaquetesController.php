@@ -371,6 +371,41 @@ class TodosPaquetesController extends Controller
         return back()->with('success', 'Estado actualizado.');
     }
 
+    public function removeFromCn33(string $type, int $id)
+    {
+        $config = $this->typeConfig($type);
+        abort_unless(array_key_exists('cod_especial', $config['editable']), 404);
+
+        $result = DB::transaction(function () use ($config, $id) {
+            $modelClass = $config['model'];
+            $model = $modelClass::query()
+                ->lockForUpdate()
+                ->findOrFail($id);
+            $codEspecial = trim((string) $model->cod_especial);
+
+            if ($codEspecial === '') {
+                return null;
+            }
+
+            $model->cod_especial = null;
+            $model->save();
+
+            return [
+                'codigo' => (string) ($model->codigo ?: $model->codigo_solicitud ?: $model->barcode ?: 'SIN CODIGO'),
+                'cod_especial' => $codEspecial,
+            ];
+        });
+
+        if ($result === null) {
+            return back()->with('error', 'El paquete ya no tiene un CN-33 asignado.');
+        }
+
+        return back()->with(
+            'success',
+            'El paquete '.$result['codigo'].' fue quitado del CN-33 '.$result['cod_especial'].'.'
+        );
+    }
+
     public function updateDatos(Request $request, string $type, int $id)
     {
         $config = $this->typeConfig($type);

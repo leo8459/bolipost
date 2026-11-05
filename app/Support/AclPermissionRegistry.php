@@ -767,6 +767,10 @@ class AclPermissionRegistry
             'todos-paquetes.reporte-salida.cambiar-cartero',
             'feature.todos-paquetes.index.edit',
         ],
+        'todos-paquetes.cn33.remove' => [
+            'todos-paquetes.cn33.remove',
+            'feature.todos-paquetes.index.edit',
+        ],
         'bitacoras.create' => [
             'bitacoras.create',
             'feature.bitacoras.index.create',
