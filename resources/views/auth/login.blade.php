@@ -183,6 +183,7 @@
         .siop-hero-panel{position:relative;display:flex;flex:1;align-items:center;overflow:hidden;min-width:0;background:linear-gradient(130deg,#fff2bd,#ffd36b)}
         .siop-hero-art{position:absolute;inset:0;background-image:linear-gradient(90deg,rgba(255,245,211,.7) 0%,rgba(255,243,202,.2) 42%,rgba(255,222,131,.03) 100%),url('{{ asset('images/siop-login-hero.png') }}');background-size:cover;background-position:66% center}
         .siop-hero-content{position:relative;width:min(670px,72%);margin-left:clamp(24px,5vw,86px);border:1px solid rgba(255,255,255,.8);border-radius:30px;background:rgba(255,255,255,.9);padding:clamp(32px,4.1vw,65px);box-shadow:0 24px 70px rgba(59,72,92,.12);backdrop-filter:blur(10px)}
+        @media(min-width:1500px){.siop-hero-content{width:min(400px,31%);margin-left:20px;padding:30px;background:rgba(255,255,255,.84)}}
         .siop-hero-kicker{display:flex;align-items:center;gap:10px;margin:0 0 11px;color:#758197;font-size:11px;font-weight:800;letter-spacing:.16em}
         .siop-hero-kicker span{width:24px;height:2px;background:#ffc000}
         .siop-hero-content h2{margin:0;color:#0a408e;font-size:clamp(60px,7.3vw,100px);font-weight:900;letter-spacing:-.065em;line-height:.92}

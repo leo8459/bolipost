@@ -641,7 +641,7 @@
                                     @else
                                         Puedes subir un PDF de contrato, convenio o adenda.
                                     @endif
-                                    Tamano maximo: 50 MB.
+                                    Tamano maximo: 150 MB.
                                 </div>
                                 @if ($documento_pdf_file)
                                     <div class="small text-info mt-1">PDF listo para guardar: {{ $documento_pdf_file->getClientOriginalName() }}</div>

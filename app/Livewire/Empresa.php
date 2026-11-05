@@ -16,7 +16,7 @@ class Empresa extends Component
     use WithFileUploads;
     use WithPagination;
 
-    private const DOCUMENTO_PDF_MAX_KB = 51200;
+    private const DOCUMENTO_PDF_MAX_KB = 153600;
 
     public $search = '';
     public $searchQuery = '';
@@ -237,7 +237,7 @@ class Empresa extends Component
     protected function messages(): array
     {
         return [
-            'documento_pdf_file.max' => 'El documento PDF no debe superar los 50 MB.',
+            'documento_pdf_file.max' => 'El documento PDF no debe superar los 150 MB.',
             'documento_pdf_file.mimes' => 'El documento debe ser un archivo PDF.',
             'nit.regex' => 'El NIT solo debe contener numeros.',
         ];
