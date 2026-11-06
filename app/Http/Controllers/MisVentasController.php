@@ -20,6 +20,7 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -41,8 +42,10 @@ class MisVentasController extends Controller
     private const KARDEX_EVENT_ASSIGNED_TO_COURIER = 184;
     private const KARDEX_EVENT_ADMISSION = 295;
     private const KARDEX_EVENT_CERTI_ADMISSION = 168;
-    private const KARDEX_EVENT_COUNTER_DELIVERY = [183, 185, 2238, 4478];
+    private const KARDEX_EVENT_COUNTER_DELIVERY = [183, 185, 4478];
     private const KARDEX_EVENT_COURIER_DELIVERY = [165, 315, 4477];
+    private const KARDEX_EVENT_TIKTOKER_ADMISSION = 2239;
+    private const KARDEX_EVENT_TIKTOKER_ARRIVED_AT_EMS_WINDOW = 2238;
 
     public function index(Request $request, FacturacionCartService $service): View
     {
@@ -336,7 +339,22 @@ class MisVentasController extends Controller
 
     private function kardexOperationGroupLabel(array $row): string
     {
-        return match ($this->normalizeKardexText((string) data_get($row, 'modalidad_entrega', ''))) {
+        $operation = $this->normalizeKardexText((string) data_get($row, 'modalidad_entrega', ''));
+        $deliveryDetail = $this->normalizeKardexText((string) data_get($row, 'operacion_detalle', ''));
+
+        if ($operation === 'ENTREGA' && str_contains($deliveryDetail, 'ENTREGADO')) {
+            if (str_contains($deliveryDetail, 'NO DOMICILIARIA')) {
+                return 'ENTREGADOS NO DOMICILIARIOS';
+            }
+
+            if (str_contains($deliveryDetail, 'DOMICILIARIA')) {
+                return 'ENTREGADOS DOMICILIARIOS';
+            }
+
+            return 'ENTREGADOS SIN MODALIDAD REGISTRADA';
+        }
+
+        return match ($operation) {
             'ADMISION' => 'ADMISIONES',
             'ENTREGA', 'DISTRIBUCION DOMICILIARIA', 'DISTRIBUCION NO DOMICILIARIA' => 'ENTREGAS',
             default => 'ADMISIONES',
@@ -348,7 +366,10 @@ class MisVentasController extends Controller
         return match ($this->normalizeKardexText($group)) {
             'ADMISIONES' => 1,
             'ENTREGAS' => 2,
-            default => 3,
+            'ENTREGADOS DOMICILIARIOS' => 3,
+            'ENTREGADOS NO DOMICILIARIOS' => 4,
+            'ENTREGADOS SIN MODALIDAD REGISTRADA' => 5,
+            default => 6,
         };
     }
 
@@ -1140,12 +1161,20 @@ class MisVentasController extends Controller
             return [collect(), $this->emptySummary(), $scopeMetadata];
         }
 
-        $rows = $this->normalizeKardexRows($rawRows)
-            ->reject(fn ($row) => $this->isUnconsolidatedManualRelease($row))
-            ->unique(fn ($row) => (in_array($scope, ['regional', 'branch_kardex'], true) ? trim((string) data_get($row, 'origen_usuario_id', '')) . ':' : '') . $this->normalizedVentaRowKey($row))
+        $normalizedRows = $this->normalizeKardexRows($rawRows)
+            ->reject(fn ($row) => $this->isUnconsolidatedManualRelease($row));
+        $dedupeKey = fn ($row) => (in_array($scope, ['regional', 'branch_kardex'], true)
+            ? trim((string) data_get($row, 'origen_usuario_id', '')) . ':'
+            : '') . $this->normalizedVentaRowKey($row);
+        $rows = $normalizedRows
+            // The cart endpoint is concatenated before the Kardex endpoint. Prefer
+            // the copy carrying the official invoice number before removing duplicates.
+            ->sortByDesc(fn ($row) => $this->kardexRowCompletenessScore($row))
+            ->unique($dedupeKey)
             ->sortByDesc(fn ($row) => strtotime((string) (data_get($row, 'emitido_en') ?: data_get($row, 'created_at', '1970-01-01 00:00:00'))))
             ->values();
         $rows = $this->applyLocalFilters($rows, $filters);
+        $this->logKardexInvoiceNumberAudit($user, $filters, $scope, $rawRows, $normalizedRows, $rows, $dedupeKey);
 
         return [
             $rows->values(),
@@ -1531,12 +1560,25 @@ class MisVentasController extends Controller
                 ?? data_get($row, 'codigo_seguimiento')
                 ?? ''
             ));
-            $numeroFactura = trim((string) (
-                data_get($row, 'numeroFactura')
-                ?? data_get($row, 'nroFactura')
-                ?? data_get($row, 'respuesta_emision.factura.nroFactura')
-                ?? data_get($row, 'respuesta_emision.factura.numeroFactura')
-            ));
+            $numeroFactura = '';
+            $numeroFacturaFuente = '';
+            foreach ([
+                'numero_factura' => data_get($row, 'numero_factura'),
+                'numeroFactura' => data_get($row, 'numeroFactura'),
+                'nroFactura' => data_get($row, 'nroFactura'),
+                'respuesta_emision.factura.nroFactura' => data_get($row, 'respuesta_emision.factura.nroFactura'),
+                'respuesta_emision.factura.numeroFactura' => data_get($row, 'respuesta_emision.factura.numeroFactura'),
+                'respuesta_emision.consultaSefe.nroFactura' => data_get($row, 'respuesta_emision.consultaSefe.nroFactura'),
+                'seguimiento.detalle.nroFactura' => data_get($row, 'seguimiento.detalle.nroFactura'),
+                'seguimiento.detalle.numeroFactura' => data_get($row, 'seguimiento.detalle.numeroFactura'),
+            ] as $source => $candidate) {
+                $candidate = trim((string) ($candidate ?? ''));
+                if ($candidate !== '' && ! in_array($candidate, ['-', '—'], true)) {
+                    $numeroFactura = $candidate;
+                    $numeroFacturaFuente = $source;
+                    break;
+                }
+            }
             $estadoSufe = strtoupper(trim((string) (
                 data_get($row, 'estadoSufe')
                 ?? data_get($row, 'respuesta_emision.estadoSufe')
@@ -1636,6 +1678,8 @@ class MisVentasController extends Controller
                 'created_at' => $createdAt,
                 'emitido_en' => $createdAt,
                 'codigo_orden' => $codigoOrden,
+                'numero_factura' => $numeroFactura,
+                'numero_factura_fuente' => $numeroFacturaFuente,
                 'numero_documento' => $isOficial ? '' : trim((string) data_get($row, 'documentoIdentidad', data_get($row, 'numero_documento', ''))),
                 'razon_social' => trim((string) data_get($row, 'razonSocial', data_get($row, 'razon_social', ''))),
                 'modalidad_facturacion' => $isOficial
@@ -1686,6 +1730,85 @@ class MisVentasController extends Controller
         }
 
         return md5(json_encode($row));
+    }
+
+    private function kardexRowCompletenessScore(object $row): int
+    {
+        $numeroFactura = trim((string) data_get($row, 'numero_factura', ''));
+        $cuf = trim((string) data_get($row, 'respuesta_emision.factura.cuf', data_get($row, 'cuf', '')));
+        $pdfUrl = trim((string) data_get($row, 'respuesta_emision.factura.pdfUrl', data_get($row, 'pdf_url', '')));
+        $items = data_get($row, 'items', []);
+        $itemCount = is_countable($items) ? count($items) : 0;
+
+        return ($numeroFactura !== '' && ! in_array($numeroFactura, ['-', '—'], true) ? 100000000 : 0)
+            + ($cuf !== '' ? 1000000 : 0)
+            + ($pdfUrl !== '' ? 10000 : 0)
+            + min(999, $itemCount);
+    }
+
+    private function logKardexInvoiceNumberAudit(
+        User $user,
+        array $filters,
+        string $scope,
+        Collection $rawRows,
+        Collection $normalizedRows,
+        Collection $visibleRows,
+        callable $dedupeKey
+    ): void {
+        $facturadas = $visibleRows->filter(function ($row): bool {
+            $estadoEmision = strtoupper(trim((string) data_get($row, 'estado_emision', '')));
+            $estadoSufe = strtoupper(trim((string) data_get($row, 'respuesta_emision.estadoSufe', '')));
+            $estado = strtolower(trim((string) data_get($row, 'estado', '')));
+
+            return $estado !== 'anulado'
+                && ! in_array($estadoEmision, ['ANULADA', 'ANULADO'], true)
+                && ($estadoEmision === 'FACTURADA'
+                    || in_array($estadoSufe, ['FACTURADA', 'PROCESADA'], true));
+        });
+        $missingInvoice = $facturadas->filter(fn ($row): bool => trim((string) data_get($row, 'numero_factura', '')) === '');
+        $duplicateGroupsWithNumber = $normalizedRows
+            ->groupBy($dedupeKey)
+            ->filter(function (Collection $group): bool {
+                return $group->count() > 1
+                    && $group->contains(fn ($row): bool => trim((string) data_get($row, 'numero_factura', '')) !== '');
+            })
+            ->count();
+        $numberSources = $normalizedRows
+            ->filter(fn ($row): bool => trim((string) data_get($row, 'numero_factura', '')) !== '')
+            ->countBy(fn ($row): string => (string) data_get($row, 'numero_factura_fuente', 'desconocida'))
+            ->all();
+        $examples = $missingInvoice->take(10)->map(fn ($row): array => [
+            'venta_id' => data_get($row, 'venta_id') ?: data_get($row, 'id'),
+            'cart_id' => data_get($row, 'origen_venta_id') ?: data_get($row, 'id'),
+            'codigo_orden' => data_get($row, 'codigo_orden'),
+            'codigo_seguimiento_final' => substr(trim((string) data_get($row, 'codigo_seguimiento', '')), -5),
+            'estado_emision' => data_get($row, 'estado_emision'),
+            'estado_sufe' => data_get($row, 'respuesta_emision.estadoSufe'),
+            'tiene_cuf' => trim((string) data_get($row, 'respuesta_emision.factura.cuf', '')) !== '',
+            'tiene_pdf' => trim((string) data_get($row, 'respuesta_emision.factura.pdfUrl', '')) !== '',
+        ])->values()->all();
+
+        $context = [
+            'scope' => $scope,
+            'user_id' => (int) $user->id,
+            'fecha_desde' => $filters['from'] ?? null,
+            'fecha_hasta' => $filters['to'] ?? null,
+            'filas_api' => $rawRows->count(),
+            'filas_normalizadas' => $normalizedRows->count(),
+            'filas_visibles' => $visibleRows->count(),
+            'filas_facturadas' => $facturadas->count(),
+            'filas_facturadas_con_numero' => $facturadas->count() - $missingInvoice->count(),
+            'filas_facturadas_sin_numero' => $missingInvoice->count(),
+            'grupos_duplicados_con_numero' => $duplicateGroupsWithNumber,
+            'fuentes_numero_factura' => $numberSources,
+            'ejemplos_sin_numero' => $examples,
+        ];
+
+        Log::debug('mis-ventas.kardex.invoice-number-audit', $context);
+
+        if ($missingInvoice->isNotEmpty()) {
+            Log::warning('mis-ventas.kardex.facturada-sin-numero-factura', $context);
+        }
     }
 
     private function extractOrigenVentaId(object|array|null $payload): int
@@ -2412,8 +2535,9 @@ class MisVentasController extends Controller
             ->flatMap(fn (array $row) => $this->splitKardexPackageRows($row))
             ->values();
         $operationalStages = $this->lookupKardexOperationalStages($splitRows, $trackingEvents);
+        $deliveryExpressPayments = $this->lookupKardexDeliveryExpressPaymentModes($splitRows);
         $viewRows = $splitRows
-            ->map(function (array $splitRow) use ($localDestinations, $trackingDestinations, $trackingOrigins, $trackingEvents, $operationalStages): array {
+            ->map(function (array $splitRow) use ($localDestinations, $trackingDestinations, $trackingOrigins, $trackingEvents, $operationalStages, $deliveryExpressPayments): array {
                 $codes = collect($splitRow['detalle_codigos'] ?? [])
                     ->pluck('codigo')
                     ->map(fn ($code) => $this->normalizeKardexPackageLookupCode((string) $code))
@@ -2426,11 +2550,41 @@ class MisVentasController extends Controller
                     ->unique()
                     ->values();
                 $splitRow['modalidad_entrega'] = $this->resolveKardexOperation($splitRow, $codes, $stages, $trackingEvents);
-                $splitRow['operacion_detalle'] = $this->normalizeKardexText($splitRow['modalidad_entrega']) === 'ENTREGA'
-                    ? $stages
+                $isDeliveryExpress = $this->isKardexDeliveryExpressRow($splitRow);
+                $paymentLabel = $isDeliveryExpress
+                    ? $this->resolveKardexDeliveryExpressPaymentMode($splitRow, $deliveryExpressPayments)
+                    : '';
+                $distributionLabel = $stages
+                    ->first(fn (string $stage) => in_array(
+                        $this->normalizeKardexText($stage),
+                        [
+                            'DISTRIBUCION DOMICILIARIA',
+                            'DISTRIBUCION NO DOMICILIARIA',
+                            'ENTREGADO DOMICILIARIA',
+                            'ENTREGADO NO DOMICILIARIA',
+                            'ENTREGADO MODALIDAD NO REGISTRADA',
+                        ],
+                        true
+                    ));
+                $officeArrivalLabel = $stages
+                    ->first(fn (string $stage) => $this->normalizeKardexText($stage) === 'RECIBIDO EN OFICINA DE ENTREGA');
+
+                if ($isDeliveryExpress) {
+                    $splitRow['forma_cobro_delivery_express'] = $paymentLabel;
+                    $splitRow['estado_distribucion_delivery_express'] = (string) ($distributionLabel ?? '');
+                    $splitRow['estado_operativo_delivery_express'] = (string) ($distributionLabel ?? $officeArrivalLabel ?? '');
+                    $details = collect([
+                        $paymentLabel !== '' ? 'COBRO: ' . $paymentLabel : null,
+                        $distributionLabel ?: ($officeArrivalLabel ? 'ESTADO: ' . $officeArrivalLabel : null),
+                    ])->filter()->values();
+                    $splitRow['operacion_detalle'] = $details->implode(' · ');
+                } else {
+                    $splitRow['operacion_detalle'] = $this->normalizeKardexText($splitRow['modalidad_entrega']) === 'ENTREGA'
+                        ? $stages
                         ->reject(fn (string $stage) => $this->normalizeKardexText($stage) === $this->normalizeKardexText($splitRow['modalidad_entrega']))
                         ->implode(' / ')
-                    : '';
+                        : '';
+                }
 
                 return $this->formatKardexViewRow($splitRow, $localDestinations, $trackingDestinations, $trackingOrigins);
             })
@@ -2456,6 +2610,182 @@ class MisVentasController extends Controller
             });
     }
 
+    private function isKardexDeliveryExpressRow(array $row): bool
+    {
+        $values = collect([
+            data_get($row, 'tipo_envio'),
+            data_get($row, 'tipo_correspondencia'),
+            data_get($row, 'detalle_items'),
+            data_get($row, 'kardex_servicio_familia'),
+        ])->merge(collect($row['detalle_codigos'] ?? [])->flatMap(function (array $entry): array {
+            $source = $entry['source'] ?? null;
+
+            return [
+                data_get($entry, 'servicio'),
+                data_get($source, 'titulo'),
+                data_get($source, 'nombre_servicio'),
+                data_get($source, 'resumen_origen.servicio_familia'),
+                data_get($source, 'resumen_origen.servicio_nombre'),
+            ];
+        }))->filter(fn ($value) => trim((string) $value) !== '');
+
+        return $values->contains(function ($value): bool {
+            $normalized = $this->normalizeKardexText(str_replace('_', ' ', (string) $value));
+
+            return str_contains($normalized, 'DELIVERY EXPRESS');
+        });
+    }
+
+    private function lookupKardexDeliveryExpressPaymentModes(Collection $rows): array
+    {
+        if (! Schema::hasTable('solicitud_clientes')) {
+            return [];
+        }
+
+        $requestIds = collect();
+        $requestCodes = collect();
+        foreach ($rows as $row) {
+            if (! $this->isKardexDeliveryExpressRow($row)) {
+                continue;
+            }
+
+            $rowRequestId = (int) data_get($row, 'kardex_origen_id', 0);
+            if ($rowRequestId > 0) {
+                $requestIds->push($rowRequestId);
+            }
+            $rowCode = $this->normalizeKardexPackageLookupCode((string) data_get($row, 'kardex_codigo_solicitud', ''));
+            if ($rowCode !== '') {
+                $requestCodes->push($rowCode);
+            }
+
+            foreach (collect($row['detalle_codigos'] ?? []) as $entry) {
+                $source = $entry['source'] ?? null;
+                if (! is_object($source)) {
+                    continue;
+                }
+
+                $origin = ltrim(trim((string) data_get($source, 'origen_tipo', '')), '\\');
+                $serviceFamily = $this->normalizeKardexText((string) data_get($source, 'resumen_origen.servicio_familia', ''));
+                if ($origin !== 'App\\Models\\SolicitudCliente'
+                    && $serviceFamily !== 'DELIVERY EXPRESS'
+                    && $serviceFamily !== 'DELIVERY_EXPRESS') {
+                    continue;
+                }
+
+                $requestId = (int) data_get($source, 'origen_id', 0);
+                if ($requestId > 0) {
+                    $requestIds->push($requestId);
+                }
+
+                foreach ([
+                    data_get($source, 'resumen_origen.codigo_paquete'),
+                    data_get($source, 'resumen_origen.codigo'),
+                    data_get($source, 'codigo_paquete'),
+                    data_get($source, 'codigo'),
+                    data_get($entry, 'codigo'),
+                ] as $code) {
+                    $normalizedCode = $this->normalizeKardexPackageLookupCode((string) $code);
+                    if ($normalizedCode !== '') {
+                        $requestCodes->push($normalizedCode);
+                    }
+                }
+            }
+        }
+
+        $requestIds = $requestIds->unique()->values();
+        $requestCodes = $requestCodes->unique()->values();
+        if ($requestIds->isEmpty() && $requestCodes->isEmpty()) {
+            return [];
+        }
+
+        $columns = ['id', 'codigo_solicitud', 'barcode', 'forma_pago', 'pago_destinatario'];
+        $paymentRows = collect();
+        foreach ($requestIds->chunk(1000) as $idChunk) {
+            $paymentRows = $paymentRows->concat(DB::table('solicitud_clientes')
+                ->select($columns)
+                ->whereIn('id', $idChunk->all())
+                ->get());
+        }
+        foreach ($requestCodes->chunk(1000) as $codeChunk) {
+            $paymentRows = $paymentRows->concat(DB::table('solicitud_clientes')
+                ->select($columns)
+                ->whereIn(DB::raw('TRIM(UPPER(codigo_solicitud))'), $codeChunk->all())
+                ->orWhereIn(DB::raw('TRIM(UPPER(barcode))'), $codeChunk->all())
+                ->get());
+        }
+
+        $paymentModes = [];
+        foreach ($paymentRows->unique('id') as $paymentRow) {
+            $label = $this->resolveKardexDeliveryExpressPaymentMode([
+                'forma_pago' => $paymentRow->forma_pago ?? null,
+                'pago_destinatario' => $paymentRow->pago_destinatario ?? false,
+            ]);
+            $paymentModes['ID#' . (int) $paymentRow->id] = $label;
+            foreach ([$paymentRow->codigo_solicitud ?? '', $paymentRow->barcode ?? ''] as $code) {
+                $normalizedCode = $this->normalizeKardexPackageLookupCode((string) $code);
+                if ($normalizedCode !== '') {
+                    $paymentModes['CODE#' . $normalizedCode] = $label;
+                }
+            }
+        }
+
+        return $paymentModes;
+    }
+
+    private function resolveKardexDeliveryExpressPaymentMode(array $row, array $paymentModes = []): string
+    {
+        $directFormaPago = strtolower(trim((string) data_get(
+            $row,
+            'forma_pago',
+            data_get($row, 'kardex_forma_pago', data_get($row, 'resumen_origen.forma_pago', ''))
+        )));
+        $directoPorCobrar = filter_var(data_get(
+            $row,
+            'pago_destinatario',
+            data_get($row, 'kardex_pago_destinatario', data_get($row, 'resumen_origen.pago_destinatario', false))
+        ), FILTER_VALIDATE_BOOLEAN);
+        if (in_array($directFormaPago, ['destino', 'por cobrar', 'por_cobrar'], true) || $directoPorCobrar) {
+            return 'POR COBRAR';
+        }
+        if (in_array($directFormaPago, ['pagado', 'origen'], true)) {
+            return 'PAGADO';
+        }
+
+        $rowRequestId = (int) data_get($row, 'kardex_origen_id', 0);
+        if ($rowRequestId > 0 && isset($paymentModes['ID#' . $rowRequestId])) {
+            return (string) $paymentModes['ID#' . $rowRequestId];
+        }
+        $rowCode = $this->normalizeKardexPackageLookupCode((string) data_get($row, 'kardex_codigo_solicitud', ''));
+        if ($rowCode !== '' && isset($paymentModes['CODE#' . $rowCode])) {
+            return (string) $paymentModes['CODE#' . $rowCode];
+        }
+
+        foreach (collect($row['detalle_codigos'] ?? []) as $entry) {
+            $source = $entry['source'] ?? null;
+            $requestId = (int) data_get($source, 'origen_id', 0);
+            if ($requestId > 0 && isset($paymentModes['ID#' . $requestId])) {
+                return (string) $paymentModes['ID#' . $requestId];
+            }
+
+            foreach ([
+                data_get($source, 'resumen_origen.codigo_paquete'),
+                data_get($source, 'resumen_origen.codigo'),
+                data_get($source, 'codigo_paquete'),
+                data_get($source, 'codigo'),
+                data_get($entry, 'codigo'),
+            ] as $code) {
+                $normalizedCode = $this->normalizeKardexPackageLookupCode((string) $code);
+                if ($normalizedCode !== '' && isset($paymentModes['CODE#' . $normalizedCode])) {
+                    return (string) $paymentModes['CODE#' . $normalizedCode];
+                }
+            }
+        }
+
+        // SolicitudCliente usa este mismo valor predeterminado: si no hay
+        // forma_pago y pago_destinatario es falso, el envío figura como pagado.
+        return $directoPorCobrar ? 'POR COBRAR' : 'PAGADO';
+    }
+
     private function lookupKardexOperationalStages(Collection $rows, array $trackingEventsByCode = []): array
     {
         $codes = $rows
@@ -2472,23 +2802,41 @@ class MisVentasController extends Controller
             'eventos_ems' => [
                 'admission' => [self::KARDEX_EVENT_ADMISSION],
                 'domiciliary' => array_merge([self::KARDEX_EVENT_ASSIGNED_TO_COURIER], self::KARDEX_EVENT_COURIER_DELIVERY),
-                'non_domiciliary' => array_merge([self::KARDEX_EVENT_SENT_TO_WINDOW_EMS], self::KARDEX_EVENT_COUNTER_DELIVERY),
+                'arrival' => [self::KARDEX_EVENT_SENT_TO_WINDOW_EMS],
+                'non_domiciliary' => self::KARDEX_EVENT_COUNTER_DELIVERY,
             ],
             'eventos_contrato' => [
                 'admission' => [self::KARDEX_EVENT_ADMISSION],
                 'domiciliary' => array_merge([self::KARDEX_EVENT_ASSIGNED_TO_COURIER], self::KARDEX_EVENT_COURIER_DELIVERY),
-                'non_domiciliary' => array_merge([self::KARDEX_EVENT_SENT_TO_WINDOW_EMS], self::KARDEX_EVENT_COUNTER_DELIVERY),
+                'arrival' => [self::KARDEX_EVENT_SENT_TO_WINDOW_EMS],
+                'non_domiciliary' => self::KARDEX_EVENT_COUNTER_DELIVERY,
             ],
             'eventos_certi' => [
                 'admission' => [self::KARDEX_EVENT_CERTI_ADMISSION],
                 'domiciliary' => array_merge([self::KARDEX_EVENT_ASSIGNED_TO_COURIER], self::KARDEX_EVENT_COURIER_DELIVERY),
-                'non_domiciliary' => array_merge([self::KARDEX_EVENT_SENT_TO_WINDOW_CERTI], self::KARDEX_EVENT_COUNTER_DELIVERY),
+                'arrival' => [self::KARDEX_EVENT_SENT_TO_WINDOW_CERTI],
+                'non_domiciliary' => self::KARDEX_EVENT_COUNTER_DELIVERY,
             ],
             'eventos_ordi' => [
                 'admission' => [self::KARDEX_EVENT_ADMISSION],
                 'domiciliary' => array_merge([self::KARDEX_EVENT_ASSIGNED_TO_COURIER], self::KARDEX_EVENT_COURIER_DELIVERY),
                 'non_domiciliary' => self::KARDEX_EVENT_COUNTER_DELIVERY,
             ],
+            'eventos_tiktoker' => [
+                'admission' => [self::KARDEX_EVENT_TIKTOKER_ADMISSION],
+                'domiciliary' => array_merge([self::KARDEX_EVENT_ASSIGNED_TO_COURIER], self::KARDEX_EVENT_COURIER_DELIVERY),
+                'arrival' => [self::KARDEX_EVENT_TIKTOKER_ARRIVED_AT_EMS_WINDOW],
+                'non_domiciliary' => self::KARDEX_EVENT_COUNTER_DELIVERY,
+            ],
+        ];
+        // El evento 316 es entrega para EMS, ORDI, contratos y Delivery Express;
+        // en CERTI significa clasificación procesada, no entrega.
+        $deliveredEventIdsByTable = [
+            'eventos_ems' => [self::KARDEX_EVENT_DELIVERED],
+            'eventos_contrato' => [self::KARDEX_EVENT_DELIVERED],
+            'eventos_certi' => [],
+            'eventos_ordi' => [self::KARDEX_EVENT_DELIVERED],
+            'eventos_tiktoker' => [self::KARDEX_EVENT_DELIVERED],
         ];
         $eventsByCode = [];
         foreach ($eventTypesByTable as $table => $eventTypes) {
@@ -2500,10 +2848,8 @@ class MisVentasController extends Controller
             }
 
             $eventIds = array_values(array_unique(array_merge(
-                $eventTypes['admission'],
-                $eventTypes['domiciliary'],
-                $eventTypes['non_domiciliary'],
-                [self::KARDEX_EVENT_DELIVERED]
+                array_merge(...array_values($eventTypes)),
+                $deliveredEventIdsByTable[$table] ?? []
             )));
 
             foreach ($codes->chunk(1000) as $codeChunk) {
@@ -2541,11 +2887,13 @@ class MisVentasController extends Controller
                             break;
                         }
                     }
-                    if ($category !== null || $eventId === self::KARDEX_EVENT_DELIVERED) {
+                    $isDeliveredEvent = in_array($eventId, $deliveredEventIdsByTable[$table] ?? [], true);
+                    if ($category !== null || $isDeliveredEvent) {
                         $history->push([
                             'timestamp' => $timestamp,
                             'event_id' => $eventId,
                             'category' => $category,
+                            'delivered' => $isDeliveredEvent,
                         ]);
                     }
                 }
@@ -2557,19 +2905,25 @@ class MisVentasController extends Controller
 
             $history = $history->sortBy('timestamp')->values();
             $latest = $history->last();
-            if ((int) $latest['event_id'] === self::KARDEX_EVENT_DELIVERED) {
+            if ((bool) ($latest['delivered'] ?? false)) {
                 $route = $history->filter(fn (array $event) => $event['category'] !== null)->last();
-                $category = in_array($route['category'] ?? null, ['domiciliary', 'non_domiciliary'], true)
-                    ? $route['category']
-                    : null;
+                $category = match ($route['category'] ?? null) {
+                    'arrival', 'non_domiciliary' => 'delivered_non_domiciliary',
+                    'domiciliary' => 'delivered_domiciliary',
+                    default => 'delivered_unknown',
+                };
             } else {
                 $category = $latest['category'];
             }
 
             $stages[$code] = match ($category) {
                 'admission' => 'ADMISIÓN',
+                'arrival' => 'RECIBIDO EN OFICINA DE ENTREGA',
                 'domiciliary' => 'DISTRIBUCIÓN DOMICILIARIA',
                 'non_domiciliary' => 'DISTRIBUCIÓN NO DOMICILIARIA',
+                'delivered_domiciliary' => 'ENTREGADO · DOMICILIARIA',
+                'delivered_non_domiciliary' => 'ENTREGADO · NO DOMICILIARIA',
+                'delivered_unknown' => 'ENTREGADO · MODALIDAD NO REGISTRADA',
                 default => '-',
             };
             $stageTimestamps[$code] = (int) ($latest['timestamp'] ?? 0);
@@ -2629,23 +2983,23 @@ class MisVentasController extends Controller
             (string) ($latestEvent->evento ?? ''),
             (string) ($latestEvent->descripcion ?? ''),
         ])));
-        $counterEventCodes = [32, 73, 75];
-        $counterEventIds = array_merge(
-            $counterEventCodes,
-            self::KARDEX_EVENT_COUNTER_DELIVERY,
-            [self::KARDEX_EVENT_SENT_TO_WINDOW_EMS, self::KARDEX_EVENT_SENT_TO_WINDOW_CERTI]
-        );
+        $arrivalEventCodes = [32];
+        $arrivalEventIds = [self::KARDEX_EVENT_SENT_TO_WINDOW_EMS, self::KARDEX_EVENT_SENT_TO_WINDOW_CERTI];
+        $counterEventCodes = [73, 75];
+        $counterEventIds = array_merge($counterEventCodes, self::KARDEX_EVENT_COUNTER_DELIVERY);
         $courierEventCodes = [36, 39, 67, 74];
         $courierEventIds = array_merge([self::KARDEX_EVENT_ASSIGNED_TO_COURIER], self::KARDEX_EVENT_COURIER_DELIVERY);
-        $latestRouteEvent = $events->first(function ($event) use ($counterEventIds, $courierEventCodes, $courierEventIds): bool {
+        $routeEventIds = array_merge($counterEventIds, $arrivalEventIds);
+        $routeEventCodes = array_merge($counterEventCodes, $arrivalEventCodes);
+        $latestRouteEvent = $events->first(function ($event) use ($routeEventIds, $routeEventCodes, $courierEventCodes, $courierEventIds): bool {
             $event = (object) $event;
             $eventCode = is_numeric($event->codigo_evento ?? null) ? (int) $event->codigo_evento : null;
             $eventId = is_numeric($event->evento_id ?? null) ? (int) $event->evento_id : null;
 
             return in_array($eventCode, $courierEventCodes, true)
-                || in_array($eventCode, [32, 73, 75], true)
+                || in_array($eventCode, $routeEventCodes, true)
                 || in_array($eventId, $courierEventIds, true)
-                || in_array($eventId, $counterEventIds, true);
+                || in_array($eventId, $routeEventIds, true);
         });
         $latestRouteEvent = $latestRouteEvent !== null ? (object) $latestRouteEvent : null;
         $latestRouteEventCode = is_numeric($latestRouteEvent?->codigo_evento ?? null)
@@ -2661,24 +3015,35 @@ class MisVentasController extends Controller
             return null;
         }
 
+        // Los eventos 32, 312 y 172 señalan llegada a la oficina de entrega.
+        // No prueban que el destinatario ya lo recogió por ventanilla.
+        if (in_array($latestEventCode, $arrivalEventCodes, true)
+            || in_array($latestLocalEventId, $arrivalEventIds, true)) {
+            return 'RECIBIDO EN OFICINA DE ENTREGA';
+        }
+
         // El evento actual manda sobre los eventos históricos. Por ejemplo,
         // un envío entregado puede conservar eventos anteriores de Aduana.
         if ($progressStatus === 'ENTREGADO' || in_array($latestEventCode, [37, 1250], true)) {
             $deliveryMode = strtoupper(trim((string) ($latestEvent->delivery_mode ?? '')));
             if ($deliveryMode === 'DOMICILIARIA') {
-                return 'DISTRIBUCIÓN DOMICILIARIA';
+                return 'ENTREGADO · DOMICILIARIA';
             }
             if ($deliveryMode === 'NO_DOMICILIARIA') {
-                return 'DISTRIBUCIÓN NO DOMICILIARIA';
+                return 'ENTREGADO · NO DOMICILIARIA';
             }
             if ($latestRouteIsDomiciliary) {
-                return 'DISTRIBUCIÓN DOMICILIARIA';
+                return 'ENTREGADO · DOMICILIARIA';
             }
             $hasCounterDeliveryEvidence = in_array($latestRouteLocalEventId, self::KARDEX_EVENT_COUNTER_DELIVERY, true)
                 || $latestRouteEventCode === 75
+                || $latestRouteEventCode === 32
+                || in_array($latestRouteLocalEventId, $arrivalEventIds, true)
                 || ($latestEventCode === 37 && $events->contains(fn ($event) => (int) ($event->codigo_evento ?? 0) === 38));
 
-            return $hasCounterDeliveryEvidence ? 'DISTRIBUCIÓN NO DOMICILIARIA' : null;
+            return $hasCounterDeliveryEvidence
+                ? 'ENTREGADO · NO DOMICILIARIA'
+                : 'ENTREGADO · MODALIDAD NO REGISTRADA';
         }
 
         if (str_contains($currentStep, 'cartero')
@@ -2877,6 +3242,18 @@ class MisVentasController extends Controller
             return array_merge($row, [
                 'tipo_envio' => $service !== '' ? $service : 'OTROS SERVICIOS',
                 'detalle_items' => $detail !== '' ? $detail : ($service !== '' ? $service : 'Otros servicios'),
+                'kardex_servicio_familia' => trim((string) data_get($item, 'resumen_origen.servicio_familia', '')),
+                'kardex_origen_tipo' => ltrim(trim((string) data_get($item, 'origen_tipo', '')), '\\'),
+                'kardex_origen_id' => (int) data_get($item, 'origen_id', 0),
+                'kardex_codigo_solicitud' => trim((string) (
+                    data_get($item, 'resumen_origen.codigo_paquete')
+                    ?: data_get($item, 'resumen_origen.codigo')
+                    ?: data_get($item, 'codigo_paquete')
+                    ?: data_get($item, 'codigo')
+                    ?: ''
+                )),
+                'kardex_forma_pago' => trim((string) data_get($item, 'resumen_origen.forma_pago', '')),
+                'kardex_pago_destinatario' => filter_var(data_get($item, 'resumen_origen.pago_destinatario', false), FILTER_VALIDATE_BOOLEAN),
                 'detalle_codigos' => $entries,
                 'codigo_paquetes' => $codes,
                 'codigo_paquetes_texto' => $codes->implode(', '),
@@ -3100,7 +3477,10 @@ class MisVentasController extends Controller
             'numero_factura' => trim((string) ($row['numero_factura'] ?? '-')) ?: '-',
             'importe' => (float) ($row['importe_general'] ?? 0),
             'importe_venta' => (float) ($row['importe_venta'] ?? $row['importe_general'] ?? 0),
-            'operacion_grupo' => $this->kardexOperationGroupLabel(['modalidad_entrega' => $operacion]),
+            'operacion_grupo' => $this->kardexOperationGroupLabel([
+                'modalidad_entrega' => $operacion,
+                'operacion_detalle' => (string) ($row['operacion_detalle'] ?? ''),
+            ]),
             'metodo_pago_label' => $metodoPagoLabel,
             'facturacion_label' => trim((string) ($row['estado_label'] ?? '')) ?: 'SIN ESTADO',
             'estado_venta_label' => $estadoVentaLabel,
@@ -3435,7 +3815,7 @@ class MisVentasController extends Controller
 
     private function isKardexS10TypeCode(string $code): bool
     {
-        return preg_match('/^[ECLR][A-Z]\d{9}[A-Z]{2}$/i', strtoupper(trim($code))) === 1;
+        return preg_match('/^[ECLRU][A-Z]\d{9}[A-Z]{2}$/i', strtoupper(trim($code))) === 1;
     }
 
     private function kardexUpuOriginCountryCode(string $code): string
@@ -3843,8 +4223,51 @@ class MisVentasController extends Controller
         $normalized = $this->normalizeKardexText(str_replace('_', ' ', $tipoServicio . ' ' . $detalle . ' ' . $guiaCasilla));
         $code = strtoupper(trim((string) (explode(',', $guiaCasilla, 2)[0] ?? '')));
 
+        // Aerolínea is its own billed product; do not classify a mixed service
+        // description as Tarjeta Postal just because both words are present.
+        if (str_contains($normalized, 'AEROLINEA')) {
+            return 'AEROLINEA';
+        }
+
         if (str_contains($normalized, 'CASILLA')) {
             return $this->formatKardexCasillaLabel($tipoServicio, $guiaCasilla);
+        }
+
+        // Keep domestic EMS admissions classified by the billed product.
+        // Domestic identifiers do not use the UPU S10 format handled below.
+        if (str_contains($normalized, 'EMS')) {
+            if (preg_match('/EMS\s+LOCAL\s+COBERTURA\s+([1-4])/', $normalized, $matches) === 1) {
+                return 'EMS LOCAL COBERTURA ' . $matches[1];
+            }
+
+            if (str_contains($normalized, 'EJE TRONCAL')) {
+                return 'EMS NACIONAL (EJE TRONCAL)';
+            }
+
+            if (preg_match('/(^|[^A-Z])NACIONAL([^A-Z]|$)/', $normalized) === 1) {
+                return 'EMS NACIONAL';
+            }
+        }
+
+        // Apply the international service mapping defined for Kardex.
+        if ($this->isKardexS10TypeCode($code)) {
+            $prefix = substr($code, 0, 2);
+            if ($prefix[0] === 'E') {
+                return 'EMS INTERNACIONAL';
+            }
+
+            if ($prefix[0] === 'C') {
+                return 'ENCOMIENDA';
+            }
+
+            if ($prefix[0] === 'R'
+                || in_array($prefix, ['LP', 'LX', 'LT'], true)) {
+                return 'CERTIFICADO';
+            }
+
+            if ($prefix[0] === 'U') {
+                return 'ORDINARIA';
+            }
         }
 
         // En el correo internacional, Letters (LC/AO) se registra como ordinaria.
@@ -3852,7 +4275,7 @@ class MisVentasController extends Controller
             return 'ORDINARIA';
         }
 
-        // Las guías C de Parcels corresponden a encomienda internacional.
+        // Fallback por nombre de producto cuando no hay un código S10 clasificable.
         if (str_contains($normalized, 'PARCEL') && str_starts_with($code, 'C')) {
             return 'ENCOMIENDA';
         }
@@ -3866,37 +4289,13 @@ class MisVentasController extends Controller
         }
 
         if (str_contains($normalized, 'EMS')) {
-            if (preg_match('/EMS\s+LOCAL\s+COBERTURA\s+([1-4])/', $normalized, $matches) === 1) {
-                return 'EMS LOCAL COBERTURA ' . $matches[1];
-            }
-
-            if (str_contains($normalized, 'EJE TRONCAL')) {
-                return 'EMS NACIONAL (EJE TRONCAL)';
-            }
-
-            // "INTERNACIONAL" contains the substring "NACIONAL"; use a
-            // whole-word check so international EMS is not mislabeled as
-            // national in either the personal or branch Kardex.
-            if (preg_match('/(^|[^A-Z])NACIONAL([^A-Z]|$)/', $normalized) === 1) {
-                return 'EMS NACIONAL';
-            }
-
-            if (str_contains($normalized, 'INTERNACIONAL')
-                || (preg_match('/^[E][A-Z]\d{9}[A-Z]{2}$/', $code) === 1)) {
+            // "INTERNACIONAL" contains the substring "NACIONAL"; national
+            // labels were handled above with a whole-word check.
+            if (str_contains($normalized, 'INTERNACIONAL')) {
                 return 'EMS INTERNACIONAL';
             }
 
             return 'EMS';
-        }
-
-        if ($this->isKardexS10TypeCode($code)) {
-            return match (strtoupper($code[0])) {
-                'E' => 'EMS INTERNACIONAL',
-                'C' => 'ENCOMIENDA',
-                'L' => 'ORDINARIA',
-                'R' => 'CERTIFICADO',
-                default => strtoupper($tipoServicio !== '' ? $tipoServicio : 'SIN DETALLE'),
-            };
         }
 
         return strtoupper($tipoServicio !== '' ? $tipoServicio : 'SIN DETALLE');
