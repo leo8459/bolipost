@@ -2186,6 +2186,8 @@ class FacturacionCartService
             'q' => trim((string) ($filters['q'] ?? '')) ?: null,
             'estado_sufe' => $estadoSufe,
             'limite' => $limite,
+            'incluirDetalle' => true,
+            'soloDetalle' => true,
         ], fn ($value) => $value !== null && $value !== '');
 
         $responses = [];
@@ -2263,7 +2265,7 @@ class FacturacionCartService
         return ['rows' => $rowsByUser, 'errors' => $errors];
     }
 
-    /** Load all cashier rows for a branch in one API request. */
+    /** Load Kardex rows for one or more cashier identities in one API request. */
     public function fetchSucursalKardexBatch(array $users, array $filters): array
     {
         $users = collect($users)->filter(fn ($user) => $user instanceof User)->values();
@@ -2886,6 +2888,7 @@ class FacturacionCartService
             ->connectTimeout($connectTimeout)
             ->withOptions(['verify' => config('services.facturacion_bridge.ssl_verify', true)]);
 
+        $startedAt = microtime(true);
         try {
             $response = match (strtoupper($method)) {
                 'GET' => $client->get($path, $payload),
@@ -2894,6 +2897,21 @@ class FacturacionCartService
                 default => $client->post($path, $payload),
             };
         } catch (ConnectionException $e) {
+            $diagnosticFilters = array_intersect_key($payload, array_flip([
+                'fechaInicio',
+                'fechaFin',
+                'origen_usuario_id',
+                'origen_usuario_ids',
+            ]));
+            Log::warning('FacturacionCartService connection failed', [
+                'method' => strtoupper($method),
+                'path' => $path,
+                'elapsed_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'timeout_seconds' => $timeout,
+                'connect_timeout_seconds' => $connectTimeout,
+                'filters' => $diagnosticFilters,
+                'error' => $e->getMessage(),
+            ]);
             throw new \RuntimeException($this->connectionFailureMessage($e, $path, $timeout), 0, $e);
         }
 

@@ -164,17 +164,21 @@ class MisVentasController extends Controller
 
         try {
             // Carga los registros del cajero en formato de detalle Kardex y complementa sus destinos mediante tracking.
-            [$sales] = $this->loadScopedVentas($service, $user, array_merge($filters, ['q' => '']), 'own');
+            [$sales, , $scopeMetadata] = $this->loadScopedVentas($service, $user, array_merge($filters, ['q' => '']), 'own');
             $rows = $this->buildKardexViewRows($sales, $ipsClient, $destinationClient, $eventsClient);
             $summary = array_merge($this->emptySummary(), [
                 'totalVentas' => $rows->unique('venta_group_key')->count(),
                 'montoTotal' => round((float) $rows->sum(fn ($row) => (float) data_get($row, 'importe', 0)), 2),
             ]);
+            $kardexPartialWarning = !empty($scopeMetadata['kardex_source_errors'])
+                ? 'El Kardex se cargó parcialmente porque falló una consulta de facturación. Actualiza la página para volver a consultar y completar los datos.'
+                : null;
         } catch (\Throwable $e) {
             report($e);
             $rows = collect();
             $summary = $this->emptySummary();
             $kardexError = 'No se pudieron cargar las ventas del cajero para el Kardex: ' . $e->getMessage();
+            $kardexPartialWarning = null;
         }
 
         $visibleRows = $this->applyKardexSearchFilter(
@@ -209,6 +213,7 @@ class MisVentasController extends Controller
             'totalPeso' => round((float) $visibleRows->sum(fn ($row) => (float) data_get($row, 'peso', 0)), 3),
             'totalAnuladas' => $visibleRows->filter(fn ($row) => (bool) data_get($row, 'es_anulada'))->count(),
             'kardexError' => $kardexError,
+            'kardexPartialWarning' => $kardexPartialWarning,
             'officePostal' => $this->resolveKardexUserOffice($user),
             'responsableName' => strtoupper(trim((string) ($user->name ?? ''))),
             'ventanillaName' => (string) data_get($user, 'ventanilla', data_get($user, 'id', '')),
@@ -1140,6 +1145,7 @@ class MisVentasController extends Controller
             'branch_cashiers' => collect(),
             'sucursal_cashier_count' => 0,
             'sucursal_failed_cashier_count' => 0,
+            'kardex_source_errors' => [],
         ];
         if ($scope === 'branch') {
             $rawRows = $this->fetchBranchRawRows($service, $user, $filters);
@@ -1152,7 +1158,7 @@ class MisVentasController extends Controller
             $scopeMetadata['sucursal_cashier_count'] = $cashierCount;
             $scopeMetadata['sucursal_failed_cashier_count'] = $failedCashiers;
         } else {
-            $rawRows = $this->fetchOwnRawRows($service, $user, $filters);
+            $rawRows = $this->fetchOwnRawRows($service, $user, $filters, $scopeMetadata['kardex_source_errors']);
         }
 
         $rawRows = $rawRows->reject(fn ($row) => $this->isUnconsolidatedManualRelease($row));
@@ -1185,37 +1191,95 @@ class MisVentasController extends Controller
         ];
     }
 
-    private function fetchOwnRawRows(FacturacionCartService $service, User $user, array $filters): Collection
+    private function fetchOwnRawRows(FacturacionCartService $service, User $user, array $filters, ?array &$sourceErrors = null): Collection
     {
+        $sourceErrors = [];
         $fullRangeFilters = $filters;
         $fullRangeFilters['page'] = 1;
         $fullRangeFilters['per_page'] = 100;
         $fullRangeFilters['limite'] = 500;
 
-        $kardex = $service->fetchKardexVentas($user, $fullRangeFilters);
+        // Use the one-pass Kardex endpoint for a single cashier too. It returns
+        // invoice and cart detail together, avoiding the slow summary endpoint
+        // plus a second cart query used by the legacy path.
+        $userId = trim((string) $user->id);
+        $optimized = $service->fetchSucursalKardexBatch([$user], $fullRangeFilters);
+        $optimizedError = (string) (
+            data_get($optimized, 'errors.' . $userId)
+            ?? data_get($optimized, 'errors.__unmatched')
+            ?? ''
+        );
+        if ($optimizedError === '') {
+            return collect(data_get($optimized, 'rows.' . $userId, []))
+                ->map(fn ($row) => is_array($row) ? (object) $row : $row)
+                ->filter(fn ($row) => is_object($row))
+                ->values();
+        }
+
+        $isMissingFastEndpoint = preg_match('/\b404\b/', $optimizedError) === 1;
+        Log::warning('No se pudo usar el endpoint optimizado del Kardex personal.', [
+            'user_id' => $user->id,
+            'from' => $fullRangeFilters['from'] ?? null,
+            'to' => $fullRangeFilters['to'] ?? null,
+            'reason' => $optimizedError,
+            'fallback' => $isMissingFastEndpoint ? 'legacy' : 'carts_only',
+        ]);
+
+        $kardex = ['detalle' => []];
+        if ($isMissingFastEndpoint) {
+            try {
+                $kardex = $service->fetchKardexVentas($user, $fullRangeFilters);
+            } catch (\Throwable $exception) {
+                $sourceErrors['detalle'] = $exception->getMessage();
+                Log::warning('No se pudo cargar el detalle fiscal del Kardex personal.', [
+                    'user_id' => $user->id,
+                    'from' => $fullRangeFilters['from'] ?? null,
+                    'to' => $fullRangeFilters['to'] ?? null,
+                    'reason' => $exception->getMessage(),
+                ]);
+            }
+        } else {
+            $sourceErrors['detalle'] = $optimizedError;
+        }
 
         $ventasPages = collect();
         $currentPage = 1;
         $lastPage = 1;
 
-        do {
-            $ventasFilters = $fullRangeFilters;
-            $ventasFilters['page'] = $currentPage;
+        try {
+            do {
+                $ventasFilters = $fullRangeFilters;
+                $ventasFilters['page'] = $currentPage;
 
-            $ventasPage = $service->fetchVentas($user, $ventasFilters);
-            $ventasPages = $ventasPages->concat(collect($ventasPage['carts'] ?? []));
+                $ventasPage = $service->fetchVentas($user, $ventasFilters);
+                $ventasPages = $ventasPages->concat(collect($ventasPage['carts'] ?? []));
 
-            $pagination = (array) ($ventasPage['pagination'] ?? []);
-            $lastPage = max(
-                (int) ($pagination['last_page'] ?? 0),
-                (int) ($pagination['lastPage'] ?? 0),
-                (int) ($pagination['total_pages'] ?? 0),
-                (int) ($pagination['pages'] ?? 0),
-                1
-            );
+                $pagination = (array) ($ventasPage['pagination'] ?? []);
+                $lastPage = max(
+                    (int) ($pagination['last_page'] ?? 0),
+                    (int) ($pagination['lastPage'] ?? 0),
+                    (int) ($pagination['total_pages'] ?? 0),
+                    (int) ($pagination['pages'] ?? 0),
+                    1
+                );
 
-            $currentPage++;
-        } while ($currentPage <= $lastPage);
+                $currentPage++;
+            } while ($currentPage <= $lastPage);
+        } catch (\Throwable $exception) {
+            $sourceErrors['carritos'] = $exception->getMessage();
+            Log::warning('No se pudieron cargar los carritos del Kardex personal.', [
+                'user_id' => $user->id,
+                'from' => $fullRangeFilters['from'] ?? null,
+                'to' => $fullRangeFilters['to'] ?? null,
+                'page' => $currentPage,
+                'reason' => $exception->getMessage(),
+            ]);
+        }
+
+        if (isset($sourceErrors['detalle'], $sourceErrors['carritos'])) {
+            throw new \RuntimeException('Fallaron las consultas de detalle fiscal y carritos. Detalle: '
+                . $sourceErrors['detalle'] . ' Carritos: ' . $sourceErrors['carritos']);
+        }
 
         return $ventasPages
             ->concat(collect($kardex['detalle'] ?? []))

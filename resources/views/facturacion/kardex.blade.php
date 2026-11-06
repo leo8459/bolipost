@@ -26,6 +26,9 @@
         @if($isRegionalKardex && !empty($kardexPartialWarning))
             <div class="alert alert-warning">No se pudieron consultar las ventas de algunos cajeros de esta sucursal. El Kardex puede estar incompleto; actualiza la página para volver a consultar.</div>
         @endif
+        @if(!$isRegionalKardex && !empty($kardexPartialWarning))
+            <div class="alert alert-warning">{{ $kardexPartialWarning }}</div>
+        @endif
         <form method="GET" action="{{ route($kardexIndexRoute) }}" id="kardexReportForm" class="card kardex-filter-card">
             <div class="card-body">
                 <input type="hidden" name="scope" value="{{ $isRegionalKardex ? 'branch_kardex' : 'own' }}">
@@ -69,7 +72,11 @@
                 </div>
             </div>
         </form>
-        <p class="text-muted small mt-n2 mb-3">Los movimientos se agrupan automáticamente en Admisiones y Entregas. Este reporte incluye {{ number_format((int) ($sucursalCashierCount ?? 0)) }} cuentas habilitadas de {{ $officePostal }} y mantiene separado el detalle de cada persona.</p>
+        @if($isRegionalKardex)
+            <p class="text-muted small mt-n2 mb-3">Los movimientos se agrupan automáticamente en Admisiones y Entregas. Este reporte incluye {{ number_format((int) ($sucursalCashierCount ?? 0)) }} cuentas habilitadas de {{ $officePostal }} y mantiene separado el detalle de cada persona.</p>
+        @else
+            <p class="text-muted small mt-n2 mb-3">Los movimientos se agrupan automáticamente en Admisiones y Entregas.</p>
+        @endif
 
         <div class="row kardex-summary-row">
             <div class="col-md-4 col-sm-6 mb-3"><div class="kardex-summary-card kardex-summary-card--sales"><span>{{ $isRegionalKardex ? 'Registros de la sucursal' : 'Total ventas' }}</span><strong>{{ number_format($totalVentas) }}</strong><small>Bs {{ number_format($totalImporte, 2, ',', '.') }} · importe del rango</small></div></div>
