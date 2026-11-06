@@ -547,16 +547,16 @@ $config = [
                     'icon' => 'fas fa-cash-register',
                 ],
                 [
-                    'text' => 'Mis ventas',
-                    'url' => '/mis-ventas',
-                    'icon' => 'fas fa-cash-register',
-                    'can' => 'feature.dashboard.facturacion',
-                ],
-                [
                     'text' => 'Kardex',
                     'url' => '/mis-ventas/kardex',
                     'icon' => 'fas fa-table',
-                    'can' => 'feature.dashboard.facturacion',
+                    'can' => 'mis-ventas.kardex',
+                ],
+                [
+                    'text' => 'Kardex por Sucursal',
+                    'url' => '/mis-ventas/kardex-regional',
+                    'icon' => 'fas fa-map-marked-alt',
+                    'can' => 'mis-ventas.kardex-regional',
                 ],
                 [
                     'text' => 'Rendimiento Servicios',

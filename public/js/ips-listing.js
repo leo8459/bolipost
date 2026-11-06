@@ -37,6 +37,7 @@
             }
             if (request !== activeRequest) return;
             // Server-rendered, escaped Blade markup from this authenticated same-origin route.
+            listing.classList.remove('is-stale');
             listing.innerHTML = result.html;
             setScanPlaceholder();
             if (push) history.pushState(null, '', url.href);
@@ -44,8 +45,10 @@
             return true;
         } catch (error) {
             if (request !== activeRequest || error.name === 'AbortError') return;
+            listing.classList.add('is-stale');
+            listing.querySelectorAll('.ips-selection-add button').forEach(button => { button.disabled = true; });
             status.hidden = false;
-            status.textContent = error.message + ' Se mantienen los resultados anteriores; puedes volver a intentar.';
+            status.textContent = 'No se pudo consultar IPS. Se mantienen resultados anteriores, que pueden no corresponder a esta búsqueda. Vuelve a intentar antes de agregar paquetes.';
             return false;
         } finally {
             if (request === activeRequest) listing.removeAttribute('aria-busy');
@@ -74,7 +77,9 @@
             if (trayCount) trayCount.textContent = result.count + '/50 paquetes';
             window.dispatchEvent(new CustomEvent('ips:selection-added', {detail: {...result, scanned}}));
             status.hidden = false;
-            status.textContent = scanned ? 'Paquete agregado al lote. Escanea el siguiente.' : 'Paquete guardado en la bandeja.';
+            status.textContent = result.route_mismatch_receipt
+                ? 'Paquete con ruta a otra oficina agregado para revisar la recepción física. Confirma la diferencia de ruta en la bandeja antes de procesar.'
+                : (scanned ? 'Paquete agregado al lote. Escanea el siguiente.' : 'Paquete guardado en la bandeja.');
             setTimeout(() => { status.hidden = true; }, 3000);
             return true;
         } catch (error) {
@@ -139,7 +144,9 @@
                 if (trayCount) trayCount.textContent = result.count + '/50 paquetes';
                 window.dispatchEvent(new CustomEvent('ips:selection-added', {detail: {...result, scanned: true}}));
                 status.hidden = false;
-                status.textContent = 'Paquete agregado al lote. Escanea el siguiente.';
+                status.textContent = result.route_mismatch_receipt
+                    ? 'Paquete con ruta a otra oficina agregado para revisar la recepción física. Confirma la diferencia de ruta en la bandeja antes de procesar.'
+                    : 'Paquete agregado al lote. Escanea el siguiente.';
             } catch (error) {
                 status.hidden = false;
                 status.textContent = error.message;
@@ -152,6 +159,11 @@
         const addForm = event.target.closest('.ips-selection-add');
         if (addForm) {
             event.preventDefault();
+            if (listing.classList.contains('is-stale')) {
+                status.hidden = false;
+                status.textContent = 'Actualiza la búsqueda antes de agregar paquetes; la lista visible puede estar desactualizada.';
+                return;
+            }
             addSelectionForm(addForm);
             return;
         }

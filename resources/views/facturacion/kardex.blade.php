@@ -1,12 +1,16 @@
 @extends('adminlte::page')
 
-@section('title', 'Kardex de facturación')
+@section('title', !empty($isRegionalKardex) ? 'Kardex por Sucursal' : 'Kardex de facturación')
 
 @section('content_header')
 @stop
 
 @section('content')
     @php
+        $isRegionalKardex = (bool) ($isRegionalKardex ?? false);
+        $kardexIndexRoute = $isRegionalKardex ? 'mis-ventas.kardex-regional' : 'mis-ventas.kardex';
+        $kardexPdfRoute = $isRegionalKardex ? 'mis-ventas.kardex-regional.export.pdf' : 'mis-ventas.kardex.export.pdf';
+        $kardexExcelRoute = $isRegionalKardex ? 'mis-ventas.kardex-regional.export.excel' : 'mis-ventas.kardex.export.excel';
         $baseParams = [
             'q' => $filters['q'] ?? '',
             'estado_emision' => $filters['estado_emision'] ?? 'all',
@@ -19,10 +23,12 @@
         @if(!empty($kardexError))
             <div class="alert alert-warning">{{ $kardexError }}</div>
         @endif
-
-        <form method="GET" action="{{ route('mis-ventas.kardex') }}" id="kardexReportForm" class="card kardex-filter-card">
+        @if($isRegionalKardex && !empty($kardexPartialWarning))
+            <div class="alert alert-warning">No se pudieron consultar las ventas de algunos cajeros de esta sucursal. El Kardex puede estar incompleto; actualiza la página para volver a consultar.</div>
+        @endif
+        <form method="GET" action="{{ route($kardexIndexRoute) }}" id="kardexReportForm" class="card kardex-filter-card">
             <div class="card-body">
-                <input type="hidden" name="scope" value="own">
+                <input type="hidden" name="scope" value="{{ $isRegionalKardex ? 'branch_kardex' : 'own' }}">
                 <div class="row align-items-end">
                     <div class="col-lg-3 col-md-6 mb-3"><label for="from">Desde</label><input type="date" id="from" name="from" value="{{ $baseParams['from'] }}" class="form-control"></div>
                     <div class="col-lg-3 col-md-6 mb-3"><label for="to">Hasta</label><input type="date" id="to" name="to" value="{{ $baseParams['to'] }}" class="form-control"></div>
@@ -39,22 +45,38 @@
 
                 <div class="d-flex flex-wrap justify-content-between align-items-center mt-2">
                     <div class="kardex-downloads">
-                        <button type="submit" formaction="{{ route('mis-ventas.kardex.export.pdf') }}" class="btn btn-danger"><i class="fas fa-file-pdf mr-1"></i> Kardex PDF</button>
-                        <button type="submit" formaction="{{ route('mis-ventas.kardex.export.excel') }}" class="btn btn-success"><i class="fas fa-file-excel mr-1"></i> Kardex Excel</button>
-                        <button type="submit" formaction="{{ route('mis-ventas.export.pdf') }}" class="btn btn-outline-primary"><i class="fas fa-file-pdf mr-1"></i> PDF Mis ventas</button>
+                        <button type="submit" formaction="{{ route($kardexPdfRoute) }}" class="btn btn-danger" data-kardex-download="pdf" data-kardex-download-label="PDF" data-pdf-modal-ignore><i class="fas fa-file-pdf mr-1"></i> {{ $isRegionalKardex ? 'Kardex por Sucursal PDF' : 'Kardex PDF' }}</button>
+                        <button type="submit" formaction="{{ route($kardexExcelRoute) }}" class="btn btn-success" data-kardex-download="excel" data-kardex-download-label="Excel" data-pdf-modal-ignore><i class="fas fa-file-excel mr-1"></i> {{ $isRegionalKardex ? 'Kardex por Sucursal Excel' : 'Kardex Excel' }}</button>
+                        @unless($isRegionalKardex)
+                            <button type="submit" formaction="{{ route('mis-ventas.export.pdf') }}" class="btn btn-outline-primary" data-kardex-download="pdf" data-kardex-download-label="PDF Mis ventas" data-pdf-modal-ignore><i class="fas fa-file-pdf mr-1"></i> PDF Mis ventas</button>
+                        @endunless
+                        @if($isRegionalKardex && auth()->user()?->can('mis-ventas.kardex-regional'))
+                            <a href="{{ route('ventas-sucursal.index', [
+                                'from' => $baseParams['from'],
+                                'to' => $baseParams['to'],
+                                'estado_emision' => $baseParams['estado_emision'],
+                                'q' => $baseParams['q'],
+                                'per_page' => 100,
+                            ]) }}" class="btn btn-outline-primary">
+                                <i class="fas fa-users mr-1"></i> Mis ventas de todos mis cajeros
+                            </a>
+                        @endif
                     </div>
                     <div class="mt-2 mt-md-0">
-                        <a href="{{ route('mis-ventas.kardex') }}" class="btn btn-outline-secondary">Limpiar</a>
-                        <button type="submit" formaction="{{ route('mis-ventas.kardex') }}" class="btn btn-primary"><i class="fas fa-search mr-1"></i> Filtrar</button>
+                        <a href="{{ route($kardexIndexRoute) }}" class="btn btn-outline-secondary">Limpiar</a>
+                        <button type="submit" formaction="{{ route($kardexIndexRoute) }}" class="btn btn-primary"><i class="fas fa-search mr-1"></i> Filtrar</button>
                     </div>
                 </div>
             </div>
         </form>
+        <p class="text-muted small mt-n2 mb-3">Los movimientos se agrupan automáticamente en Admisiones y Entregas. Este reporte incluye {{ number_format((int) ($sucursalCashierCount ?? 0)) }} cuentas habilitadas de {{ $officePostal }} y mantiene separado el detalle de cada persona.</p>
 
         <div class="row kardex-summary-row">
-            <div class="col-md-4 col-sm-6 mb-3"><div class="kardex-summary-card kardex-summary-card--sales"><span>Total ventas</span><strong>{{ number_format($totalVentas) }}</strong><small>Bs {{ number_format($totalImporte, 2, ',', '.') }} · importe del rango</small></div></div>
-            <div class="col-md-4 col-sm-6 mb-3"><div class="kardex-summary-card kardex-summary-card--payments"><span>Efectivo</span><strong>{{ number_format($ventasEfectivo) }}</strong><small>Bs {{ number_format($montoEfectivo, 2, ',', '.') }}</small></div></div>
-            <div class="col-md-4 col-sm-6 mb-3"><div class="kardex-summary-card kardex-summary-card--payments"><span>Pago QR</span><strong>{{ number_format($ventasQrPagadas) }}</strong><small>Bs {{ number_format($montoQr, 2, ',', '.') }}</small></div></div>
+            <div class="col-md-4 col-sm-6 mb-3"><div class="kardex-summary-card kardex-summary-card--sales"><span>{{ $isRegionalKardex ? 'Registros de la sucursal' : 'Total ventas' }}</span><strong>{{ number_format($totalVentas) }}</strong><small>Bs {{ number_format($totalImporte, 2, ',', '.') }} · importe del rango</small></div></div>
+            @unless($isRegionalKardex)
+                <div class="col-md-4 col-sm-6 mb-3"><div class="kardex-summary-card kardex-summary-card--payments"><span>Efectivo</span><strong>{{ number_format($ventasEfectivo) }}</strong><small>Bs {{ number_format($montoEfectivo, 2, ',', '.') }}</small></div></div>
+                <div class="col-md-4 col-sm-6 mb-3"><div class="kardex-summary-card kardex-summary-card--payments"><span>Pago QR</span><strong>{{ number_format($ventasQrPagadas) }}</strong><small>Bs {{ number_format($montoQr, 2, ',', '.') }}</small></div></div>
+            @endunless
             <div class="col-md-4 col-sm-6 mb-3"><div class="kardex-summary-card"><span>Filas visibles</span><strong>{{ number_format($visibleRows->count()) }}</strong></div></div>
             <div class="col-md-4 col-sm-6 mb-3"><div class="kardex-summary-card"><span>Peso total</span><strong>{{ number_format($totalPeso, 3, ',', '.') }} kg</strong></div></div>
             <div class="col-md-4 col-sm-6 mb-3"><div class="kardex-summary-card"><span>Anuladas</span><strong class="text-danger">{{ number_format($totalAnuladas) }}</strong></div></div>
@@ -63,8 +85,8 @@
         <div class="card kardex-report-card">
             <div class="card-header kardex-history-header">
                 <div class="kardex-history-header__title">
-                    <h3>Historial de Ventas</h3>
-                    <p>Detalle de emisiones registradas para tu cuenta.</p>
+                    <h3>{{ $isRegionalKardex ? 'Kardex por Sucursal' : 'Historial de Ventas' }}</h3>
+                    <p>{{ $isRegionalKardex ? 'Detalle de emisiones de las cuentas de facturación asignadas a la sucursal ' . $officePostal . '.' : 'Detalle de emisiones registradas para tu cuenta.' }}</p>
                 </div>
                 <div class="kardex-history-header__count">
                     <strong>{{ number_format((int) $totalVentas) }} {{ (int) $totalVentas === 1 ? 'registro' : 'registros' }}</strong>
@@ -78,7 +100,7 @@
                             <col style="width:4%"><col style="width:8%"><col style="width:6%"><col style="width:6%"><col style="width:14%"><col style="width:15%"><col style="width:6%"><col style="width:16%"><col style="width:10%"><col style="width:8%"><col style="width:7%">
                         </colgroup>
                         <thead>
-                            <tr><th>N°</th><th>FECHA</th><th>CANTIDAD</th><th>REGIONAL</th><th>TIPO DE CORRESPONDENCIA</th><th>CÓDIGO DE ENVÍO</th><th>PESO</th><th>PAÍS/CIUDAD DE DESTINO</th><th>OPERACIÓN</th><th>N° FACTURA</th><th>IMPORTE</th></tr>
+                            <tr><th>N°</th><th>FECHA</th><th>CANTIDAD</th><th>REGIONAL</th><th>TIPO DE CORRESPONDENCIA</th><th>CÓDIGO DE ENVÍO</th><th>PESO</th><th class="kardex-table__location-heading">PAÍS/CIUDAD DE DESTINO<br>/ CIUDAD DE ORIGEN</th><th title="Admisión: envío aceptado en origen para despacho. Entrega: envío recibido del exterior para el destinatario.">OPERACIÓN</th><th>N° FACTURA</th><th>IMPORTE</th></tr>
                         </thead>
                         <tbody>
                             @forelse($visibleRows as $rowIndex => $row)
@@ -86,6 +108,9 @@
                                     $saleGroupKey = trim((string) data_get($row, 'venta_group_key', ''));
                                     $previousSaleGroupKey = trim((string) data_get($visibleRows->get($rowIndex - 1), 'venta_group_key', ''));
                                     $nextSaleGroupKey = trim((string) data_get($visibleRows->get($rowIndex + 1), 'venta_group_key', ''));
+                                    $operationGroupLabel = strtoupper(trim((string) data_get($row, 'operacion_grupo', 'ADMISIONES')));
+                                    $previousOperationGroupLabel = strtoupper(trim((string) data_get($visibleRows->get($rowIndex - 1), 'operacion_grupo', '')));
+                                    $isOperationGroupStart = !$isRegionalKardex && ($rowIndex === 0 || $operationGroupLabel !== $previousOperationGroupLabel);
                                     $isMultiDetailSale = $saleGroupKey !== '' && (int) data_get($row, 'venta_detalles_total', 1) > 1;
                                     $isSaleStart = $saleGroupKey !== '' && $previousSaleGroupKey !== $saleGroupKey;
                                     $isSaleGroupStart = $saleGroupKey !== '' && $previousSaleGroupKey !== $saleGroupKey;
@@ -178,6 +203,9 @@
                                     $customerName = trim((string) data_get($row, 'cliente', '')) ?: 'SIN NOMBRE';
                                     $customerDocument = trim((string) data_get($row, 'numero_documento', ''));
                                 @endphp
+                                @if($isOperationGroupStart)
+                                    <tr class="kardex-table__operation-heading"><td colspan="11">{{ $operationGroupLabel }}</td></tr>
+                                @endif
                                 @if($isSaleStart)
                                     <tr class="kardex-table__sale-label {{ $saleGroupKey !== '' ? 'kardex-table__sale-label--grouped' : '' }}">
                                         <td colspan="11">
@@ -238,18 +266,27 @@
                                         <td class="kardex-table__service">{{ data_get($row, 'tipo_correspondencia') }}</td>
                                         <td class="kardex-code {{ trim((string) data_get($row, 'guia_casilla', '')) === '-' ? 'kardex-code--empty' : '' }}"><span>{{ data_get($row, 'guia_casilla') }}</span></td>
                                         <td class="kardex-table__weight">{{ data_get($row, 'peso') !== null && data_get($row, 'peso') !== '' ? number_format((float) data_get($row, 'peso'), 3, ',', '.') : '' }}</td>
-                                        <td class="kardex-table__destination">{{ data_get($row, 'pais_ciudad') }}</td>
+                                        <td class="kardex-table__destination">
+                                            <span>{{ data_get($row, 'pais_ciudad') }}</span>
+                                            @if(trim((string) data_get($row, 'ubicacion_tipo', '')) !== '')
+                                                <small>{{ data_get($row, 'ubicacion_tipo') }}</small>
+                                            @endif
+                                        </td>
                                     @endif
                                     <td class="kardex-table__delivery">
                                         @php($deliveryMode = (string) data_get($row, 'modalidad_entrega', '-'))
                                         @php($deliveryClass = match ($deliveryMode) {
                                             'ADMISIÓN' => 'kardex-table__delivery--admission',
+                                            'ENTREGA' => 'kardex-table__delivery--non-domiciliary',
                                             'DISTRIBUCIÓN DOMICILIARIA' => 'kardex-table__delivery--domiciliary',
                                             'DISTRIBUCIÓN NO DOMICILIARIA' => 'kardex-table__delivery--non-domiciliary',
                                             default => 'kardex-table__delivery--empty',
                                         })
                                         @if($deliveryMode !== '-')
-                                            <span class="{{ $deliveryClass }}">{{ $deliveryMode }}</span>
+                                            <span class="{{ $deliveryClass }}" title="{{ data_get($row, 'operacion_detalle') }}">{{ $deliveryMode }}</span>
+                                            @if(trim((string) data_get($row, 'operacion_detalle', '')) !== '')
+                                                <small class="kardex-table__operation-detail">{{ data_get($row, 'operacion_detalle') }}</small>
+                                            @endif
                                         @else
                                             <span class="kardex-table__delivery--empty">-</span>
                                         @endif
@@ -269,6 +306,18 @@
                     </table>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div id="kardexDownloadModal" class="kardex-download-modal" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="kardexDownloadTitle" aria-describedby="kardexDownloadMessage">
+        <div class="kardex-download-modal__backdrop"></div>
+        <div class="kardex-download-modal__dialog" role="document">
+            <div id="kardexDownloadIcon" class="kardex-download-modal__icon" aria-hidden="true"><i class="fas fa-circle-notch fa-spin"></i></div>
+            <span id="kardexDownloadFormat" class="kardex-download-modal__format">PDF</span>
+            <h2 id="kardexDownloadTitle">Preparando descarga</h2>
+            <p id="kardexDownloadMessage" aria-live="polite">Estamos generando tu archivo. La descarga comenzará automáticamente.</p>
+            <div class="kardex-download-modal__progress" aria-hidden="true"><span></span></div>
+            <button type="button" id="kardexDownloadClose" class="btn btn-primary" hidden>Cerrar</button>
         </div>
     </div>
 @stop
@@ -314,6 +363,8 @@
     .kardex-table tbody tr.kardex-table__row-sale-end td:last-child{border-bottom-right-radius:8px}
     .kardex-table tbody tr.kardex-table__sale-label td{padding:.78rem 0 0;border:0;background:transparent;text-align:left}
     .kardex-table tbody tr.kardex-table__sale-label--grouped td{padding-top:.9rem}
+    .kardex-table tbody tr.kardex-table__person-heading td{padding:.7rem .9rem;border:0;background:#1d4f7a;color:#fff;font-size:.78rem;font-weight:800;letter-spacing:.06em;text-align:left}
+    .kardex-table tbody tr.kardex-table__operation-heading td{padding:.55rem .9rem;border:0;border-bottom:1px solid #dce4ec;background:#eaf1f7;color:#294f70;font-size:.72rem;font-weight:800;letter-spacing:.055em;text-align:left}
     .kardex-sale-summary{display:grid;grid-template-columns:minmax(280px,34%) minmax(0,1fr) auto;align-items:center;gap:1rem;min-height:68px;padding:.72rem 1rem;border:1px solid #dce4ec;border-bottom:0;border-radius:8px 8px 0 0;background:#f7f9fb}
     .kardex-sale-summary__identity{display:flex;align-items:center;flex-wrap:wrap;gap:.55rem .75rem;min-width:0;padding-right:.9rem;border-right:1px solid #dce4ec}
     .kardex-sale-summary__customer-line{display:flex;align-items:baseline;gap:.38rem;max-width:100%;min-width:0;white-space:nowrap}
@@ -350,8 +401,12 @@
     .kardex-code--empty{text-align:center}
     .kardex-table__weight{color:#52677b;font-size:.75rem;font-variant-numeric:tabular-nums;text-align:center;white-space:nowrap}
     .kardex-table__destination{color:#3e5368;font-size:.76rem;text-align:center;overflow-wrap:anywhere}
+    .kardex-table__destination span,.kardex-table__destination small{display:block}
+    .kardex-table__destination small{margin-top:.12rem;color:#8291a0;font-size:.61rem;font-weight:700;letter-spacing:.04em}
+    .kardex-table__location-heading{min-width:190px;white-space:normal!important;line-height:1.2!important}
     .kardex-table__delivery{padding:.52rem .36rem!important;text-align:center}
     .kardex-table__delivery span{display:inline-block;padding:.28rem .42rem;border:1px solid transparent;border-radius:6px;font-size:.61rem;font-weight:750;line-height:1.25;overflow-wrap:anywhere}
+    .kardex-table__delivery small{display:block;margin-top:.12rem;color:#8291a0;font-size:.58rem;line-height:1.2;overflow-wrap:anywhere}
     .kardex-table__delivery--admission{border-color:#d8dff1!important;background:#f2f4fb;color:#4e5f8f}
     .kardex-table__delivery--domiciliary{border-color:#cfe0ef!important;background:#f0f6fb;color:#315f83}
     .kardex-table__delivery--non-domiciliary{border-color:#cce8dc!important;background:#eff9f4;color:#28704e}
@@ -367,6 +422,24 @@
     .kardex-table tbody tr.kardex-table__row-annulled .kardex-table__invoice{color:#a33e49;font-weight:800}
     .kardex-table tfoot th{padding:.74rem .65rem;border:0;border-top:1px solid #dce4ec;background:#f4f7f9;color:#53677b;font-size:.69rem;font-weight:800;letter-spacing:.035em}
     .kardex-table tfoot th:last-child{color:#173b5d;font-size:.8rem;font-variant-numeric:tabular-nums}
+    .kardex-download-modal{position:fixed;inset:0;z-index:2050;display:flex;align-items:center;justify-content:center;padding:1rem}
+    .kardex-download-modal[hidden]{display:none!important}
+    .kardex-download-modal__backdrop{position:absolute;inset:0;background:rgba(13,30,49,.58);backdrop-filter:blur(3px)}
+    .kardex-download-modal__dialog{position:relative;width:min(100%,420px);padding:2rem 2.1rem 1.8rem;border:1px solid #e1e8ef;border-radius:16px;background:#fff;box-shadow:0 22px 65px rgba(13,30,49,.28);text-align:center;animation:kardexDownloadAppear .22s ease-out}
+    .kardex-download-modal__icon{display:grid;width:62px;height:62px;margin:0 auto 1rem;border-radius:18px;background:#edf4fa;color:#1d4f7a;font-size:1.65rem;place-items:center}
+    .kardex-download-modal__format{display:inline-block;margin-bottom:.55rem;padding:.25rem .65rem;border-radius:999px;background:#fff6df;color:#856100;font-size:.68rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+    .kardex-download-modal__dialog h2{margin:0 0 .45rem;color:#18324b;font-size:1.15rem;font-weight:800}
+    .kardex-download-modal__dialog p{margin:0;color:#65788c;font-size:.86rem;line-height:1.5}
+    .kardex-download-modal__progress{height:6px;margin:1.3rem 0 .25rem;overflow:hidden;border-radius:999px;background:#e8edf2}
+    .kardex-download-modal__progress span{display:block;width:35%;height:100%;border-radius:inherit;background:linear-gradient(90deg,#e8b126,#f5d56b);animation:kardexDownloadProgress 1.3s ease-in-out infinite}
+    .kardex-download-modal.is-success .kardex-download-modal__icon{background:#e8f5ed;color:#198754}
+    .kardex-download-modal.is-success .kardex-download-modal__progress span{width:100%;animation:none;background:#198754}
+    .kardex-download-modal.is-error .kardex-download-modal__icon{background:#fff1e5;color:#c56b15}
+    .kardex-download-modal.is-error .kardex-download-modal__progress span{width:100%;animation:none;background:#e8b126}
+    .kardex-download-modal__dialog .btn{margin-top:1rem}
+    @keyframes kardexDownloadProgress{0%{transform:translateX(-115%)}100%{transform:translateX(300%)}}
+    @keyframes kardexDownloadAppear{from{opacity:0;transform:translateY(6px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+    @media(prefers-reduced-motion:reduce){.kardex-download-modal__progress span{animation-duration:.01ms!important;animation-iteration-count:1!important}.kardex-download-modal__dialog{animation:none}}
     @media(max-width:767.98px){
         .kardex-filter-card .card-body{padding:.85rem}.kardex-filter-card .mt-2.mt-md-0{width:100%;margin-top:.8rem!important}
         .kardex-filter-card .mt-2.mt-md-0 .btn-primary{flex:1}.kardex-downloads .btn{flex:1}
@@ -375,4 +448,169 @@
         .kardex-table-wrap{max-height:calc(100vh - 355px)}.kardex-table{min-width:1370px}
     }
 </style>
+@stop
+
+@section('js')
+    <script>
+        (function () {
+            const form = document.getElementById('kardexReportForm');
+            const modal = document.getElementById('kardexDownloadModal');
+            const formatLabel = document.getElementById('kardexDownloadFormat');
+            const title = document.getElementById('kardexDownloadTitle');
+            const message = document.getElementById('kardexDownloadMessage');
+            const icon = document.getElementById('kardexDownloadIcon');
+            const closeButton = document.getElementById('kardexDownloadClose');
+            let isDownloading = false;
+            let closeTimer = null;
+
+            if (!form || !modal) {
+                return;
+            }
+
+            const showModal = (label) => {
+                window.clearTimeout(closeTimer);
+                modal.classList.remove('is-success', 'is-error');
+                formatLabel.textContent = label;
+                title.textContent = 'Preparando descarga';
+                message.textContent = 'Estamos generando tu archivo. La descarga comenzará automáticamente.';
+                icon.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i>';
+                closeButton.hidden = true;
+                modal.hidden = false;
+                modal.setAttribute('aria-hidden', 'false');
+                document.body.style.overflow = 'hidden';
+            };
+
+            const hideModal = () => {
+                window.clearTimeout(closeTimer);
+                modal.hidden = true;
+                modal.setAttribute('aria-hidden', 'true');
+                document.body.style.overflow = '';
+            };
+
+            const filenameFromResponse = (response, fallback) => {
+                const disposition = response.headers.get('Content-Disposition') || '';
+                const match = disposition.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
+                const encodedName = match?.[1] || match?.[2] || fallback;
+
+                try {
+                    return decodeURIComponent(encodedName).split(/[\\/]/).pop() || fallback;
+                } catch (error) {
+                    return encodedName.split(/[\\/]/).pop() || fallback;
+                }
+            };
+
+            const validateFile = async (blob, format) => {
+                if (!blob.size) {
+                    throw new Error('El archivo recibido está vacío. Intenta nuevamente.');
+                }
+
+                if (format === 'pdf') {
+                    const signature = await blob.slice(0, 5).text();
+                    if (signature !== '%PDF-') {
+                        throw new Error('El servidor no devolvió un archivo PDF válido.');
+                    }
+                    return;
+                }
+
+                const signature = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
+                if (signature[0] !== 0x50 || signature[1] !== 0x4b) {
+                    throw new Error('El servidor no devolvió un archivo Excel válido.');
+                }
+            };
+
+            const beginDownload = async (button) => {
+                if (isDownloading) {
+                    return;
+                }
+
+                isDownloading = true;
+                const format = button.dataset.kardexDownload || 'pdf';
+                const label = button.dataset.kardexDownloadLabel || format.toUpperCase();
+                const exportUrl = new URL(button.formAction || form.action, window.location.href);
+                const formData = new FormData(form);
+                formData.forEach((value, key) => {
+                    if (typeof value === 'string') {
+                        exportUrl.searchParams.set(key, value);
+                    }
+                });
+
+                const exportButtons = Array.from(form.querySelectorAll('[data-kardex-download]'));
+                exportButtons.forEach((item) => {
+                    item.disabled = true;
+                    item.setAttribute('aria-busy', 'true');
+                });
+                form.setAttribute('aria-busy', 'true');
+                showModal(label);
+
+                try {
+                    const response = await fetch(exportUrl.toString(), {
+                        method: 'GET',
+                        credentials: 'same-origin',
+                        headers: {
+                            Accept: format === 'excel'
+                                ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                                : 'application/pdf',
+                            'X-Pdf-Modal-Ignore': 'true',
+                        },
+                    });
+
+                    if (!response.ok) {
+                        let detail = '';
+                        try {
+                            const payload = await response.json();
+                            detail = payload.message || '';
+                        } catch (error) {
+                            detail = '';
+                        }
+                        throw new Error(detail || 'No se pudo generar el archivo. Intenta nuevamente.');
+                    }
+
+                    const blob = await response.blob();
+                    await validateFile(blob, format);
+
+                    const objectUrl = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = objectUrl;
+                    link.download = filenameFromResponse(response, format === 'excel' ? 'kardex.xlsx' : 'kardex.pdf');
+                    link.style.display = 'none';
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
+
+                    modal.classList.add('is-success');
+                    icon.innerHTML = '<i class="fas fa-check"></i>';
+                    title.textContent = 'Descarga iniciada';
+                    message.textContent = 'El archivo terminó de cargarse y ya se envió a tu navegador.';
+                    closeTimer = window.setTimeout(hideModal, 1100);
+                } catch (error) {
+                    modal.classList.add('is-error');
+                    icon.innerHTML = '<i class="fas fa-exclamation"></i>';
+                    title.textContent = 'No se pudo descargar';
+                    message.textContent = error.message || 'Intenta nuevamente en unos momentos.';
+                    closeButton.hidden = false;
+                    closeButton.focus();
+                } finally {
+                    isDownloading = false;
+                    exportButtons.forEach((item) => {
+                        item.disabled = false;
+                        item.removeAttribute('aria-busy');
+                    });
+                    form.removeAttribute('aria-busy');
+                }
+            };
+
+            form.addEventListener('submit', (event) => {
+                const button = event.submitter;
+                if (!button?.matches('[data-kardex-download]')) {
+                    return;
+                }
+
+                event.preventDefault();
+                beginDownload(button);
+            });
+
+            closeButton.addEventListener('click', hideModal);
+        })();
+    </script>
 @stop

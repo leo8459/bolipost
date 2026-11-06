@@ -16,6 +16,7 @@ use App\Models\TarifarioReferenciaManual;
 use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Pool;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -25,6 +26,9 @@ use Illuminate\Support\Facades\Schema;
 
 class FacturacionCartService
 {
+    private const REGIONAL_KARDEX_HTTP_CONCURRENCY = 6;
+    private const REGIONAL_KARDEX_HTTP_TIMEOUT_SECONDS = 10;
+
     private const EMS_SOLICITUD_FISCAL_DATA = [
         'actividad_economica' => '841001',
         'codigo_sin' => '99100',
@@ -2214,12 +2218,364 @@ class FacturacionCartService
         ];
     }
 
+    /**
+     * Load the same per-cashier Kardex and sale rows as fetchOwnRawRows(), but
+     * issue the remote reads concurrently so a regional report does not spend
+     * the PHP request timeout waiting on each cashier one after another.
+     *
+     * @return array{rows: array<string, \Illuminate\Support\Collection>, errors: array<string, string>}
+     */
+    public function fetchRegionalVentasBatch(array $users, array $filters): array
+    {
+        $users = collect($users)->filter(fn ($user) => $user instanceof User)->values();
+        $cacheFilters = $filters;
+        ksort($cacheFilters);
+        $filterSignature = md5((string) json_encode($cacheFilters));
+        $rowsByUser = [];
+        $errors = [];
+        $usersToFetch = [];
+        $cacheKeys = [];
+
+        foreach ($users as $user) {
+            $userId = trim((string) $user->id);
+            $cacheKey = 'facturacion:regional-kardex-user:' . $userId . ':' . $filterSignature;
+            $cacheKeys[$userId] = $cacheKey;
+            $cached = Cache::get($cacheKey);
+            if (is_array($cached) && array_key_exists('rows', $cached)) {
+                $rowsByUser[$userId] = collect($cached['rows']);
+            } else {
+                $usersToFetch[] = $user;
+            }
+        }
+
+        if ($usersToFetch !== []) {
+            $fresh = $this->fetchRegionalVentasBatchUncached($usersToFetch, $filters);
+            $errors = (array) ($fresh['errors'] ?? []);
+            foreach ((array) ($fresh['rows'] ?? []) as $userId => $rows) {
+                $userId = (string) $userId;
+                $rowsByUser[$userId] = collect($rows);
+                if (! isset($errors[$userId]) && isset($cacheKeys[$userId])) {
+                    Cache::put($cacheKeys[$userId], ['rows' => $rowsByUser[$userId]], now()->addMinutes(2));
+                }
+            }
+        }
+
+        return ['rows' => $rowsByUser, 'errors' => $errors];
+    }
+
+    /** Load all cashier rows for a branch in one API request. */
+    public function fetchSucursalKardexBatch(array $users, array $filters): array
+    {
+        $users = collect($users)->filter(fn ($user) => $user instanceof User)->values();
+        if ($users->isEmpty()) {
+            return ['rows' => [], 'errors' => []];
+        }
+
+        $payload = array_filter([
+            'fechaInicio' => $filters['from'] ?? null,
+            'fechaFin' => $filters['to'] ?? null,
+            'estado_sufe' => $this->mapEstadoEmisionToSufe((string) ($filters['estado_emision'] ?? 'all')),
+            'q' => trim((string) ($filters['q'] ?? '')) ?: null,
+            'limite' => 5000,
+            'origen_usuario_ids' => $users->pluck('id')->map(fn ($id) => trim((string) $id))->filter()->unique()->values()->all(),
+            'origen_usuario_emails' => $users->pluck('email')->map(fn ($value) => strtolower(trim((string) $value)))->filter()->unique()->values()->all(),
+            'origen_usuario_aliases' => $users->pluck('alias')->map(fn ($value) => trim((string) $value))->filter()->unique()->values()->all(),
+            'origen_usuario_carnets' => $users->pluck('ci')->map(fn ($value) => strtoupper(preg_replace('/\\s+/', '', trim((string) $value))))->filter()->unique()->values()->all(),
+        ], fn ($value) => $value !== null && $value !== '');
+
+        $usersById = $users->keyBy(fn (User $user) => trim((string) $user->id));
+        $identityIndex = [];
+        foreach ($users as $user) {
+            foreach ([
+                'email:' . mb_strtolower(trim((string) $user->email)),
+                'alias:' . mb_strtolower(trim((string) ($user->alias ?? ''))),
+                'carnet:' . strtoupper(preg_replace('/\\s+/', '', trim((string) ($user->ci ?? '')))),
+            ] as $identity) {
+                if (! str_ends_with($identity, ':')) {
+                    $identityIndex[$identity] ??= $user;
+                }
+            }
+        }
+
+        try {
+            $body = $this->request('GET', '/ventas/reportes/kardex-sucursal', $payload);
+        } catch (\Throwable $exception) {
+            $message = $exception->getMessage();
+            $errors = [];
+            foreach ($users as $user) {
+                $errors[(string) $user->id] = $message;
+            }
+
+            return ['rows' => [], 'errors' => $errors];
+        }
+
+        $rowsByUser = [];
+        $unmatchedRows = 0;
+        foreach ((array) data_get($body, 'detalle', []) as $row) {
+            $rowData = is_array($row) ? $row : (array) $row;
+            $sourceUser = (array) data_get($rowData, 'usuario', []);
+            $sourceId = trim((string) (
+                $rowData['origen_usuario_id']
+                ?? $rowData['origenUsuarioId']
+                ?? $sourceUser['id']
+                ?? ''
+            ));
+            $cashier = $usersById->get($sourceId);
+            if (! $cashier) {
+                foreach ([
+                    'email:' . mb_strtolower(trim((string) ($rowData['origen_usuario_email'] ?? $rowData['origenUsuarioEmail'] ?? $sourceUser['email'] ?? ''))),
+                    'alias:' . mb_strtolower(trim((string) ($rowData['origen_usuario_alias'] ?? $rowData['origenUsuarioAlias'] ?? $sourceUser['alias'] ?? ''))),
+                    'carnet:' . strtoupper(preg_replace('/\\s+/', '', trim((string) ($rowData['origen_usuario_carnet'] ?? $rowData['origenUsuarioCarnet'] ?? $sourceUser['carnet'] ?? '')))),
+                ] as $identity) {
+                    if (! str_ends_with($identity, ':') && isset($identityIndex[$identity])) {
+                        $cashier = $identityIndex[$identity];
+                        break;
+                    }
+                }
+            }
+            if (! $cashier && $users->count() === 1) {
+                $cashier = $users->first();
+            }
+            if (! $cashier) {
+                $unmatchedRows++;
+                continue;
+            }
+
+            $sucursal = $cashier->sucursal;
+            $rowData['items'] = $rowData['items'] ?? $rowData['detalle'] ?? [];
+            if (isset($rowData['cartId']) && is_numeric($rowData['cartId'])) {
+                $rowData['id'] = (int) $rowData['cartId'];
+            }
+            $rowData['codigo_orden'] = $rowData['codigo_orden'] ?? $rowData['codigoOrden'] ?? '';
+            $rowData['codigo_seguimiento'] = $rowData['codigo_seguimiento'] ?? $rowData['codigoSeguimiento'] ?? '';
+            $rowData['numero_factura'] = $rowData['numero_factura'] ?? $rowData['numeroFactura'] ?? '';
+            $rowData['created_at'] = $rowData['created_at'] ?? $rowData['fecha'] ?? null;
+            $rowData['origen_usuario_id'] = $rowData['origen_usuario_id'] ?? ($sourceId !== '' ? $sourceId : (string) $cashier->id);
+            $rowData['origenUsuarioId'] = $rowData['origenUsuarioId'] ?? $rowData['origen_usuario_id'];
+            $rowData['origen_usuario_nombre'] = $rowData['origen_usuario_nombre'] ?? $rowData['origenUsuarioNombre'] ?? $sourceUser['nombre'] ?? $cashier->name;
+            $rowData['origenUsuarioNombre'] = $rowData['origenUsuarioNombre'] ?? $rowData['origen_usuario_nombre'];
+            $rowData['origen_usuario_email'] = $rowData['origen_usuario_email'] ?? $rowData['origenUsuarioEmail'] ?? $sourceUser['email'] ?? $cashier->email;
+            $rowData['origenUsuarioEmail'] = $rowData['origenUsuarioEmail'] ?? $rowData['origen_usuario_email'];
+            $rowData['origen_usuario_alias'] = $rowData['origen_usuario_alias'] ?? $rowData['origenUsuarioAlias'] ?? $sourceUser['alias'] ?? $cashier->alias;
+            $rowData['origenUsuarioAlias'] = $rowData['origenUsuarioAlias'] ?? $rowData['origen_usuario_alias'];
+            $rowData['origen_usuario_carnet'] = $rowData['origen_usuario_carnet'] ?? $rowData['origenUsuarioCarnet'] ?? $sourceUser['carnet'] ?? $cashier->ci;
+            $rowData['origenUsuarioCarnet'] = $rowData['origenUsuarioCarnet'] ?? $rowData['origen_usuario_carnet'];
+            $rowData['origen_sucursal_nombre'] = $rowData['origen_sucursal_nombre'] ?? data_get($rowData, 'sucursal.nombre') ?? $sucursal?->nombre ?? $sucursal?->descripcion ?? '';
+            $rowData['origenSucursalNombre'] = $rowData['origenSucursalNombre'] ?? $rowData['origen_sucursal_nombre'];
+            $rowData['origen_sucursal_codigo'] = $rowData['origen_sucursal_codigo'] ?? data_get($rowData, 'sucursal.codigoSucursal') ?? $sucursal?->codigo ?? '';
+            $rowData['origenSucursalCodigo'] = $rowData['origenSucursalCodigo'] ?? $rowData['origen_sucursal_codigo'];
+            $rowData['origen_sucursal_municipio'] = $rowData['origen_sucursal_municipio'] ?? $sucursal?->municipio ?? '';
+            $rowData['origenSucursalMunicipio'] = $rowData['origenSucursalMunicipio'] ?? $rowData['origen_sucursal_municipio'];
+            $rowData['origen_sucursal_departamento'] = $rowData['origen_sucursal_departamento'] ?? data_get($rowData, 'sucursal.departamento') ?? $sucursal?->departamento ?? '';
+            $rowData['origenSucursalDepartamento'] = $rowData['origenSucursalDepartamento'] ?? $rowData['origen_sucursal_departamento'];
+
+            $rowsByUser[(string) $cashier->id][] = $this->toCart($rowData);
+        }
+
+        $errors = $unmatchedRows > 0
+            ? ['__unmatched' => "La API devolvió {$unmatchedRows} registros sin identidad de cajero reconocible."]
+            : [];
+
+        return ['rows' => $rowsByUser, 'errors' => $errors];
+    }
+
+    private function fetchRegionalVentasBatchUncached(array $users, array $filters): array
+    {
+        $users = collect($users)->filter(fn ($user) => $user instanceof User)->values();
+        if ($users->isEmpty()) {
+            return ['rows' => [], 'errors' => []];
+        }
+
+        $fullRangeFilters = array_merge($filters, [
+            'page' => 1,
+            'per_page' => 100,
+            'limite' => 500,
+        ]);
+        $estadoSufe = $this->mapEstadoEmisionToSufe((string) ($filters['estado_emision'] ?? 'all'));
+        $kardexPayload = array_filter([
+            'fechaInicio' => $filters['from'] ?? null,
+            'fechaFin' => $filters['to'] ?? null,
+            'q' => trim((string) ($filters['q'] ?? '')) ?: null,
+            'estado_sufe' => $estadoSufe,
+            'limite' => min(500, max(50, (int) ($fullRangeFilters['limite'] ?? 500))),
+        ], fn ($value) => $value !== null && $value !== '');
+
+        $jobs = [];
+        $kardexKeysByUser = [];
+        $cartKeyByUser = [];
+        foreach ($users as $user) {
+            $userId = trim((string) $user->id);
+            foreach ($this->buildUserIdentityPayloads($user, $kardexPayload) as $identityIndex => $payload) {
+                $key = 'k_' . $userId . '_' . $identityIndex;
+                $jobs[$key] = ['path' => '/ventas/reportes/kardex-usuarios', 'payload' => $payload];
+                $kardexKeysByUser[$userId][] = $key;
+            }
+
+            $cartKey = 'c_' . $userId . '_1';
+            $cartKeyByUser[$userId] = $cartKey;
+            $jobs[$cartKey] = [
+                'path' => '/cart/ventas',
+                'payload' => array_merge($fullRangeFilters, ['origen_usuario_id' => $userId]),
+            ];
+        }
+
+        $responses = $this->requestRegionalJsonPool($jobs, self::REGIONAL_KARDEX_HTTP_CONCURRENCY);
+        $fallbackJobs = [];
+        foreach ($jobs as $key => $job) {
+            $response = $responses[$key] ?? null;
+            if (str_starts_with($key, 'k_')
+                && $response instanceof \Illuminate\Http\Client\Response
+                && $response->status() === 404) {
+                $fallbackJobs[$key] = [
+                    'path' => '/reportes/kardex-usuarios',
+                    'payload' => $job['payload'],
+                ];
+            }
+        }
+        if ($fallbackJobs !== []) {
+            $responses = array_replace($responses, $this->requestRegionalJsonPool($fallbackJobs, self::REGIONAL_KARDEX_HTTP_CONCURRENCY));
+        }
+
+        $errors = [];
+        $cartRowsByUser = [];
+        $lastPageByUser = [];
+        $pageJobs = [];
+        foreach ($users as $user) {
+            $userId = trim((string) $user->id);
+            try {
+                $body = $this->regionalPooledResponseBody($responses[$cartKeyByUser[$userId]] ?? null, '/cart/ventas');
+                $cartRowsByUser[$userId] = collect((array) data_get($body, 'data.carts', []))
+                    ->map(fn ($cart) => $this->toCart($cart))
+                    ->filter()
+                    ->values();
+                $pagination = (array) data_get($body, 'data.pagination', []);
+                $lastPageByUser[$userId] = max(
+                    (int) ($pagination['last_page'] ?? 0),
+                    (int) ($pagination['lastPage'] ?? 0),
+                    (int) ($pagination['total_pages'] ?? 0),
+                    (int) ($pagination['pages'] ?? 0),
+                    1
+                );
+                for ($page = 2; $page <= $lastPageByUser[$userId]; $page++) {
+                    $key = 'c_' . $userId . '_' . $page;
+                    $pageJobs[$key] = [
+                        'path' => '/cart/ventas',
+                        'payload' => array_merge($fullRangeFilters, [
+                            'origen_usuario_id' => $userId,
+                            'page' => $page,
+                        ]),
+                    ];
+                }
+            } catch (\Throwable $exception) {
+                $errors[$userId] = $exception->getMessage();
+            }
+        }
+
+        if ($pageJobs !== []) {
+            $responses = array_replace($responses, $this->requestRegionalJsonPool($pageJobs, self::REGIONAL_KARDEX_HTTP_CONCURRENCY));
+        }
+
+        $rowsByUser = [];
+        foreach ($users as $user) {
+            $userId = trim((string) $user->id);
+            if (isset($errors[$userId])) {
+                continue;
+            }
+
+            try {
+                $kardexResponses = [];
+                $firstKardexError = null;
+                foreach ($kardexKeysByUser[$userId] ?? [] as $key) {
+                    try {
+                        $kardexResponses[] = $this->regionalPooledResponseBody(
+                            $responses[$key] ?? null,
+                            (string) data_get($jobs, $key . '.path', '/ventas/reportes/kardex-usuarios')
+                        );
+                    } catch (\Throwable $exception) {
+                        $firstKardexError ??= $exception;
+                    }
+                }
+                if ($kardexResponses === []) {
+                    throw $firstKardexError ?? new \RuntimeException('No se pudo consultar el Kardex de este cajero.');
+                }
+
+                $details = collect($kardexResponses)
+                    ->flatMap(fn (array $body) => (array) data_get($body, 'detalle', []))
+                    ->filter(fn ($row) => is_array($row) || is_object($row))
+                    ->unique(fn ($row) => $this->kardexVentaRowKey($row))
+                    ->values()
+                    ->map(fn ($row) => is_array($row) ? (object) $row : $row);
+
+                for ($page = 2; $page <= (int) ($lastPageByUser[$userId] ?? 1); $page++) {
+                    $key = 'c_' . $userId . '_' . $page;
+                    $body = $this->regionalPooledResponseBody($responses[$key] ?? null, '/cart/ventas');
+                    $cartRowsByUser[$userId] = $cartRowsByUser[$userId]
+                        ->concat(collect((array) data_get($body, 'data.carts', []))
+                            ->map(fn ($cart) => $this->toCart($cart))
+                            ->filter());
+                }
+
+                $rowsByUser[$userId] = collect($cartRowsByUser[$userId] ?? [])
+                    ->concat($details)
+                    ->filter(fn ($row) => is_object($row))
+                    ->values();
+            } catch (\Throwable $exception) {
+                $errors[$userId] = $exception->getMessage();
+            }
+        }
+
+        return ['rows' => $rowsByUser, 'errors' => $errors];
+    }
+
+    private function requestRegionalJsonPool(array $jobs, int $concurrency): array
+    {
+        $configuredTimeout = (int) config('services.facturacion_bridge.timeout', 30);
+        $timeout = min(self::REGIONAL_KARDEX_HTTP_TIMEOUT_SECONDS, max(5, $configuredTimeout));
+        $connectTimeout = min(3, max(2, (int) config('services.facturacion_bridge.connect_timeout', 5)));
+
+        return Http::pool(function (Pool $pool) use ($jobs, $timeout, $connectTimeout): void {
+            foreach ($jobs as $key => $job) {
+                $pool->as((string) $key)
+                    ->baseUrl($this->resolveBaseUrl())
+                    ->withToken((string) config('services.facturacion_bridge.token'))
+                    ->acceptJson()
+                    ->timeout($timeout)
+                    ->connectTimeout($connectTimeout)
+                    ->withOptions(['verify' => config('services.facturacion_bridge.ssl_verify', true)])
+                    ->get((string) $job['path'], (array) $job['payload']);
+            }
+        }, $concurrency);
+    }
+
+    private function regionalPooledResponseBody($response, string $path): array
+    {
+        if ($response instanceof \Throwable) {
+            $message = $response instanceof ConnectionException
+                ? $this->connectionFailureMessage($response, $path, min(self::REGIONAL_KARDEX_HTTP_TIMEOUT_SECONDS, max(5, (int) config('services.facturacion_bridge.timeout', 30))))
+                : 'No se pudo conectar con la API de facturación: ' . $response->getMessage();
+            throw new \RuntimeException($message, 0, $response);
+        }
+
+        if (! ($response instanceof \Illuminate\Http\Client\Response)) {
+            throw new \RuntimeException('No se recibió respuesta de la API de facturación para ' . $path . '.');
+        }
+
+        $body = $this->decodeJsonBody($response);
+        if (! $response->successful() && $response->status() !== 204) {
+            $message = is_array($body)
+                ? (string) ($body['message'] ?? $body['mensaje'] ?? $this->firstValidationError($body) ?? 'Error remoto')
+                : trim((string) $response->body());
+            throw new \RuntimeException($response->status() . ' ' . ($message !== '' ? $message : 'Error remoto'));
+        }
+
+        return $body ?? [];
+    }
     public function fetchKardexRegionales(array $filters): array
     {
         $estadoSufe = $this->mapEstadoEmisionToSufe((string) ($filters['estado_emision'] ?? 'all'));
         $requestedLimit = (int) ($filters['limite'] ?? (($filters['per_page'] ?? 20) * 25));
         $requestedLimit = max(1, $requestedLimit);
-        $limite = min(1000, max(50, $requestedLimit));
+        $limite = min(500, max(50, $requestedLimit));
         $payload = array_filter([
             'fechaInicio' => $filters['from'] ?? null,
             'fechaFin' => $filters['to'] ?? null,
@@ -2245,6 +2601,7 @@ class FacturacionCartService
                 ->values(),
             'resumen' => (array) data_get($body, 'resumen', []),
             'filters' => (array) data_get($body, 'filters', $payload),
+            'meta' => (array) data_get($body, 'meta', []),
         ];
     }
 

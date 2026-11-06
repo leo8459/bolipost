@@ -18,9 +18,19 @@
                 @endunless
                 <div class="table-responsive">
                     <table class="table ips-table">
-                        <thead><tr><th>Código / ID local</th><th>Destinatario</th><th>Teléfono</th><th>Ciudad / dirección</th><th>Oficina actual → destino</th><th>Peso / clase</th><th>Tributable</th><th>Etapa / último movimiento</th><th>Acción</th></tr></thead>
+                        <thead><tr><th>Código / ID local</th><th>Destinatario</th><th>Teléfono</th><th>Ciudad / dirección</th><th>{{ ($workflowAction ?? '') === 'EMG' ? 'Oficina de origen → entrega' : 'Oficina actual → destino' }}</th><th>Peso / clase</th><th>Tributable</th><th>Etapa / último movimiento</th><th>Acción</th></tr></thead>
                         <tbody>
                         @forelse($packages as $package)
+                            @php
+                                $packageEvent = (int) ($package['operational_event_cd'] ?? $package['event_cd'] ?? 0);
+                                $displayStageLabel = ($workflowAction ?? '') === 'EMG'
+                                    ? match ($packageEvent) {
+                                        13 => 'En saca nacional · en tránsito',
+                                        35, 72 => 'Despachado hacia esta oficina',
+                                        default => $package['stage']['label'],
+                                    }
+                                    : $package['stage']['label'];
+                            @endphp
                             <tr>
                                 <td><strong class="ips-code">{{ $package['codigo'] }}</strong><small>{{ $package['local_id'] ?: 'Sin ID local' }}</small></td>
                                 <td>{{ $package['recipient'] ?: 'No registrado' }}</td>
@@ -29,15 +39,17 @@
                                 <td>{{ $package['office_name'] ?: 'Sin oficina' }}@if($package['next_office_name'])<small>→ {{ $package['next_office_name'] }}</small>@endif</td>
                                 <td>{{ $package['weight_kg'] !== null ? number_format($package['weight_kg'], 3, ',', '.') . ' kg' : 'Sin peso' }}<small>Clase {{ $package['mail_class'] ?: 'no registrada' }}</small></td>
                                 <td>{{ match((string)($package['dutiable_ind'] ?? '')) {'Y','1'=>'Sí','N','0'=>'No',default=>'No registrado'} }}</td>
-                                <td><span class="badge badge-{{ $package['stage']['tone'] }}">{{ $package['stage']['label'] }}</span><small>{{ !empty($package['event_at_local']) ? \Illuminate\Support\Carbon::parse($package['event_at_local'])->format('d/m/Y H:i') : 'Hora local no informada' }}</small></td>
+                                <td><span class="badge badge-{{ $package['stage']['tone'] }}">{{ $displayStageLabel }}</span><small>{{ !empty($package['event_at_local']) ? \Illuminate\Support\Carbon::parse($package['event_at_local'])->format('d/m/Y H:i') : 'Hora local no informada' }}</small>@if(!empty($package['reception_block_reason']))<small>Evento {{ $package['operational_event_cd'] ?? $package['event_cd'] }} · estado IPS {{ $package['state_cd'] ?? 'no informado' }}</small>@endif</td>
                                 <td>
                                     @if($readOnly ?? false)<span class="text-muted">Solo consulta</span>
+                                    @elseif(($workflowAction ?? '') === 'EMG' && !empty($package['reception_block_reason']))<span class="text-muted">No recepcionable en esta oficina</span><small class="text-warning" role="status">{{ $package['reception_block_reason'] }}</small>
                                     @elseif(isset($selection[$package['codigo']]))<span class="text-success"><i class="fas fa-check"></i> En bandeja</span>
+                                    @elseif(($workflowAction ?? '') === 'EMG' && !empty($package['route_mismatch_receipt']))<form class="ips-selection-add" method="POST" action="{{ $selectionAddUrl ?? route('ips.selection.add') }}">@csrf<input type="hidden" name="codigo" value="{{ $package['codigo'] }}"><button class="btn btn-sm btn-outline-warning"><i class="fas fa-exclamation-triangle"></i> Revisar recepción aquí</button></form><small class="text-warning" role="status">{{ $package['route_mismatch_note'] }}</small>
                                     @elseif(($deliveryOnly ?? false) && empty(array_intersect(array_keys($deliveryActionLabels), $package['allowed_actions'] ?? [])))<span class="text-muted">Sin paso de distribución habilitado</span>
                                     @elseif(($workflowAction ?? null) && !in_array($workflowAction, $package['allowed_actions'] ?? [], true))<span class="text-muted">No habilitado para este paso</span>
                                     @elseif(!($workflowAction ?? null) && !($deliveryOnly ?? false) && !empty($package['allowed_actions']) && empty(array_intersect($package['allowed_actions'], array_keys($actions))))<span class="text-muted">Continúa desde Internacional</span>
                                     @elseif(empty($package['allowed_actions']) && strtoupper($search) !== strtoupper($package['codigo']))<span class="text-muted" title="Este paquete no tiene movimientos pendientes">Histórico</span>
-                                    @else<form class="ips-selection-add" method="POST" action="{{ $selectionAddUrl ?? route('ips.selection.add') }}">@csrf<input type="hidden" name="codigo" value="{{ $package['codigo'] }}">@if($deliveryOnly ?? false)<input type="hidden" name="workflow" value="delivery">@endif<button class="btn btn-sm btn-outline-primary"><i class="fas fa-plus"></i> {{ ($workflowAction ?? null) ? 'Agregar al paso' : (($deliveryOnly ?? false) ? 'Agregar a entrega' : (empty($package['allowed_actions']) ? 'Agregar consulta' : 'Agregar')) }}</button></form>@endif
+                                    @else<form class="ips-selection-add" method="POST" action="{{ $selectionAddUrl ?? route('ips.selection.add') }}">@csrf<input type="hidden" name="codigo" value="{{ $package['codigo'] }}">@if(($workflowAction ?? '') === 'CUSTOMS_RETURN' && $preferredReceptaclePid)<input type="hidden" name="receptacle_pid" value="{{ $preferredReceptaclePid }}">@endif @if($deliveryOnly ?? false)<input type="hidden" name="workflow" value="delivery">@endif<button class="btn btn-sm btn-outline-primary"><i class="fas fa-plus"></i> {{ ($workflowAction ?? null) ? 'Agregar al paso' : (($deliveryOnly ?? false) ? 'Agregar a entrega' : (empty($package['allowed_actions']) ? 'Agregar consulta' : 'Agregar')) }}</button></form>@endif
                                 </td>
                             </tr>
                         @empty<tr><td colspan="9" class="ips-empty"><i class="fas fa-search"></i><p>{{ $error ? 'Listado no disponible.' : ($emptyMessage ?? 'No hay paquetes que coincidan con esta búsqueda y oficina.') }}</p></td></tr>@endforelse

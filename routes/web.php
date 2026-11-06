@@ -330,14 +330,23 @@ Route::get('/mis-ventas/export/pdf', [MisVentasController::class, 'exportPdf'])
     ->middleware(['auth', 'internal.only', 'verified'])
     ->name('mis-ventas.export.pdf');
 Route::get('/mis-ventas/kardex', [MisVentasController::class, 'kardex'])
-    ->middleware(['auth', 'internal.only', 'verified'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('mis-ventas.kardex');
 Route::get('/mis-ventas/kardex/export/pdf', [MisVentasController::class, 'exportKardexPdf'])
-    ->middleware(['auth', 'internal.only', 'verified'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('mis-ventas.kardex.export.pdf');
 Route::get('/mis-ventas/kardex/export/excel', [MisVentasController::class, 'exportKardexExcel'])
-    ->middleware(['auth', 'internal.only', 'verified'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('mis-ventas.kardex.export.excel');
+Route::get('/mis-ventas/kardex-regional', [MisVentasController::class, 'kardexRegional'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('mis-ventas.kardex-regional');
+Route::get('/mis-ventas/kardex-regional/export/pdf', [MisVentasController::class, 'exportKardexRegionalPdf'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('mis-ventas.kardex-regional.export.pdf');
+Route::get('/mis-ventas/kardex-regional/export/excel', [MisVentasController::class, 'exportKardexRegionalExcel'])
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('mis-ventas.kardex-regional.export.excel');
 Route::get('/ventas-sucursal', [MisVentasController::class, 'branchIndex'])
     ->middleware(['auth', 'internal.only', 'verified'])
     ->name('ventas-sucursal.index');

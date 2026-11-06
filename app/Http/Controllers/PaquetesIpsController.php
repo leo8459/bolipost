@@ -98,29 +98,22 @@ class PaquetesIpsController extends Controller
         'recepcion' => [
             'label' => 'Recibir y abrir saca',
             'start' => ['route' => 'internacional.sacas', 'params' => ['paso' => 'recibir']],
-            'description' => 'Registra la llegada de la saca internacional cerrada. Ábrela una sola vez en la oficina habilitada y después registra cada paquete encontrado.',
+            'description' => 'Registra la llegada de la saca internacional cerrada y ábrela una sola vez. Después, escanea cada paquete en el flujo que corresponde: recepción internacional (30) o devolución de Aduana (38).',
             'tabs' => [
                 ['key' => 'saca-recibir', 'label' => 'Recibir saca cerrada', 'route' => 'internacional.sacas', 'params' => ['paso' => 'recibir']],
                 ['key' => 'saca-abrir', 'label' => 'Registrar apertura física', 'route' => 'internacional.sacas', 'params' => ['paso' => 'abrir']],
                 ['key' => 'recepcion-paquete', 'label' => 'Registrar paquetes encontrados', 'route' => 'internacional.section', 'params' => ['section' => 'recepcion-cambio']],
+                ['key' => 'saca-devolucion-aduana', 'label' => 'Registrar paquetes devueltos de Aduana', 'route' => 'internacional.section', 'params' => ['section' => 'devolucion-aduana']],
             ],
         ],
         'ruta' => [
             'label' => 'Clasificar y despachar',
             'start' => ['route' => 'internacional.section', 'params' => ['section' => 'despacho-nacional']],
-            'description' => 'Define el destino de cada paquete. Agrupa los que viajan juntos en una saca nacional nueva; la oficina destino registra su llegada.',
+            'description' => 'Define el destino y despacha cada paquete. Registra una saca nacional solo cuando realmente agrupes paquetes para el traslado; la oficina destino siempre confirma su llegada.',
             'tabs' => [
                 ['key' => 'ruta-despacho', 'label' => 'Definir destino del paquete', 'route' => 'internacional.section', 'params' => ['section' => 'despacho-nacional']],
-                ['key' => 'ruta-saca', 'label' => 'Agrupar en saca nacional nueva', 'route' => 'internacional.section', 'params' => ['section' => 'saca-nacional']],
+                ['key' => 'ruta-saca', 'label' => 'Asociar a saca (si aplica)', 'route' => 'internacional.section', 'params' => ['section' => 'saca-nacional']],
                 ['key' => 'ruta-recepcion', 'label' => 'Recibir paquetes en destino', 'route' => 'internacional.section', 'params' => ['section' => 'recepcion-oficina']],
-            ],
-        ],
-        'aduana' => [
-            'label' => 'Aduana',
-            'start' => ['route' => 'internacional.section', 'params' => ['section' => 'devolucion-aduana']],
-            'description' => 'Registra la devolución física desde Aduana antes de continuar la distribución del paquete.',
-            'tabs' => [
-                ['key' => 'aduana-devolucion', 'label' => 'Recibir devolución de Aduana', 'route' => 'internacional.section', 'params' => ['section' => 'devolucion-aduana']],
             ],
         ],
         'distribucion' => [
@@ -141,7 +134,7 @@ class PaquetesIpsController extends Controller
             'description' => 'Escanea cada paquete que encontraste al abrir físicamente la saca internacional. Cada paquete se registra por separado y queda asociado a esa saca.',
             'requires' => 'La saca internacional ya fue abierta físicamente y el envío está habilitado para recibirse en esta oficina.',
             'records' => 'La recepción individual del paquete y su asociación con la saca internacional abierta.',
-            'next' => 'Define la oficina de destino de cada paquete. Para enviarlos a otra regional, agrúpalos en una saca nacional nueva.',
+            'next' => 'Define la oficina destinataria. El paquete puede despacharse directamente; asócialo a una saca nacional (evento 13) solo si físicamente lo agrupas en una saca.',
             'search_only' => true,
         ],
         'despacho-nacional' => [
@@ -152,7 +145,7 @@ class PaquetesIpsController extends Controller
             'description' => 'Selecciona la siguiente oficina habilitada para cada paquete. Trabaja juntos los que van al mismo destino y separa los de otra ruta o clase postal.',
             'requires' => 'El envío fue recibido en la oficina de cambio o retornó físicamente de Aduana a esta oficina.',
             'records' => 'El despacho del paquete y la siguiente oficina de su ruta.',
-            'next' => 'Agrupa los paquetes compatibles en una saca nacional nueva, distinta de la saca internacional recibida.',
+            'next' => 'El despacho (evento 35) encamina el paquete directamente a la oficina siguiente. Si físicamente viaja dentro de una saca nueva, registra también su asociación (evento 13).',
         ],
         'saca-nacional' => [
             'action' => 'EIB',
@@ -162,27 +155,27 @@ class PaquetesIpsController extends Controller
             'description' => 'Asocia cada paquete despachado a una saca nacional abierta compatible con su destino y clase postal. Es una saca física nueva; no se reutiliza el marbete de la saca internacional.',
             'requires' => 'El despacho ya está registrado, la oficina siguiente está definida y hay una saca abierta compatible con la ruta y clase postal.',
             'records' => 'La asociación del paquete a la nueva saca nacional seleccionada.',
-            'next' => 'Al llegar, la oficina de destino registra la recepción física de los paquetes.',
+            'next' => 'Al llegar físicamente a la oficina destinataria, registra la recepción (evento 32). El evento 13 solo corresponde a paquetes que realmente viajaron dentro de una saca.',
         ],
         'recepcion-oficina' => [
             'action' => 'EMG',
             'stage' => 'reception',
             'event_cd' => [13, 35, 72],
-            'title' => 'Recibir paquetes en oficina de destino',
-            'description' => 'Confirma la llegada física de los paquetes enviados a esta oficina, tanto si viajaron en una saca nacional como si llegaron sueltos.',
+            'title' => 'Recibir paquetes en oficina de entrega',
+            'description' => 'Lista paquetes que IPS encaminó a esta oficina. Si escaneas uno con otra oficina de destino, podrás revisar su recepción física aquí sin crear un evento de cambio de ruta.',
             'requires' => 'El envío llegó físicamente a la oficina de destino indicada por su ruta.',
-            'records' => 'La recepción del envío en la oficina de destino.',
+            'records' => 'La recepción en oficina de destino (evento 32).',
             'next' => 'El envío queda disponible para retiro o para el proceso de reparto que corresponda.',
         ],
         'devolucion-aduana' => [
             'action' => 'CUSTOMS_RETURN',
             'stage' => 'all',
-            'event_cd' => [31, 34],
-            'title' => 'Recibir devolución de Aduana en oficina',
-            'description' => 'Este paso solo registra la llegada física a esta oficina después de la devolución de Aduana: evento 38. No registra entrega al destinatario ni agrega el evento 32.',
-            'requires' => 'Aduana ya entregó físicamente el paquete a esta oficina.',
-            'records' => 'La devolución de Aduana y la llegada física a esta oficina (evento 38). El paquete no queda marcado como entregado.',
-            'next' => 'La operación termina con el paquete recibido físicamente en esta oficina. Cualquier movimiento posterior se registra aparte.',
+            'event_cd' => [31, 34, 1251],
+            'title' => 'Registrar devoluciones de Aduana dentro de una saca',
+            'description' => 'Desde una saca recibida y abierta, escanea cada paquete que Aduana devolvió físicamente al correo. El evento 38 registra el retorno desde Aduana en esta oficina; no reemplaza la llegada a la oficina de entrega.',
+            'requires' => 'La saca ya fue recibida y abierta físicamente en esta oficina.',
+            'records' => 'Solo la devolución física desde Aduana (evento 38). No marca llegada a la oficina de entrega ni entrega al destinatario.',
+            'next' => 'Si la oficina de entrega es otra, clasifica y despacha el paquete directamente (evento 35). Asócialo a una saca nacional (evento 13) solo si físicamente lo agrupas. Cuando llegue a la oficina destinataria, registra allí la recepción (evento 32).',
             'search_only' => true,
         ],
         'cartero' => [
@@ -232,7 +225,7 @@ class PaquetesIpsController extends Controller
         'despacho-nacional' => ['ruta', 'ruta-despacho'],
         'saca-nacional' => ['ruta', 'ruta-saca'],
         'recepcion-oficina' => ['ruta', 'ruta-recepcion'],
-        'devolucion-aduana' => ['aduana', 'aduana-devolucion'],
+        'devolucion-aduana' => ['recepcion', 'saca-devolucion-aduana'],
         'disponible-retiro' => ['distribucion', null],
         'cartero' => ['distribucion', null],
         'salida-reparto' => ['distribucion', null],
@@ -255,6 +248,101 @@ class PaquetesIpsController extends Controller
         };
 
         return [$link, $keyPrefix.$user->id];
+    }
+
+    private function receptionBlockReason(array $package, int $officeCd): string
+    {
+        $event = (int) ($package['operational_event_cd'] ?? $package['event_cd'] ?? 0);
+        $state = (int) ($package['state_cd'] ?? -1);
+
+        if ($event === 37 || $state === 5 || ! empty($package['terminal'])) {
+            return 'El historial ya registra una entrega o un cierre terminal. No se puede volver a recepcionar este paquete.';
+        }
+
+        if ($event === 32) {
+            return 'El paquete ya tiene registrada la recepción en oficina de destino (evento 32). No lo agregues otra vez.';
+        }
+
+        if (in_array($event, [31, 34], true) && $state === 1) {
+            $office = trim((string) ($package['office_name'] ?? ''));
+            $location = $office !== '' ? ' en '.$office : ' en la oficina registrada';
+            $recordedArrival = $event === 34
+                ? 'IPS registra la información aduanera'.$location.' (evento 34). El paquete ya está en el circuito de Aduana de esa oficina.'
+                : 'IPS registra el envío a Aduana'.$location.' (evento 31).';
+
+            return $recordedArrival.' El estado 1 indica que Aduana aún lo retiene. El catálogo IPS no permite registrar la recepción en destino (evento 32) desde ese estado. Cuando Aduana lo devuelva físicamente a Correo, registra el evento 38; luego encamínalo a la oficina destinataria y registra el 32 cuando llegue allí.';
+        }
+
+        if ($event === 1251 && $state === 1) {
+            $currentOffice = trim((string) ($package['office_name'] ?? ''));
+            $currentLocation = $currentOffice !== '' ? ' en '.$currentOffice : '';
+            $currentOfficeCd = (int) ($package['operational_office_cd'] ?? $package['office_cd'] ?? 0);
+            $officeMismatch = $currentOfficeCd > 0 && $currentOfficeCd !== $officeCd;
+            $routingNote = $officeMismatch
+                ? ' El evento y la saca están registrados en'.$currentLocation.'; para devolverlo desde Aduana usa la cuenta vinculada a esa oficina.'
+                : '';
+
+            return 'El evento 1251 indica que el envío fue observado por Aduana e incorporado a una saca nacional'.$currentLocation.'; conserva estado 1. No se puede registrar todavía la recepción en destino (evento 32).'.$routingNote.' Cuando Aduana lo devuelva físicamente, abre la saca recibida allí y registra desde “Devolución de Aduana” el evento 38. Después encamínalo a la oficina destinataria y registra el 32 cuando llegue.';
+        }
+
+        if ($event === 38) {
+            $office = trim((string) ($package['office_name'] ?? ''));
+            $location = $office !== '' ? ' en '.$office : '';
+
+            return 'Aduana ya devolvió el paquete (evento 38)'.$location.'. Primero encamínalo a su oficina de destino; registra el evento 32 cuando llegue físicamente allí.';
+        }
+
+        $nextOfficeCd = isset($package['next_office_cd']) ? (int) $package['next_office_cd'] : null;
+        $currentOfficeCd = (int) ($package['operational_office_cd'] ?? $package['office_cd'] ?? 0);
+        if (in_array($event, [13, 35, 72], true)
+            && $nextOfficeCd === $officeCd
+            && $currentOfficeCd === $officeCd) {
+            return 'IPS muestra una salida registrada desde esta misma oficina hacia ella misma. No es un traslado entrante; espera un despacho desde otra oficina dirigido aquí.';
+        }
+        if (in_array($event, [13, 35, 72], true) && $nextOfficeCd !== null && $nextOfficeCd !== $officeCd) {
+            $nextOffice = trim((string) ($package['next_office_name'] ?? ''));
+            $destination = $nextOffice !== '' ? $nextOffice : 'la oficina '.$nextOfficeCd;
+
+            return 'IPS tiene este paquete encaminado a '.$destination.'. Esta cuenta está vinculada a otra oficina; registra la recepción en la oficina indicada.';
+        }
+
+        if ($event === 30) {
+            return 'El último movimiento es la recepción en oficina de intercambio (evento 30). Todavía debe encaminarse a la oficina de destino antes de registrar el evento 32.';
+        }
+
+        $office = trim((string) ($package['office_name'] ?? ''));
+        $location = $office !== '' ? ' en '.$office : '';
+
+        return 'IPS no habilita la recepción (evento 32) para el último movimiento, evento '.$event.$location.'. Revisa la ruta y el historial del paquete.';
+    }
+
+    private function isRouteMismatchReceiptCandidate(array $package, int $officeCd): bool
+    {
+        $event = (int) ($package['operational_event_cd'] ?? $package['event_cd'] ?? 0);
+        $state = isset($package['state_cd']) ? (int) $package['state_cd'] : null;
+        $currentOffice = (int) ($package['operational_office_cd'] ?? $package['office_cd'] ?? 0);
+        $nextOffice = isset($package['next_office_cd']) ? (int) $package['next_office_cd'] : null;
+
+        return ($package['destination_country'] ?? '') === 'BO'
+            && empty($package['terminal'])
+            && in_array($event, [13, 35, 72], true)
+            && (($event === 13 && $state === 6) || (in_array($event, [35, 72], true) && in_array($state, [0, 2, 3, 6], true)))
+            && $currentOffice > 0
+            && $currentOffice !== $officeCd
+            && $nextOffice !== null
+            && $nextOffice !== $officeCd;
+    }
+
+    private function markRouteMismatchReceipt(array &$package, int $officeCd): bool
+    {
+        if (! $this->isRouteMismatchReceiptCandidate($package, $officeCd)) {
+            return false;
+        }
+
+        $package['route_mismatch_receipt'] = true;
+        $package['allowed_actions'] = array_values(array_unique(array_merge($package['allowed_actions'] ?? [], ['EMG'])));
+
+        return true;
     }
 
     private function assertAssignedCourierPackage(array $package, string $agentCode): void
@@ -290,10 +378,25 @@ class PaquetesIpsController extends Controller
         };
     }
 
-    private function operationNavigation(?string $section, ?string $warehouseView, ?string $receptacleStep = null): array
+    private function operationNavigation(?string $section, ?string $warehouseView, ?string $receptacleStep = null, ?string $receptaclePid = null): array
     {
         $group = null;
         $tab = null;
+        $groups = self::INTERNATIONAL_OPERATION_GROUPS;
+
+        if ($receptaclePid !== null) {
+            foreach ($groups['recepcion']['tabs'] as &$navigationTab) {
+                if ($navigationTab['key'] === 'saca-devolucion-aduana') {
+                    $navigationTab['params']['receptacle_pid'] = $receptaclePid;
+                }
+            }
+            unset($navigationTab);
+        } else {
+            $groups['recepcion']['tabs'] = array_values(array_filter(
+                $groups['recepcion']['tabs'],
+                fn (array $navigationTab) => $navigationTab['key'] !== 'saca-devolucion-aduana'
+            ));
+        }
 
         if ($receptacleStep !== null) {
             $group = 'recepcion';
@@ -306,11 +409,24 @@ class PaquetesIpsController extends Controller
         }
 
         return [
-            self::INTERNATIONAL_OPERATION_GROUPS,
+            $groups,
             $group,
             $tab,
             self::WAREHOUSE_TABS,
         ];
+    }
+
+    private function internationalWorkflowKey(Request $request, string $section, array $definition): string
+    {
+        $key = 'international_'.strtolower($definition['action']);
+        if ($section === 'devolucion-aduana') {
+            $receptaclePid = strtolower(trim((string) ($request->input('receptacle_pid') ?? $request->query('receptacle_pid', ''))));
+            if ($receptaclePid !== '') {
+                $key .= '_'.str_replace('-', '', $receptaclePid);
+            }
+        }
+
+        return $key;
     }
 
     public function index(Request $request, SitraIpsClient $ips, ?string $section = null, ?string $warehouseView = null)
@@ -349,7 +465,10 @@ class PaquetesIpsController extends Controller
         $stage = $warehousePage['stage'] ?? $internationalWorkflow['stage'] ?? $internationalPage['stage'] ?? ($filters['stage'] ?? 'all');
         $search = strtoupper(trim($filters['q'] ?? ''));
         $page = (int) ($filters['page'] ?? 1);
-        $preferredReceptaclePid = $section === 'recepcion-cambio' ? ($filters['receptacle_pid'] ?? null) : null;
+        $preferredReceptaclePid = in_array($section, ['recepcion-cambio', 'devolucion-aduana'], true)
+            ? ($filters['receptacle_pid'] ?? null)
+            : null;
+        abort_unless($section !== 'devolucion-aduana' || $preferredReceptaclePid, 422, 'Abre primero la saca y entra al registro de paquetes devueltos desde ese paso.');
         $items = collect();
         $total = 0;
         $catalog = ['non_delivery_reasons' => [], 'non_delivery_measures' => [], 'delivery_agents' => [], 'customs_office_types' => [], 'customs_release_statuses' => [], 'offices' => []];
@@ -364,11 +483,13 @@ class PaquetesIpsController extends Controller
                 : 'Esta ventana trabaja por escaneo. Escribe o escanea el código exacto del envío recibido en la oficina de cambio; no muestra un listado general.',
             'EDN' => 'No hay envíos recibidos o devueltos de Aduana pendientes de despacho en esta oficina.',
             'EIB' => 'No hay envíos despachados pendientes de asociar a una saca en esta oficina.',
-            'EMG' => 'No hay envíos de la ruta pendientes de recepción física en esta oficina.',
+            'EMG' => 'No hay paquetes habilitados por IPS para confirmar su llegada física a esta oficina.',
             'CUSTOMS_RETURN' => 'Escanea el código exacto de un paquete que Aduana ya devolvió físicamente a esta oficina.',
             default => 'No hay paquetes que coincidan con esta búsqueda y oficina.',
         };
-        $workflowKey = $workflowAction ? 'international_'.strtolower($workflowAction) : null;
+        $workflowKey = $internationalWorkflow
+            ? $this->internationalWorkflowKey($request, (string) $section, $internationalWorkflow)
+            : null;
         $isInternationalPage = $internationalPage !== null || $internationalWorkflow !== null;
         $courierOnly = $section === 'almacen' && $warehouseView === 'asignados-a-mi';
         $deliveryOnly = $section === 'almacen' && in_array($warehouseView, ['por-entregar', 'asignados-a-mi'], true);
@@ -398,15 +519,26 @@ class PaquetesIpsController extends Controller
         $selection = $request->session()->get($selectionKey.$request->user()->id, []);
         try {
             [$link] = $this->context($request, $workflowKey ?? ($courierOnly ? 'my_delivery' : ($deliveryOnly ? 'delivery' : 'standard')));
+            if ($workflowAction === 'CUSTOMS_RETURN') {
+                $catalog = $ips->catalog((int) $link->ips_office_cd) + $catalog;
+                $openHere = collect($catalog['open_inbound_receptacles'] ?? [])->contains(
+                    fn ($receptacle) => strtolower((string) data_get($receptacle, 'RECPTCL_PID')) === strtolower((string) $preferredReceptaclePid)
+                );
+                abort_unless($openHere, 409, 'La saca vinculada ya no está abierta en esta oficina. Vuelve a Recibir y abrir saca.');
+            }
             if ($workflowAction && $search !== '') {
                 try {
                     $package = $ips->package($search, (int) $link->ips_office_cd)['package'];
-                    if ($workflowAction === 'EMG'
-                        && in_array((int) ($package['operational_event_cd'] ?? $package['event_cd'] ?? 0), [31, 34], true)
-                        && (int) ($package['state_cd'] ?? -1) === 1) {
-                        $emptyMessage = 'Este envío sigue en Aduana. Cuando Aduana lo devuelva físicamente, regístralo en Internacional → Aduana → Recibir devolución de Aduana; IPS anotará el evento 38. Después podrá seguir por Almacén internacional.';
-                    }
                     if (in_array($workflowAction, $package['allowed_actions'] ?? [], true)) {
+                        $items = collect([$package]);
+                        $total = 1;
+                    } elseif ($workflowAction === 'EMG') {
+                        if ($this->markRouteMismatchReceipt($package, (int) $link->ips_office_cd)) {
+                            $package['route_mismatch_note'] = 'La ruta IPS indica '.$package['next_office_name'].'; puedes revisar este paquete si llegó físicamente aquí. Se intentará registrar solo el evento 32 en esta oficina, sin crear un evento de cambio de ruta. IPS decidirá si lo permite.';
+                        } else {
+                            $package['reception_block_reason'] = $this->receptionBlockReason($package, (int) $link->ips_office_cd);
+                            $emptyMessage = $package['reception_block_reason'];
+                        }
                         $items = collect([$package]);
                         $total = 1;
                     }
@@ -416,6 +548,8 @@ class PaquetesIpsController extends Controller
                     }
                     if ($workflowAction === 'EMR') {
                         $missingPackageCode = $search;
+                    } elseif ($workflowAction === 'EMG') {
+                        $emptyMessage = 'Este código no aparece en IPS. Verifica el marbete o consulta el historial con el código correcto.';
                     }
                 }
             } elseif (! ($internationalWorkflow['search_only'] ?? false)) {
@@ -502,13 +636,13 @@ class PaquetesIpsController extends Controller
                 ? route('internacional.my-delivery.operate')
                 : ($deliveryOnly ? route('internacional.operate') : route('ips.operate')));
         $operationLabel = $workflowAction ? self::ACTIONS[$workflowAction] : null;
-        [$operationGroups, $operationGroup, $activeOperationTab] = $this->operationNavigation($section, $warehouseView);
+        [$operationGroups, $operationGroup, $activeOperationTab] = $this->operationNavigation($section, $warehouseView, null, $preferredReceptaclePid);
         $workflowHint = match ($workflowAction) {
             'EMR' => 'Escanea los marbetes encontrados; IPS registra un movimiento individual por paquete.',
             'EDN' => 'Agrupa solo paquetes compatibles con la misma oficina de destino.',
             'EIB' => 'Añade juntos los paquetes del mismo destino y clase a una saca nacional nueva.',
-            'EMG' => 'Selecciona los paquetes que llegaron físicamente a destino y registra su recepción en IPS.',
-            'CUSTOMS_RETURN' => 'Escanea el paquete devuelto físicamente por Aduana. Este paso registra solo el evento 38: llegada a esta oficina, sin marcarlo como entregado.',
+            'EMG' => 'La lista normal respeta la oficina exacta de destino IPS. Al escanear un paquete encaminado a otra oficina, confirma su llegada física para intentar solo el evento 32 aquí; no se agrega un evento de cambio de ruta y la recepción queda registrada únicamente si IPS la acepta.',
+            'CUSTOMS_RETURN' => 'Escanea el paquete devuelto físicamente por Aduana. Este paso registra solo el evento 38; después se encamina a la oficina de entrega, donde se registra la llegada (evento 32).',
             default => null,
         };
         $viewData = compact(
@@ -554,7 +688,7 @@ class PaquetesIpsController extends Controller
     {
         $definition = self::INTERNATIONAL_WORKFLOWS[$section] ?? abort(404);
 
-        return $this->addSelection($request, $ips, 'international_'.strtolower($definition['action']), $definition['action'], $section);
+        return $this->addSelection($request, $ips, $this->internationalWorkflowKey($request, $section, $definition), $definition['action'], $section);
     }
 
     public function addSelection(Request $request, SitraIpsClient $ips, string $workflow = 'standard', ?string $requiredAction = null, ?string $section = null)
@@ -563,26 +697,45 @@ class PaquetesIpsController extends Controller
         $data = $request->validate([
             'codigo' => ['required', 'string', 'max:35', 'regex:/^[A-Za-z0-9-]+$/'],
             'workflow' => ['nullable', 'in:delivery,my_delivery'],
+            'receptacle_pid' => ['nullable', 'uuid'],
         ]);
         try {
             $package = $ips->package(strtoupper($data['codigo']), (int) $link->ips_office_cd)['package'];
             $office = (int) $link->ips_office_cd;
             $deliveryWorkflow = in_array($workflow, ['delivery', 'my_delivery'], true);
+            $routeMismatchReceipt = false;
+            $receptaclePid = isset($data['receptacle_pid']) ? strtolower((string) $data['receptacle_pid']) : null;
+            if ($requiredAction === 'CUSTOMS_RETURN') {
+                abort_unless($section === 'devolucion-aduana' && $receptaclePid !== null, 422, 'Escanea la devolución desde una saca recibida y abierta en esta oficina.');
+                $openReceptacles = $ips->catalog($office)['open_inbound_receptacles'] ?? [];
+                $openHere = collect($openReceptacles)->contains(fn ($receptacle) => strtolower((string) data_get($receptacle, 'RECPTCL_PID')) === $receptaclePid);
+                abort_unless($openHere, 409, 'La saca debe estar recibida y abierta en esta oficina antes de registrar sus devoluciones de Aduana.');
+                abort_unless(
+                    hash_equals($receptaclePid, strtolower(trim((string) ($package['receptacle_pid'] ?? '')))),
+                    409,
+                    'Este paquete no pertenece a la saca abierta seleccionada. Abre la saca que IPS registra para el paquete.'
+                );
+            }
             if ($workflow === 'my_delivery') {
                 $this->assertAssignedCourierPackage($package, (string) $link->delivery_agent_cd);
             }
             if ($requiredAction !== null) {
                 if ($requiredAction === 'EMG'
-                    && in_array((int) ($package['operational_event_cd'] ?? $package['event_cd'] ?? 0), [31, 34], true)
-                    && (int) ($package['state_cd'] ?? -1) === 1) {
-                    abort(409, 'Este envío sigue en Aduana. Cuando Aduana lo devuelva físicamente, regístralo en Internacional → Aduana → Recibir devolución de Aduana; IPS anotará el evento 38. Después podrá continuar por Almacén internacional.');
-                }
-                if ($requiredAction === 'EMG'
                     && (int) ($package['operational_event_cd'] ?? $package['event_cd'] ?? 0) === 32
                     && (int) ($package['state_cd'] ?? -1) === 0) {
                     abort(409, 'Este paquete ya fue recibido en la oficina (evento 32). No lo recibas otra vez; continúa en Almacén internacional → Por entregar.');
                 }
-                abort_unless(in_array($requiredAction, $package['allowed_actions'] ?? [], true), 409, 'IPS no habilita este movimiento para el paquete y la oficina vinculada.');
+                if ($requiredAction === 'EMG'
+                    && in_array((int) ($package['operational_event_cd'] ?? $package['event_cd'] ?? 0), [31, 34, 1251], true)
+                    && (int) ($package['state_cd'] ?? -1) === 1) {
+                    abort(409, $this->receptionBlockReason($package, $office));
+                }
+                if ($requiredAction === 'EMG' && ! in_array($requiredAction, $package['allowed_actions'] ?? [], true)) {
+                    $routeMismatchReceipt = $this->markRouteMismatchReceipt($package, $office);
+                    abort_unless($routeMismatchReceipt, 409, $this->receptionBlockReason($package, $office));
+                } else {
+                    abort_unless(in_array($requiredAction, $package['allowed_actions'] ?? [], true), 409, 'IPS no habilita este movimiento para el paquete y la oficina vinculada.');
+                }
                 if ($requiredAction === 'EDN') {
                     abort_unless(! empty($package['next_offices']), 409, 'IPS no tiene una oficina de ruta habilitada para este envío.');
                 }
@@ -601,14 +754,20 @@ class PaquetesIpsController extends Controller
             $selection = $request->session()->get($key, []);
             $code = $package['codigo'];
             if (isset($selection[$code])) {
+                if ($requiredAction === 'CUSTOMS_RETURN'
+                    && strtolower((string) ($selection[$code]['receptacle_pid'] ?? '')) !== $receptaclePid) {
+                    abort(409, 'Este paquete ya está en la bandeja asociado a otra saca. Retíralo y vuelve a escanearlo desde la saca correcta.');
+                }
                 if ($request->expectsJson()) {
                     $removeRoute = $requiredAction !== null && ! $deliveryWorkflow
-                        ? route('internacional.workflow.selection.remove', ['section' => $section, 'codigo' => $code])
+                        ? route('internacional.workflow.selection.remove', ['section' => $section, 'codigo' => $code] + ($requiredAction === 'CUSTOMS_RETURN' ? ['receptacle_pid' => $receptaclePid] : []))
                         : route($workflow === 'my_delivery' ? 'internacional.my-delivery.selection.remove' : ($workflow === 'delivery' ? 'internacional.selection.remove' : 'ips.selection.remove'), $code);
 
                     return response()->json([
                         'code' => $code,
                         'package' => $selection[$code]['package'] ?? $package,
+                        'receptacle_pid' => $selection[$code]['receptacle_pid'] ?? null,
+                        'route_mismatch_receipt' => ! empty($selection[$code]['route_mismatch_receipt']),
                         'count' => count($selection),
                         'remove_url' => $removeRoute,
                     ]);
@@ -616,15 +775,15 @@ class PaquetesIpsController extends Controller
                 return back()->with('success', 'El paquete ya está en la bandeja.');
             }
             abort_if(count($selection) >= 50, 422, 'La bandeja admite hasta 50 paquetes.');
-            $selection[$code] = ['package' => $package, 'status' => 'ready', 'message' => null, 'payload' => null];
+            $selection[$code] = ['package' => $package, 'receptacle_pid' => $receptaclePid, 'route_mismatch_receipt' => $routeMismatchReceipt, 'status' => 'ready', 'message' => null, 'payload' => null];
             $request->session()->put($key, $selection);
 
             if ($request->expectsJson()) {
                 $removeRoute = $requiredAction !== null && ! $deliveryWorkflow
-                    ? route('internacional.workflow.selection.remove', ['section' => $section, 'codigo' => $code])
+                    ? route('internacional.workflow.selection.remove', ['section' => $section, 'codigo' => $code] + ($requiredAction === 'CUSTOMS_RETURN' ? ['receptacle_pid' => $receptaclePid] : []))
                     : route($workflow === 'my_delivery' ? 'internacional.my-delivery.selection.remove' : ($workflow === 'delivery' ? 'internacional.selection.remove' : 'ips.selection.remove'), $code);
 
-                return response()->json(['code' => $code, 'package' => $package, 'count' => count($selection), 'remove_url' => $removeRoute]);
+                return response()->json(['code' => $code, 'package' => $package, 'receptacle_pid' => $receptaclePid, 'route_mismatch_receipt' => $routeMismatchReceipt, 'count' => count($selection), 'remove_url' => $removeRoute]);
             }
 
             return back()->with('success', 'Paquete guardado en la bandeja.');
@@ -652,7 +811,7 @@ class PaquetesIpsController extends Controller
     {
         $definition = self::INTERNATIONAL_WORKFLOWS[$section] ?? abort(404);
 
-        return $this->removeSelection($request, $codigo, 'international_'.strtolower($definition['action']));
+        return $this->removeSelection($request, $codigo, $this->internationalWorkflowKey($request, $section, $definition));
     }
 
     public function removeSelection(Request $request, string $codigo, string $workflow = 'standard')
@@ -811,7 +970,7 @@ class PaquetesIpsController extends Controller
     {
         $definition = self::INTERNATIONAL_WORKFLOWS[$section] ?? abort(404);
 
-        return $this->operate($request, $ips, $trackingEvents, 'international_'.strtolower($definition['action']), $definition['action']);
+        return $this->operate($request, $ips, $trackingEvents, $this->internationalWorkflowKey($request, $section, $definition), $definition['action']);
     }
 
     public function operate(Request $request, SitraIpsClient $ips, SitraTrackingEventsClient $trackingEvents, string $workflow = 'standard', ?string $requiredAction = null)
@@ -828,6 +987,8 @@ class PaquetesIpsController extends Controller
             'confirmed' => ['required', 'accepted'],
             'customs_return_confirmed' => ['sometimes', 'accepted'],
             'physical_receipt_confirmed' => ['sometimes', 'accepted'],
+            'route_mismatch_confirmed' => ['sometimes', 'accepted'],
+            'receptacle_pid' => ['sometimes', 'uuid'],
             'signatory' => ['nullable', 'string', 'max:64'],
             'delivery_mode' => ['required_if:action,EMI', 'nullable', 'in:DOMICILIARIA,NO_DOMICILIARIA'],
             'non_delivery_reason' => ['required_if:action,EMH', 'nullable', 'integer', 'min:1'],
@@ -856,6 +1017,10 @@ class PaquetesIpsController extends Controller
         if ($entry['status'] === 'succeeded') {
             return response()->json(['status' => 'succeeded', 'message' => 'Operación ya confirmada.', 'operation_id' => $entry['operation_id'] ?? null]);
         }
+        $routeMismatchReceipt = ! empty($entry['route_mismatch_receipt']);
+        abort_unless(! $routeMismatchReceipt || $requiredAction === 'EMG', 409, 'La recepción cruzada solo puede registrar el evento 32.');
+        abort_unless(! $request->boolean('route_mismatch_confirmed') || $routeMismatchReceipt, 409, 'La confirmación de ruta distinta no corresponde a este paquete.');
+        abort_unless(! $routeMismatchReceipt || $request->boolean('route_mismatch_confirmed'), 422, 'Confirma que el paquete con ruta distinta llegó físicamente a esta oficina antes de intentar recibirlo.');
         $payload = $entry['payload'] ?? null;
         if ($payload && $payload['event'] !== $data['action']) {
             return response()->json(['status' => 'rejected', 'message' => 'Esta operación ya tiene una acción registrada. Mantenga la misma acción para consultar su resultado.'], 409);
@@ -872,8 +1037,11 @@ class PaquetesIpsController extends Controller
                     && in_array((int) ($current['operational_event_cd'] ?? $current['event_cd']), [31, 34], true)
                     && (int) ($current['state_cd'] ?? -1) === 1
                     && in_array('CUSTOMS_RETURN', $current['allowed_actions'] ?? [], true);
+                $routeMismatchAttempt = $routeMismatchReceipt
+                    && $request->boolean('route_mismatch_confirmed')
+                    && $this->isRouteMismatchReceiptCandidate($current, (int) $link->ips_office_cd);
                 abort_unless(
-                    in_array($data['action'], $current['allowed_actions'] ?? [], true) || $customsReturnDelivery,
+                    in_array($data['action'], $current['allowed_actions'] ?? [], true) || $customsReturnDelivery || $routeMismatchAttempt,
                     409,
                     'La etapa u oficina ya no permite esta acción. Actualice el paquete.'
                 );
@@ -889,6 +1057,9 @@ class PaquetesIpsController extends Controller
                 ];
                 if (in_array($data['action'], ['EMR', 'EMG', 'CUSTOMS_RETURN'], true)) {
                     $payload['physical_receipt_confirmed'] = $request->boolean('physical_receipt_confirmed');
+                }
+                if ($data['action'] === 'EMG' && $routeMismatchAttempt) {
+                    $payload['route_mismatch_confirmed'] = true;
                 }
                 if ($data['action'] === 'EDN') {
                     $nextOffice = (int) $data['next_office_cd'];
@@ -908,6 +1079,18 @@ class PaquetesIpsController extends Controller
                     abort_unless($request->boolean('customs_return_confirmed'), 422, 'Confirme que Aduana devolvió físicamente el envío antes de registrar la entrega.');
                     $payload['customs_return_confirmed'] = true;
                 } elseif ($data['action'] === 'CUSTOMS_RETURN') {
+                    $expectedReceptaclePid = strtolower((string) ($entry['receptacle_pid'] ?? ''));
+                    abort_unless($expectedReceptaclePid !== ''
+                        && hash_equals($expectedReceptaclePid, strtolower((string) ($data['receptacle_pid'] ?? ''))),
+                        409,
+                        'El paquete debe registrarse desde la misma saca abierta en la que se escaneó.'
+                    );
+                    abort_unless(
+                        hash_equals($expectedReceptaclePid, strtolower(trim((string) ($current['receptacle_pid'] ?? '')))),
+                        409,
+                        'El paquete ya no pertenece a la saca seleccionada. Actualiza el paso y escanéalo desde la saca vigente.'
+                    );
+                    $payload['receptacle_pid'] = $expectedReceptaclePid;
                     $payload['customs_return_confirmed'] = true;
                 } else {
                     abort_unless(! $request->boolean('customs_return_confirmed'), 422, 'La confirmación de devolución de Aduana no corresponde al estado actual del paquete.');
@@ -962,11 +1145,13 @@ class PaquetesIpsController extends Controller
             $result = ['status' => $payload ? 'uncertain' : 'rejected', 'message' => 'No se pudo confirmar. Reintente la misma acción; se conservará la solicitud original.'];
         }
         $selection[$code]['status'] = $result['status'] ?? 'uncertain';
-        $selection[$code]['message'] = ($result['status'] ?? null) === 'succeeded' && ($payload['event'] ?? null) === 'EMI' && ! empty($payload['customs_return_confirmed'])
+        $selection[$code]['message'] = ($result['status'] ?? null) === 'succeeded' && ($payload['event'] ?? null) === 'EMG' && ! empty($payload['route_mismatch_confirmed'])
+            ? 'IPS confirmó la recepción en esta oficina (evento 32). No se agregó un evento de cambio de ruta.'
+            : (($result['status'] ?? null) === 'succeeded' && ($payload['event'] ?? null) === 'EMI' && ! empty($payload['customs_return_confirmed'])
             ? 'Devolución de Aduana (38) y entrega al destinatario (37) registradas en IPS.'
             : (($result['status'] ?? null) === 'succeeded' && ($payload['event'] ?? null) === 'CUSTOMS_RETURN'
-                ? 'Llegada física tras la devolución de Aduana (evento 38) registrada en IPS. No se registró entrega al destinatario.'
-                : ($result['message'] ?? 'Movimiento registrado correctamente en IPS.'));
+                ? 'Llegada física tras la devolución de Aduana (evento 38) registrada desde la saca abierta. No se registró entrega al destinatario.'
+                : ($result['message'] ?? 'Movimiento registrado correctamente en IPS.')));
         $selection[$code]['operation_id'] = $result['operation_id'] ?? null;
         $request->session()->put($key, $selection);
         if (($result['status'] ?? null) === 'succeeded') {
@@ -1096,7 +1281,11 @@ class PaquetesIpsController extends Controller
                 ->get()
             : collect();
 
-        [$operationGroups, $operationGroup, $activeOperationTab] = $this->operationNavigation(null, null, $paso);
+        $openedReceptaclePid = (int) data_get($detail, 'receptacle.event_cd', 0) === 131
+            && (int) data_get($detail, 'receptacle.state_cd', -1) === 20
+                ? (string) data_get($detail, 'receptacle.id')
+                : null;
+        [$operationGroups, $operationGroup, $activeOperationTab] = $this->operationNavigation(null, null, $paso, $openedReceptaclePid);
 
         return view('paquetes_ips.receptacle', compact('paso', 'codigo', 'detail', 'error', 'title', 'description', 'link', 'idempotencyKey', 'expectedReceptacleEventCode', 'isPending', 'operationGroups', 'operationGroup', 'activeOperationTab', 'incidents', 'activeReceptacleQueue', 'receptacleQueueData', 'receptacleQueueMeta', 'receptacleQueueError', 'pendingReceptacleRegionalLabel'));
     }
@@ -1148,10 +1337,8 @@ class PaquetesIpsController extends Controller
                         ->with('success', 'Saca recibida. Cuando la abras físicamente, confirma la apertura aquí.');
                 }
 
-                return redirect()->route('internacional.section', array_filter([
-                    'section' => 'recepcion-cambio',
-                    'receptacle_pid' => $result['receptacle_pid'] ?? null,
-                ]))->with('success', 'Saca abierta. Ya puedes escanear y registrar sus paquetes en lote.');
+                return redirect()->route('internacional.sacas', ['paso' => 'abrir', 'q' => $code])
+                    ->with('success', 'Saca abierta. Desde aquí elige el registro que corresponde a los paquetes encontrados.');
             }
             return redirect()->route('internacional.sacas', ['paso' => $paso, 'q' => $code])
                 ->withErrors(['ips' => $result['message'] ?? 'Consulte el estado antes de volver a operar.']);

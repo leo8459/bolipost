@@ -416,7 +416,7 @@ return [
         'reportes' => 'Reportes',
         'malencaminados' => 'Malencaminados',
         'bastiones' => 'Bastiones',
-        'mis-ventas' => 'Mis Ventas',
+        'mis-ventas' => 'Kardex',
         'ventas-sucursal' => 'Ventas Sucursal',
         'paquetes-ems' => 'Paquetes EMS',
         'paquetes-ems.almacen-admisiones' => 'Almacen admisiones',

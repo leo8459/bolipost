@@ -1049,6 +1049,10 @@ class AclPermissionRegistry
         'performance.export.excel' => 'performance.index',
         'performance.export.pdf' => 'performance.index',
         'mis-ventas.export.pdf' => 'mis-ventas.index',
+        'mis-ventas.kardex.export.pdf' => 'mis-ventas.kardex',
+        'mis-ventas.kardex.export.excel' => 'mis-ventas.kardex',
+        'mis-ventas.kardex-regional.export.pdf' => 'mis-ventas.kardex-regional',
+        'mis-ventas.kardex-regional.export.excel' => 'mis-ventas.kardex-regional',
         'ventas-sucursal.export.pdf' => 'mis-ventas.index',
         'tarifario.pdf' => 'tarifario.index',
         'tarifario-tiktoker.pdf' => 'tarifario-tiktoker.index',
@@ -2006,6 +2010,8 @@ class AclPermissionRegistry
     private static function actionLabel(string $permissionName, string $actionKey): string
     {
         $specialLabels = [
+            'mis-ventas.kardex' => 'Ventana: Kardex personal',
+            'mis-ventas.kardex-regional' => 'Ventana: Kardex por Sucursal',
             'paquetes-ems.todos' => 'Acceso: Todos los paquetes EMS, contratos y Delivery Express',
             'internacional.section' => 'Acceso: Secciones de Internacional',
             'internacional.warehouse' => 'Acceso: Almacén internacional',

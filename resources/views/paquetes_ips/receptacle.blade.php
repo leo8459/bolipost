@@ -300,12 +300,13 @@
                         @elseif($showPackageAction)
                             <div class="ips-receptacle-next-step">
                                 <div class="ips-receptacle-next-step__copy">
-                                    <small>PASO 3 · RECEPCIÓN INDIVIDUAL</small>
-                                    <strong>Escanea los paquetes encontrados</strong>
-                                    <span>Registra cada envío que verificaste físicamente; IPS genera un movimiento 30 por paquete.</span>
+                                    <small>PASO 3 · REGISTRO DE PAQUETES</small>
+                                    <strong>Escanea los paquetes de esta saca</strong>
+                                    <span>Elige el flujo según el estado IPS. La devolución de Aduana registra el evento 38; luego el envío se encamina a su oficina destinataria y allí se registra la llegada (32).</span>
                                 </div>
                                 <div class="ips-receptacle-next-step__action">
-                                    <a class="btn btn-warning btn-block" href="{{ route('internacional.section', ['section' => 'recepcion-cambio', 'receptacle_pid' => $receptacle['id']]) }}"><i class="fas fa-barcode mr-1" aria-hidden="true"></i>Escanear paquetes</a>
+                                    <a class="btn btn-warning btn-block" href="{{ route('internacional.section', ['section' => 'recepcion-cambio', 'receptacle_pid' => $receptacle['id']]) }}"><i class="fas fa-barcode mr-1" aria-hidden="true"></i>Registrar recepción internacional (30)</a>
+                                    <a class="btn btn-outline-primary btn-block mt-2" href="{{ route('internacional.section', ['section' => 'devolucion-aduana', 'receptacle_pid' => $receptacle['id']]) }}"><i class="fas fa-undo mr-1" aria-hidden="true"></i>Registrar devoluciones de Aduana (38)</a>
                                 </div>
                             </div>
                         @elseif($isReceivedClosed && !$isCurrentReceptacleOffice)

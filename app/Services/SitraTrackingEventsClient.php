@@ -3,12 +3,16 @@
 namespace App\Services;
 
 use Illuminate\Http\Client\Pool;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 class SitraTrackingEventsClient
 {
-    private const BATCH_SIZE = 1000;
+    // SITRA validates /api/tracking/eventos/batch with a maximum of 60 codes.
+    // Keep regional Kardex requests split below that ceiling so HTTP 422 does
+    // not silently turn every event (and its destination) into an empty result.
+    private const BATCH_SIZE = 60;
     private const SINGLE_FALLBACK_CHUNK = 40;
     private const CACHE_MINUTES = 5;
 
@@ -16,7 +20,7 @@ class SitraTrackingEventsClient
      * @param  array<int, string>  $codes
      * @return array<string, array<int, array<string, mixed>>> Events keyed by normalized tracking code.
      */
-    public function events(array $codes): array
+    public function events(array $codes, bool $allowIndividualFallback = true): array
     {
         $codes = collect($codes)
             ->map(fn ($code) => strtoupper(trim((string) $code)))
@@ -66,16 +70,18 @@ class SitraTrackingEventsClient
             }
         }
 
-        $unresolved = array_values(array_diff($pending, array_keys($result)));
-        foreach (collect($configs)->reject(fn (array $config) => ($config['batch'] ?? false) === true) as $config) {
-            if ($unresolved === []) {
-                break;
-            }
+        if ($allowIndividualFallback) {
+            $unresolved = array_values(array_diff($pending, array_keys($result)));
+            foreach (collect($configs)->reject(fn (array $config) => ($config['batch'] ?? false) === true) as $config) {
+                if ($unresolved === []) {
+                    break;
+                }
 
-            foreach (array_chunk($unresolved, self::SINGLE_FALLBACK_CHUNK) as $chunk) {
-                $fetched = $this->fetchIndividually($config, $chunk);
-                $result = array_merge($result, $fetched);
-                $unresolved = array_values(array_diff($unresolved, array_keys($fetched)));
+                foreach (array_chunk($unresolved, self::SINGLE_FALLBACK_CHUNK) as $chunk) {
+                    $fetched = $this->fetchIndividually($config, $chunk);
+                    $result = array_merge($result, $fetched);
+                    $unresolved = array_values(array_diff($unresolved, array_keys($fetched)));
+                }
             }
         }
 
@@ -83,7 +89,9 @@ class SitraTrackingEventsClient
         foreach ($pending as $code) {
             $events = $result[$code] ?? [];
             $result[$code] = $events;
-            $cacheValues[$this->cacheKey($code)] = $events;
+            if ($allowIndividualFallback || $events !== []) {
+                $cacheValues[$this->cacheKey($code)] = $events;
+            }
         }
         foreach (array_chunk($cacheValues, 250, true) as $cacheChunk) {
             Cache::putMany($cacheChunk, now()->addMinutes(self::CACHE_MINUTES));
@@ -106,7 +114,7 @@ class SitraTrackingEventsClient
             return [];
         }
 
-        if (! $response->successful()) {
+        if (! $response instanceof Response || ! $response->successful()) {
             return [];
         }
 
@@ -140,7 +148,7 @@ class SitraTrackingEventsClient
 
         $result = [];
         foreach ($responses as $code => $response) {
-            if (! $response->successful()) {
+            if (! $response instanceof Response || ! $response->successful()) {
                 continue;
             }
 
@@ -234,6 +242,21 @@ class SitraTrackingEventsClient
             'ciudad_destino' => $event['ciudad_destino']
                 ?? $event['destination_city']
                 ?? data_get($payload, 'meta.destination_city'),
+            'origin_country_name' => $event['origin_country_name']
+                ?? $event['pais_origen_nombre']
+                ?? $event['pais_origen']
+                ?? data_get($payload, 'meta.origin_country_name'),
+            'origin_country_code' => $event['origin_country_code']
+                ?? $event['pais_origen_iso2']
+                ?? data_get($payload, 'meta.origin_country_code'),
+            'ciudad_origen' => $event['ciudad_origen']
+                ?? $event['origin_city']
+                ?? $event['city_origin']
+                ?? data_get($payload, 'meta.origin_city')
+                ?? data_get($payload, 'ciudad_origen'),
+            'origen' => $event['origen']
+                ?? $event['origin']
+                ?? data_get($payload, 'origen'),
             'created_at' => $createdAt,
             'timeline_sort_at' => $event['eventDateUtc']
                 ?? $event['captureDateUtc']
