@@ -776,7 +776,7 @@
                     : 'Tu envío está en Ventanilla. Consulta en la oficina cómo completar el trámite.';
             }
 
-            if ($gestionAduanaRequerida && $departamento && isset($contactosRegional[$departamento])) {
+            if ($departamento && isset($contactosRegional[$departamento])) {
                 $detalleRegionalRecojo = $contactosRegional[$departamento];
             }
 
