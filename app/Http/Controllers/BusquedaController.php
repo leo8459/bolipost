@@ -200,6 +200,8 @@ class BusquedaController extends Controller
             ], 404);
         }
 
+        $avisoPagoQr = $this->obtenerAvisoPagoQr($codigo, $eventos);
+
         return response()->json([
             'tipo' => 'tracking_eventos',
             'filtro' => ['codigo' => $codigo],
@@ -207,6 +209,7 @@ class BusquedaController extends Controller
             'fuente' => $resultado['fuente'],
             'total_registros' => $eventos->count(),
             'resultado' => $this->formatearEventosAgrupados($eventos),
+            'aviso_pago_qr' => $avisoPagoQr,
         ]);
     }
 
@@ -236,33 +239,7 @@ class BusquedaController extends Controller
             (string) ($eventos->first()->servicio ?? 'EMS')
         );
 
-        $pasoPagoSolicitud = $progress['steps'][$progress['current_index']] ?? null;
-        $avisoPagoQr = null;
-        if (
-            Schema::hasTable('solicitud_clientes')
-            && in_array($pasoPagoSolicitud, ['Expedicion', 'Ventanilla', 'Cartero'], true)
-            && ! ($progress['is_cancelled'] ?? false)
-            && ! ($progress['is_returning'] ?? false)
-        ) {
-            $solicitud = DB::table('solicitud_clientes')
-                ->where(function ($query) use ($codigo): void {
-                    $query->whereRaw('TRIM(UPPER(COALESCE(codigo_solicitud, ?))) = ?', ['', strtoupper(trim($codigo))])
-                        ->orWhereRaw('TRIM(UPPER(COALESCE(barcode, ?))) = ?', ['', strtoupper(trim($codigo))]);
-                })
-                ->first(['forma_pago', 'pago_destinatario', 'precio']);
-
-            $formaPago = mb_strtolower(trim((string) ($solicitud->forma_pago ?? '')));
-            $porCobrar = $formaPago === 'destino'
-                || ($formaPago === '' && (bool) ($solicitud->pago_destinatario ?? false));
-            $importeFinal = is_numeric($solicitud->precio ?? null) ? (float) $solicitud->precio : 0.0;
-
-            if ($solicitud && $porCobrar && $importeFinal > 0) {
-                $avisoPagoQr = [
-                    'etapa' => $pasoPagoSolicitud,
-                    'importe' => number_format($importeFinal, 2, ',', '.'),
-                ];
-            }
-        }
+        $avisoPagoQr = $this->obtenerAvisoPagoQr($codigo, $eventos, $progress);
 
         return view('tracking-demo', [
             'codigo' => strtoupper($codigo),
@@ -286,6 +263,51 @@ class BusquedaController extends Controller
                 'POTOSI',
             ],
         ]);
+    }
+
+    /**
+     * Información de cobro al destinatario compartida por la web y la app móvil.
+     * Se devuelve solo para envíos vigentes con importe final registrado.
+     */
+    private function obtenerAvisoPagoQr(string $codigo, Collection $eventos, ?array $progress = null): ?array
+    {
+        if (! Schema::hasTable('solicitud_clientes')) {
+            return null;
+        }
+
+        $progress ??= app(TrackingProgressService::class)->resolve(
+            $eventos,
+            (string) ($eventos->first()->servicio ?? 'EMS')
+        );
+        $pasoPagoSolicitud = $progress['steps'][$progress['current_index']] ?? null;
+        if (
+            ! in_array($pasoPagoSolicitud, ['Expedicion', 'Ventanilla', 'Cartero'], true)
+            || ($progress['is_cancelled'] ?? false)
+            || ($progress['is_returning'] ?? false)
+        ) {
+            return null;
+        }
+
+        $solicitud = DB::table('solicitud_clientes')
+            ->where(function ($query) use ($codigo): void {
+                $query->whereRaw('TRIM(UPPER(COALESCE(codigo_solicitud, ?))) = ?', ['', strtoupper(trim($codigo))])
+                    ->orWhereRaw('TRIM(UPPER(COALESCE(barcode, ?))) = ?', ['', strtoupper(trim($codigo))]);
+            })
+            ->first(['forma_pago', 'pago_destinatario', 'precio']);
+
+        $formaPago = mb_strtolower(trim((string) ($solicitud->forma_pago ?? '')));
+        $porCobrar = $formaPago === 'destino'
+            || ($formaPago === '' && (bool) ($solicitud->pago_destinatario ?? false));
+        $importeFinal = is_numeric($solicitud->precio ?? null) ? (float) $solicitud->precio : 0.0;
+
+        if (! $solicitud || ! $porCobrar || $importeFinal <= 0) {
+            return null;
+        }
+
+        return [
+            'etapa' => $pasoPagoSolicitud,
+            'importe' => number_format($importeFinal, 2, ',', '.'),
+        ];
     }
 
     private function obtenerCodigoValidado(Request $request): string

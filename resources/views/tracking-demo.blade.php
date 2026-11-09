@@ -857,7 +857,7 @@
                             <strong>{{ $servicioActual }}</strong>
                         </div>
                         <div class="meta-item meta-accent-d">
-                            <small>Ultima actualizacion</small>
+                            <small>Última actualización</small>
                             <strong>{{ $fechaUltima->format('d/m/Y H:i') }}</strong>
                         </div>
                     </div>
@@ -894,13 +894,13 @@
                 <article class="card progress-card reveal-block" style="--reveal-delay: 110ms;">
                     <div class="card-head">
                         <div class="progress-heading">
-                            <h2>Progreso del envio</h2>
+                            <h2>Progreso del envío</h2>
                             <p class="progress-help"><span aria-hidden="true">i</span> Pasa o toca un icono para ver los detalles.</p>
                         </div>
                         <div class="progress-status">
                             <small>{{ $entregaConfirmada ? count($pasos) : $pasoActual }} de {{ count($pasos) }} etapas completadas</small>
                             <span class="{{ $entregaConfirmada ? 'is-delivered' : ($envioEnDevolucion ? 'is-returning' : '') }}">
-                                {{ $entregaConfirmada ? 'Envio:' : 'En curso:' }} <strong>{{ $entregaConfirmada ? 'Entregado' : $pasos[$pasoActual] }}</strong>
+                                {{ $entregaConfirmada ? 'Envío:' : 'En curso:' }} <strong>{{ $entregaConfirmada ? 'Entregado' : $pasos[$pasoActual] }}</strong>
                             </span>
                         </div>
                     </div>
