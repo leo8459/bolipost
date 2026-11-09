@@ -1031,10 +1031,16 @@
         </section>
     </main>
 
-    @if (!empty($avisoPagoQr))
+    @if (!empty($avisoPagoQr) || $eventoListoParaEntregar || ($tramoAduanaVentanilla && $envioEnAduana && !$envioCancelado && !$envioEnDevolucion))
         @php
             $avisoPagoEnExpedicion = ($avisoPagoQr['etapa'] ?? '') === 'Expedicion';
             $avisoPagoEnVentanilla = ($avisoPagoQr['etapa'] ?? '') === 'Ventanilla';
+            $modalPaqueteListo = (bool) $eventoListoParaEntregar;
+            $modalVentanillaEnCurso = !$modalPaqueteListo
+                && $tramoAduanaVentanilla
+                && $envioEnAduana
+                && !$envioCancelado
+                && !$envioEnDevolucion;
         @endphp
         <div
             class="tracking-payment-modal"
@@ -1042,59 +1048,120 @@
             role="dialog"
             aria-modal="true"
             aria-labelledby="trackingPaymentTitle"
-            aria-describedby="trackingPaymentDescription"
+            @unless ($modalVentanillaEnCurso) aria-describedby="trackingPaymentDescription" @endunless
             aria-hidden="true"
             hidden
         >
-            <section class="tracking-payment-modal__panel" tabindex="-1">
+            <section class="tracking-payment-modal__panel {{ $modalPaqueteListo ? 'tracking-payment-modal__panel--ready' : '' }} {{ $modalVentanillaEnCurso ? 'tracking-payment-modal__panel--progress' : '' }}" tabindex="-1">
                 <button class="tracking-payment-modal__close" type="button" data-close-tracking-payment aria-label="Cerrar aviso">&times;</button>
-                <div class="tracking-payment-modal__icon" aria-hidden="true">
-                    <svg viewBox="0 0 48 48" fill="none">
-                        <path d="M8 8h12v12H8zM28 8h12v12H28zM8 28h12v12H8z" stroke="currentColor" stroke-width="3" stroke-linejoin="round" />
-                        <path d="M12 12h4v4h-4zM32 12h4v4h-4zM12 32h4v4h-4zM28 28h5v5h-5zM36 28h4v4h-4zM36 36h4v4h-4zM28 37h4" fill="currentColor" />
-                    </svg>
-                </div>
-                <span class="tracking-payment-modal__eyebrow">Información importante de tu envío</span>
+                @if ($modalVentanillaEnCurso)
+                    <div class="tracking-modal-progress-layout">
+                        <img class="tracking-modal-progress-layout__illustration" src="{{ asset('images/tracking/ventanilla-proceso.png') }}" alt="" width="480" height="480" loading="eager">
+                        <div class="tracking-modal-progress-layout__info">
+                @endif
+                @unless ($modalVentanillaEnCurso)
+                    <div class="tracking-modal-heading">
+                        <div class="tracking-payment-modal__icon {{ $modalPaqueteListo ? 'tracking-payment-modal__icon--ready' : '' }}" aria-hidden="true">
+                            @if ($modalPaqueteListo)
+                                <svg viewBox="0 0 64 64" fill="none">
+                                    <path d="m12 22 20-10 20 10v23L32 56 12 45V22Z" fill="currentColor" opacity=".12" />
+                                    <path d="m12 22 20-10 20 10v23L32 56 12 45V22Z" stroke="currentColor" stroke-width="3" stroke-linejoin="round" />
+                                    <path d="m12 22 20 11 20-11M32 33v23M23 17l20 11" stroke="currentColor" stroke-width="3" stroke-linejoin="round" />
+                                    <path d="m39 10 2.2 4.4 4.8.7-3.5 3.4.8 4.8-4.3-2.3-4.3 2.3.8-4.8-3.5-3.4 4.8-.7L39 10Z" fill="#fecb34" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" />
+                                </svg>
+                            @else
+                                <svg viewBox="0 0 48 48" fill="none">
+                                    <path d="M8 8h12v12H8zM28 8h12v12H28zM8 28h12v12H8z" stroke="currentColor" stroke-width="3" stroke-linejoin="round" />
+                                    <path d="M12 12h4v4h-4zM32 12h4v4h-4zM12 32h4v4h-4zM28 28h5v5h-5zM36 28h4v4h-4zM36 36h4v4h-4zM28 37h4" fill="currentColor" />
+                                </svg>
+                            @endif
+                        </div>
+                        <div class="tracking-modal-heading__copy">
+                            <span class="tracking-payment-modal__eyebrow {{ $modalPaqueteListo ? 'tracking-payment-modal__eyebrow--ready' : '' }}">
+                                {{ $modalPaqueteListo ? 'BUENAS NOTICIAS' : 'INFORMACIÓN DEL ENVÍO' }}
+                            </span>
+                            <span class="tracking-modal-state {{ $modalPaqueteListo ? 'tracking-modal-state--ready' : '' }}">
+                                @if ($modalPaqueteListo)
+                                    Listo para recoger
+                                @elseif ($avisoPagoEnExpedicion)
+                                    En camino
+                                @elseif ($avisoPagoEnVentanilla)
+                                    Ventanilla
+                                @else
+                                    En reparto
+                                @endif
+                            </span>
+                        </div>
+                    </div>
+                @endunless
                 <h2 id="trackingPaymentTitle">
-                    @if ($avisoPagoEnExpedicion)
+                    @if ($modalPaqueteListo)
+                        ¡Ya puedes recoger tu paquete!
+                    @elseif ($modalVentanillaEnCurso)
+                        Tu envío está en Ventanilla
+                    @elseif ($avisoPagoEnExpedicion)
                         Tu paquete sigue en camino
                     @elseif ($avisoPagoEnVentanilla)
-                        Tu paquete está listo para recoger
+                        Tu envío continúa en Ventanilla
                     @else
                         Tu paquete va camino a ti
                     @endif
                 </h2>
-                <p class="tracking-payment-modal__description" id="trackingPaymentDescription">
-                    @if ($avisoPagoEnExpedicion)
-                        Tu envío está avanzando por la red postal. Tiene un pago pendiente de <strong>Bs {{ $avisoPagoQr['importe'] }}</strong>. Cuando llegue a ventanilla o salga a reparto, podrás pagar con QR para completar la entrega.
-                    @elseif ($avisoPagoEnVentanilla)
-                        Para retirar tu paquete en ventanilla, te pedimos pagar el envío con QR. Indica tu código de seguimiento al personal y te ayudarán con el pago.
-                    @else
-                        Tu paquete está con el cartero. Para completar la entrega, por favor realiza el pago con QR al recibirlo.
-                    @endif
-                </p>
-
-                <div class="tracking-payment-modal__amount">
-                    <span>Importe final de tu envío</span>
-                    <strong><small>Bs</small> {{ $avisoPagoQr['importe'] }}</strong>
-                    <p>Este es el total registrado para tu paquete.</p>
-                </div>
-
-                <div class="tracking-payment-modal__tip">
-                    <span class="tracking-payment-modal__tip-icon" aria-hidden="true">i</span>
-                    <p>
-                        @if ($avisoPagoEnExpedicion)
-                            Al llegar el paquete, solicita el QR en ventanilla o al cartero. Ten a mano tu código de seguimiento.
+                @if (!$modalVentanillaEnCurso)
+                    <p class="tracking-payment-modal__description" id="trackingPaymentDescription">
+                        @if ($modalPaqueteListo)
+                            Tu paquete ya llegó a la oficina de destino. Presenta tu código de seguimiento al recogerlo.
+                        @elseif ($avisoPagoEnExpedicion)
+                            Tu envío está avanzando por la red postal. Tiene un pago pendiente de <strong>Bs {{ $avisoPagoQr['importe'] }}</strong>. Cuando llegue a ventanilla o salga a reparto, podrás pagar con QR para completar la entrega.
                         @elseif ($avisoPagoEnVentanilla)
-                            Solicita el QR en la ventanilla al momento de recoger tu paquete.
+                            Tu envío tiene un pago pendiente. Cuando esté listo para recoger, podrás completar el pago con QR en Ventanilla.
                         @else
-                            Solicita el QR al cartero cuando recibas tu paquete.
+                            Tu paquete está con el cartero. Para completar la entrega, por favor realiza el pago con QR al recibirlo.
                         @endif
                     </p>
-                </div>
+                @endif
 
-                <button class="tracking-payment-modal__action" type="button" data-close-tracking-payment>Entendido</button>
-                <p class="tracking-payment-modal__code">Código de seguimiento: <strong>{{ $codigo }}</strong></p>
+                @if (($modalPaqueteListo || $modalVentanillaEnCurso) && $detalleRegionalRecojo)
+                    <div class="tracking-ready-location">
+                        <div class="tracking-ready-location__details">
+                            <span class="tracking-ready-location__eyebrow">{{ $modalPaqueteListo ? 'Oficina de destino' : 'Punto de atención' }}</span>
+                            <strong>{{ $detalleRegionalRecojo['regional'] }}</strong>
+                            <p>{{ $detalleRegionalRecojo['direccion'] }}</p>
+                        </div>
+                        @if ($mapUrlRegionalRecojo)
+                            <a class="tracking-ready-location__map" href="{{ $mapUrlRegionalRecojo }}" target="_blank" rel="noopener noreferrer">
+                                Ver en mapa
+                                <span aria-hidden="true">&nearr;</span>
+                            </a>
+                        @endif
+                    </div>
+                @endif
+                @if ($modalVentanillaEnCurso)
+                        </div>
+                    </div>
+                @endif
+
+                @if (!empty($avisoPagoQr))
+                    <div class="tracking-payment-modal__amount">
+                        <span>{{ $modalPaqueteListo ? 'Pago pendiente al recoger' : 'Importe final de tu envío' }}</span>
+                        <strong><small>Bs</small> {{ $avisoPagoQr['importe'] }}</strong>
+                        <p>Este es el total registrado para tu paquete.</p>
+                    </div>
+
+                    <div class="tracking-payment-modal__tip">
+                        <span class="tracking-payment-modal__tip-icon" aria-hidden="true">i</span>
+                        <p>
+                            @if ($modalPaqueteListo || $avisoPagoEnVentanilla)
+                                Puedes completar el pago con QR en Ventanilla al momento de recogerlo.
+                            @elseif ($avisoPagoEnExpedicion)
+                                Al llegar el paquete, solicita el QR en ventanilla o al cartero. Ten a mano tu código de seguimiento.
+                            @else
+                                Solicita el QR al cartero cuando recibas tu paquete.
+                            @endif
+                        </p>
+                    </div>
+                @endif
+
             </section>
         </div>
     @endif
@@ -1389,7 +1456,7 @@
             document.addEventListener('keydown', handleTrackingPaymentKeydown);
 
             window.requestAnimationFrame(() => {
-                trackingPaymentNotice.querySelector('.tracking-payment-modal__close')?.focus({ preventScroll: true });
+                trackingPaymentPanel?.focus({ preventScroll: true });
             });
         }
     </script>

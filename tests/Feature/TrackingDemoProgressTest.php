@@ -6,6 +6,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
 
 class TrackingDemoProgressTest extends TestCase
@@ -80,6 +81,27 @@ class TrackingDemoProgressTest extends TestCase
         }
     }
 
+    public function test_expired_signed_tracking_url_returns_to_search_with_code_preserved(): void
+    {
+        $codigo = 'EZ103891896US';
+        $url = URL::temporarySignedRoute(
+            'tracking.demo.signed',
+            now()->subMinute(),
+            ['codigo' => $codigo, 'tracking_source' => 'bolipost_home']
+        );
+
+        $response = $this->get($url);
+
+        $response->assertRedirect(route('welcome'));
+        $response->assertSessionHas('tracking_error', 'El enlace del seguimiento venció o ya no es válido. Vuelve a buscar tu envío.');
+        $response->assertSessionHas('_old_input.codigo', $codigo);
+
+        $home = $this->get(route('welcome'));
+        $home->assertOk();
+        $home->assertSee('value="' . $codigo . '"', false);
+        $home->assertSee('El enlace del seguimiento venció o ya no es válido.', false);
+    }
+
     public function test_international_transit_event_maps_to_expedicion_not_ventanilla(): void
     {
         config()->set('services.tracking_sqlserver.base_url', 'https://tracking.test/api/public/tracking/eventos');
@@ -115,6 +137,51 @@ class TrackingDemoProgressTest extends TestCase
         $response->assertSee('En curso: <strong>Expedicion</strong>', false);
         $response->assertDontSee('Paso actual: <strong>Admision</strong>', false);
         $response->assertDontSee('Paso actual: <strong>Ventanilla</strong>', false);
+    }
+
+    public function test_customs_review_opens_a_friendly_ventanilla_modal_with_office_details(): void
+    {
+        config()->set('services.tracking_sqlserver.base_url', 'https://tracking.test/api/public/tracking/eventos');
+        config()->set('services.tracking_sqlserver.token', 'test-token');
+
+        Http::fake([
+            'https://tracking.test/*' => Http::response([
+                'codigo' => 'LX093096600NL',
+                'servicio' => 'ORDINARIAS',
+                'origen' => 'Netherlands',
+                'destino' => 'Bolivia',
+                'eventos_locales' => [],
+                'eventos_externos' => [
+                    [
+                        'codigo_evento' => 34,
+                        'created_at' => '2026-09-18 18:00:42',
+                        'nombre_evento' => 'Registrar información de la revisión de ingreso del envío',
+                        'office' => 'BOORUB - ORURO',
+                        'ciudad_destino' => 'Oruro',
+                    ],
+                    [
+                        'codigo_evento' => 31,
+                        'created_at' => '2026-09-14 20:28:28',
+                        'nombre_evento' => 'Send item to customs (Inb)',
+                        'office' => 'BOSRZA - SANTA CRUZ DE LA SIERRA LC/AO-AVION',
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $response = $this->withSession([
+            'tracking_captcha_verified_until' => now()->addMinutes(5)->timestamp,
+        ])->get('/trackingbo?codigo=LX093096600NL');
+
+        $response->assertOk();
+        $response->assertSee('id="trackingPaymentNotice"', false);
+        $response->assertSee('images/tracking/ventanilla-proceso.png');
+        $response->assertSee('Tu envío está en Ventanilla');
+        $response->assertDontSee('ACTUALIZACIÓN DEL ENVÍO');
+        $response->assertDontSee('En curso · Ventanilla');
+        $response->assertDontSee('Continuar seguimiento');
+        $response->assertSee('Tu envío está en Ventanilla, en el departamento de Oruro.');
+        $response->assertSee('Calle Presidente Montes Esquina Junin N° 1456');
     }
 
     public function test_customs_route_shows_both_substeps_and_guidance_while_event_31_is_current(): void

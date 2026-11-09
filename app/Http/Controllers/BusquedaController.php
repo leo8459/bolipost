@@ -104,7 +104,18 @@ class BusquedaController extends Controller
 
     public function mostrarTrackingFirmado(Request $request): View|RedirectResponse
     {
-        abort_unless($request->hasValidSignature(), 403);
+        if (! $request->hasValidSignature()) {
+            $codigo = $request->query('codigo');
+            $codigoPrefill = is_string($codigo)
+                && preg_match('/^[A-Za-z0-9\/-]{1,50}$/', $codigo) === 1
+                ? strtoupper($codigo)
+                : '';
+
+            return redirect()
+                ->route('welcome')
+                ->withInput(['codigo' => $codigoPrefill])
+                ->with('tracking_error', 'El enlace del seguimiento venció o ya no es válido. Vuelve a buscar tu envío.');
+        }
 
         // A valid temporary link is issued only after the public captcha passes.
         // Restore that verification in Bolipost's browser session so the
