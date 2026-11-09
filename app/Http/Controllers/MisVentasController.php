@@ -1212,7 +1212,7 @@ class MisVentasController extends Controller
         if ($optimizedError === '') {
             return collect(data_get($optimized, 'rows.' . $userId, []))
                 ->map(fn ($row) => is_array($row) ? (object) $row : $row)
-                ->filter(fn ($row) => is_object($row))
+                ->filter(fn ($row) => is_object($row) && $this->kardexRowBelongsToUser($row, $user))
                 ->values();
         }
 
@@ -1284,8 +1284,58 @@ class MisVentasController extends Controller
         return $ventasPages
             ->concat(collect($kardex['detalle'] ?? []))
             ->map(fn ($row) => is_array($row) ? (object) $row : $row)
-            ->filter(fn ($row) => is_object($row))
+            ->filter(fn ($row) => is_object($row) && $this->kardexRowBelongsToUser($row, $user))
             ->values();
+    }
+
+    private function kardexRowBelongsToUser(object $row, User $user): bool
+    {
+        $sourceId = trim((string) (
+            data_get($row, 'origen_usuario_id')
+            ?: data_get($row, 'origenUsuarioId')
+            ?: data_get($row, 'usuario.id')
+            ?: ''
+        ));
+        if ($sourceId !== '') {
+            return $sourceId === trim((string) $user->id);
+        }
+
+        foreach ([
+            [
+                data_get($row, 'origen_usuario_email') ?: data_get($row, 'origenUsuarioEmail') ?: data_get($row, 'usuario.email'),
+                $user->email,
+                static fn (string $value): string => mb_strtolower(trim($value)),
+            ],
+            [
+                data_get($row, 'origen_usuario_alias') ?: data_get($row, 'origenUsuarioAlias') ?: data_get($row, 'usuario.alias'),
+                $user->alias,
+                static fn (string $value): string => mb_strtolower(trim($value)),
+            ],
+            [
+                data_get($row, 'origen_usuario_carnet') ?: data_get($row, 'origenUsuarioCarnet') ?: data_get($row, 'usuario.carnet'),
+                $user->ci,
+                static fn (string $value): string => strtoupper(preg_replace('/\\s+/', '', trim($value))),
+            ],
+        ] as [$sourceValue, $expectedValue, $normalize]) {
+            $sourceValue = trim((string) $sourceValue);
+            $expectedValue = trim((string) $expectedValue);
+            if ($sourceValue === '' || $expectedValue === '') {
+                continue;
+            }
+
+            return $normalize($sourceValue) === $normalize($expectedValue);
+        }
+
+        $sourceName = trim((string) (
+            data_get($row, 'origen_usuario_nombre')
+            ?: data_get($row, 'origenUsuarioNombre')
+            ?: data_get($row, 'usuario.nombre')
+            ?: data_get($row, 'usuario.name')
+            ?: ''
+        ));
+
+        return $sourceName === ''
+            || $this->normalizeKardexText($sourceName) === $this->normalizeKardexText((string) $user->name);
     }
 
     private function fetchBranchRawRows(FacturacionCartService $service, User $viewer, array $filters): Collection

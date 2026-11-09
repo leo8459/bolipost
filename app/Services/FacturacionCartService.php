@@ -2313,21 +2313,47 @@ class FacturacionCartService
 
         $rowsByUser = [];
         $unmatchedRows = 0;
+        $outOfScopeRows = 0;
         foreach ((array) data_get($body, 'detalle', []) as $row) {
             $rowData = is_array($row) ? $row : (array) $row;
             $sourceUser = (array) data_get($rowData, 'usuario', []);
             $sourceId = trim((string) (
-                $rowData['origen_usuario_id']
-                ?? $rowData['origenUsuarioId']
-                ?? $sourceUser['id']
-                ?? ''
+                data_get($rowData, 'origen_usuario_id')
+                ?: data_get($rowData, 'origenUsuarioId')
+                ?: data_get($sourceUser, 'id')
+                ?: ''
             ));
-            $cashier = $usersById->get($sourceId);
-            if (! $cashier) {
+            $sourceEmail = strtolower(trim((string) (
+                data_get($rowData, 'origen_usuario_email')
+                ?: data_get($rowData, 'origenUsuarioEmail')
+                ?: data_get($sourceUser, 'email')
+                ?: ''
+            )));
+            $sourceAlias = strtolower(trim((string) (
+                data_get($rowData, 'origen_usuario_alias')
+                ?: data_get($rowData, 'origenUsuarioAlias')
+                ?: data_get($sourceUser, 'alias')
+                ?: ''
+            )));
+            $sourceCarnet = strtoupper(preg_replace('/\\s+/', '', trim((string) (
+                data_get($rowData, 'origen_usuario_carnet')
+                ?: data_get($rowData, 'origenUsuarioCarnet')
+                ?: data_get($sourceUser, 'carnet')
+                ?: ''
+            ))));
+            $sourceName = trim((string) (
+                data_get($rowData, 'origen_usuario_nombre')
+                ?: data_get($rowData, 'origenUsuarioNombre')
+                ?: data_get($sourceUser, 'nombre')
+                ?: data_get($sourceUser, 'name')
+                ?: ''
+            ));
+            $cashier = $sourceId !== '' ? $usersById->get($sourceId) : null;
+            if (! $cashier && $sourceId === '') {
                 foreach ([
-                    'email:' . mb_strtolower(trim((string) ($rowData['origen_usuario_email'] ?? $rowData['origenUsuarioEmail'] ?? $sourceUser['email'] ?? ''))),
-                    'alias:' . mb_strtolower(trim((string) ($rowData['origen_usuario_alias'] ?? $rowData['origenUsuarioAlias'] ?? $sourceUser['alias'] ?? ''))),
-                    'carnet:' . strtoupper(preg_replace('/\\s+/', '', trim((string) ($rowData['origen_usuario_carnet'] ?? $rowData['origenUsuarioCarnet'] ?? $sourceUser['carnet'] ?? '')))),
+                    'email:' . $sourceEmail,
+                    'alias:' . $sourceAlias,
+                    'carnet:' . $sourceCarnet,
                 ] as $identity) {
                     if (! str_ends_with($identity, ':') && isset($identityIndex[$identity])) {
                         $cashier = $identityIndex[$identity];
@@ -2335,11 +2361,52 @@ class FacturacionCartService
                     }
                 }
             }
-            if (! $cashier && $users->count() === 1) {
-                $cashier = $users->first();
+            if (! $cashier && $sourceId === '' && $users->count() === 1) {
+                $onlyCashier = $users->first();
+                $sourceIdentityMatches = true;
+                $sourceHasIdentity = false;
+                foreach ([
+                    [$sourceEmail, strtolower(trim((string) $onlyCashier->email))],
+                    [$sourceAlias, strtolower(trim((string) ($onlyCashier->alias ?? '')))],
+                    [$sourceCarnet, strtoupper(preg_replace('/\\s+/', '', trim((string) ($onlyCashier->ci ?? ''))))],
+                ] as [$sourceIdentity, $cashierIdentity]) {
+                    if ($sourceIdentity === '') {
+                        continue;
+                    }
+
+                    $sourceHasIdentity = true;
+                    if ($cashierIdentity === '' || $sourceIdentity !== $cashierIdentity) {
+                        $sourceIdentityMatches = false;
+                        break;
+                    }
+                }
+
+                if ($sourceName !== '') {
+                    $sourceHasIdentity = true;
+                    $normalizedSourceName = mb_strtolower(preg_replace('/\\s+/', ' ', trim($sourceName)));
+                    $normalizedCashierName = mb_strtolower(preg_replace('/\\s+/', ' ', trim((string) $onlyCashier->name)));
+                    $sourceIdentityMatches = $sourceIdentityMatches
+                        && $normalizedSourceName === $normalizedCashierName;
+                }
+
+                // A one-user request may safely claim rows with no source identity,
+                // or rows whose returned identity matches that user. Never claim a
+                // row that identifies another cashier just because only one was requested.
+                if (! $sourceHasIdentity || $sourceIdentityMatches) {
+                    $cashier = $onlyCashier;
+                }
             }
             if (! $cashier) {
-                $unmatchedRows++;
+                $hasSourceIdentity = $sourceId !== ''
+                    || $sourceEmail !== ''
+                    || $sourceAlias !== ''
+                    || $sourceCarnet !== ''
+                    || $sourceName !== '';
+                if ($hasSourceIdentity) {
+                    $outOfScopeRows++;
+                } else {
+                    $unmatchedRows++;
+                }
                 continue;
             }
 
@@ -2352,7 +2419,7 @@ class FacturacionCartService
             $rowData['codigo_seguimiento'] = $rowData['codigo_seguimiento'] ?? $rowData['codigoSeguimiento'] ?? '';
             $rowData['numero_factura'] = $rowData['numero_factura'] ?? $rowData['numeroFactura'] ?? '';
             $rowData['created_at'] = $rowData['created_at'] ?? $rowData['fecha'] ?? null;
-            $rowData['origen_usuario_id'] = $rowData['origen_usuario_id'] ?? ($sourceId !== '' ? $sourceId : (string) $cashier->id);
+            $rowData['origen_usuario_id'] = $sourceId !== '' ? $sourceId : trim((string) ($rowData['origen_usuario_id'] ?? ''));
             $rowData['origenUsuarioId'] = $rowData['origenUsuarioId'] ?? $rowData['origen_usuario_id'];
             $rowData['origen_usuario_nombre'] = $rowData['origen_usuario_nombre'] ?? $rowData['origenUsuarioNombre'] ?? $sourceUser['nombre'] ?? $cashier->name;
             $rowData['origenUsuarioNombre'] = $rowData['origenUsuarioNombre'] ?? $rowData['origen_usuario_nombre'];
@@ -2372,6 +2439,13 @@ class FacturacionCartService
             $rowData['origenSucursalDepartamento'] = $rowData['origenSucursalDepartamento'] ?? $rowData['origen_sucursal_departamento'];
 
             $rowsByUser[(string) $cashier->id][] = $this->toCart($rowData);
+        }
+
+        if ($outOfScopeRows > 0) {
+            Log::warning('El endpoint de Kardex devolvió ventas de cajeros fuera del alcance solicitado; se descartaron.', [
+                'count' => $outOfScopeRows,
+                'requested_user_ids' => $users->pluck('id')->map(fn ($id) => (int) $id)->values()->all(),
+            ]);
         }
 
         $errors = $unmatchedRows > 0
