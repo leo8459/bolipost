@@ -37,6 +37,7 @@ class PaqueteriaFlowResolutionSheet implements FromArray, ShouldAutoSize, WithHe
         foreach ([
             ['EMS', $resolutionTime['ems']],
             ['Contratos', $resolutionTime['contrato']],
+            ['Delivery Express', $resolutionTime['express']],
             ['Total del periodo', $resolutionTime['total']],
         ] as [$serviceName, $serviceStats]) {
             $rows[] = [

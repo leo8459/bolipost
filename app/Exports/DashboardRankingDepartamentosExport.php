@@ -33,6 +33,7 @@ class DashboardRankingDepartamentosExport implements FromCollection, ShouldAutoS
                     'entregas_top_entregador' => (int) ($item->top_entregador_total ?? 0),
                     'ems_entregados' => (int) ($modulos['EMS'] ?? 0),
                     'contratos_entregados' => (int) ($modulos['CONTRATOS'] ?? 0),
+                    'delivery_express_entregados' => (int) ($modulos['Delivery Express'] ?? 0),
                     'rango' => (string) ($this->reportData['rangoLabel'] ?? ''),
                     'modulos' => collect($this->reportData['modulosSeleccionados'] ?? [])
                         ->map(fn ($key) => $this->reportData['modulosDisponibles'][$key]['label'] ?? strtoupper((string) $key))
@@ -56,6 +57,7 @@ class DashboardRankingDepartamentosExport implements FromCollection, ShouldAutoS
             'Entregas top entregador',
             'EMS entregados',
             'Contratos entregados',
+            'Delivery Express entregados',
             'Rango',
             'Modulos',
             'Emitido en',

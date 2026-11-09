@@ -33,6 +33,7 @@ class PaqueteriaFlowDispatchSheet implements FromArray, ShouldAutoSize, WithHead
         foreach ([
             ['EMS', $dispatchTime['ems']],
             ['Contratos', $dispatchTime['contrato']],
+            ['Delivery Express', $dispatchTime['express']],
             ['Total del periodo', $dispatchTime['total']],
         ] as [$serviceName, $serviceStats]) {
             $rows[] = [

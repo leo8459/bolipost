@@ -116,15 +116,15 @@
         </tr>
     </table>
 
-    <div class="scope-note"><strong>Alcance:</strong> resumen de guías y kilos recibidos de contratos, paquetes EMS y peso de CN-33 registrado en bitácoras durante el periodo elegido, con origen en {{ $departmentLabel }}.</div>
+    <div class="scope-note"><strong>Alcance:</strong> resumen de contratos, paquetes EMS, solicitudes Delivery Express y peso de CN-33 registrado en bitácoras durante el periodo elegido, con origen en {{ $departmentLabel }}.</div>
 
     <table class="kpis">
         <tr>
-            <td><span class="label">Guías procesadas - suma mensual</span><span class="metric-value">{{ $formatCount($totals['guias_total']) }}</span><span class="metric-note">{{ $formatCount($totals['guias_contrato']) }} de contrato | {{ $formatCount($totals['guias_ems']) }} EMS</span></td>
-            <td><span class="label">Peso total recibido</span><span class="metric-value">{{ $formatWeight($totals['peso_recibido']) }} kg</span><span class="metric-note">Contratos + EMS del periodo</span></td>
+            <td><span class="label">Envíos procesados - suma mensual</span><span class="metric-value">{{ $formatCount($totals['guias_total']) }}</span><span class="metric-note">{{ $formatCount($totals['guias_contrato']) }} de contrato | {{ $formatCount($totals['guias_ems']) }} EMS | {{ $formatCount($totals['guias_express']) }} Delivery Express</span></td>
+            <td><span class="label">Peso total recibido</span><span class="metric-value">{{ $formatWeight($totals['peso_recibido']) }} kg</span><span class="metric-note">Contratos + EMS + Delivery Express</span></td>
             <td><span class="label">Carga aérea CN-33</span><span class="metric-value">{{ $formatWeight($totals['aereo']) }} kg</span><span class="metric-note">BOA, BOA Cargo o Boliviana de Aviación</span></td>
             <td><span class="label">Carga terrestre CN-33</span><span class="metric-value">{{ $formatWeight($totals['terrestre']) }} kg</span><span class="metric-note">Las demás transportadoras</span></td>
-            <td><span class="label">Paquetes EMS</span><span class="metric-value">{{ $formatCount($totals['paquetes_ems']) }}</span><span class="metric-note">{{ $formatWeight($totals['peso_ems']) }} kg registrados</span></td>
+            <td><span class="label">Paquetes EMS / Delivery Express</span><span class="metric-value">{{ $formatCount($totals['paquetes_ems']) }} / {{ $formatCount($totals['paquetes_express']) }}</span><span class="metric-note">EMS: {{ $formatWeight($totals['peso_ems']) }} kg | Express: {{ $formatWeight($totals['peso_express']) }} kg</span></td>
             <td><span class="label">Promedio almacén a despacho</span><span class="metric-value">{{ $dispatchTime['total']['promedio_texto'] }}</span><span class="metric-note">{{ $formatCount($dispatchTime['total']['despachados']) }} envíos despachados</span></td>
             <td><span class="label">Promedio tránsito a recepción</span><span class="metric-value">{{ $transitReceiptTime['total']['promedio_texto'] }}</span><span class="metric-note">{{ $formatCount($transitReceiptTime['total']['recibidos']) }} envíos recibidos</span></td>
             <td><span class="label">Promedio asignación a cierre</span><span class="metric-value">{{ $courierResolutionTime['total']['promedio_total_texto'] }}</span><span class="metric-note">{{ $formatCount($courierResolutionTime['total']['finalizados']) }} finalizados por cartero</span></td>
@@ -164,6 +164,15 @@
                 <td class="right">{{ $formatCount($resolutionTime['contrato']['finalizados']) }}</td>
                 <td class="right">{{ $resolutionTime['contrato']['promedio_total_texto'] }}</td>
             </tr>
+            <tr>
+                <td class="strong">Delivery Express</td>
+                <td class="right">{{ $formatCount($resolutionTime['express']['entregados']) }}</td>
+                <td class="right">{{ $resolutionTime['express']['promedio_entrega_texto'] }}</td>
+                <td class="right">{{ $formatCount($resolutionTime['express']['devueltos']) }}</td>
+                <td class="right">{{ $resolutionTime['express']['promedio_devolucion_texto'] }}</td>
+                <td class="right">{{ $formatCount($resolutionTime['express']['finalizados']) }}</td>
+                <td class="right">{{ $resolutionTime['express']['promedio_total_texto'] }}</td>
+            </tr>
             <tr class="total-row">
                 <td>Total del periodo</td>
                 <td class="right">{{ $formatCount($resolutionTime['total']['entregados']) }}</td>
@@ -197,6 +206,11 @@
                 <td class="right">{{ $formatCount($dispatchTime['contrato']['despachados']) }}</td>
                 <td class="right">{{ $dispatchTime['contrato']['promedio_texto'] }}</td>
             </tr>
+            <tr>
+                <td class="strong">Delivery Express</td>
+                <td class="right">{{ $formatCount($dispatchTime['express']['despachados']) }}</td>
+                <td class="right">{{ $dispatchTime['express']['promedio_texto'] }}</td>
+            </tr>
             <tr class="total-row">
                 <td>Total del periodo</td>
                 <td class="right">{{ $formatCount($dispatchTime['total']['despachados']) }}</td>
@@ -225,6 +239,11 @@
                 <td class="strong">Contratos</td>
                 <td class="right">{{ $formatCount($transitReceiptTime['contrato']['recibidos']) }}</td>
                 <td class="right">{{ $transitReceiptTime['contrato']['promedio_texto'] }}</td>
+            </tr>
+            <tr>
+                <td class="strong">Delivery Express</td>
+                <td class="right">{{ $formatCount($transitReceiptTime['express']['recibidos']) }}</td>
+                <td class="right">{{ $transitReceiptTime['express']['promedio_texto'] }}</td>
             </tr>
             <tr class="total-row">
                 <td>Total del periodo</td>
@@ -267,6 +286,15 @@
                 <td class="right">{{ $formatCount($courierResolutionTime['contrato']['finalizados']) }}</td>
                 <td class="right">{{ $courierResolutionTime['contrato']['promedio_total_texto'] }}</td>
             </tr>
+            <tr>
+                <td class="strong">Delivery Express</td>
+                <td class="right">{{ $formatCount($courierResolutionTime['express']['entregados']) }}</td>
+                <td class="right">{{ $courierResolutionTime['express']['promedio_entrega_texto'] }}</td>
+                <td class="right">{{ $formatCount($courierResolutionTime['express']['devueltos']) }}</td>
+                <td class="right">{{ $courierResolutionTime['express']['promedio_devolucion_texto'] }}</td>
+                <td class="right">{{ $formatCount($courierResolutionTime['express']['finalizados']) }}</td>
+                <td class="right">{{ $courierResolutionTime['express']['promedio_total_texto'] }}</td>
+            </tr>
             <tr class="total-row">
                 <td>Total del periodo</td>
                 <td class="right">{{ $formatCount($courierResolutionTime['total']['entregados']) }}</td>
@@ -282,11 +310,11 @@
     <h2 class="section-title">Resumen ejecutivo</h2>
     <div class="executive-box">
         @if($totals['guias_total'] > 0 || $totals['peso_recibido'] > 0 || $totals['paquetes_ems'] > 0 || $totals['aereo'] > 0 || $totals['terrestre'] > 0)
-            <p>En <span class="highlight">{{ $periodLabel }}</span> con origen en <span class="highlight">{{ $departmentLabel }}</span> se procesaron <span class="highlight">{{ $formatCount($totals['guias_total']) }} guías</span> y se recibieron <span class="highlight">{{ $formatWeight($totals['peso_recibido']) }} kg en total</span> entre contratos y EMS.</p>
+            <p>En <span class="highlight">{{ $periodLabel }}</span> con origen en <span class="highlight">{{ $departmentLabel }}</span> se procesaron <span class="highlight">{{ $formatCount($totals['guias_total']) }} envíos</span> y se recibieron <span class="highlight">{{ $formatWeight($totals['peso_recibido']) }} kg en total</span> entre contratos, EMS y Delivery Express.</p>
             <p>Contratos: <span class="highlight">{{ $formatCount($totals['guias_contrato']) }} guías y {{ $formatWeight($totals['peso_contrato']) }} kg</span>. EMS: <span class="highlight">{{ $formatCount($totals['guias_ems']) }} guías, {{ $formatCount($totals['paquetes_ems']) }} paquetes y {{ $formatWeight($totals['peso_ems']) }} kg</span>.</p>
             <p>Las bitácoras de CN-33 sumaron <span class="highlight">{{ $formatWeight($totals['aereo']) }} kg por vía aérea</span> y <span class="highlight">{{ $formatWeight($totals['terrestre']) }} kg por vía terrestre</span>, según el nombre de la transportadora registrada.</p>
             @if($resolutionTime['total']['finalizados'] > 0)
-                <p>Los paquetes EMS y contratos finalizados tardaron en promedio <span class="highlight">{{ $resolutionTime['total']['promedio_total_texto'] }}</span> desde su creación hasta la entrega o devolución ({{ $formatCount($resolutionTime['total']['finalizados']) }} envíos).</p>
+            <p>Los paquetes EMS, contratos y Delivery Express finalizados tardaron en promedio <span class="highlight">{{ $resolutionTime['total']['promedio_total_texto'] }}</span> desde su creación hasta la entrega o devolución ({{ $formatCount($resolutionTime['total']['finalizados']) }} envíos).</p>
             @else
                 <p>No hay paquetes EMS ni contratos entregados o devueltos en el periodo seleccionado para calcular el tiempo promedio.</p>
             @endif
@@ -362,13 +390,13 @@
     </table>
 
     <div class="consolidated-section">
-        <h2 class="section-title">Consolidado mensual - contratos + EMS</h2>
-        <p class="section-note">Suma de guías y kilos recibidos de ambos servicios. La variación compara el total de guías con el mes seleccionado anterior.</p>
+        <h2 class="section-title">Consolidado mensual - contratos + EMS + Delivery Express</h2>
+        <p class="section-note">Suma de solicitudes, guías y kilos recibidos de contratos, EMS y Delivery Express. La variación compara el total mensual con el mes seleccionado anterior.</p>
         <table class="sheet">
             <thead>
                 <tr>
                     <th style="width:22%">Mes</th>
-                    <th class="right" style="width:26%">Total guías (contratos + EMS)</th>
+                    <th class="right" style="width:26%">Total envíos (contratos + EMS + Delivery Express)</th>
                     <th class="right" style="width:32%">Peso total recibido (kg)</th>
                     <th class="center" style="width:20%">Var. total guías</th>
                 </tr>
@@ -377,7 +405,7 @@
                 @php $previousConsolidatedMonth = null; @endphp
                 @foreach($months as $month)
                     @php
-                        $receivedWeight = $month['peso_contrato'] + $month['peso_ems'];
+                        $receivedWeight = $month['peso_contrato'] + $month['peso_ems'] + $month['peso_express'];
                         $consolidatedChange = $previousConsolidatedMonth ? $change($previousConsolidatedMonth['guias_total'], $month['guias_total']) : null;
                     @endphp
                     <tr>
@@ -392,6 +420,22 @@
             @if(count($months) > 1)
                 <tfoot><tr><td>Suma mensual</td><td class="right">{{ $formatCount($totals['guias_total']) }}</td><td class="right">{{ $formatWeight($totals['peso_recibido']) }}</td><td class="center">-</td></tr></tfoot>
             @endif
+        </table>
+
+        <h2 class="section-title">Delivery Express por mes</h2>
+        <table class="sheet">
+            <thead><tr><th>Mes</th><th class="right">Solicitudes</th><th class="right">Paquetes</th><th class="right">Peso (kg)</th></tr></thead>
+            <tbody>
+                @foreach($months as $month)
+                    <tr>
+                        <td class="strong">{{ $month['nombre'] }}</td>
+                        <td class="right">{{ $formatCount($month['guias_express']) }}</td>
+                        <td class="right">{{ $formatCount($month['paquetes_express']) }}</td>
+                        <td class="right">{{ $formatWeight($month['peso_express']) }}</td>
+                    </tr>
+                @endforeach
+                <tr class="total-row"><td>Total del periodo</td><td class="right">{{ $formatCount($totals['guias_express']) }}</td><td class="right">{{ $formatCount($totals['paquetes_express']) }}</td><td class="right">{{ $formatWeight($totals['peso_express']) }}</td></tr>
+            </tbody>
         </table>
 
         <div class="method-note">

@@ -18,7 +18,7 @@
                     </div>
                     <div class="modal-body">
                         <div class="row">
-                            @foreach(['EMS', 'CONTRATOS'] as $moduloDetalle)
+                            @foreach(['EMS', 'CONTRATOS', 'Delivery Express'] as $moduloDetalle)
                                 <div class="col-6 col-md-3 mb-3">
                                     <div class="border rounded p-3 h-100">
                                         <div class="text-muted small">{{ $moduloDetalle }}</div>
@@ -53,7 +53,7 @@
                                     <label class="small text-muted mb-1">Servicio o categoria</label>
                                     <select class="form-control form-control-sm" data-transit-filter-module>
                                         <option value="">Todos</option>
-                                        @foreach(['EMS', 'CONTRATOS'] as $moduloDetalle)
+                                        @foreach(['EMS', 'CONTRATOS', 'Delivery Express'] as $moduloDetalle)
                                             <option value="{{ $moduloDetalle }}">{{ $moduloDetalle }}</option>
                                         @endforeach
                                     </select>
@@ -211,7 +211,7 @@
                     </div>
                     <div class="modal-body">
                         <div class="row">
-                            @foreach(['EMS', 'CONTRATOS'] as $moduloDetalle)
+                            @foreach(['EMS', 'CONTRATOS', 'Delivery Express'] as $moduloDetalle)
                                 <div class="col-6 col-md-3 mb-3">
                                     <div class="border rounded p-3 h-100">
                                         <div class="text-muted small">{{ $moduloDetalle }}</div>
@@ -248,7 +248,7 @@
                                     <label class="small text-muted mb-1">Servicio o categoria</label>
                                     <select class="form-control form-control-sm" data-pending-filter-module>
                                         <option value="">Todos</option>
-                                        @foreach(['EMS', 'CONTRATOS'] as $moduloDetalle)
+                                        @foreach(['EMS', 'CONTRATOS', 'Delivery Express'] as $moduloDetalle)
                                             <option value="{{ $moduloDetalle }}">{{ $moduloDetalle }}</option>
                                         @endforeach
                                     </select>
@@ -412,7 +412,7 @@
                     </div>
                     <div class="modal-body">
                         <div class="row">
-                            @foreach(['EMS', 'CONTRATOS'] as $moduloDetalle)
+                            @foreach(['EMS', 'CONTRATOS', 'Delivery Express'] as $moduloDetalle)
                                 <div class="col-6 col-md-3 mb-3">
                                     <div class="border rounded p-3 h-100">
                                         <div class="text-muted small">{{ $moduloDetalle }}</div>

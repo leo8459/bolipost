@@ -134,7 +134,7 @@
                                     </option>
                                 @endforeach
                             </select>
-                            <small class="form-text text-muted">Disponible para EMS y Contratos, que guardan el origen.</small>
+                            <small class="form-text text-muted">Disponible para EMS, Contratos y Delivery Express, que guardan el origen.</small>
                         </div>
                     </div>
                 </div>
@@ -437,7 +437,7 @@
         <div class="card-header chart-header-flex">
             <div>
                 <strong id="chartVolumenTitle">Registrados por departamento de origen</strong>
-                <div id="chartVolumenSubtitle" class="text-muted small">EMS y Contratos segun el origen de cada paquete</div>
+                <div id="chartVolumenSubtitle" class="text-muted small">EMS, Contratos y Delivery Express segun el origen de cada paquete</div>
                 <div class="chart-helper">Cada porcion representa un departamento. Elige una medida para comparar sus totales.</div>
                 <span id="chartVolumenTotal" class="badge badge-primary mt-1" aria-live="polite"></span>
             </div>
@@ -692,7 +692,7 @@
                                     <td>
                                         <strong>{{ $item->name }}</strong><br>
                                         <small class="text-muted">
-                                            E:{{ (int) $item->ems }} C:{{ (int) $item->contrato }}
+                                            E:{{ (int) $item->ems }} C:{{ (int) $item->contrato }} D:{{ (int) $item->express }}
                                         </small>
                                     </td>
                                     <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $item->total_entregados) }}</td>
@@ -725,7 +725,7 @@
                                     <td>
                                         <strong>{{ $item->name }}</strong><br>
                                         <small class="text-muted">
-                                            E:{{ (int) $item->ems }} C:{{ (int) $item->contrato }}
+                                            E:{{ (int) $item->ems }} C:{{ (int) $item->contrato }} D:{{ (int) $item->express }}
                                         </small>
                                     </td>
                                     <td class="text-right">{{ \App\Support\BolivianNumber::format((int) $item->total_registrados) }}</td>
@@ -2067,8 +2067,11 @@
         function chartSelection() {
             const months = chartMonthChecks.filter((input) => input.checked).map((input) => Number(input.value)).sort((a, b) => a - b);
             const departments = chartDepartmentChecks.filter((input) => input.checked).map((input) => input.value).sort();
+            const modules = Array.from(document.querySelectorAll('#dashboardFiltersForm input[name="modules[]"]:checked'))
+                .map((input) => input.value)
+                .sort();
             const year = Number(selectVolumenYear.value);
-            return { months, departments, year, key: `${year}|${months.join(',')}|${departments.join(',')}` };
+            return { months, departments, modules, year, key: `${year}|${months.join(',')}|${departments.join(',')}|${modules.join(',')}` };
         }
 
         function updateChartFilterSummaries() {
@@ -2116,7 +2119,7 @@
             chartTitle.textContent = `${labels[metric]} por departamento${isMoney ? '' : ' de origen'}`;
             chartSubtitle.textContent = isMoney
                 ? 'Ingresos de todos los servicios segun la regional del reporte financiero'
-                : 'EMS y Contratos segun el origen de cada paquete';
+                : 'EMS, Contratos y Delivery Express segun el origen de cada paquete';
             chartBody.classList.toggle('chart-canvas-body-money', isMoney);
             moneyNote.classList.toggle('d-none', !isMoney);
 
@@ -2313,7 +2316,10 @@
             chartVolumePeriod = null;
             renderChartVolumen(selectVolumenMetric.value, selectVolumenType.value);
 
-            fetch(chartFilterUrl(chartVolumeEndpoint, selection).toString(), { headers: { Accept: 'application/json' } })
+            const url = chartFilterUrl(chartVolumeEndpoint, selection);
+            selection.modules.forEach((module) => url.searchParams.append('modules[]', module));
+
+            fetch(url.toString(), { headers: { Accept: 'application/json' } })
                 .then((response) => {
                     if (!response.ok) throw new Error('No se pudieron consultar los registros, el peso y las entregas.');
                     return response.json();

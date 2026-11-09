@@ -33,6 +33,7 @@ class PaqueteriaFlowTransitReceiptSheet implements FromArray, ShouldAutoSize, Wi
         foreach ([
             ['EMS', $transitReceiptTime['ems']],
             ['Contratos', $transitReceiptTime['contrato']],
+            ['Delivery Express', $transitReceiptTime['express']],
             ['Total del periodo', $transitReceiptTime['total']],
         ] as [$serviceName, $serviceStats]) {
             $rows[] = [

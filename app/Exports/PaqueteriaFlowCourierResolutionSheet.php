@@ -37,6 +37,7 @@ class PaqueteriaFlowCourierResolutionSheet implements FromArray, ShouldAutoSize,
         foreach ([
             ['EMS', $courierResolutionTime['ems']],
             ['Contratos', $courierResolutionTime['contrato']],
+            ['Delivery Express', $courierResolutionTime['express']],
             ['Total del periodo', $courierResolutionTime['total']],
         ] as [$serviceName, $serviceStats]) {
             $rows[] = [

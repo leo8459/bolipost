@@ -154,7 +154,7 @@
         <tr>
             <td>{{ $item->name }}</td>
             <td>{{ (int) $item->total_entregados }}</td>
-            <td>E:{{ (int) $item->ems }} C:{{ (int) $item->contrato }}</td>
+            <td>E:{{ (int) $item->ems }} C:{{ (int) $item->contrato }} D:{{ (int) $item->express }}</td>
         </tr>
     @empty
         <tr><td colspan="3">Sin datos</td></tr>
@@ -169,7 +169,7 @@
         <tr>
             <td>{{ $item->name }}</td>
             <td>{{ (int) $item->total_registrados }}</td>
-            <td>E:{{ (int) $item->ems }} C:{{ (int) $item->contrato }}</td>
+            <td>E:{{ (int) $item->ems }} C:{{ (int) $item->contrato }} D:{{ (int) $item->express }}</td>
         </tr>
     @empty
         <tr><td colspan="3">Sin datos</td></tr>

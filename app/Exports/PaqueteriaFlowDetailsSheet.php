@@ -16,7 +16,7 @@ class PaqueteriaFlowDetailsSheet implements FromArray, ShouldAutoSize, WithHeadi
 
     public function headings(): array
     {
-        return ['Tipo', 'Mes / periodo', 'Detalle', 'Guías', 'Paquetes EMS', 'Peso (kg)'];
+        return ['Tipo', 'Mes / periodo', 'Detalle', 'Guías / solicitudes', 'Paquetes', 'Peso (kg)'];
     }
 
     public function array(): array
@@ -33,6 +33,7 @@ class PaqueteriaFlowDetailsSheet implements FromArray, ShouldAutoSize, WithHeadi
 
         foreach ($this->reportData['months'] as $month) {
             $monthName = $month['nombre'];
+            $rows[] = ['Delivery Express', $monthName, 'Solicitudes', $month['guias_express'], $month['paquetes_express'], $month['peso_express']];
             $rows[] = ['Admisión', $monthName, 'Guías de contratos', $month['guias_contrato'], null, null];
             $rows[] = ['Admisión', $monthName, 'Guías EMS', $month['guias_ems'], null, null];
             $rows[] = ['EMS', $monthName, 'Paquetes EMS', null, $month['paquetes_ems'], $month['peso_ems']];

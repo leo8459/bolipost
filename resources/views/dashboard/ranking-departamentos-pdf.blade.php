@@ -84,7 +84,8 @@
                 <td>{{ $item->top_entregador }} ({{ \App\Support\BolivianNumber::format((int) $item->top_entregador_total) }})</td>
                 <td>
                     EMS: {{ \App\Support\BolivianNumber::format((int) ($mods['EMS'] ?? 0)) }},
-                    Contratos: {{ \App\Support\BolivianNumber::format((int) ($mods['CONTRATOS'] ?? 0)) }}
+                    Contratos: {{ \App\Support\BolivianNumber::format((int) ($mods['CONTRATOS'] ?? 0)) }},
+                    Delivery Express: {{ \App\Support\BolivianNumber::format((int) ($mods['Delivery Express'] ?? 0)) }}
                 </td>
             </tr>
         @empty

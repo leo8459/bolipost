@@ -12,6 +12,7 @@ use App\Models\SolicitudCliente;
 use App\Support\BitacoraCn33Service;
 use App\Support\BoliviaBusinessCalendar;
 use App\Support\DeliveryFulfillment;
+use App\Support\TiktokerEvent;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Database\Query\Builder;
@@ -32,6 +33,7 @@ class DashboardController extends Controller
     }
 
     private array $estadoIdCache = [];
+    private array $moduleConfigCache = [];
 
     private const EVENTO_ENTREGADO_ID = 316;
     private const EVENTO_ENVIADO_VENTANILLA_ID = 312;
@@ -43,7 +45,7 @@ class DashboardController extends Controller
     private const DASHBOARD_HEAVY_ALERT_CACHE_SECONDS = 300;
     private const DASHBOARD_MAX_EXECUTION_SECONDS = 180;
     private const DASHBOARD_INLINE_DEPARTMENT_MAX_ROWS = 100000;
-    private const DASHBOARD_MODULE_KEYS = ['ems', 'contrato'];
+    private const DASHBOARD_MODULE_KEYS = ['ems', 'contrato', 'express'];
     private const COURIER_PENDING_MODULE_KEYS = ['ems', 'certi', 'contrato', 'ordi', 'solicitud'];
     private const ENTREGAS_EXCLUDED_COURIER_NAMES = [
         'pasante',
@@ -136,6 +138,20 @@ class DashboardController extends Controller
             'late_hours' => 24 * 15,
             'start_expression' => 'coalesce(t.created_at, t.created_at)',
         ],
+        'express' => [
+            'label' => 'Delivery Express',
+            'table' => 'solicitud_clientes',
+            'estado_column' => 'estado_id',
+            'origen_column' => 'origen',
+            'departamento_column' => 'ciudad',
+            'peso_column' => 'peso',
+            'event_table' => 'eventos_tiktoker',
+            'registro_event_names' => [TiktokerEvent::SOLICITUD_REGISTRADA],
+            'operational_start_event_names' => [TiktokerEvent::RECIBIDA_ALMACEN],
+            'late_hours' => 48,
+            'start_expression' => 'coalesce(t.created_at, t.created_at)',
+            'code_expression' => "COALESCE(NULLIF(TRIM(%s.codigo_solicitud), ''), NULLIF(TRIM(%s.barcode), ''))",
+        ],
     ];
 
     public function index(Request $request)
@@ -222,8 +238,8 @@ class DashboardController extends Controller
             ])
             ->all();
 
-        foreach (self::DASHBOARD_MODULE_KEYS as $moduleKey) {
-            $config = self::MODULOS[$moduleKey];
+        foreach ($this->resolveDashboardModulosSeleccionados($request) as $moduleKey) {
+            $config = $this->dashboardModuleConfig($moduleKey);
             $query = DB::table($config['table']);
             $this->applyChartMonthsFilter($query, $year, $months);
             if ($filterDepartments) {
@@ -232,6 +248,7 @@ class DashboardController extends Controller
             $this->excludeTestCompanyPackages($query, $config);
 
             $originExpression = 'trim(upper('.$this->effectiveOrigenExpression($config).'))';
+            $packageCode = $this->packageCodeExpression($config);
             $stateColumn = $config['estado_column'];
             $notCancelled = $cancelledId
                 ? "{$stateColumn} IS NULL OR {$stateColumn} <> ".(int) $cancelledId
@@ -239,8 +256,8 @@ class DashboardController extends Controller
             $delivered = $deliveredId ? "{$stateColumn} = ".(int) $deliveredId : 'FALSE';
             $aggregates = $query
                 ->selectRaw("{$originExpression} as origen")
-                ->selectRaw("COUNT(DISTINCT CASE WHEN ({$notCancelled}) THEN codigo END) as total")
-                ->selectRaw("COUNT(DISTINCT CASE WHEN ({$notCancelled}) AND ({$delivered}) THEN codigo END) as entregados")
+                ->selectRaw("COUNT(DISTINCT CASE WHEN ({$notCancelled}) THEN {$packageCode} END) as total")
+                ->selectRaw("COUNT(DISTINCT CASE WHEN ({$notCancelled}) AND ({$delivered}) THEN {$packageCode} END) as entregados")
                 ->selectRaw("COALESCE(SUM(CASE WHEN ({$notCancelled}) THEN COALESCE({$config['peso_column']}, 0) ELSE 0 END), 0) as peso_total")
                 ->groupByRaw($originExpression)
                 ->get();
@@ -383,7 +400,7 @@ class DashboardController extends Controller
             'date' => now()->toDateString(),
         ];
 
-        return 'dashboard:v14:' . sha1(json_encode($filters, JSON_UNESCAPED_UNICODE));
+        return 'dashboard:v15:' . sha1(json_encode($filters, JSON_UNESCAPED_UNICODE));
     }
 
     private function cachedDashboardAlerts($authUser, ?array $moduleKeys = null): array
@@ -714,7 +731,7 @@ class DashboardController extends Controller
             'cumplimientoGeneral' => $cumplimientoGeneral,
             'diasLaborables' => $diasLaborables,
             'promedioDiarioGeneral' => $diasLaborables > 0 ? $totalEntregados / $diasLaborables : 0,
-            'modulosDisponibles' => self::MODULOS,
+            'modulosDisponibles' => array_diff_key(self::MODULOS, ['express' => true]),
             'modulosSeleccionados' => $modulosSeleccionados,
             'rangoDesde' => $desde ? $desde->toDateString() : null,
             'rangoHasta' => $hasta ? $hasta->toDateString() : null,
@@ -735,7 +752,7 @@ class DashboardController extends Controller
             $lastDeliveryAt = null;
 
             foreach ($modulosSeleccionados as $moduloKey) {
-                $config = self::MODULOS[$moduloKey];
+                $config = $this->dashboardModuleConfig($moduloKey);
                 $query = DB::table($config['event_table'] . ' as delivered')
                     ->where('delivered.evento_id', self::EVENTO_ENTREGADO_ID);
 
@@ -863,7 +880,7 @@ class DashboardController extends Controller
         $resumenPorModulo = [];
 
         foreach ($modulosSeleccionados as $moduloKey) {
-            $config = self::MODULOS[$moduloKey];
+            $config = $this->dashboardModuleConfig($moduloKey);
             $query = DB::table($config['table']);
             $this->applyDateFilter($query, 'created_at', $desde, $hasta);
             $this->applyDepartamentoFilter($query, $config, $departamento);
@@ -871,6 +888,7 @@ class DashboardController extends Controller
             $this->excludeTestCompanyPackages($query, $config);
 
             $stateColumn = $config['estado_column'];
+            $packageCode = $this->packageCodeExpression($config);
             $notCanceledSql = $estadoCanceladoId
                 ? "{$stateColumn} IS NULL OR {$stateColumn} <> " . (int) $estadoCanceladoId
                 : 'TRUE';
@@ -878,9 +896,9 @@ class DashboardController extends Controller
                 ? "{$stateColumn} = " . (int) $estadoEntregadoId
                 : 'FALSE';
             $aggregate = $query
-                ->selectRaw("COUNT(DISTINCT CASE WHEN ({$notCanceledSql}) THEN codigo END) as total")
-                ->selectRaw("COUNT(DISTINCT CASE WHEN ({$notCanceledSql}) AND ({$deliveredSql}) THEN codigo END) as entregados")
-                ->selectRaw("COUNT(DISTINCT CASE WHEN " . ($estadoCanceladoId ? "{$stateColumn} = " . (int) $estadoCanceladoId : 'FALSE') . " THEN codigo END) as cancelados")
+                ->selectRaw("COUNT(DISTINCT CASE WHEN ({$notCanceledSql}) THEN {$packageCode} END) as total")
+                ->selectRaw("COUNT(DISTINCT CASE WHEN ({$notCanceledSql}) AND ({$deliveredSql}) THEN {$packageCode} END) as entregados")
+                ->selectRaw("COUNT(DISTINCT CASE WHEN " . ($estadoCanceladoId ? "{$stateColumn} = " . (int) $estadoCanceladoId : 'FALSE') . " THEN {$packageCode} END) as cancelados")
                 ->selectRaw("COALESCE(SUM(CASE WHEN ({$notCanceledSql}) THEN COALESCE({$config['peso_column']}, 0) ELSE 0 END), 0) as peso_total")
                 ->first();
 
@@ -1057,7 +1075,7 @@ class DashboardController extends Controller
         $pendingByDepartment = [];
 
         foreach ($moduleKeys ?? array_keys(self::MODULOS) as $moduloKey) {
-            $config = self::MODULOS[$moduloKey];
+            $config = $this->dashboardModuleConfig($moduloKey);
             $query = DB::table($config['table'] . ' as t');
             if (!$hasGlobalDepartmentAccess) {
                 $this->applyDepartamentoFilter($query, $config, $regional, 't');
@@ -1179,7 +1197,7 @@ class DashboardController extends Controller
         $minimumStart = now()->subHours(72)->startOfHour();
 
         foreach ($moduleKeys ?? array_keys(self::MODULOS) as $moduloKey) {
-            $config = self::MODULOS[$moduloKey];
+            $config = $this->dashboardModuleConfig($moduloKey);
             $stateColumn = 't.' . $config['estado_column'];
             $startExpression = $moduloKey === 'contrato'
                 ? 'coalesce(t.fecha_recojo, t.created_at)'
@@ -1191,11 +1209,12 @@ class DashboardController extends Controller
             }
 
             $identityColumns = $this->packageIdentityColumns($moduloKey, $config);
+            $packageCode = $this->packageCodeExpression($config, 't');
             $query = DB::table($config['table'] . ' as t')
                 ->leftJoin('estados as e', 'e.id', '=', $stateColumn)
                 ->select([
                     DB::raw("'" . $config['label'] . "' as modulo"),
-                    't.codigo as codigo',
+                    DB::raw($packageCode . ' as codigo'),
                     DB::raw("coalesce(e.nombre_estado, 'SIN ESTADO') as estado"),
                     DB::raw($identityColumns['origen'] . ' as origen'),
                     DB::raw($identityColumns['destino'] . ' as destino'),
@@ -1221,7 +1240,7 @@ class DashboardController extends Controller
 
             $rows = $query
                 ->orderByRaw($startExpression . ' asc')
-                ->orderBy('t.codigo')
+                ->orderByRaw($packageCode)
                 ->get();
 
             foreach ($rows as $row) {
@@ -1636,7 +1655,7 @@ class DashboardController extends Controller
 
     private function resolveModulosSeleccionados(Request $request): array
     {
-        $allKeys = array_keys(self::MODULOS);
+        $allKeys = array_values(array_diff(array_keys(self::MODULOS), ['express']));
         $requested = $request->query('modules', $allKeys);
         $requested = is_array($requested) ? $requested : [$requested];
 
@@ -1650,12 +1669,72 @@ class DashboardController extends Controller
 
     private function resolveDashboardModulosSeleccionados(Request $request): array
     {
+        $requested = $request->query('modules', self::DASHBOARD_MODULE_KEYS);
+        $requested = is_array($requested) ? $requested : [$requested];
         $selected = array_values(array_intersect(
             self::DASHBOARD_MODULE_KEYS,
-            $this->resolveModulosSeleccionados($request)
+            array_unique(array_map(static fn ($item) => strtolower(trim((string) $item)), $requested))
         ));
 
         return $selected ?: self::DASHBOARD_MODULE_KEYS;
+    }
+
+    private function dashboardModuleConfig(string $moduleKey): array
+    {
+        $moduleKey = $moduleKey === 'solicitud' ? 'express' : $moduleKey;
+        if (array_key_exists($moduleKey, $this->moduleConfigCache)) {
+            return $this->moduleConfigCache[$moduleKey];
+        }
+
+        $config = self::MODULOS[$moduleKey];
+
+        if ($moduleKey !== 'express') {
+            return $this->moduleConfigCache[$moduleKey] = $config;
+        }
+
+        $config['registro_eventos'] = $this->existingEventIds((array) ($config['registro_event_names'] ?? []));
+        $config['operational_start_events'] = $this->existingEventIds((array) ($config['operational_start_event_names'] ?? []));
+
+        return $this->moduleConfigCache[$moduleKey] = $config;
+    }
+
+    private function existingEventIds(array $eventNames): array
+    {
+        $names = collect($eventNames)
+            ->flatMap(function (string $name): array {
+                $legacy = match ($name) {
+                    TiktokerEvent::SOLICITUD_REGISTRADA => ['Solicitud Delivery Express registrada.'],
+                    TiktokerEvent::RECIBIDA_ALMACEN => ['Solicitud Delivery Express recibida en almacen.'],
+                    default => [],
+                };
+
+                return [$name, ...$legacy];
+            })
+            ->map(fn (string $name) => mb_strtoupper(trim($name)))
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($names)) {
+            return [];
+        }
+
+        return DB::table('eventos')
+            ->whereIn(DB::raw('TRIM(UPPER(nombre_evento))'), $names)
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+    }
+
+    private function packageCodeExpression(array $config, string $tableAlias = ''): string
+    {
+        if (!empty($config['code_expression'])) {
+            $alias = $tableAlias !== '' ? $tableAlias : $config['table'];
+
+            return sprintf($config['code_expression'], $alias, $alias);
+        }
+
+        return ($tableAlias !== '' ? $tableAlias : $config['table']) . '.codigo';
     }
 
     private function resolveAgrupacion(Request $request): string
@@ -1797,7 +1876,9 @@ class DashboardController extends Controller
         $alias = 'pkg_no_cancelado_' . $eventAlias;
         $alias = str_replace(['.', '-'], '_', $alias);
 
-        $query->join($config['table'] . ' as ' . $alias, $alias . '.codigo', '=', $eventAlias . '.codigo');
+        $query->join($config['table'] . ' as ' . $alias, function ($join) use ($config, $alias, $eventAlias): void {
+            $join->on($eventAlias . '.codigo', '=', DB::raw($this->packageCodeExpression($config, $alias)));
+        });
         $this->excludeCanceledState($query, $alias . '.' . $config['estado_column'], $estadoCanceladoId);
     }
 
@@ -1857,8 +1938,8 @@ class DashboardController extends Controller
             ->groupBy('codigo');
 
         $query = DB::table($config['table'] . ' as t')
-            ->joinSub($entregadoSub, 'ev', function ($join) {
-                $join->on('ev.codigo', '=', 't.codigo');
+            ->joinSub($entregadoSub, 'ev', function ($join) use ($config) {
+                $join->on('ev.codigo', '=', DB::raw($this->packageCodeExpression($config, 't')));
             })
             ->where('t.' . $config['estado_column'], $estadoEntregadoId)
             ->whereRaw(
@@ -1890,7 +1971,7 @@ class DashboardController extends Controller
             // usando el indice codigo/evento/fecha, sin agrupar todo el historico.
             $startSub = DB::table($config['event_table'] . ' as start_event')
                 ->selectRaw('MIN(start_event.created_at) as start_at')
-                ->whereColumn('start_event.codigo', 't.codigo')
+                ->whereRaw('start_event.codigo = ' . $this->packageCodeExpression($config, 't'))
                 ->whereIn('start_event.evento_id', $config['operational_start_events']);
 
             $query = DB::table($config['table'] . ' as t')
@@ -1902,8 +1983,8 @@ class DashboardController extends Controller
                 ->groupBy('codigo');
 
             $query = DB::table($config['table'] . ' as t')
-                ->leftJoinSub($startSub, 'operational_start', function ($join) {
-                    $join->on('operational_start.codigo', '=', 't.codigo');
+                ->leftJoinSub($startSub, 'operational_start', function ($join) use ($config) {
+                    $join->on('operational_start.codigo', '=', DB::raw($this->packageCodeExpression($config, 't')));
                 });
         }
 
@@ -1922,16 +2003,20 @@ class DashboardController extends Controller
         } elseif ($moduloKey === 'contrato') {
             $greenDays = $this->emsGreenDaysSql('t.destino', 't.provincia');
             $yellowDays = "({$greenDays} + 1)";
+        } elseif ($moduloKey === 'express') {
+            $greenDays = $this->emsGreenDaysSql('t.ciudad');
+            $yellowDays = "({$greenDays} + 1)";
         } else {
             $greenDays = (string) self::CERTI_ORDI_GREEN_DAYS;
             $yellowDays = (string) self::CERTI_ORDI_YELLOW_DAYS;
         }
 
+        $packageCode = $this->packageCodeExpression($config, 't');
         $row = $query
-            ->selectRaw("COUNT(DISTINCT CASE WHEN {$startAt} IS NOT NULL AND {$elapsedDays} <= {$greenDays} THEN t.codigo END) as correcto")
-            ->selectRaw("COUNT(DISTINCT CASE WHEN {$startAt} IS NOT NULL AND {$elapsedDays} > {$greenDays} AND {$elapsedDays} <= {$yellowDays} THEN t.codigo END) as retraso")
-            ->selectRaw("COUNT(DISTINCT CASE WHEN {$startAt} IS NOT NULL AND {$elapsedDays} > {$yellowDays} THEN t.codigo END) as rezago")
-            ->selectRaw("COUNT(DISTINCT CASE WHEN {$startAt} IS NULL THEN t.codigo END) as sin_datos")
+            ->selectRaw("COUNT(DISTINCT CASE WHEN {$startAt} IS NOT NULL AND {$elapsedDays} <= {$greenDays} THEN {$packageCode} END) as correcto")
+            ->selectRaw("COUNT(DISTINCT CASE WHEN {$startAt} IS NOT NULL AND {$elapsedDays} > {$greenDays} AND {$elapsedDays} <= {$yellowDays} THEN {$packageCode} END) as retraso")
+            ->selectRaw("COUNT(DISTINCT CASE WHEN {$startAt} IS NOT NULL AND {$elapsedDays} > {$yellowDays} THEN {$packageCode} END) as rezago")
+            ->selectRaw("COUNT(DISTINCT CASE WHEN {$startAt} IS NULL THEN {$packageCode} END) as sin_datos")
             ->first();
 
         return [
@@ -2110,14 +2195,14 @@ class DashboardController extends Controller
             $countEntregas = 0;
 
             foreach ($modulosSeleccionados as $moduloKey) {
-                $config = self::MODULOS[$moduloKey];
+                $config = $this->dashboardModuleConfig($moduloKey);
 
                 $registrosQuery = DB::table($config['table'])
                     ->whereBetween('created_at', [$desde, $hasta]);
                 $this->applyDepartamentoFilter($registrosQuery, $config, $departamento);
                 $this->excludeTestCompanyPackages($registrosQuery, $config);
                 $this->excludeCanceledState($registrosQuery, $config['estado_column'], $this->resolveEstadoIdByName('CANCELADO'));
-                $countRegistros += (int) $registrosQuery->distinct()->count('codigo');
+                $countRegistros += (int) $registrosQuery->distinct()->count(DB::raw($this->packageCodeExpression($config)));
 
                 $entregasQuery = DB::table($config['event_table'])
                     ->where('evento_id', self::EVENTO_ENTREGADO_ID)
@@ -2151,10 +2236,11 @@ class DashboardController extends Controller
         $entregadosMap = array_fill_keys($labels, 0);
 
         foreach ($modulosSeleccionados as $moduloKey) {
-            $config = self::MODULOS[$moduloKey];
+            $config = $this->dashboardModuleConfig($moduloKey);
+            $packageCode = $this->packageCodeExpression($config);
 
             $rowsRegistros = DB::table($config['table'])
-                ->selectRaw($bucketExpression . ' as bucket, COUNT(DISTINCT codigo) as total')
+                ->selectRaw($bucketExpression . " as bucket, COUNT(DISTINCT {$packageCode}) as total")
                 ->whereBetween('created_at', [$chartFrom, $chartTo]);
             $this->applyDepartamentoFilter($rowsRegistros, $config, $departamento);
             $this->applyOrigenDepartamentoFilter($rowsRegistros, $config, $departamentoOrigen);
@@ -2282,7 +2368,7 @@ class DashboardController extends Controller
         $queries = [];
 
         foreach ($modulosSeleccionados as $moduloKey) {
-            $config = self::MODULOS[$moduloKey];
+            $config = $this->dashboardModuleConfig($moduloKey);
             $query = DB::table($config['event_table'])
                 ->select([
                     $config['event_table'] . '.user_id as user_id',
@@ -2307,7 +2393,7 @@ class DashboardController extends Controller
         $queries = [];
 
         foreach ($modulosSeleccionados as $moduloKey) {
-            $config = self::MODULOS[$moduloKey];
+            $config = $this->dashboardModuleConfig($moduloKey);
             $eventTable = $config['event_table'];
 
             $query = DB::table($eventTable)
@@ -2338,7 +2424,7 @@ class DashboardController extends Controller
         $queries = [];
 
         foreach ($modulosSeleccionados as $moduloKey) {
-            $config = self::MODULOS[$moduloKey];
+            $config = $this->dashboardModuleConfig($moduloKey);
             $eventTable = $config['event_table'];
 
             $query = DB::table($eventTable . ' as delivered')
@@ -2391,7 +2477,7 @@ class DashboardController extends Controller
                 $cancelados = 0;
 
                 foreach ($modulosSeleccionados as $moduloKey) {
-                    $config = self::MODULOS[$moduloKey];
+                    $config = $this->dashboardModuleConfig($moduloKey);
 
                     $query = DB::table($config['table']);
                     $this->applyDateFilter($query, 'created_at', $from, $to);
@@ -2402,12 +2488,13 @@ class DashboardController extends Controller
                     $querySinCancelados = clone $query;
                     $this->excludeCanceledState($querySinCancelados, $config['estado_column'], $estadoCanceladoId);
 
-                    $total += (int) (clone $querySinCancelados)->distinct()->count('codigo');
+                    $packageCode = DB::raw($this->packageCodeExpression($config));
+                    $total += (int) (clone $querySinCancelados)->distinct()->count($packageCode);
                     $entregados += $estadoEntregadoId
-                        ? (int) (clone $querySinCancelados)->where($config['estado_column'], $estadoEntregadoId)->distinct()->count('codigo')
+                        ? (int) (clone $querySinCancelados)->where($config['estado_column'], $estadoEntregadoId)->distinct()->count($packageCode)
                         : 0;
                     $cancelados += $estadoCanceladoId
-                        ? (int) (clone $query)->where($config['estado_column'], $estadoCanceladoId)->distinct()->count('codigo')
+                        ? (int) (clone $query)->where($config['estado_column'], $estadoCanceladoId)->distinct()->count($packageCode)
                         : 0;
                 }
 
@@ -2472,11 +2559,13 @@ class DashboardController extends Controller
         $queries = [];
 
         foreach ($modulosSeleccionados as $moduloKey) {
-            $config = self::MODULOS[$moduloKey];
+            $config = $this->dashboardModuleConfig($moduloKey);
             $eventTable = $config['event_table'];
 
             $query = DB::table($eventTable)
-                ->join($config['table'] . ' as pkg_departamento', 'pkg_departamento.codigo', '=', $eventTable . '.codigo')
+                ->join($config['table'] . ' as pkg_departamento', function ($join) use ($config, $eventTable): void {
+                    $join->on($eventTable . '.codigo', '=', DB::raw($this->packageCodeExpression($config, 'pkg_departamento')));
+                })
                 ->select([
                     $eventTable . '.user_id as user_id',
                     DB::raw("'" . $config['label'] . "' as modulo"),
@@ -2498,13 +2587,13 @@ class DashboardController extends Controller
 
     private function buildDepartamentoTransitoSummary(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, array $aliases, ?int $estadoTransitoId, string $departamentoOrigen = ''): array
     {
-        $totales = array_fill_keys(['EMS', 'CONTRATOS', 'CERTIFICADOS', 'ORDINARIOS'], 0);
+        $totales = array_fill_keys(['EMS', 'CONTRATOS', 'CERTIFICADOS', 'ORDINARIOS', 'Delivery Express'], 0);
         if (!$estadoTransitoId) {
             return ['totales' => $totales, 'rows' => [], 'grupos' => []];
         }
 
         foreach ($modulosSeleccionados as $moduloKey) {
-            $config = self::MODULOS[$moduloKey];
+            $config = $this->dashboardModuleConfig($moduloKey);
             $query = DB::table($config['table'] . ' as t')
                 ->where('t.' . $config['estado_column'], $estadoTransitoId);
 
@@ -2512,7 +2601,7 @@ class DashboardController extends Controller
             $this->applyOrigenAliasesFilter($query, $config, $aliases, 't');
             $this->applyOrigenDepartamentoFilter($query, $config, $departamentoOrigen, 't');
             $this->excludeTestCompanyPackages($query, $config, 't');
-            $totales[$config['label']] = (int) $query->distinct()->count('t.codigo');
+            $totales[$config['label']] = (int) $query->distinct()->count(DB::raw($this->packageCodeExpression($config, 't')));
         }
 
         return ['totales' => $totales, 'rows' => [], 'grupos' => []];
@@ -2520,15 +2609,17 @@ class DashboardController extends Controller
 
     private function buildDepartamentoDeliveredSummary(array $modulosSeleccionados, ?Carbon $from, ?Carbon $to, array $aliases, string $departamentoOrigen = ''): array
     {
-        $totales = array_fill_keys(['EMS', 'CONTRATOS', 'CERTIFICADOS', 'ORDINARIOS'], 0);
+        $totales = array_fill_keys(['EMS', 'CONTRATOS', 'CERTIFICADOS', 'ORDINARIOS', 'Delivery Express'], 0);
         $estadoCanceladoId = $this->resolveEstadoIdByName('CANCELADO');
 
         foreach ($modulosSeleccionados as $moduloKey) {
-            $config = self::MODULOS[$moduloKey];
+            $config = $this->dashboardModuleConfig($moduloKey);
             $eventTable = $config['event_table'];
             $query = DB::table($eventTable . ' as delivered')
                 ->where('delivered.evento_id', self::EVENTO_ENTREGADO_ID)
-                ->join($config['table'] . ' as package', 'package.codigo', '=', 'delivered.codigo')
+                ->join($config['table'] . ' as package', function ($join) use ($config): void {
+                    $join->on('delivered.codigo', '=', DB::raw($this->packageCodeExpression($config, 'package')));
+                })
                 ->selectRaw('COUNT(DISTINCT delivered.codigo) as total');
 
             $this->applyDateFilter($query, 'delivered.created_at', $from, $to);
@@ -2552,17 +2643,17 @@ class DashboardController extends Controller
         ?int $estadoTransitoId,
         string $departamentoOrigen = ''
     ): array {
-        $totales = array_fill_keys(['EMS', 'CONTRATOS', 'CERTIFICADOS', 'ORDINARIOS'], 0);
+        $totales = array_fill_keys(['EMS', 'CONTRATOS', 'CERTIFICADOS', 'ORDINARIOS', 'Delivery Express'], 0);
         $estadoSolicitudId = $this->resolveEstadoIdByName('SOLICITUD');
 
         foreach ($modulosSeleccionados as $moduloKey) {
-            $config = self::MODULOS[$moduloKey];
+            $config = $this->dashboardModuleConfig($moduloKey);
             $stateColumn = 't.' . $config['estado_column'];
             $query = DB::table($config['table'] . ' as t')
                 ->whereExists(function (Builder $eventQuery) use ($config): void {
                     $eventQuery->selectRaw('1')
                         ->from($config['event_table'] . ' as operational_start')
-                        ->whereColumn('operational_start.codigo', 't.codigo')
+                        ->whereRaw('operational_start.codigo = ' . $this->packageCodeExpression($config, 't'))
                         ->whereIn('operational_start.evento_id', $config['operational_start_events']);
                 });
 
@@ -2579,7 +2670,7 @@ class DashboardController extends Controller
                 }
             }
 
-            $totales[$config['label']] = (int) $query->distinct()->count('t.codigo');
+            $totales[$config['label']] = (int) $query->distinct()->count(DB::raw($this->packageCodeExpression($config, 't')));
         }
 
         return ['totales' => $totales, 'rows' => [], 'grupos' => []];
@@ -2592,16 +2683,19 @@ class DashboardController extends Controller
             'CONTRATOS' => 0,
             'CERTIFICADOS' => 0,
             'ORDINARIOS' => 0,
+            'Delivery Express' => 0,
         ];
         $rows = collect();
 
         foreach ($modulosSeleccionados as $moduloKey) {
-            $config = self::MODULOS[$moduloKey];
+            $config = $this->dashboardModuleConfig($moduloKey);
             $eventTable = $config['event_table'];
             $label = $config['label'];
 
             $query = DB::table($eventTable)
-                ->join($config['table'] . ' as pkg_departamento', 'pkg_departamento.codigo', '=', $eventTable . '.codigo')
+                ->join($config['table'] . ' as pkg_departamento', function ($join) use ($config, $eventTable): void {
+                    $join->on($eventTable . '.codigo', '=', DB::raw($this->packageCodeExpression($config, 'pkg_departamento')));
+                })
                 ->leftJoin('users', 'users.id', '=', $eventTable . '.user_id')
                 ->select([
                     DB::raw("'" . $label . "' as modulo"),
@@ -2645,12 +2739,13 @@ class DashboardController extends Controller
             'CONTRATOS' => 0,
             'CERTIFICADOS' => 0,
             'ORDINARIOS' => 0,
+            'Delivery Express' => 0,
         ];
         $rows = collect();
         $estadoSolicitudId = $this->resolveEstadoIdByName('SOLICITUD');
 
         foreach ($modulosSeleccionados as $moduloKey) {
-            $config = self::MODULOS[$moduloKey];
+            $config = $this->dashboardModuleConfig($moduloKey);
             $label = $config['label'];
             $estadoColumn = $config['estado_column'];
 
@@ -2662,11 +2757,12 @@ class DashboardController extends Controller
             };
             $companyColumn = "coalesce((select company.nombre from empresa as company where company.id = " . $companyIdExpression . "), 'SIN EMPRESA')";
 
+            $packageCode = $this->packageCodeExpression($config, 't');
             $query = DB::table($config['table'] . ' as t')
                 ->leftJoin('estados as e', 'e.id', '=', 't.' . $estadoColumn)
                 ->select([
                     DB::raw("'" . $label . "' as modulo"),
-                    't.codigo as codigo',
+                    DB::raw($packageCode . ' as codigo'),
                     DB::raw("coalesce(e.nombre_estado, 'SIN ESTADO') as estado"),
                     DB::raw($companyColumn . ' as empresa'),
                     DB::raw($identityColumns['origen'] . ' as origen'),
@@ -2675,10 +2771,10 @@ class DashboardController extends Controller
                     't.created_at as creado_at',
                 ]);
 
-            $query->whereExists(function (Builder $eventQuery) use ($config) {
+            $query->whereExists(function (Builder $eventQuery) use ($config, $packageCode) {
                 $eventQuery->selectRaw('1')
                     ->from($config['event_table'] . ' as inicio_operativo')
-                    ->whereColumn('inicio_operativo.codigo', 't.codigo')
+                    ->whereRaw('inicio_operativo.codigo = ' . $packageCode)
                     ->whereIn('inicio_operativo.evento_id', $config['operational_start_events']);
             });
 
@@ -2715,7 +2811,7 @@ class DashboardController extends Controller
                 });
             }
 
-            $moduleRows = $query->whereNotNull('t.codigo')->orderByDesc('t.created_at')->orderByDesc('t.id')->get()->uniqueStrict('codigo')->values();
+            $moduleRows = $query->whereRaw($packageCode . ' IS NOT NULL')->orderByDesc('t.created_at')->orderByDesc('t.id')->get()->uniqueStrict('codigo')->values();
             $totales[$label] = (int) $moduleRows->count();
             $rows = $rows->concat($moduleRows);
         }
@@ -2785,6 +2881,7 @@ class DashboardController extends Controller
             'CONTRATOS' => 0,
             'CERTIFICADOS' => 0,
             'ORDINARIOS' => 0,
+            'Delivery Express' => 0,
         ];
         $rows = collect();
 
@@ -2796,16 +2893,17 @@ class DashboardController extends Controller
         }
 
         foreach ($modulosSeleccionados as $moduloKey) {
-            $config = self::MODULOS[$moduloKey];
+            $config = $this->dashboardModuleConfig($moduloKey);
             $label = $config['label'];
             $estadoColumn = $config['estado_column'];
             $identityColumns = $this->packageIdentityColumns($moduloKey, $config);
 
+            $packageCode = $this->packageCodeExpression($config, 't');
             $query = DB::table($config['table'] . ' as t')
                 ->leftJoin('estados as e', 'e.id', '=', 't.' . $estadoColumn)
                 ->select([
                     DB::raw("'" . $label . "' as modulo"),
-                    't.codigo as codigo',
+                    DB::raw($packageCode . ' as codigo'),
                     DB::raw("coalesce(nullif(trim(coalesce(CAST(t.cod_especial AS TEXT), '')), ''), 'SIN CODIGO ESPECIAL') as cod_especial"),
                     DB::raw("coalesce(e.nombre_estado, 'SIN ESTADO') as estado"),
                     DB::raw($identityColumns['origen'] . ' as origen'),
@@ -2820,7 +2918,7 @@ class DashboardController extends Controller
             $this->applyOrigenDepartamentoFilter($query, $config, $departamentoOrigen, 't');
             $this->excludeTestCompanyPackages($query, $config, 't');
 
-            $moduleRows = $query->whereNotNull('t.codigo')->orderByDesc('t.created_at')->orderByDesc('t.id')->get()->uniqueStrict('codigo')->values();
+            $moduleRows = $query->whereRaw($packageCode . ' IS NOT NULL')->orderByDesc('t.created_at')->orderByDesc('t.id')->get()->uniqueStrict('codigo')->values();
             $totales[$label] = (int) $moduleRows->count();
             $rows = $rows->concat($moduleRows);
         }
@@ -2924,6 +3022,11 @@ class DashboardController extends Controller
                 'destinatario' => "coalesce(t.nombre_d, '-')",
             ],
             'ems' => [
+                'origen' => "coalesce(t.origen, '-')",
+                'destino' => $destinoColumn,
+                'destinatario' => "coalesce(t.nombre_destinatario, '-')",
+            ],
+            'express', 'solicitud' => [
                 'origen' => "coalesce(t.origen, '-')",
                 'destino' => $destinoColumn,
                 'destinatario' => "coalesce(t.nombre_destinatario, '-')",
@@ -3116,7 +3219,9 @@ class DashboardController extends Controller
         }
 
         $eventCodeColumn = ($eventAlias !== '' ? $eventAlias : $config['event_table']) . '.codigo';
-        $query->join($config['table'] . ' as pkg_departamento', 'pkg_departamento.codigo', '=', $eventCodeColumn);
+        $query->join($config['table'] . ' as pkg_departamento', function ($join) use ($config, $eventCodeColumn): void {
+            $join->on($eventCodeColumn, '=', DB::raw($this->packageCodeExpression($config, 'pkg_departamento')));
+        });
         $this->applyDepartamentoFilter($query, $config, $departamento, 'pkg_departamento');
     }
 
@@ -3127,7 +3232,9 @@ class DashboardController extends Controller
         }
 
         $eventCodeColumn = ($eventAlias !== '' ? $eventAlias : $config['event_table']) . '.codigo';
-        $query->join($config['table'] . ' as pkg_origen_departamento', 'pkg_origen_departamento.codigo', '=', $eventCodeColumn);
+        $query->join($config['table'] . ' as pkg_origen_departamento', function ($join) use ($config, $eventCodeColumn): void {
+            $join->on($eventCodeColumn, '=', DB::raw($this->packageCodeExpression($config, 'pkg_origen_departamento')));
+        });
         $this->applyOrigenDepartamentoFilter($query, $config, $departamentoOrigen, 'pkg_origen_departamento');
     }
 
@@ -3136,7 +3243,7 @@ class DashboardController extends Controller
         $queries = [];
 
         foreach ($modulosSeleccionados as $moduloKey) {
-            $config = self::MODULOS[$moduloKey];
+            $config = $this->dashboardModuleConfig($moduloKey);
             $registroEventos = (array) ($config['registro_eventos'] ?? []);
             if (empty($registroEventos)) {
                 continue;
@@ -3184,6 +3291,7 @@ class DashboardController extends Controller
                 DB::raw("SUM(CASE WHEN r.modulo = 'CONTRATOS' THEN r.total ELSE 0 END) as contrato"),
                 DB::raw("SUM(CASE WHEN r.modulo = 'CERTIFICADOS' THEN r.total ELSE 0 END) as certi"),
                 DB::raw("SUM(CASE WHEN r.modulo = 'ORDINARIOS' THEN r.total ELSE 0 END) as ordi"),
+                DB::raw("SUM(CASE WHEN r.modulo = 'Delivery Express' THEN r.total ELSE 0 END) as express"),
             ])
             ->groupBy('users.id', 'users.name', 'users.ciudad')
             ->orderByDesc($totalAlias);

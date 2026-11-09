@@ -191,16 +191,16 @@
             <div class="row">
                 <div class="col-6 col-md-4 col-xl mb-3">
                     <div class="metric-card metric-card--executive" style="--metric-color:#2364aa">
-                        <div class="metric-label">Guías procesadas</div>
+                        <div class="metric-label">Envíos procesados</div>
                         <div class="metric-value">{{ $formatCount($totals['guias_total']) }}</div>
-                        <div class="metric-note">Contratos y EMS en el periodo</div>
+                        <div class="metric-note">Contratos, EMS y Delivery Express</div>
                     </div>
                 </div>
                 <div class="col-6 col-md-4 col-xl mb-3">
                     <div class="metric-card metric-card--executive" style="--metric-color:#25805a">
                         <div class="metric-label">Peso de paquetes</div>
                         <div class="metric-value">{{ $formatWeight($totals['peso_recibido']) }} <small>kg</small></div>
-                        <div class="metric-note">Suma de contratos y EMS</div>
+                        <div class="metric-note">Contratos, EMS y Delivery Express</div>
                     </div>
                 </div>
                 <div class="col-6 col-md-4 col-xl mb-3">
@@ -208,6 +208,13 @@
                         <div class="metric-label">Paquetes EMS</div>
                         <div class="metric-value">{{ $formatCount($totals['paquetes_ems']) }}</div>
                         <div class="metric-note">{{ $formatWeight($totals['peso_ems']) }} kg registrados</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-4 col-xl mb-3">
+                    <div class="metric-card metric-card--executive" style="--metric-color:#0f766e">
+                        <div class="metric-label">Solicitudes Delivery Express</div>
+                        <div class="metric-value">{{ $formatCount($totals['guias_express']) }}</div>
+                        <div class="metric-note">{{ $formatCount($totals['paquetes_express']) }} paquetes · {{ $formatWeight($totals['peso_express']) }} kg</div>
                     </div>
                 </div>
                 <div class="col-6 col-md-4 col-xl mb-3">
@@ -270,6 +277,7 @@
             $resolutionRows = [
                 ['EMS', $resolutionTime['ems']],
                 ['Contratos', $resolutionTime['contrato']],
+                ['Delivery Express', $resolutionTime['express']],
                 ['Total del periodo', $resolutionTime['total']],
             ];
         @endphp
@@ -326,6 +334,7 @@
             $dispatchRows = [
                 ['EMS', $dispatchTime['ems']],
                 ['Contratos', $dispatchTime['contrato']],
+                ['Delivery Express', $dispatchTime['express']],
                 ['Total del periodo', $dispatchTime['total']],
             ];
         @endphp
@@ -374,6 +383,7 @@
             $transitReceiptRows = [
                 ['EMS', $transitReceiptTime['ems']],
                 ['Contratos', $transitReceiptTime['contrato']],
+                ['Delivery Express', $transitReceiptTime['express']],
                 ['Total del periodo', $transitReceiptTime['total']],
             ];
         @endphp
@@ -424,6 +434,7 @@
                     $courierResolutionRows = [
                         ['EMS', $courierResolutionTime['ems']],
                         ['Contratos', $courierResolutionTime['contrato']],
+                        ['Delivery Express', $courierResolutionTime['express']],
                         ['Total del periodo', $courierResolutionTime['total']],
                     ];
                 @endphp
@@ -477,6 +488,7 @@
         <div class="flow-section">
             <div class="flow-section-heading">
                 <div><div class="flow-kicker">{{ mb_strtoupper($periodLabel) }}</div><h2>Comparativo mes a mes</h2></div>
+                <div class="flow-note">El total mensual incluye contratos, EMS y Delivery Express.</div>
                 <div class="flow-note">La variación compara el total de guías con el mes seleccionado anterior.</div>
             </div>
             <div class="card flow-card">
@@ -516,6 +528,31 @@
                 </div>
                 <div class="card-body border-top py-2">
                 <div class="flow-note">El peso proviene de <strong>bitacoras.peso</strong> por CN-33. Se considera aéreo cuando la transportadora contiene BOA CARGO o BOLIVIANA DE AVIACIÓN, o es BOA; las demás transportadoras se consideran terrestres. El mes corresponde a la fecha de registro de la bitácora.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flow-section">
+            <div class="flow-section-heading">
+                <div><div class="flow-kicker">DELIVERY EXPRESS</div><h2>Solicitudes por mes</h2></div>
+                <div class="flow-note">Solicitudes, cantidad de paquetes y peso registrado en {{ $periodLabel }}.</div>
+            </div>
+            <div class="card flow-card">
+                <div class="table-responsive">
+                    <table class="table flow-table">
+                        <thead><tr><th>Mes</th><th class="text-right">Solicitudes</th><th class="text-right">Paquetes</th><th class="text-right">Peso (kg)</th></tr></thead>
+                        <tbody>
+                            @foreach($months as $month)
+                                <tr>
+                                    <td class="font-weight-bold">{{ $month['nombre'] }}</td>
+                                    <td class="text-right">{{ $formatCount($month['guias_express']) }}</td>
+                                    <td class="text-right">{{ $formatCount($month['paquetes_express']) }}</td>
+                                    <td class="text-right">{{ $formatWeight($month['peso_express']) }}</td>
+                                </tr>
+                            @endforeach
+                            <tr class="total-row"><td>Total del periodo</td><td class="text-right">{{ $formatCount($totals['guias_express']) }}</td><td class="text-right">{{ $formatCount($totals['paquetes_express']) }}</td><td class="text-right">{{ $formatWeight($totals['peso_express']) }}</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
