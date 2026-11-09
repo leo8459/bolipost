@@ -95,17 +95,17 @@
 
     @if($conciliacion->formato_nota_cobranza === 'cuenta_personal')
         <p class="payment">
-            Los servicios prestados por la Agencia Boliviana de Correos deben ser cancelados a la
+            Los servicios prestados por Correos de Bolivia deben ser cancelados a la
             <strong>Cuenta 1-0000004800880 del Banco Unión S.A.</strong>, a nombre de la funcionaria
             <strong>Claudia Patricia Riveros Vera</strong>, Profesional III de Tesorería, Facturación y Cobranzas,
             facultada para esta operación mediante Memorándum AGBC/DESP/DGE No. 036/2025.
         </p>
     @else
         <p class="payment">
-            Los servicios prestados por la Agencia Boliviana de Correos deben ser cancelados al Banco Central de Bolivia
+            Los servicios prestados por Correos de Bolivia deben ser cancelados al Banco Central de Bolivia
             mediante pago PECC a la <strong>Cuenta Única del Tesoro CUT No. 3987069001, Libreta 00383012001</strong>,
-            denominada Ingresos Agencia Boliviana de Correos. Para transferencias electrónicas vía SIGEP,
-            la Agencia Boliviana de Correos se encuentra registrada con el Número de Documento <strong>355701027</strong>.
+            denominada Ingresos Correos de Bolivia. Para transferencias electrónicas vía SIGEP,
+            Correos de Bolivia se encuentra registrada con el Número de Documento <strong>355701027</strong>.
         </p>
     @endif
 
@@ -118,7 +118,7 @@
     </p>
 
     <p class="closing">
-        Sin otro particular y agradeciendo la confianza depositada en la Agencia Boliviana de Correos,
+        Sin otro particular y agradeciendo la confianza depositada en Correos de Bolivia,
         saludamos a ustedes con las consideraciones más distinguidas.
     </p>
 
