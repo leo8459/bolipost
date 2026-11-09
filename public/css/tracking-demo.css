@@ -2105,3 +2105,94 @@ body.tracking-payment-modal-open {
     animation: none !important;
   }
 }
+
+/* Keep the Ventanilla modal compact and prevent the original 480px image size from overflowing. */
+.tracking-payment-modal {
+  overflow-x: hidden;
+}
+
+.tracking-payment-modal__panel {
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.tracking-payment-modal__panel.tracking-payment-modal__panel--progress {
+  width: min(100%, 700px);
+}
+
+.tracking-modal-progress-layout {
+  grid-template-columns: minmax(0, 180px) minmax(0, 1fr);
+  min-width: 0;
+  gap: clamp(0.9rem, 2.5vw, 1.5rem);
+}
+
+.tracking-modal-progress-layout__illustration {
+  width: 100%;
+  max-width: 180px;
+  min-width: 0;
+  height: 158px;
+  justify-self: center;
+}
+
+.tracking-modal-progress-layout__info,
+.tracking-ready-location,
+.tracking-ready-location__details {
+  min-width: 0;
+}
+
+.tracking-ready-location__details > p {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .tracking-payment-modal__panel.tracking-payment-modal__panel--progress {
+    width: min(100%, 680px);
+  }
+
+  .tracking-modal-progress-layout {
+    grid-template-columns: minmax(0, 150px) minmax(0, 1fr);
+    gap: 0.85rem;
+  }
+
+  .tracking-modal-progress-layout__illustration {
+    max-width: 150px;
+    height: 140px;
+  }
+}
+
+@media (max-width: 520px) {
+  .tracking-payment-modal:not([hidden]) {
+    overflow-x: hidden;
+  }
+
+  .tracking-payment-modal__panel {
+    max-height: min(90vh, 720px);
+    overflow-x: hidden;
+  }
+
+  .tracking-modal-progress-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.3rem;
+  }
+
+  .tracking-modal-progress-layout__illustration {
+    width: min(100%, 136px);
+    max-width: 136px;
+    height: 116px;
+    margin: 0 auto 0.25rem;
+  }
+
+  .tracking-modal-progress-layout h2 {
+    margin-right: 2.4rem;
+  }
+
+  .tracking-ready-location {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .tracking-ready-location__map {
+    justify-self: start;
+  }
+}

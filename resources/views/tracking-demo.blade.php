@@ -15,7 +15,7 @@
     @include('partials.google-analytics-lazy', ['trackingId' => 'G-V3Z5RRF35Y'])
     <link rel="stylesheet" href="{{ asset('css/landing-shared.css') }}">
     <link rel="stylesheet" href="{{ asset('css/preregistro-modal.css') }}">
-    <link rel="stylesheet" href="{{ asset('css/tracking-demo.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/tracking-demo.css') }}?v={{ filemtime(public_path('css/tracking-demo.css')) }}">
 </head>
 <body>
     @php
