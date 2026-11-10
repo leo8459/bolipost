@@ -1693,12 +1693,23 @@ class MisVentasController extends Controller
                     break;
                 }
             }
-            $estadoSufe = strtoupper(trim((string) (
-                data_get($row, 'estadoSufe')
-                ?? data_get($row, 'respuesta_emision.estadoSufe')
-                ?? data_get($row, 'estado_emision')
-                ?? ''
-            )));
+            $estadoEmisionPayload = strtoupper(trim((string) data_get($row, 'estado_emision', '')));
+            $estadoSufe = '';
+            foreach ([
+                data_get($row, 'estadoSufe'),
+                data_get($row, 'estado_sufe'),
+                data_get($row, 'respuesta_emision.estadoSufe'),
+                data_get($row, 'respuesta_emision.estado_sufe'),
+                data_get($row, 'respuesta_emision.consultaSefe.estadoSufe'),
+                data_get($row, 'respuesta_emision.consultaSefe.estado_sufe'),
+                $estadoEmisionPayload,
+            ] as $estadoCandidato) {
+                $estadoCandidato = strtoupper(trim((string) ($estadoCandidato ?? '')));
+                if ($estadoCandidato !== '') {
+                    $estadoSufe = $estadoCandidato;
+                    break;
+                }
+            }
             $cuf = trim((string) (
                 data_get($row, 'cuf')
                 ?? data_get($row, 'respuesta_emision.factura.cuf')
@@ -1723,20 +1734,45 @@ class MisVentasController extends Controller
             $isOficial = $this->isOfficialVentaPayload($row);
             $canalEmision = $this->resolveCanalEmisionVentaPayload($row, null, null, $isOficial);
             $metodoPago = $this->resolveMetodoPagoVentaPayload($row, null, null, $canalEmision);
+            $estadoCart = '';
+            foreach ([
+                data_get($row, 'estado'),
+                data_get($row, 'estado_venta'),
+                data_get($row, 'estadoVenta'),
+            ] as $estadoCandidato) {
+                $estadoCandidato = strtolower(trim((string) ($estadoCandidato ?? '')));
+                if ($estadoCandidato !== '') {
+                    $estadoCart = $estadoCandidato;
+                    break;
+                }
+            }
+            if ($estadoCart === '') {
+                $estadoCart = 'emitido';
+            }
+            $estadosAnulacion = [
+                'ANULADA',
+                'ANULADO',
+                'ANULACION_SOLICITADA',
+                'PENDIENTE_ANULACION',
+                'ANULACION_OBSERVADA',
+            ];
+            $esAnulacionFiscal = in_array($estadoSufe, $estadosAnulacion, true)
+                || in_array($estadoEmisionPayload, $estadosAnulacion, true);
+            $esVentaAnulada = in_array($estadoSufe, ['ANULADA', 'ANULADO'], true)
+                || in_array($estadoEmisionPayload, ['ANULADA', 'ANULADO'], true)
+                || in_array($estadoCart, ['anulado', 'descartado'], true);
             $emision = $this->mapEstadoSufeToBridge($estadoSufe);
             if (
-                in_array($estadoSufe, ['FACTURADA', 'PROCESADA'], true)
-                || $numeroFactura !== ''
-                || $pdfUrl !== ''
+                ! $esAnulacionFiscal
+                && (
+                    in_array($estadoSufe, ['FACTURADA', 'PROCESADA'], true)
+                    || ($emision['estado'] === 'SIN ESTADO' && ($numeroFactura !== '' || $pdfUrl !== ''))
+                )
             ) {
                 $emision = [
                     'estado' => 'FACTURADA',
                     'mensaje' => 'Factura emitida correctamente.',
                 ];
-            }
-            $estadoCart = strtolower(trim((string) data_get($row, 'estado', '')));
-            if ($estadoCart === '') {
-                $estadoCart = 'emitido';
             }
             $estadoPago = strtolower(trim((string) data_get($row, 'estado_pago', '')));
             if ($estadoPago === '') {
@@ -1752,13 +1788,21 @@ class MisVentasController extends Controller
             ), 3);
             if ($metodoPago === 'qr') {
                 $qrEstadoEmision = strtoupper(trim((string) data_get($row, 'estado_emision', 'NO_APLICA')));
+                if ($estadoSufe !== '' && $emision['estado'] !== 'SIN ESTADO') {
+                    $qrEstadoEmision = $emision['estado'];
+                }
 
                 if (
-                    in_array($estadoSufe, ['FACTURADA', 'PROCESADA'], true)
-                    || $numeroFactura !== ''
-                    || $pdfUrl !== ''
+                    ! $esAnulacionFiscal
+                    && (
+                        in_array($estadoSufe, ['FACTURADA', 'PROCESADA'], true)
+                        || ($emision['estado'] === 'FACTURADA' && ($numeroFactura !== '' || $pdfUrl !== ''))
+                    )
                 ) {
                     $qrEstadoEmision = 'FACTURADA';
+                }
+                if ($esVentaAnulada) {
+                    $qrEstadoEmision = 'ANULADA';
                 }
 
                 $emision = [
@@ -1769,9 +1813,12 @@ class MisVentasController extends Controller
 
             if ($estadoCart === 'descartado') {
                 $estadoCart = 'anulado';
+            }
+            if ($estadoCart === 'anulado' || in_array($emision['estado'], ['ANULADA', 'ANULADO'], true)) {
+                $estadoCart = 'anulado';
                 $emision = [
                     'estado' => 'ANULADA',
-                    'mensaje' => trim((string) data_get($row, 'mensaje_emision', '')) ?: 'Venta descartada localmente tras rechazo o anulacion de la factura.',
+                    'mensaje' => trim((string) data_get($row, 'mensaje_emision', '')) ?: 'Factura anulada correctamente.',
                 ];
             }
 
@@ -1848,13 +1895,18 @@ class MisVentasController extends Controller
 
     private function kardexRowCompletenessScore(object $row): int
     {
+        $estadoEmision = strtoupper(trim((string) data_get($row, 'estado_emision', '')));
+        $estadoVenta = strtolower(trim((string) data_get($row, 'estado', '')));
+        $isAnnulled = in_array($estadoEmision, ['ANULADA', 'ANULADO'], true)
+            || in_array($estadoVenta, ['anulado', 'descartado'], true);
         $numeroFactura = trim((string) data_get($row, 'numero_factura', ''));
         $cuf = trim((string) data_get($row, 'respuesta_emision.factura.cuf', data_get($row, 'cuf', '')));
         $pdfUrl = trim((string) data_get($row, 'respuesta_emision.factura.pdfUrl', data_get($row, 'pdf_url', '')));
         $items = data_get($row, 'items', []);
         $itemCount = is_countable($items) ? count($items) : 0;
 
-        return ($numeroFactura !== '' && ! in_array($numeroFactura, ['-', '—'], true) ? 100000000 : 0)
+        return ($isAnnulled ? 1000000000 : 0)
+            + ($numeroFactura !== '' && ! in_array($numeroFactura, ['-', '—'], true) ? 100000000 : 0)
             + ($cuf !== '' ? 1000000 : 0)
             + ($pdfUrl !== '' ? 10000 : 0)
             + min(999, $itemCount);
@@ -2091,7 +2143,7 @@ class MisVentasController extends Controller
             'FACTURADA' => ['estado' => 'FACTURADA', 'mensaje' => 'Factura emitida correctamente.'],
             'PROCESADA' => ['estado' => 'FACTURADA', 'mensaje' => 'Factura emitida correctamente.'],
             'ANULADA', 'ANULADO' => ['estado' => 'ANULADA', 'mensaje' => 'Factura anulada correctamente.'],
-            'ANULACION_SOLICITADA' => ['estado' => 'PENDIENTE_ANULACION', 'mensaje' => 'La anulacion fue enviada y espera confirmacion final.'],
+            'ANULACION_SOLICITADA', 'PENDIENTE_ANULACION' => ['estado' => 'PENDIENTE_ANULACION', 'mensaje' => 'La anulacion fue enviada y espera confirmacion final.'],
             'ANULACION_OBSERVADA' => ['estado' => 'ANULACION_OBSERVADA', 'mensaje' => 'La anulacion fue observada y requiere revision.'],
             'PENDIENTE' => ['estado' => 'PENDIENTE', 'mensaje' => 'Emision en proceso de confirmacion.'],
             'RECEPCIONADA', 'CONTINGENCIA_CREADA' => ['estado' => 'PENDIENTE', 'mensaje' => 'Emision en proceso de confirmacion.'],
