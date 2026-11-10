@@ -5338,6 +5338,7 @@
             let facturacionQrPollingRequest = null;
             let facturacionQrPollingErrorCount = 0;
             let facturacionDraftAutosaveEnabled = @json($hasActiveFacturacionItems);
+            let billingAutosaveTimeout = null;
             let facturacionProcessingPreviewTimer = null;
             let facturacionPendingEmitPollTimer = null;
             let facturacionPendingEmitState = null;
@@ -5355,7 +5356,7 @@
                 title: 'Actualizando carrito',
                 text: 'Estamos guardando los cambios en tu carrito, espera un momento...',
             };
-            const FACTURACION_QR_POLL_INTERVAL_MS = 5000;
+            const FACTURACION_QR_POLL_INTERVAL_MS = 15000;
             const FACTURACION_EMIT_PREVIEW_DELAY_MS = 7000;
             const FACTURACION_EMIT_FINAL_WAIT_ATTEMPTS = 4;
             const FACTURACION_EMIT_FINAL_WAIT_INTERVAL_MS = 2200;
@@ -6938,6 +6939,13 @@
                     return;
                 }
 
+                // Preserve the live billing inputs, but always rebind the form to the server's active draft.
+                const currentBillingCartId = facturacionBillingInlineForm?.querySelector('input[name="cart_id"]');
+                const incomingBillingCartId = sourceDoc.querySelector('#facturacionBillingInlineForm input[name="cart_id"]');
+                if (currentBillingCartId instanceof HTMLInputElement && incomingBillingCartId instanceof HTMLInputElement) {
+                    currentBillingCartId.value = incomingBillingCartId.value;
+                }
+
                 const replaceSection = (selector) => {
                     const current = document.querySelector(selector);
                     const incoming = sourceDoc.querySelector(selector);
@@ -7137,6 +7145,12 @@
             const applyFacturacionCartPayloadToUi = (cartData) => {
                 if (!cartData || typeof cartData !== 'object' || !(facturacionShortcutModal instanceof HTMLElement)) {
                     return;
+                }
+
+                const billingCartIdField = facturacionBillingInlineForm?.querySelector('input[name="cart_id"]');
+                if (billingCartIdField instanceof HTMLInputElement && cartData.id !== undefined && cartData.id !== null) {
+                    const cartId = Number(cartData.id);
+                    billingCartIdField.value = Number.isFinite(cartId) && cartId > 0 ? String(cartId) : '';
                 }
 
                 const items = Array.isArray(cartData.items) ? cartData.items.slice() : [];
@@ -7568,6 +7582,11 @@
 
             const resetFacturacionShortcutDraftUi = () => {
                 facturacionDraftAutosaveEnabled = false;
+                window.clearTimeout(billingAutosaveTimeout);
+                const billingCartIdField = facturacionBillingInlineForm?.querySelector('input[name="cart_id"]');
+                if (billingCartIdField instanceof HTMLInputElement) {
+                    billingCartIdField.value = '';
+                }
                 storeInvoiceMode('');
                 const fabBadge = openFacturacionShortcutBtn
                     ? openFacturacionShortcutBtn.querySelector('.global-facturacion-fab__badge')
@@ -8196,6 +8215,7 @@
                 const csrfToken = tokenMeta instanceof HTMLMetaElement ? tokenMeta.content : '';
                 const formData = new FormData(manualForm);
                 formData.set('cart_id', cartId);
+                let retryAfterMs = 0;
 
                 facturacionQrPollingRequest = fetch(manualForm.action, {
                     method: 'POST',
@@ -8209,6 +8229,13 @@
 
                 try {
                     const response = await facturacionQrPollingRequest;
+                    const retryAfterHeader = String(response.headers.get('Retry-After') || '').trim();
+                    if (retryAfterHeader !== '') {
+                        const retryAfterSeconds = Number(retryAfterHeader);
+                        retryAfterMs = Number.isFinite(retryAfterSeconds)
+                            ? Math.max(0, retryAfterSeconds * 1000)
+                            : Math.max(0, Date.parse(retryAfterHeader) - Date.now());
+                    }
                     const data = await response.json().catch(() => null);
 
                     if (!response.ok || !data || data.ok === false) {
@@ -8293,7 +8320,11 @@
                         });
                     }
 
-                    scheduleFacturacionQrPolling(7000);
+                    const exponentialDelayMs = Math.min(
+                        60000,
+                        FACTURACION_QR_POLL_INTERVAL_MS * (2 ** Math.min(facturacionQrPollingErrorCount - 1, 2))
+                    );
+                    scheduleFacturacionQrPolling(Math.max(retryAfterMs, exponentialDelayMs));
                 } finally {
                     facturacionQrPollingRequest = null;
                 }
@@ -9886,7 +9917,6 @@
             }
 
             if (facturacionBillingInlineForm) {
-                let billingAutosaveTimeout = null;
                 let billingAutosavePromise = null;
                 const billingFields = facturacionBillingInlineForm.querySelectorAll('input:not([data-billing-email-toggle]), select');
                 const billingFrequentDemoSearchField = document.getElementById('facturacionBillingFrequentDemoSearch');
@@ -9938,6 +9968,13 @@
                         .then((response) => response.json().catch(() => ({})).then((data) => ({ response, data })))
                         .then(({ response, data }) => {
                             if (!response.ok) {
+                                if (response.status === 409 && data && data.code === 'cart_billing_locked') {
+                                    window.clearTimeout(billingAutosaveTimeout);
+                                    facturacionDraftAutosaveEnabled = false;
+                                    setAutosaveState('is-error', 'La venta ya fue cerrada. Actualiza la página para iniciar otra.');
+                                    return false;
+                                }
+
                                 throw new Error('No se pudo guardar');
                             }
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Exceptions\FacturacionScanConflictException;
+use App\Exceptions\FacturacionCartRemoteException;
 use App\Exceptions\FacturacionSolicitudConfirmationRequired;
 use App\Models\ConceptoFacturacion;
 use App\Services\FacturacionCartService;
@@ -96,7 +97,11 @@ class FacturacionCartController extends Controller
         }
 
         $cartId = isset($validated['cart_id']) ? (int) $validated['cart_id'] : null;
-        $cart = $service->updateDraftBillingData($user, $validated, $cartId);
+        try {
+            $cart = $service->updateDraftBillingData($user, $validated, $cartId);
+        } catch (FacturacionCartRemoteException $e) {
+            return $this->remoteFailureResponse($request, $e, 'guardar');
+        }
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -667,10 +672,19 @@ class FacturacionCartController extends Controller
                     'user_id' => $user?->id,
                     'canal_emision' => $billingSnapshot['canal_emision'] ?? null,
                 ]);
+            } catch (FacturacionCartRemoteException $e) {
+                Log::warning('No se pudo sincronizar snapshot de facturacion antes de emitir.', [
+                    'user_id' => $user?->id,
+                    'upstream_status' => $e->httpStatus(),
+                    'upstream_code' => $e->upstreamCode(),
+                    'connection_failure' => $e->isConnectionFailure(),
+                ]);
+
+                return $this->remoteFailureResponse($request, $e, 'emitir');
             } catch (\Throwable $e) {
                 Log::warning('No se pudo sincronizar snapshot de facturacion antes de emitir.', [
                     'user_id' => $user?->id,
-                    'message' => $e->getMessage(),
+                    'error_type' => class_basename($e),
                 ]);
 
                 $feedback = $this->buildRuntimeFeedback(
@@ -819,6 +833,8 @@ class FacturacionCartController extends Controller
             }
 
             return $redirect;
+        } catch (FacturacionCartRemoteException $e) {
+            return $this->remoteFailureResponse($request, $e, 'emitir');
         } catch (\RuntimeException $e) {
             if ($request->expectsJson()) {
                 return response()->json([
@@ -917,6 +933,8 @@ class FacturacionCartController extends Controller
             }
 
             return $redirect;
+        } catch (FacturacionCartRemoteException $e) {
+            return $this->remoteFailureResponse($request, $e, 'consultar');
         } catch (\RuntimeException $e) {
             if ($request->expectsJson()) {
                 return response()->json([
@@ -1266,11 +1284,74 @@ class FacturacionCartController extends Controller
     {
         return [
             'type' => 'error',
-            'title' => $action === 'consultar' ? 'No se pudo consultar la factura' : 'No se pudo emitir la factura',
-            'message' => 'Caja puede corregir los datos y volver a intentar.',
+            'title' => match ($action) {
+                'consultar' => 'No se pudo consultar la factura',
+                'guardar' => 'No se pudieron guardar los datos de facturacion',
+                default => 'No se pudo emitir la factura',
+            },
+            'message' => $action === 'guardar'
+                ? 'Revisa los datos y vuelve a guardarlos.'
+                : 'Caja puede corregir los datos y volver a intentar.',
             'detail' => trim($message),
             'action' => $action,
         ];
+    }
+
+    private function remoteFailureResponse(
+        Request $request,
+        FacturacionCartRemoteException $exception,
+        string $action
+    ): JsonResponse|RedirectResponse {
+        $upstreamStatus = $exception->httpStatus();
+        $upstreamCode = $exception->upstreamCode();
+        $retryAfter = trim((string) $exception->retryAfter());
+
+        if ($upstreamCode === 'cart_billing_locked') {
+            $status = 409;
+            $feedback = [
+                'type' => 'warning',
+                'title' => 'Venta ya finalizada',
+                'message' => 'Este carrito ya fue cerrado o tiene una factura vinculada.',
+                'detail' => 'Actualiza la página e inicia una nueva venta para continuar.',
+                'action' => $action,
+            ];
+        } elseif ($upstreamStatus === 429) {
+            $status = 429;
+            $feedback = [
+                'type' => 'warning',
+                'title' => 'Consultas limitadas temporalmente',
+                'message' => 'El servicio de Facturación pidió espaciar las consultas.',
+                'detail' => 'Espera unos segundos antes de volver a consultar.',
+                'action' => $action,
+            ];
+        } elseif ($exception->isConnectionFailure() || ($upstreamStatus !== null && $upstreamStatus >= 500)) {
+            $status = 503;
+            $feedback = [
+                'type' => 'warning',
+                'title' => 'No se pudo confirmar el estado',
+                'message' => 'Facturación no respondió a tiempo. Revisa el estado de la venta antes de reintentar.',
+                'detail' => $action === 'emitir'
+                    ? 'No vuelvas a emitir hasta consultar el estado del carrito.'
+                    : 'Vuelve a consultar cuando el servicio esté disponible.',
+                'action' => $action,
+            ];
+        } else {
+            $status = $upstreamStatus !== null && $upstreamStatus >= 400 ? $upstreamStatus : 502;
+            $feedback = $this->buildRuntimeFeedback($exception->getMessage(), $action);
+        }
+
+        if ($request->expectsJson()) {
+            $headers = $retryAfter !== '' ? ['Retry-After' => $retryAfter] : [];
+
+            return response()->json([
+                'ok' => false,
+                'code' => $upstreamCode,
+                'retry_after' => $retryAfter !== '' ? $retryAfter : null,
+                'feedback' => $feedback,
+            ], $status, $headers);
+        }
+
+        return back()->with('facturacion_feedback', $feedback);
     }
 
     private function buildFeedbackMeta(string $estado, string $numeroFactura, string $codigoOrden, string $codigoSeguimiento, string $pdfUrl, string $trackingLabel = 'Seguimiento'): array

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\FacturacionScanConflictException;
+use App\Exceptions\FacturacionCartRemoteException;
 use App\Exceptions\FacturacionSolicitudConfirmationRequired;
 use App\Models\ConceptoFacturacion;
 use App\Models\PaqueteCerti;
@@ -2157,7 +2158,16 @@ class FacturacionCartService
 
     public function fetchVentas(User $user, array $filters): array
     {
-        $body = $this->request('GET', '/cart/ventas', array_merge($filters, [
+        $remoteFilters = $filters;
+        $requestedEmissionState = strtoupper(trim((string) ($remoteFilters['estado_emision'] ?? 'all')));
+        if (in_array($requestedEmissionState, ['ANULADA', 'PENDIENTE_ANULACION', 'ANULACION_OBSERVADA'], true)) {
+            // The UI supports these local states, but the bridge API does not accept them yet.
+            // Fetch all emission states for the same page; the Kardex applies the requested
+            // state locally after it has collected every page.
+            $remoteFilters['estado_emision'] = 'all';
+        }
+
+        $body = $this->request('GET', '/cart/ventas', array_merge($remoteFilters, [
             'origen_usuario_id' => (string) $user->id,
         ]));
         $data = (array) data_get($body, 'data', []);
@@ -2984,9 +2994,15 @@ class FacturacionCartService
                 'timeout_seconds' => $timeout,
                 'connect_timeout_seconds' => $connectTimeout,
                 'filters' => $diagnosticFilters,
-                'error' => $e->getMessage(),
+                'error_type' => class_basename($e),
+                'curl_error_code' => preg_match('/cURL error (\d+)/i', $e->getMessage(), $matches) === 1
+                    ? (int) $matches[1]
+                    : null,
             ]);
-            throw new \RuntimeException($this->connectionFailureMessage($e, $path, $timeout), 0, $e);
+            throw new FacturacionCartRemoteException(
+                $this->connectionFailureMessage($e, $path, $timeout),
+                previous: $e
+            );
         }
 
         try {
@@ -2996,9 +3012,13 @@ class FacturacionCartService
             Log::warning('FacturacionCartService request failed', [
                 'method' => strtoupper($method),
                 'path' => $path,
-                'payload' => $payload,
                 'status' => $response->status(),
-                'body' => $body ?: trim((string) $response->body()),
+                'upstream_code' => is_array($body) ? ($body['code'] ?? null) : null,
+                'payload_fields' => array_values(array_keys($payload)),
+                'validation_fields' => is_array($body) && is_array($body['errors'] ?? null)
+                    ? array_values(array_keys($body['errors']))
+                    : [],
+                'response_bytes' => strlen((string) $response->body()),
             ]);
             $confirmationItemLabel = $this->resolveDuplicateConfirmationItemLabel($payload);
             $duplicateConfirmationCode = (string) ($body['code'] ?? '');
@@ -3025,7 +3045,13 @@ class FacturacionCartService
             if ($msg === '') {
                 $msg = (string) $e->getMessage();
             }
-            throw new \RuntimeException($response->status() . ' ' . $msg, 0, $e);
+            throw new FacturacionCartRemoteException(
+                $response->status() . ' ' . $msg,
+                $response->status(),
+                $duplicateConfirmationCode !== '' ? $duplicateConfirmationCode : null,
+                $response->header('Retry-After'),
+                $e
+            );
         }
 
         if ($response->status() === 204) {
@@ -3043,8 +3069,10 @@ class FacturacionCartService
         }
 
         $contentType = (string) ($response->header('Content-Type') ?? 'desconocido');
-        $snippet = mb_substr($rawBody, 0, 240);
-        throw new \RuntimeException('Respuesta no valida de API facturacion. status=' . $response->status() . ' content_type=' . $contentType . ' body=' . $snippet);
+        throw new FacturacionCartRemoteException(
+            'Respuesta no valida de API facturacion. status=' . $response->status() . ' content_type=' . $contentType . ' response_bytes=' . strlen($rawBody),
+            $response->status()
+        );
     }
 
     private function connectionFailureMessage(ConnectionException $e, string $path, int $timeout): string
