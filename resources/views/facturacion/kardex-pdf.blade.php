@@ -98,6 +98,10 @@
                 @php($operationServiceGroups = collect(data_get($operationGroup, 'service_groups', [])))
                 <tr class="operation-group"><td colspan="9">{{ data_get($operationGroup, 'label') }} · {{ number_format(collect(data_get($operationGroup, 'rows', []))->count()) }} registros</td><td colspan="2" class="right">Bs {{ number_format((float) data_get($operationGroup, 'total_importe', 0), 2, ',', '.') }}</td></tr>
                 @foreach($operationServiceGroups as $serviceName => $serviceRows)
+                    @php($serviceRows = collect($serviceRows))
+                    @if(str_contains(mb_strtoupper((string) $serviceName), 'SERVICIO DE PAGO DE CONTRATOS') || str_contains(mb_strtoupper((string) $serviceName), 'SERVICIO ECA'))
+                <tr class="service-group"><td colspan="9">{{ mb_strtoupper((string) $serviceName) }} · {{ number_format($serviceRows->count()) }} registros</td><td colspan="2" class="right">Bs {{ number_format((float) $serviceRows->sum(fn ($row) => (float) data_get($row, 'importe', 0)), 2, ',', '.') }}</td></tr>
+                    @endif
                     @foreach($serviceRows as $row)
                 <tr class="{{ data_get($row, 'es_anulada') ? 'annulled-row' : '' }}">
                     <td class="center">{{ data_get($row, 'nro') }}</td>

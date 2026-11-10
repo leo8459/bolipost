@@ -3472,13 +3472,15 @@ class MisVentasController extends Controller
         }
 
         // Prefer a billed tariff variant such as EMS Nacional (Eje Troncal)
-        // when the generic service field only says EMS Nacional.
+        // or an explicit Contratos/ECA detail over a generic service name.
         $specific = $candidates->first(function (string $value): bool {
             $normalized = $this->normalizeKardexText($value);
 
             return str_contains($normalized, 'EJE TRONCAL')
                 || str_contains($normalized, 'COBERTURA')
-                || str_contains($normalized, 'INTERNACIONAL');
+                || str_contains($normalized, 'INTERNACIONAL')
+                || ((str_contains($normalized, 'CONTRATO') || str_contains($normalized, 'ECA'))
+                    && $this->kardexServiceDetailSuffix($value) !== '');
         });
 
         return $specific ?: (string) $candidates->first();
@@ -4360,7 +4362,12 @@ class MisVentasController extends Controller
             'VENTANILLA' => 'VENTANILLA',
         ];
 
-        return $map[$beforeDashNormalized] ?? $map[$normalized] ?? $beforeDash;
+        $displayName = $map[$beforeDashNormalized] ?? $map[$normalized] ?? $beforeDash;
+        if (str_contains($beforeDashNormalized, 'CONTRATO') || str_contains($beforeDashNormalized, 'ECA')) {
+            return $this->appendKardexServiceDetail($displayName, $service);
+        }
+
+        return $displayName;
     }
     private function resolveKardexOriginCode(string $regional, mixed $codigoSucursal = null): string
     {
@@ -4397,6 +4404,19 @@ class MisVentasController extends Controller
 
         if (str_contains($normalized, 'CASILLA')) {
             return $this->formatKardexCasillaLabel($tipoServicio, $guiaCasilla);
+        }
+
+        if (str_contains($this->normalizeKardexText($tipoServicio), 'CONTRATO')) {
+            return $this->appendKardexServiceDetail('SERVICIO DE PAGO DE CONTRATOS', $tipoServicio, $detalle);
+        }
+
+        $serviceName = $this->normalizeKardexText($tipoServicio);
+        if (str_contains($serviceName, 'ECA')) {
+            $label = str_contains($normalized, 'INTERNACIONAL')
+                ? 'SERVICIO ECA INTERNACIONAL'
+                : 'SERVICIO ECA';
+
+            return $this->appendKardexServiceDetail($label, $tipoServicio, $detalle);
         }
 
         // Keep domestic EMS admissions classified by the billed product.
@@ -4465,6 +4485,34 @@ class MisVentasController extends Controller
         }
 
         return strtoupper($tipoServicio !== '' ? $tipoServicio : 'SIN DETALLE');
+    }
+
+    private function appendKardexServiceDetail(string $label, string ...$sources): string
+    {
+        $normalizedLabel = $this->normalizeKardexText($label);
+
+        foreach ($sources as $source) {
+            $detail = $this->kardexServiceDetailSuffix($source);
+            if ($detail === '') {
+                continue;
+            }
+
+            $normalizedDetail = $this->normalizeKardexText($detail);
+            if ($normalizedDetail !== '' && str_contains($normalizedLabel, $normalizedDetail)) {
+                continue;
+            }
+
+            return $label . ' - ' . mb_strtoupper($detail);
+        }
+
+        return $label;
+    }
+
+    private function kardexServiceDetailSuffix(string $value): string
+    {
+        $parts = preg_split('/\s+[-\x{2013}\x{2014}]\s*/u', trim($value), 2) ?: [];
+
+        return trim((string) ($parts[1] ?? ''));
     }
 
     private function formatKardexCasillaLabel(string $tipoServicio, string $guiaCasilla): string
