@@ -46,4 +46,47 @@ class UserIpsLink extends Model
 
         return ($domain !== '' ? $domain.'\\' : '').$fid.($name !== '' ? ' - '.$name : '');
     }
+
+    public function offices(): array
+    {
+        return self::officesFromSnapshot($this->last_snapshot ?: [
+            'office_cd' => $this->ips_office_cd,
+            'office_fcd' => $this->ips_office_fcd,
+            'office_name' => $this->ips_office_name,
+        ]);
+    }
+
+    public static function officesFromSnapshot(array $snapshot): array
+    {
+        $offices = (array) ($snapshot['offices'] ?? []);
+        if (isset($snapshot['office_cd'])) {
+            array_unshift($offices, [
+                'office_cd' => $snapshot['office_cd'],
+                'office_fcd' => $snapshot['office_fcd'] ?? '',
+                'office_name' => $snapshot['office_name'] ?? '',
+            ]);
+        }
+
+        return collect($offices)
+            ->filter(fn ($office) => is_array($office)
+                && isset($office['office_cd'])
+                && filter_var($office['office_cd'], FILTER_VALIDATE_INT) !== false
+                && (int) $office['office_cd'] >= 0
+                && (int) $office['office_cd'] <= 32767)
+            ->map(fn (array $office): array => [
+                'office_cd' => (int) $office['office_cd'],
+                'office_fcd' => trim((string) ($office['office_fcd'] ?? '')),
+                'office_name' => trim((string) ($office['office_name'] ?? '')),
+            ])
+            ->unique('office_cd')->values()->all();
+    }
+
+    public function officeSessionSuffix(): string
+    {
+        $primaryOffice = $this->last_snapshot['office_cd'] ?? ($this->offices()[0]['office_cd'] ?? $this->ips_office_cd);
+
+        return (int) $primaryOffice === (int) $this->ips_office_cd
+            ? ''
+            : '_office_'.$this->ips_office_cd;
+    }
 }

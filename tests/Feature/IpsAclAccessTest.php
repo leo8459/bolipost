@@ -8,6 +8,8 @@ use App\Models\User;
 use App\Support\AclPermissionRegistry;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
+use Illuminate\Auth\Middleware\Authorize;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Route;
 use JeroenNoten\LaravelAdminLte\Menu\Filters\GateFilter;
 use Spatie\Permission\Models\Permission;
@@ -84,6 +86,35 @@ class IpsAclAccessTest extends TestCase
         $this->assertSame(200, $response->getStatusCode());
     }
 
+    public function test_office_receipt_requires_operation_permission_even_with_window_access(): void
+    {
+        $this->actingAs($this->user(['internacional.section']));
+        foreach ([17, 18] as $office) {
+            $request = $this->requestForUser('POST', '/internacional/recepcion-oficina/operar?office_cd='.$office, auth()->user());
+            $this->assertContains('can:internacional.workflow.operate', $request->route()->gatherMiddleware());
+            try {
+                app(Authorize::class)->handle($request, fn () => response('allowed'), 'internacional.workflow.operate');
+                $this->fail('Acceder a la ventana no debe permitir registrar una recepcion.');
+            } catch (AuthorizationException $exception) {
+                $this->assertTrue($exception->response()->denied());
+            }
+        }
+    }
+
+    public function test_office_receipt_accepts_operation_permission_from_the_users_role(): void
+    {
+        $role = Role::findOrCreate('operador_recepcion', 'web');
+        $role->givePermissionTo('internacional.workflow.operate');
+        $user = $this->user();
+        $user->setRelation('roles', new Collection([$role]));
+        $this->actingAs($user);
+        foreach ([17, 18] as $office) {
+            $request = $this->requestForUser('POST', '/internacional/recepcion-oficina/operar?office_cd='.$office, $user);
+            $response = app(Authorize::class)->handle($request, fn () => response('allowed'), 'internacional.workflow.operate');
+            $this->assertSame(200, $response->getStatusCode());
+        }
+    }
+
     private function user(array $permissions = []): User
     {
         $user = new User(['name' => 'Operador']);
@@ -96,7 +127,20 @@ class IpsAclAccessTest extends TestCase
 
     private function ipsMenuItem(): array
     {
-        $item = collect(config('adminlte.menu'))->firstWhere('text', 'IPS');
+        $findIps = function (array $items) use (&$findIps): ?array {
+            foreach ($items as $item) {
+                if (($item['text'] ?? null) === 'IPS') {
+                    return $item;
+                }
+
+                if ($found = $findIps($item['submenu'] ?? [])) {
+                    return $found;
+                }
+            }
+
+            return null;
+        };
+        $item = $findIps(config('adminlte.menu'));
         $this->assertIsArray($item);
         $item = (new RoutePermissionFilter())->transform($item);
 

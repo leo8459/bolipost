@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 class RoleController extends Controller
 {
@@ -162,11 +163,15 @@ class RoleController extends Controller
             $normalizedPermissions[] = FacturacionModePolicy::CONFIGURED_PERMISSION;
         }
 
-        $role->update([
-            'name' => $validated['name'],
-        ]);
+        DB::transaction(function () use ($role, $validated, $normalizedPermissions): void {
+            $role->newQuery()->whereKey($role->id)->lockForUpdate()->firstOrFail();
+            $role->update([
+                'name' => $validated['name'],
+            ]);
 
-        $role->syncPermissions($normalizedPermissions);
+            $role->syncPermissions($normalizedPermissions);
+            DB::afterCommit(fn () => app(PermissionRegistrar::class)->forgetCachedPermissions());
+        });
 
         return redirect()->route('roles.index')
             ->with('success', 'Rol actualizado correctamente.')

@@ -47,6 +47,9 @@ class UserIpsLinkController extends Controller
         $ipsError = null;
         $deliveryAgentsByOffice = [];
         $deliveryAgentCatalogError = false;
+        $officesByUser = [];
+        $officeLookupError = false;
+        $officeListIncomplete = false;
 
         try {
             $search = $filters['ips_q'] ?? $filters['q'] ?? '';
@@ -62,6 +65,28 @@ class UserIpsLinkController extends Controller
         }
 
         foreach ($users as $user) {
+            $link = $user->ipsLink;
+            if ($link) {
+                $snapshot = $link->last_snapshot ?? [];
+                if (! is_array($snapshot['offices'] ?? null)) {
+                    try {
+                        $snapshot = Cache::remember(
+                            'sitra:ips:user-offices:v1:'.$link->ips_user_pid,
+                            now()->addMinutes(5),
+                            fn () => $ips->user((int) $link->ips_user_pid)
+                        );
+                    } catch (\Throwable $exception) {
+                        report($exception);
+                        $officeLookupError = true;
+                    }
+                }
+
+                $officeListIncomplete = $officeListIncomplete || ! is_array($snapshot['offices'] ?? null);
+                $officesByUser[$user->id] = is_array($snapshot['offices'] ?? null)
+                    ? UserIpsLink::officesFromSnapshot($snapshot)
+                    : $link->offices();
+            }
+
             $officeCd = (int) ($user->ipsLink?->ips_office_cd ?? 0);
             if ($officeCd === 0 || isset($deliveryAgentsByOffice[$officeCd])) {
                 continue;
@@ -82,12 +107,19 @@ class UserIpsLinkController extends Controller
             }
         }
 
+        foreach ($ipsUsers as $ipsUser) {
+            $officeListIncomplete = $officeListIncomplete || ! is_array($ipsUser['offices'] ?? null);
+        }
+
         return view('user_ips_links.index', [
             'users' => $users,
             'ipsUsers' => $ipsUsers,
             'ipsError' => $ipsError,
             'deliveryAgentsByOffice' => $deliveryAgentsByOffice,
             'deliveryAgentCatalogError' => $deliveryAgentCatalogError,
+            'officesByUser' => $officesByUser,
+            'officeLookupError' => $officeLookupError,
+            'officeListIncomplete' => $officeListIncomplete,
             'filters' => $filters,
         ]);
     }
@@ -144,13 +176,14 @@ class UserIpsLinkController extends Controller
         abort_unless($link, 404);
 
         $ipsUser = $ips->user((int) $link->ips_user_pid);
-        $this->saveLink($user, $ipsUser);
+        $link = $this->saveLink($user, $ipsUser);
 
         return back()->with('success', 'Vinculo IPS verificado y actualizado.')
             ->with('verification', [
                 'pid' => $link->ips_user_pid,
                 'usuario' => $link->label(),
                 'oficina' => $link->ips_office_name ?: 'Sin oficina IPS',
+                'oficinas' => collect($link->offices())->map(fn ($office) => $office['office_name'] ?: $office['office_fcd'] ?: 'Oficina '.$office['office_cd'])->implode(', '),
                 'verificado' => optional($link->last_verified_at)->format('Y-m-d H:i:s'),
             ]);
     }
@@ -201,13 +234,21 @@ class UserIpsLinkController extends Controller
 
     private function saveLink(User $user, array $ipsUser): UserIpsLink
     {
+        Cache::forget('sitra:ips:user-offices:v1:'.$ipsUser['user_pid']);
+
         $existingLink = $user->ipsLink;
-        $officeCd = $ipsUser['office_cd'] ?? null;
+        $offices = collect(UserIpsLink::officesFromSnapshot($ipsUser));
+        $office = $offices->firstWhere('office_cd', $existingLink?->ips_office_cd)
+            ?? $offices->firstWhere('office_cd', $ipsUser['office_cd'] ?? null)
+            ?? $offices->first();
+        $officeCd = $office['office_cd'] ?? null;
         $deliveryAgentCd = $existingLink
+            && $existingLink->ips_office_cd !== null && $officeCd !== null
             && (int) ($existingLink->ips_office_cd ?? 0) === (int) ($officeCd ?? 0)
                 ? $existingLink->delivery_agent_cd
                 : null;
         $deliveryAgentFullCd = $existingLink
+            && $existingLink->ips_office_cd !== null && $officeCd !== null
             && (int) ($existingLink->ips_office_cd ?? 0) === (int) ($officeCd ?? 0)
                 ? $existingLink->delivery_agent_full_cd
                 : null;
@@ -219,9 +260,9 @@ class UserIpsLinkController extends Controller
                 'ips_user_domain' => (string) ($ipsUser['user_domain'] ?? ''),
                 'ips_user_fid' => (string) ($ipsUser['user_fid'] ?? ''),
                 'ips_user_name' => (string) ($ipsUser['user_name'] ?? ''),
-                'ips_office_cd' => $ipsUser['office_cd'] ?? null,
-                'ips_office_fcd' => $ipsUser['office_fcd'] ?? null,
-                'ips_office_name' => $ipsUser['office_name'] ?? null,
+                'ips_office_cd' => $officeCd,
+                'ips_office_fcd' => $office['office_fcd'] ?? null,
+                'ips_office_name' => $office['office_name'] ?? null,
                 'delivery_agent_cd' => $deliveryAgentCd,
                 'delivery_agent_full_cd' => $deliveryAgentFullCd,
                 'ipsweb' => (bool) ($ipsUser['ipsweb'] ?? false),

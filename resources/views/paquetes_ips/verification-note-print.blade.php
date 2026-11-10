@@ -31,7 +31,7 @@
 <body>
     <div class="toolbar">
         <button type="button" onclick="window.print()">Imprimir / Guardar como PDF</button>
-        <a href="{{ route('internacional.sacas', ['paso' => 'abrir', 'q' => $note->receptacle_code]) }}">Volver a la saca</a>
+        <a href="{{ route('internacional.sacas', ['paso' => 'abrir', 'q' => $note->receptacle_code, 'office_cd' => $note->office_cd]) }}">Volver a la saca</a>
     </div>
     <main class="sheet">
         <div class="muted">CORREOS DE BOLIVIA · GESTIÓN POSTAL INTERNACIONAL</div>

@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
+use Spatie\Permission\PermissionRegistrar;
 
 class AuthenticatedSessionController extends Controller
 {
@@ -32,6 +33,10 @@ class AuthenticatedSessionController extends Controller
     public function store(LoginRequest $request): RedirectResponse
     {
         $request->authenticate();
+
+        // Start the session with current assignments, even if an older cache was incomplete.
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        $request->user()?->unsetRelation('roles')->unsetRelation('permissions');
 
         Auth::guard('cliente')->logout();
         $user = $request->user();

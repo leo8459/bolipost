@@ -91,7 +91,7 @@
         }
     }
 
-    const inboundQueueStorageKey = 'ips-inbound-next-scans:' + location.pathname;
+    const inboundQueueStorageKey = 'ips-inbound-next-scans:' + location.pathname + ':office:' + (new URL(location.href).searchParams.get('office_cd') || listing.querySelector('[name="office_cd"]')?.value || 'default');
 
     async function processScanQueue() {
         if (processingScans) return;

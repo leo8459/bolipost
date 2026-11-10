@@ -3,6 +3,7 @@
 @section('title', $title)
 
 @section('content')
+@include('paquetes_ips.partials.offices')
 <div class="container-fluid py-3 ips-receptacle-page">
     @if(session('success'))<div class="alert alert-success" role="status">{{ session('success') }}</div>@endif
     @if($error)<div class="alert alert-warning" role="alert">{{ $error }}</div>@endif
@@ -62,10 +63,12 @@
                     <div class="ips-receptacle-hero-search ips-receptacle-registration-link">
                         <strong>¿Tienes una saca abierta?</strong>
                         <span>Escanea cada paquete para registrarlo y asociarlo a su saca.</span>
-                        <a class="btn btn-warning" href="{{ route('internacional.section', ['section' => 'recepcion-cambio']) }}"><i class="fas fa-barcode mr-1" aria-hidden="true"></i>Ir al registro de paquetes</a>
+                        <a class="btn btn-warning" href="{{ route('internacional.section', \App\Support\IpsOfficeContext::parameters(request(), ['section' => 'recepcion-cambio'])) }}"><i class="fas fa-barcode mr-1" aria-hidden="true"></i>Ir al registro de paquetes</a>
                     </div>
                 @else
-                    <form method="GET" action="{{ route('internacional.sacas', ['paso' => $searchStep, 'queue' => $activeReceptacleQueue]) }}" class="ips-receptacle-hero-search">
+                    <form method="GET" action="{{ route('internacional.sacas', \App\Support\IpsOfficeContext::parameters(request(), ['paso' => $searchStep, 'queue' => $activeReceptacleQueue])) }}" class="ips-receptacle-hero-search">
+                        <input type="hidden" name="office_cd" value="{{ $link->ips_office_cd }}">
+                        <input type="hidden" name="queue" value="{{ $activeReceptacleQueue }}">
                         <label for="sack-code">{{ $activeReceptacleQueue === 'opening' ? 'Busca una saca recibida' : 'Escanea la saca que llegó a la oficina' }}</label>
                         <div class="ips-receptacle-hero-search__controls">
                             <input id="sack-code" name="q" class="form-control" maxlength="35" value="{{ $codigo }}" placeholder="Marbete de la saca" autocomplete="off" required autofocus>
@@ -78,13 +81,13 @@
 
             <div class="card-body ips-receptacle-empty-body">
                 <nav class="ips-receptacle-queues" aria-label="Etapas de recepción de sacas">
-                    <a class="{{ $activeReceptacleQueue === 'expected' ? 'is-active' : '' }}" href="{{ route('internacional.sacas', ['paso' => 'recibir', 'queue' => 'expected']) }}" @if($activeReceptacleQueue === 'expected') aria-current="page" @endif>
+                    <a class="{{ $activeReceptacleQueue === 'expected' ? 'is-active' : '' }}" href="{{ route('internacional.sacas', \App\Support\IpsOfficeContext::parameters(request(), ['paso' => 'recibir', 'queue' => 'expected'])) }}" @if($activeReceptacleQueue === 'expected') aria-current="page" @endif>
                         <span>1</span><strong>Por recibir</strong>
                     </a>
-                    <a class="{{ $activeReceptacleQueue === 'opening' ? 'is-active' : '' }}" href="{{ route('internacional.sacas', ['paso' => 'abrir', 'queue' => 'opening']) }}" @if($activeReceptacleQueue === 'opening') aria-current="page" @endif>
+                    <a class="{{ $activeReceptacleQueue === 'opening' ? 'is-active' : '' }}" href="{{ route('internacional.sacas', \App\Support\IpsOfficeContext::parameters(request(), ['paso' => 'abrir', 'queue' => 'opening'])) }}" @if($activeReceptacleQueue === 'opening') aria-current="page" @endif>
                         <span>2</span><strong>Pendientes de apertura</strong>
                     </a>
-                    <a class="{{ $activeReceptacleQueue === 'registration' ? 'is-active' : '' }}" href="{{ route('internacional.sacas', ['paso' => 'abrir', 'queue' => 'registration']) }}" @if($activeReceptacleQueue === 'registration') aria-current="page" @endif>
+                    <a class="{{ $activeReceptacleQueue === 'registration' ? 'is-active' : '' }}" href="{{ route('internacional.sacas', \App\Support\IpsOfficeContext::parameters(request(), ['paso' => 'abrir', 'queue' => 'registration'])) }}" @if($activeReceptacleQueue === 'registration') aria-current="page" @endif>
                         <span>3</span><strong>Registrar paquetes</strong>
                     </a>
                 </nav>
@@ -125,7 +128,7 @@
                                                     <td><strong>{{ $receptacleRow['items_count'] ?? 'No informados' }}</strong>
                                                         @if(!empty($receptacleRow['items_count_source']))<small class="ips-pending-receptacles__count-source">{{ $receptacleRow['items_count_source'] }}</small>@endif
                                                     </td>
-                                                    <td><a class="btn btn-sm btn-outline-primary" href="{{ route('internacional.sacas', ['paso' => 'recibir', 'queue' => 'expected', 'q' => $receptacleRow['codigo']]) }}"><i class="fas fa-inbox mr-1" aria-hidden="true"></i>Registrar recepción</a></td>
+                                                    <td><a class="btn btn-sm btn-outline-primary" href="{{ route('internacional.sacas', \App\Support\IpsOfficeContext::parameters(request(), ['paso' => 'recibir', 'queue' => 'expected', 'q' => $receptacleRow['codigo']])) }}"><i class="fas fa-inbox mr-1" aria-hidden="true"></i>Registrar recepción</a></td>
                                                 @elseif($activeReceptacleQueue === 'opening')
                                                     <td>{{ !empty($receptacleRow['event_at']) ? \Illuminate\Support\Carbon::parse($receptacleRow['event_at'])->timezone('America/La_Paz')->format('d/m/Y H:i') : '—' }}</td>
                                                     <td>{{ !empty($receptacleRow['event_at']) ? \Illuminate\Support\Carbon::parse($receptacleRow['event_at'])->diffInDays(now()) . ' días' : '—' }}</td>
@@ -133,7 +136,7 @@
                                                     <td><strong>{{ $receptacleRow['items_count'] ?? 'No informados' }}</strong>
                                                         @if(!empty($receptacleRow['items_count_source']))<small class="ips-pending-receptacles__count-source">{{ $receptacleRow['items_count_source'] }}</small>@endif
                                                     </td>
-                                                    <td><a class="btn btn-sm btn-outline-primary" href="{{ route('internacional.sacas', ['paso' => 'abrir', 'queue' => 'opening', 'q' => $receptacleRow['codigo']]) }}"><i class="fas fa-box-open mr-1" aria-hidden="true"></i>Revisar y abrir</a></td>
+                                                    <td><a class="btn btn-sm btn-outline-primary" href="{{ route('internacional.sacas', \App\Support\IpsOfficeContext::parameters(request(), ['paso' => 'abrir', 'queue' => 'opening', 'q' => $receptacleRow['codigo']])) }}"><i class="fas fa-box-open mr-1" aria-hidden="true"></i>Revisar y abrir</a></td>
                                                 @else
                                                     <td>{{ !empty($receptacleRow['event_at']) ? \Illuminate\Support\Carbon::parse($receptacleRow['event_at'])->timezone('America/La_Paz')->format('d/m/Y H:i') : '—' }}</td>
                                                     <td>{{ is_numeric($receptacleRow['weight_kg'] ?? null) ? number_format((float) $receptacleRow['weight_kg'], 3, ',', '.') . ' kg' : '—' }}</td>
@@ -143,7 +146,7 @@
                                                     <td><span class="badge {{ $receptacleRow['registration_status'] === 'Conteo alcanzado' ? 'badge-success' : ($receptacleRow['registration_status'] === 'Revisar diferencia' ? 'badge-warning' : 'badge-info') }}">{{ $receptacleRow['registration_status'] }}</span>
                                                         @if($receptacleRow['remaining_items_count'] !== null && $receptacleRow['remaining_items_count'] > 0)<small class="ips-pending-receptacles__count-source">Faltan {{ $receptacleRow['remaining_items_count'] }}</small>@endif
                                                     </td>
-                                                    <td><a class="btn btn-sm btn-outline-primary" href="{{ route('internacional.section', ['section' => 'recepcion-cambio', 'receptacle_pid' => $receptacleRow['id']]) }}"><i class="fas fa-barcode mr-1" aria-hidden="true"></i>Registrar paquetes</a></td>
+                                                    <td><a class="btn btn-sm btn-outline-primary" href="{{ route('internacional.section', \App\Support\IpsOfficeContext::parameters(request(), ['section' => 'recepcion-cambio', 'receptacle_pid' => $receptacleRow['id']])) }}"><i class="fas fa-barcode mr-1" aria-hidden="true"></i>Registrar paquetes</a></td>
                                                     @endif
                                             </tr>
                                         @endforeach
@@ -155,7 +158,7 @@
                                 @if($queueLastPage > 1)
                                     <div class="ips-pending-receptacles__page-links">
                                         @if($queuePage > 1)
-                                            <a class="btn btn-sm btn-outline-primary" href="{{ route('internacional.sacas', ['paso' => $searchStep, 'queue' => $activeReceptacleQueue, 'page' => $queuePage - 1]) }}" aria-label="Página anterior">&lsaquo;</a>
+                                            <a class="btn btn-sm btn-outline-primary" href="{{ route('internacional.sacas', \App\Support\IpsOfficeContext::parameters(request(), ['paso' => $searchStep, 'queue' => $activeReceptacleQueue, 'page' => $queuePage - 1])) }}" aria-label="Página anterior">&lsaquo;</a>
                                         @endif
                                         @if($queuePage <= 1)
                                             <span class="btn btn-sm btn-outline-primary disabled" aria-disabled="true" aria-label="Página anterior">&lsaquo;</span>
@@ -165,11 +168,11 @@
                                                 <span class="ips-pending-receptacles__ellipsis" aria-hidden="true">…</span>
                                             @endif
                                             @if($queuePageItem !== '…')
-                                                <a class="btn btn-sm {{ $queuePageItem === $queuePage ? 'btn-warning' : 'btn-outline-primary' }}" href="{{ route('internacional.sacas', ['paso' => $searchStep, 'queue' => $activeReceptacleQueue, 'page' => $queuePageItem]) }}" @if($queuePageItem === $queuePage) aria-current="page" @endif>{{ $queuePageItem }}</a>
+                                                <a class="btn btn-sm {{ $queuePageItem === $queuePage ? 'btn-warning' : 'btn-outline-primary' }}" href="{{ route('internacional.sacas', \App\Support\IpsOfficeContext::parameters(request(), ['paso' => $searchStep, 'queue' => $activeReceptacleQueue, 'page' => $queuePageItem])) }}" @if($queuePageItem === $queuePage) aria-current="page" @endif>{{ $queuePageItem }}</a>
                                             @endif
                                         @endforeach
                                         @if($queuePage < $queueLastPage)
-                                            <a class="btn btn-sm btn-outline-primary" href="{{ route('internacional.sacas', ['paso' => $searchStep, 'queue' => $activeReceptacleQueue, 'page' => $queuePage + 1]) }}" aria-label="Página siguiente">&rsaquo;</a>
+                                            <a class="btn btn-sm btn-outline-primary" href="{{ route('internacional.sacas', \App\Support\IpsOfficeContext::parameters(request(), ['paso' => $searchStep, 'queue' => $activeReceptacleQueue, 'page' => $queuePage + 1])) }}" aria-label="Página siguiente">&rsaquo;</a>
                                         @endif
                                         @if($queuePage >= $queueLastPage)
                                             <span class="btn btn-sm btn-outline-primary disabled" aria-disabled="true" aria-label="Página siguiente">&rsaquo;</span>
@@ -231,7 +234,8 @@
                                 <small>GESTIÓN INTERNACIONAL</small>
                                 <strong>Recibir y abrir saca</strong>
                             </div>
-                            <form method="GET" action="{{ route('internacional.sacas', ['paso' => $paso]) }}" class="ips-receptacle-search__form ips-receptacle-search__form--inline ips-receptacle-toolbar__search">
+                            <form method="GET" action="{{ route('internacional.sacas', \App\Support\IpsOfficeContext::parameters(request(), ['paso' => $paso])) }}" class="ips-receptacle-search__form ips-receptacle-search__form--inline ips-receptacle-toolbar__search">
+                                <input type="hidden" name="office_cd" value="{{ $link->ips_office_cd }}">
                                 <label class="sr-only" for="next-sack-code">Buscar otra saca</label>
                                 <input id="next-sack-code" name="q" class="form-control" maxlength="35" value="{{ $codigo }}" placeholder="Escanea otra saca" autocomplete="off" onfocus="this.select()" autofocus required>
                                 <button class="btn btn-warning" type="submit"><i class="fas fa-search mr-1" aria-hidden="true"></i>Buscar</button>
@@ -287,7 +291,7 @@
                                     </div>
                                 @endif
                                 <div class="ips-receptacle-next-step__action">
-                                    <form method="POST" action="{{ route('internacional.sacas.operate', ['paso' => $operationStep]) }}">
+                                    <form method="POST" action="{{ route('internacional.sacas.operate', \App\Support\IpsOfficeContext::parameters(request(), ['paso' => $operationStep])) }}">
                                         {!! csrf_field() !!}
                                         <input type="hidden" name="codigo" value="{{ $receptacle['codigo'] }}">
                                         <input type="hidden" name="idempotency_key" value="{{ $idempotencyKey }}">
@@ -305,8 +309,8 @@
                                     <span>Elige el flujo según el estado IPS. La devolución de Aduana registra el evento 38; luego el envío se encamina a su oficina destinataria y allí se registra la llegada (32).</span>
                                 </div>
                                 <div class="ips-receptacle-next-step__action">
-                                    <a class="btn btn-warning btn-block" href="{{ route('internacional.section', ['section' => 'recepcion-cambio', 'receptacle_pid' => $receptacle['id']]) }}"><i class="fas fa-barcode mr-1" aria-hidden="true"></i>Registrar recepción internacional (30)</a>
-                                    <a class="btn btn-outline-primary btn-block mt-2" href="{{ route('internacional.section', ['section' => 'devolucion-aduana', 'receptacle_pid' => $receptacle['id']]) }}"><i class="fas fa-undo mr-1" aria-hidden="true"></i>Registrar devoluciones de Aduana (38)</a>
+                                    <a class="btn btn-warning btn-block" href="{{ route('internacional.section', \App\Support\IpsOfficeContext::parameters(request(), ['section' => 'recepcion-cambio', 'receptacle_pid' => $receptacle['id']])) }}"><i class="fas fa-barcode mr-1" aria-hidden="true"></i>Registrar recepción internacional (30)</a>
+                                    <a class="btn btn-outline-primary btn-block mt-2" href="{{ route('internacional.section', \App\Support\IpsOfficeContext::parameters(request(), ['section' => 'devolucion-aduana', 'receptacle_pid' => $receptacle['id']])) }}"><i class="fas fa-undo mr-1" aria-hidden="true"></i>Registrar devoluciones de Aduana (38)</a>
                                 </div>
                             </div>
                         @elseif($isReceivedClosed && !$isCurrentReceptacleOffice)

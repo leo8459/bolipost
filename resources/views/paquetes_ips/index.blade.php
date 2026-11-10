@@ -1,6 +1,7 @@
 @extends('adminlte::page')
 @section('title', 'IPS')
 @section('content')
+@include('paquetes_ips.partials.offices')
 <div class="ips-workspace" data-delivery-only="{{ $deliveryOnly ? '1' : '0' }}" data-courier-only="{{ $courierOnly ? '1' : '0' }}" data-workflow-action="{{ $workflowAction ?? '' }}" data-scan-enabled="{{ $readOnly ? '0' : '1' }}" data-preferred-receptacle="{{ $preferredReceptaclePid ?? '' }}" data-add-label="{{ ($workflowAction ?? null) ? 'Agregar al paso' : (($deliveryOnly ?? false) ? 'Agregar a entrega' : 'Agregar') }}" data-selection-add-url="{{ $selectionAddUrl }}" data-operate-url="{{ $operateUrl }}">
     @if(!$warehouseView && ($workflowAction ?? null) !== 'EDN')
     <header class="ips-heading">
@@ -20,7 +21,7 @@
     @if($missingPackageCode && $workflowAction === 'EMR')
         <section class="ips-panel mb-3">
             <div class="ips-panel-header"><h2><i class="fas fa-plus-circle mr-2"></i>Registrar envío recibido que aún no existe en IPS</h2></div>
-            <form id="ips-inbound-create" method="POST" action="{{ route('internacional.inbound.create') }}" class="p-3">
+            <form id="ips-inbound-create" method="POST" action="{{ route('internacional.inbound.create', \App\Support\IpsOfficeContext::parameters(request(), [])) }}" class="p-3">
                 @csrf
                 <input type="hidden" name="idempotency_key" value="{{ $inboundCreateKey }}">
                 <input type="hidden" name="destination_country" value="BO">
@@ -149,7 +150,7 @@
                     @forelse($selection as $code=>$entry)
                         <article class="ips-tray-item" data-code="{{ $code }}" data-event="{{ (int) ($entry['package']['operational_event_cd'] ?? $entry['package']['event_cd'] ?? 0) }}" data-actions="{{ implode(',', $entry['package']['allowed_actions'] ?? []) }}" data-status="{{ $entry['status'] }}" data-payload-action="{{ $entry['payload']['event'] ?? '' }}" data-customs-return="{{ in_array((int) ($entry['package']['operational_event_cd'] ?? $entry['package']['event_cd'] ?? 0), [31, 34, 1251], true) && (int) ($entry['package']['state_cd'] ?? -1) === 1 ? '1' : '0' }}" data-route-mismatch="{{ !empty($entry['route_mismatch_receipt']) ? '1' : '0' }}">
                             <div class="d-flex align-items-center"><input class="ips-choice mr-2" type="checkbox" aria-label="Seleccionar {{ $code }}" @if($deliveryOnly) hidden @endif><strong>{{ $code }}</strong>
-                                @unless(in_array($entry['status'],['processing','uncertain'],true))<form class="ml-auto ips-selection-remove" method="POST" action="{{ route($selectionRemoveRouteName, ($workflowAction ?? null) ? (['section' => $section, 'codigo' => $code] + (($workflowAction === 'CUSTOMS_RETURN' && !empty($entry['receptacle_pid'])) ? ['receptacle_pid' => $entry['receptacle_pid']] : [])) : $code) }}">@csrf @method('DELETE')<button type="submit" class="btn btn-sm text-muted" aria-label="Quitar {{ $code }}"><i class="fas fa-times"></i></button></form>@endunless
+                                @unless(in_array($entry['status'],['processing','uncertain'],true))<form class="ml-auto ips-selection-remove" method="POST" action="{{ route($selectionRemoveRouteName, \App\Support\IpsOfficeContext::parameters(request(), ($workflowAction ?? null) ? (['section' => $section, 'codigo' => $code] + (($workflowAction === 'CUSTOMS_RETURN' && !empty($entry['receptacle_pid'])) ? ['receptacle_pid' => $entry['receptacle_pid']] : [])) : ['codigo' => $code])) }}">@csrf @method('DELETE')<button type="submit" class="btn btn-sm text-muted" aria-label="Quitar {{ $code }}"><i class="fas fa-times"></i></button></form>@endunless
                             </div>
                             <small class="ips-item-stage">Etapa actual · {{ $entry['package']['stage']['label'] }}</small>
                             @if(!empty($entry['route_mismatch_receipt']))<p class="alert alert-warning py-2 px-2 mt-2 mb-2">Ruta IPS: {{ $entry['package']['next_office_name'] ?: 'otra oficina' }}. Se intentará registrar evento 32 aquí; no se agregará un evento de cambio de ruta. La operación depende de la respuesta IPS.</p>@endif
@@ -785,7 +786,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     operation.non_delivery_reason = row.querySelector('.ips-nondelivery-reason').value;
                     operation.non_delivery_measure = row.querySelector('.ips-nondelivery-measure').value;
                 }
-                const response = await fetch(document.querySelector('.ips-workspace')?.dataset.operateUrl || @json(route('ips.operate')), {
+                const response = await fetch(document.querySelector('.ips-workspace')?.dataset.operateUrl || @json(route('ips.operate', \App\Support\IpsOfficeContext::parameters(request(), []))), {
                     method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':@json(csrf_token())},
                     body:JSON.stringify(operation)
                 });

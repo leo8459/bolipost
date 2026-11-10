@@ -16,11 +16,17 @@
             <strong>Datos confirmados en IPS</strong>:
             PID {{ $verification['pid'] }} · {{ $verification['usuario'] }} ·
             Oficina: {{ $verification['oficina'] }} ·
+            @if(!empty($verification['oficinas'])) Oficinas asignadas: {{ $verification['oficinas'] }} · @endif
             Verificado: {{ $verification['verificado'] }}
         </div>
     @endif
     @if($ipsError)
         <div class="alert alert-warning">{{ $ipsError }}</div>
+    @endif
+    @if($officeLookupError)
+        <div class="alert alert-warning">No fue posible consultar las oficinas en SITRA. Se muestran las oficinas guardadas; vuelve a intentar con Verificar.</div>
+    @elseif($officeListIncomplete)
+        <div class="alert alert-warning">SITRA solo devuelve la oficina principal de algunos usuarios. Para ver todas sus oficinas, es necesario actualizar el servicio de SITRA y luego pulsar Verificar.</div>
     @endif
     @if($deliveryAgentCatalogError)
         <div class="alert alert-warning">No fue posible cargar el catálogo de carteros de SITRA. Puedes volver a intentar la asignación más tarde.</div>
@@ -97,8 +103,15 @@
                                             <span class="badge badge-success">Vinculado</span>
                                             <div><strong>{{ $link->label() }}</strong></div>
                                             <div class="text-muted small">PID {{ $link->ips_user_pid }} · {{ $link->ips_office_name ?: 'Sin oficina IPS' }}</div>
+                                            @php($assignedOffices = $officesByUser[$user->id] ?? $link->offices())
+                                            <div class="small mt-1"><strong>Oficinas en IPS ({{ count($assignedOffices) }}):</strong></div>
+                                            @forelse($assignedOffices as $office)
+                                                <div class="text-muted small">{{ $office['office_name'] ?: 'Oficina '.$office['office_cd'] }}{{ $office['office_fcd'] !== '' ? ' · '.$office['office_fcd'] : '' }}</div>
+                                            @empty
+                                                <div class="text-muted small">Sin oficinas asignadas.</div>
+                                            @endforelse
                                             <div class="text-muted small">Verificado {{ optional($link->last_verified_at)->format('Y-m-d H:i') ?: 'sin fecha' }}</div>
-                                            @if($link->ips_office_cd)
+                                            @if($link->ips_office_cd !== null)
                                                 @php($officeAgents = $deliveryAgentsByOffice[$link->ips_office_cd] ?? [])
                                                 <form method="POST" action="{{ route('users.ips-links.delivery-agent.update', $user) }}" class="mt-2">
                                                     @csrf
@@ -196,7 +209,7 @@
                             <tr>
                                 <th>PID</th>
                                 <th>Usuario IPS</th>
-                                <th>Oficina</th>
+                                <th>Oficinas IPS</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -215,7 +228,13 @@
                                             @endif
                                         </div>
                                     </td>
-                                    <td class="small">{{ $ipsUser['office_name'] ?: '-' }}</td>
+                                    <td class="small">
+                                        @forelse(\App\Models\UserIpsLink::officesFromSnapshot($ipsUser) as $office)
+                                            <div>{{ $office['office_name'] ?: 'Oficina '.$office['office_cd'] }}{{ $office['office_fcd'] !== '' ? ' · '.$office['office_fcd'] : '' }}</div>
+                                        @empty
+                                            -
+                                        @endforelse
+                                    </td>
                                 </tr>
                             @empty
                                 <tr><td colspan="3" class="text-muted text-center py-4">Busca por alias, dominio o nombre para ver candidatos.</td></tr>

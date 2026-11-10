@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\IpsVerificationNote;
 use App\Services\SitraIpsClient;
+use App\Support\IpsOfficeContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
@@ -162,7 +163,7 @@ class IpsReceptacleIncidentController extends Controller
             throw $exception;
         }
 
-        return redirect()->route('internacional.sacas', ['paso' => 'abrir', 'q' => $code])
+        return redirect()->route('internacional.sacas', IpsOfficeContext::parameters($request, ['paso' => 'abrir', 'q' => $code]))
             ->with('success', 'Incidencia registrada localmente. Prepara la CP 78/CN 43 y transmite la nota por el canal postal autorizado.');
     }
 
@@ -186,7 +187,7 @@ class IpsReceptacleIncidentController extends Controller
             'status' => 'sent',
         ]);
 
-        return redirect()->route('internacional.sacas', ['paso' => 'abrir', 'q' => strtoupper($codigo)])
+        return redirect()->route('internacional.sacas', IpsOfficeContext::parameters($request, ['paso' => 'abrir', 'q' => strtoupper($codigo)]))
             ->with('success', 'Transmisión externa registrada con el número de nota indicado.');
     }
 
@@ -206,7 +207,7 @@ class IpsReceptacleIncidentController extends Controller
             'status' => 'resolved',
         ]);
 
-        return redirect()->route('internacional.sacas', ['paso' => 'abrir', 'q' => strtoupper($codigo)])
+        return redirect()->route('internacional.sacas', IpsOfficeContext::parameters($request, ['paso' => 'abrir', 'q' => strtoupper($codigo)]))
             ->with('success', 'Resolución de la nota guardada.');
     }
 
@@ -231,7 +232,7 @@ class IpsReceptacleIncidentController extends Controller
 
     private function context(Request $request): array
     {
-        $link = $request->user()->ipsLink;
+        $link = IpsOfficeContext::resolve($request);
         abort_unless($link && $link->active && $link->ips_office_cd !== null, 403, 'Necesita un vínculo IPS activo con oficina asignada.');
 
         return [$link];
