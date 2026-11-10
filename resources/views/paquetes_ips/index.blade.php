@@ -209,6 +209,7 @@
                 <button id="ips-process" class="btn btn-primary btn-block mt-3" disabled>Selecciona paquetes compatibles</button>
                 @if($workflowAction)<button id="ips-clear-completed" class="btn btn-outline-primary btn-block mt-2" type="button" hidden>Preparar siguiente lote</button>@endif
                 <p id="ips-progress" role="status" aria-live="polite" class="ips-help"></p>
+                <button id="ips-receipt-summary-open" class="btn btn-outline-primary btn-block" type="button" hidden>Ver resumen de recepción</button>
                 <button id="ips-refresh" class="btn btn-outline-primary btn-block" hidden onclick="location.reload()">Actualizar resultados</button>
             </div>
         </aside>
@@ -216,6 +217,30 @@
     </div>
     @endif
 </div>
+@unless($readOnly)
+<dialog id="ips-receipt-summary" aria-labelledby="ips-receipt-summary-title" aria-describedby="ips-receipt-summary-description">
+    <div class="ips-receipt-summary-heading">
+        <span id="ips-receipt-summary-icon" class="ips-receipt-summary-icon" aria-hidden="true"><i class="fas fa-check"></i></span>
+        <div><p class="ips-receipt-summary-eyebrow">RESULTADO DEL LOTE</p><h3 id="ips-receipt-summary-title">Resumen de recepción</h3></div>
+        <button id="ips-receipt-summary-close" type="button" class="ips-receipt-summary-close" aria-label="Cerrar resumen"><i class="fas fa-times" aria-hidden="true"></i></button>
+    </div>
+    <p id="ips-receipt-summary-description"></p>
+    <dl class="ips-receipt-summary-counts">
+        <div class="ips-receipt-summary-received"><dt>Recibidos</dt><dd id="ips-receipt-summary-received">0</dd></div>
+        <div><dt>Sin confirmar</dt><dd id="ips-receipt-summary-pending">0</dd></div>
+        <div><dt>No recibidos</dt><dd id="ips-receipt-summary-rejected">0</dd></div>
+    </dl>
+    <p id="ips-receipt-summary-help" class="ips-receipt-summary-help"></p>
+    <details class="ips-receipt-summary-details">
+        <summary>Ver detalle de los paquetes</summary>
+        <ul id="ips-receipt-summary-items"></ul>
+    </details>
+    <div class="ips-receipt-summary-actions">
+        <button id="ips-receipt-summary-review" class="btn btn-outline-primary" type="button" hidden>Revisar paquetes</button>
+        <button id="ips-receipt-summary-done" class="btn btn-primary" type="button" autofocus>Entendido</button>
+    </div>
+</dialog>
+@endunless
 <dialog id="ips-confirm"><form method="dialog"><h3>Confirmar movimiento</h3><p id="ips-confirm-description"></p><p id="ips-confirm-codes"></p><p>Se validará cada paquete nuevamente. Cada movimiento tendrá su propio resultado.</p><label id="ips-customs-confirm-fields" class="ips-customs-confirm-label" hidden><input id="ips-customs-confirm" type="checkbox" required> Confirmo que Aduana devolvió físicamente estos paquetes a la oficina y que ahora se entregan a sus destinatarios.</label><div class="d-flex justify-content-end mt-3"><button value="cancel" formnovalidate class="btn btn-light mr-2">Volver</button><button value="confirm" class="btn btn-primary">Confirmar y registrar</button></div></form></dialog>
 @endsection
 @section('css')
@@ -229,6 +254,7 @@
 .ips-tray{position:sticky;top:75px}.ips-tray-body{padding:18px}.ips-tray-body>p{font-size:.82rem;color:#697b90}.ips-tray-body label{font-size:.82rem;color:#324c69}.ips-tray-items{max-height:480px;overflow:auto}.ips-tray-item{padding:12px 0;border-bottom:1px solid #e8eef4;font-size:.8rem}.ips-tray-item small{display:block;color:#738297;margin:5px 0}.ips-tray-item .ips-item-stage{font-weight:700;color:#435d79}.ips-tray-item.is-ineligible{opacity:.65}.ips-help{font-size:.77rem;color:#63778e;margin:10px 0}.ips-action-heading{font-size:.83rem;font-weight:700;color:#324c69;margin:14px 0 8px}.ips-delivery-action-group{border-top:1px solid #edf1f6;padding:8px 0}.ips-delivery-action-group[hidden],.ips-delivery-action[hidden]{display:none!important}.ips-delivery-action-group h4{font-size:.67rem;text-transform:uppercase;letter-spacing:.06em;color:#718096;margin:0 0 6px}.ips-delivery-action-options{display:grid;gap:5px}.ips-delivery-action{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;padding:8px 10px;border:1px solid #dbe4ef;border-radius:8px;background:#fff;color:#315279;text-align:left;font-size:.76rem;line-height:1.25;cursor:pointer}.ips-delivery-action:hover{background:#f5f8fc;border-color:#9db5d2}.ips-delivery-action:focus-visible{outline:3px solid #9dc2f1;outline-offset:1px}.ips-delivery-action.is-active{background:#eaf1fc;border-color:#6d96c5;color:#1f4d83;font-weight:700}.ips-delivery-action small{flex:0 0 auto;color:#718096;font-size:.66rem;font-weight:500;white-space:nowrap;margin:0}.ips-delivery-action.is-active small{color:#315b88}.ips-empty{text-align:center;padding:35px 20px!important;color:#7e8da0}.ips-empty>i{font-size:1.8rem;opacity:.5;margin-bottom:10px}.ips-empty p{margin:8px 0}.ips-tray-item[data-status=succeeded] .ips-item-message{color:#18794e}.ips-tray-item[data-status=rejected] .ips-item-message{color:#b33c38}
 #ips-confirm{border:0;border-radius:15px;max-width:520px;width:90%;padding:28px;color:#263e59;box-shadow:0 20px 70px #10233e55}#ips-confirm::backdrop{background:#10233e88}#ips-confirm h3{font-size:1.3rem;font-weight:700}#ips-confirm p{font-size:.9rem}#ips-confirm-codes{max-height:160px;overflow:auto;background:#f0f4f9;padding:10px;border-radius:8px}.ips-customs-confirm-label{display:flex;gap:8px;align-items:flex-start;padding:12px;background:#fff7dc;border:1px solid #f0d580;border-radius:8px;font-size:.84rem;color:#5b4a17;cursor:pointer}.ips-customs-confirm-label input{margin-top:4px;flex:0 0 auto}#ips-customs-confirm-fields[hidden]{display:none!important}
 .ips-field-label{display:block;font-size:.74rem;font-weight:700;color:#385574;margin-bottom:4px}
+#ips-receipt-summary{border:0;border-radius:16px;width:calc(100% - 32px);max-width:560px;max-height:85vh;overflow:auto;padding:26px;color:#263e59;box-shadow:0 20px 70px #10233e55}#ips-receipt-summary::backdrop{background:#10233e88}.ips-receipt-summary-heading{display:flex;align-items:center;gap:12px;margin-bottom:18px}.ips-receipt-summary-icon{display:grid;place-items:center;flex:0 0 44px;height:44px;border-radius:50%;background:#e7f5ed;color:#18794e;font-size:1.2rem}#ips-receipt-summary[data-needs-review="true"] .ips-receipt-summary-icon{background:#fff4d8;color:#8a5b06}.ips-receipt-summary-eyebrow{font-size:.65rem;letter-spacing:.1em;color:#63778e;margin:0 0 4px}.ips-receipt-summary-heading h3{font-size:1.2rem;font-weight:700;margin:0}.ips-receipt-summary-close{margin-left:auto;align-self:flex-start;border:0;background:transparent;color:#63778e;padding:7px 10px;border-radius:6px}.ips-receipt-summary-close:hover{background:#edf1f6}#ips-receipt-summary-description{font-size:1.05rem;font-weight:600;margin-bottom:18px}.ips-receipt-summary-counts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 16px}.ips-receipt-summary-counts>div{display:flex;flex-direction:column-reverse;text-align:center;background:#f0f4f9;border-radius:10px;padding:12px 5px}.ips-receipt-summary-counts dt{font-size:.75rem;font-weight:500;color:#52677e}.ips-receipt-summary-counts dd{font-size:1.8rem;line-height:1.2;font-weight:750;margin:0 0 4px}.ips-receipt-summary-counts .ips-receipt-summary-received{background:#e7f5ed;color:#18794e}.ips-receipt-summary-help{font-size:.85rem;color:#52677e}.ips-receipt-summary-details{border:1px solid #e0e7ef;border-radius:10px;padding:12px 14px}.ips-receipt-summary-details summary{cursor:pointer;font-weight:600;font-size:.85rem;color:#234f8b}.ips-receipt-summary-details ul{list-style:none;max-height:230px;overflow:auto;padding:0;margin:10px 0 0}.ips-receipt-summary-details li{padding:10px 0;border-top:1px solid #edf1f6;font-size:.8rem;overflow-wrap:anywhere}.ips-receipt-summary-details li p{margin:5px 0 0;color:#52677e}.ips-receipt-summary-item-heading{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px}.ips-receipt-summary-state{font-weight:600;color:#8a5b06}.ips-receipt-summary-state.is-received{color:#18794e}.ips-receipt-summary-state.is-rejected{color:#b33c38}.ips-receipt-summary-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;margin-top:22px}.ips-receipt-summary-actions button{min-height:42px}
 .ips-batch-fields .ips-help{display:block;margin:6px 0 0}
 .ips-layout--readonly{grid-template-columns:minmax(0,1fr)}
 #ips-action[hidden]{display:none!important}
@@ -245,6 +271,59 @@ document.addEventListener('DOMContentLoaded', () => {
     const customsConfirmFields = document.getElementById('ips-customs-confirm-fields');
     const customsReturnConfirm = document.getElementById('ips-customs-confirm');
     const clearCompleted = document.getElementById('ips-clear-completed');
+    const receiptSummary = document.getElementById('ips-receipt-summary');
+    const receiptSummaryOpen = document.getElementById('ips-receipt-summary-open');
+    let receiptRowsToReview = [];
+    receiptSummaryOpen.addEventListener('click', () => receiptSummary.showModal());
+    document.getElementById('ips-receipt-summary-close').addEventListener('click', () => receiptSummary.close());
+    document.getElementById('ips-receipt-summary-done').addEventListener('click', () => receiptSummary.close());
+    document.getElementById('ips-receipt-summary-review').addEventListener('click', () => {
+        receiptSummary.close();
+        const row = receiptRowsToReview.find(candidate => candidate.isConnected);
+        if (row) {
+            row.tabIndex = -1;
+            row.focus({preventScroll: true});
+            row.scrollIntoView({behavior: 'smooth', block: 'center'});
+        }
+    });
+    function showReceiptSummary(batchRows) {
+        const received = batchRows.filter(row => row.dataset.status === 'succeeded').length;
+        const pending = batchRows.filter(row => ['processing', 'uncertain'].includes(row.dataset.status)).length;
+        const rejected = batchRows.length - received - pending;
+        receiptRowsToReview = batchRows.filter(row => row.dataset.status !== 'succeeded');
+        receiptSummary.dataset.needsReview = String(receiptRowsToReview.length > 0);
+        document.getElementById('ips-receipt-summary-icon').firstElementChild.className = receiptRowsToReview.length ? 'fas fa-exclamation-triangle' : 'fas fa-check';
+        document.getElementById('ips-receipt-summary-description').textContent = received + ' de ' + batchRows.length + (batchRows.length === 1 ? ' paquete recibido.' : ' paquetes recibidos.');
+        document.getElementById('ips-receipt-summary-received').textContent = received;
+        document.getElementById('ips-receipt-summary-pending').textContent = pending;
+        document.getElementById('ips-receipt-summary-rejected').textContent = rejected;
+        document.getElementById('ips-receipt-summary-help').textContent = pending
+            ? 'Hay recepciones que aún no se han confirmado. Consulta su resultado antes de intentar otro movimiento.'
+            : (rejected ? 'Algunos paquetes no se recibieron. Revisa el detalle y corrige lo indicado para continuar.' : 'La recepción quedó registrada. Puedes preparar el siguiente lote.');
+        document.getElementById('ips-receipt-summary-review').hidden = receiptRowsToReview.length === 0;
+        const items = document.getElementById('ips-receipt-summary-items');
+        items.replaceChildren();
+        batchRows.forEach(row => {
+            const item = document.createElement('li');
+            const heading = document.createElement('div');
+            heading.className = 'ips-receipt-summary-item-heading';
+            const code = document.createElement('strong');
+            code.textContent = row.dataset.code;
+            const state = document.createElement('span');
+            const succeeded = row.dataset.status === 'succeeded';
+            const awaiting = ['processing', 'uncertain'].includes(row.dataset.status);
+            state.className = 'ips-receipt-summary-state' + (succeeded ? ' is-received' : (awaiting ? '' : ' is-rejected'));
+            state.textContent = succeeded ? 'Recibido' : (awaiting ? 'Sin confirmar' : 'No recibido');
+            const message = document.createElement('p');
+            message.textContent = row.querySelector('.ips-item-message').textContent;
+            heading.append(code, state);
+            item.append(heading, message);
+            items.appendChild(item);
+        });
+        receiptSummary.querySelector('details').open = receiptRowsToReview.length > 0;
+        receiptSummaryOpen.hidden = false;
+        receiptSummary.showModal();
+    }
     let rows = [...document.querySelectorAll('.ips-tray-item')], progress = document.getElementById('ips-progress');
     let handoverEventFilter = null;
     const deliveryActionLabels = @json($deliveryActionLabels);
@@ -813,6 +892,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ? successes + ' recepciones registradas en IPS de ' + selected.length + '. Revisa el resultado de cada paquete.'
             : successes + ' confirmados de ' + selected.length + '. Revisa el resultado de cada paquete.';
         document.getElementById('ips-refresh').hidden = false;
+        receiptSummaryOpen.hidden = chosenAction !== 'EMG';
+        if (chosenAction === 'EMG') showReceiptSummary(selected);
     }
     dialog.addEventListener('close', () => {
         if (dialog.returnValue !== 'confirm') return;
