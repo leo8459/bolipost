@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Database\Query\Grammars\CaseInsensitivePostgresGrammar;
 use App\Livewire\Hooks\EnsureLivewireActionPermission;
+use App\Models\User;
 use App\Support\AclPermissionRegistry;
 use App\Support\ServiceAvailability;
 use Illuminate\Pagination\Paginator;
@@ -39,6 +40,17 @@ class AppServiceProvider extends ServiceProvider
         Paginator::useBootstrapFive();
 
         Livewire::componentHook(EnsureLivewireActionPermission::class);
+
+        // Menus, @can and can: middleware must honor the same administrator
+        // access as route.permission, even while role grants are being repaired.
+        Gate::before(function ($user, string $ability): ?bool {
+            if ($user instanceof User && $user->isSuperAdmin()
+                && AclPermissionRegistry::permissionExists($ability)) {
+                return true;
+            }
+
+            return null;
+        });
 
         Gate::define('cliente-panel', function (): bool {
             return auth('cliente')->check();

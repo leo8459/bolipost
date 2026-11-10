@@ -5,11 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\IpsVerificationNote;
 use App\Services\SitraIpsClient;
 use App\Services\SitraTrackingEventsClient;
+use App\Support\IpsOfficeContext;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -235,7 +237,7 @@ class PaquetesIpsController extends Controller
     private function context(Request $request, string $workflow = 'standard'): array
     {
         $user = $request->user();
-        $link = $user->ipsLink;
+        $link = IpsOfficeContext::resolve($request);
         abort_unless($link && $link->active && $link->ips_office_cd !== null, 403, 'Necesita un vínculo IPS activo con oficina asignada.');
         if ($workflow === 'my_delivery') {
             abort_unless(preg_match('/^[A-Za-z0-9]{2}$/', (string) $link->delivery_agent_cd) === 1, 403, 'Tu cuenta todavía no tiene un cartero IPS vinculado. Comunícate con administración.');
@@ -247,7 +249,7 @@ class PaquetesIpsController extends Controller
             default => 'ips_'.$workflow.'_workbench.',
         };
 
-        return [$link, $keyPrefix.$user->id];
+        return [$link, $keyPrefix.$user->id.$link->officeSessionSuffix()];
     }
 
     private function receptionBlockReason(array $package, int $officeCd): string
@@ -443,7 +445,7 @@ class PaquetesIpsController extends Controller
                 'page' => $filters['page'] ?? null,
             ], fn ($value) => $value !== null && $value !== '');
 
-            return redirect()->route('internacional.warehouse', ['warehouseView' => 'entregados'] + $legacyQuery);
+            return redirect()->route('internacional.warehouse', IpsOfficeContext::parameters($request, ['warehouseView' => 'entregados'] + $legacyQuery));
         }
         $internationalPage = null;
         $internationalWorkflow = null;
@@ -496,7 +498,7 @@ class PaquetesIpsController extends Controller
         if ($courierOnly) {
             $emptyMessage = 'No tienes paquetes asignados pendientes de salida o en reparto.';
         }
-        $link = $request->user()->ipsLink;
+        $link = IpsOfficeContext::resolve($request);
         $courierConfigurationMissing = $courierOnly && (
             ! $link
             || ! $link->active
@@ -508,15 +510,15 @@ class PaquetesIpsController extends Controller
             : 'Tu cuenta IPS está vinculada, pero falta asociarla a un cartero activo de su regional.';
         $readOnly = ($isInternationalPage && ! $deliveryOnly && ! $workflowAction) || $courierConfigurationMissing;
         $listingUrl = $section === 'almacen'
-            ? route('internacional.warehouse', ['warehouseView' => $warehouseView])
+            ? route('internacional.warehouse', IpsOfficeContext::parameters($request, ['warehouseView' => $warehouseView]))
             : ($isInternationalPage
-                ? route('internacional.section', array_filter(['section' => $section, 'receptacle_pid' => $preferredReceptaclePid]))
-                : route('ips.index'));
+                ? route('internacional.section', IpsOfficeContext::parameters($request, array_filter(['section' => $section, 'receptacle_pid' => $preferredReceptaclePid])))
+                : route('ips.index', IpsOfficeContext::parameters($request, [])));
         $listingClearUrl = $listingUrl;
         $selectionKey = $workflowKey
             ? 'ips_'.$workflowKey.'_workbench.'
             : ($courierOnly ? 'ips_my_delivery_workbench.' : ($deliveryOnly ? 'ips_delivery_workbench.' : 'ips_workbench.'));
-        $selection = $request->session()->get($selectionKey.$request->user()->id, []);
+        $selection = $request->session()->get($selectionKey.$request->user()->id.($link?->officeSessionSuffix() ?? ''), []);
         try {
             [$link] = $this->context($request, $workflowKey ?? ($courierOnly ? 'my_delivery' : ($deliveryOnly ? 'delivery' : 'standard')));
             if ($workflowAction === 'CUSTOMS_RETURN') {
@@ -589,7 +591,7 @@ class PaquetesIpsController extends Controller
         }
         if ($workflowAction === 'EMR' && ! $error) {
             if ($missingPackageCode) {
-                $pendingKey = 'ips_inbound_create_pending:'.$request->user()->id.':'.$missingPackageCode;
+                $pendingKey = 'ips_inbound_create_pending:'.$request->user()->id.$link->officeSessionSuffix().':'.$missingPackageCode;
                 $inboundPending = $request->session()->get($pendingKey);
                 $inboundCreateKey = data_get($inboundPending, 'idempotency_key')
                     ?? old('idempotency_key')
@@ -623,18 +625,18 @@ class PaquetesIpsController extends Controller
             : self::DELIVERY_ACTION_LABELS;
         $selectionWorkflow = $courierOnly ? 'my_delivery' : 'delivery';
         $selectionAddUrl = $workflowAction
-            ? route('internacional.workflow.selection.add', ['section' => $section])
+            ? route('internacional.workflow.selection.add', IpsOfficeContext::parameters($request, ['section' => $section]))
             : ($courierOnly
-                ? route('internacional.my-delivery.selection.add')
-                : ($deliveryOnly ? route('internacional.selection.add') : route('ips.selection.add')));
+                ? route('internacional.my-delivery.selection.add', IpsOfficeContext::parameters($request, []))
+                : ($deliveryOnly ? route('internacional.selection.add', IpsOfficeContext::parameters($request, [])) : route('ips.selection.add', IpsOfficeContext::parameters($request, []))));
         $selectionRemoveRouteName = $workflowAction
             ? 'internacional.workflow.selection.remove'
             : ($courierOnly ? 'internacional.my-delivery.selection.remove' : ($deliveryOnly ? 'internacional.selection.remove' : 'ips.selection.remove'));
         $operateUrl = $workflowAction
-            ? route('internacional.workflow.operate', ['section' => $section])
+            ? route('internacional.workflow.operate', IpsOfficeContext::parameters($request, ['section' => $section]))
             : ($courierOnly
-                ? route('internacional.my-delivery.operate')
-                : ($deliveryOnly ? route('internacional.operate') : route('ips.operate')));
+                ? route('internacional.my-delivery.operate', IpsOfficeContext::parameters($request, []))
+                : ($deliveryOnly ? route('internacional.operate', IpsOfficeContext::parameters($request, [])) : route('ips.operate', IpsOfficeContext::parameters($request, []))));
         $operationLabel = $workflowAction ? self::ACTIONS[$workflowAction] : null;
         [$operationGroups, $operationGroup, $activeOperationTab] = $this->operationNavigation($section, $warehouseView, null, $preferredReceptaclePid);
         $workflowHint = match ($workflowAction) {
@@ -760,8 +762,8 @@ class PaquetesIpsController extends Controller
                 }
                 if ($request->expectsJson()) {
                     $removeRoute = $requiredAction !== null && ! $deliveryWorkflow
-                        ? route('internacional.workflow.selection.remove', ['section' => $section, 'codigo' => $code] + ($requiredAction === 'CUSTOMS_RETURN' ? ['receptacle_pid' => $receptaclePid] : []))
-                        : route($workflow === 'my_delivery' ? 'internacional.my-delivery.selection.remove' : ($workflow === 'delivery' ? 'internacional.selection.remove' : 'ips.selection.remove'), $code);
+                        ? route('internacional.workflow.selection.remove', IpsOfficeContext::parameters($request, ['section' => $section, 'codigo' => $code] + ($requiredAction === 'CUSTOMS_RETURN' ? ['receptacle_pid' => $receptaclePid] : [])))
+                        : route($workflow === 'my_delivery' ? 'internacional.my-delivery.selection.remove' : ($workflow === 'delivery' ? 'internacional.selection.remove' : 'ips.selection.remove'), IpsOfficeContext::parameters($request, ['codigo' => $code]));
 
                     return response()->json([
                         'code' => $code,
@@ -780,8 +782,8 @@ class PaquetesIpsController extends Controller
 
             if ($request->expectsJson()) {
                 $removeRoute = $requiredAction !== null && ! $deliveryWorkflow
-                    ? route('internacional.workflow.selection.remove', ['section' => $section, 'codigo' => $code] + ($requiredAction === 'CUSTOMS_RETURN' ? ['receptacle_pid' => $receptaclePid] : []))
-                    : route($workflow === 'my_delivery' ? 'internacional.my-delivery.selection.remove' : ($workflow === 'delivery' ? 'internacional.selection.remove' : 'ips.selection.remove'), $code);
+                    ? route('internacional.workflow.selection.remove', IpsOfficeContext::parameters($request, ['section' => $section, 'codigo' => $code] + ($requiredAction === 'CUSTOMS_RETURN' ? ['receptacle_pid' => $receptaclePid] : [])))
+                    : route($workflow === 'my_delivery' ? 'internacional.my-delivery.selection.remove' : ($workflow === 'delivery' ? 'internacional.selection.remove' : 'ips.selection.remove'), IpsOfficeContext::parameters($request, ['codigo' => $code]));
 
                 return response()->json(['code' => $code, 'package' => $package, 'receptacle_pid' => $receptaclePid, 'route_mismatch_receipt' => $routeMismatchReceipt, 'count' => count($selection), 'remove_url' => $removeRoute]);
             }
@@ -833,7 +835,7 @@ class PaquetesIpsController extends Controller
     {
         [$link] = $this->context($request, 'international_emr');
         $code = strtoupper(trim((string) $request->input('codigo')));
-        $pendingKey = 'ips_inbound_create_pending:'.$request->user()->id.':'.$code;
+        $pendingKey = 'ips_inbound_create_pending:'.$request->user()->id.$link->officeSessionSuffix().':'.$code;
         $pending = $code !== '' ? $request->session()->get($pendingKey) : null;
         $rules = [
             'codigo' => ['required', 'string', 'max:35', 'regex:/^[A-Za-z0-9-]+$/'],
@@ -867,7 +869,7 @@ class PaquetesIpsController extends Controller
         }
         $data = $request->validate($rules);
         $code = strtoupper(trim($data['codigo']));
-        $pendingKey = 'ips_inbound_create_pending:'.$request->user()->id.':'.$code;
+        $pendingKey = 'ips_inbound_create_pending:'.$request->user()->id.$link->officeSessionSuffix().':'.$code;
 
         if ($pending) {
             abort_unless(hash_equals((string) $pending['idempotency_key'], (string) $data['idempotency_key']), 409, 'La solicitud original está pendiente. Consulte con la misma clave antes de iniciar otra.');
@@ -902,7 +904,7 @@ class PaquetesIpsController extends Controller
                 $request->session()->forget($pendingKey);
                 $trackingEvents->forget($code);
 
-                return redirect()->route('internacional.section', ['section' => 'recepcion-cambio', 'q' => $code])
+                return redirect()->route('internacional.section', IpsOfficeContext::parameters($request, ['section' => 'recepcion-cambio', 'q' => $code]))
                     ->with('success', 'Paquete creado y recepción en oficina de cambio confirmada por IPS.');
             }
             if (($result['status'] ?? null) === 'rejected') {
@@ -910,12 +912,12 @@ class PaquetesIpsController extends Controller
                 $formInput = $this->inboundCreateFormInput($payload);
                 $request->session()->flash('inbound_create_key', $formInput['idempotency_key']);
 
-                return redirect()->route('internacional.section', ['section' => 'recepcion-cambio', 'q' => $code])
+                return redirect()->route('internacional.section', IpsOfficeContext::parameters($request, ['section' => 'recepcion-cambio', 'q' => $code]))
                     ->withErrors(['ips' => $result['message'] ?? 'IPS rechazó el registro. Revise los datos y vuelva a intentarlo.'])
                     ->withInput($formInput);
             }
 
-            return redirect()->route('internacional.section', ['section' => 'recepcion-cambio', 'q' => $code])
+            return redirect()->route('internacional.section', IpsOfficeContext::parameters($request, ['section' => 'recepcion-cambio', 'q' => $code]))
                 ->withErrors(['ips' => $result['message'] ?? 'La operación sigue pendiente. Reintente con la misma clave para consultar el resultado.']);
         } catch (RequestException $e) {
             $result = $e->response->json() ?? [];
@@ -925,17 +927,17 @@ class PaquetesIpsController extends Controller
                 $formInput = $this->inboundCreateFormInput($payload);
                 $request->session()->flash('inbound_create_key', $formInput['idempotency_key']);
 
-                return redirect()->route('internacional.section', ['section' => 'recepcion-cambio', 'q' => $code])
+                return redirect()->route('internacional.section', IpsOfficeContext::parameters($request, ['section' => 'recepcion-cambio', 'q' => $code]))
                     ->withErrors(['ips' => $result['message'] ?? 'IPS rechazó el registro. Revise los datos y vuelva a intentarlo.'])
                     ->withInput($formInput);
             }
 
-            return redirect()->route('internacional.section', ['section' => 'recepcion-cambio', 'q' => $code])
+            return redirect()->route('internacional.section', IpsOfficeContext::parameters($request, ['section' => 'recepcion-cambio', 'q' => $code]))
                 ->withErrors(['ips' => $result['message'] ?? 'No se pudo confirmar. Si queda pendiente, reintente exactamente la misma operación.']);
         } catch (\Throwable $e) {
             report($e);
 
-            return redirect()->route('internacional.section', ['section' => 'recepcion-cambio', 'q' => $code])
+            return redirect()->route('internacional.section', IpsOfficeContext::parameters($request, ['section' => 'recepcion-cambio', 'q' => $code]))
                 ->withErrors(['ips' => 'No se pudo confirmar el resultado. Reintente la operación original; no se generará otra clave.']);
         }
     }
@@ -1024,6 +1026,9 @@ class PaquetesIpsController extends Controller
         $payload = $entry['payload'] ?? null;
         if ($payload && $payload['event'] !== $data['action']) {
             return response()->json(['status' => 'rejected', 'message' => 'Esta operación ya tiene una acción registrada. Mantenga la misma acción para consultar su resultado.'], 409);
+        }
+        if (! $payload && in_array($data['action'], ['EMG', 'EMI'], true)) {
+            IpsOfficeContext::assertCurrentAssignment($link, $ips);
         }
         try {
             if (! $payload) {
@@ -1133,9 +1138,22 @@ class PaquetesIpsController extends Controller
             $result = $payload['event'] === 'EMI' ? $ips->deliver($code, $payload) : $ips->event($code, $payload);
         } catch (RequestException $e) {
             $result = $e->response->json() ?? [];
+            $httpStatus = $e->response->status();
+            $message = $result['message'] ?? '';
+            if ($httpStatus >= 500) {
+                Log::warning('SITRA IPS no pudo confirmar el movimiento.', [
+                    'http_status' => $httpStatus,
+                    'action' => $data['action'],
+                    'office_cd' => (int) $link->ips_office_cd,
+                    'operation_id' => $result['operation_id'] ?? null,
+                ]);
+                if (in_array(strtolower(trim(html_entity_decode((string) $message))), ['', 'server error', 'internal server error'], true)) {
+                    $message = 'SITRA devolvió un error interno (HTTP '.$httpStatus.'). No se pudo confirmar el movimiento. Reintenta la misma operación para consultar su resultado.';
+                }
+            }
             $result = [
-                'status' => $result['status'] ?? ($e->response->status() >= 500 ? 'uncertain' : 'rejected'),
-                'message' => $result['message'] ?? 'No se pudo confirmar la operación.',
+                'status' => $result['status'] ?? ($httpStatus >= 500 ? 'uncertain' : 'rejected'),
+                'message' => $message !== '' ? $message : 'No se pudo confirmar la operación.',
                 'operation_id' => $result['operation_id'] ?? null,
             ];
         } catch (HttpException $e) {
@@ -1210,7 +1228,7 @@ class PaquetesIpsController extends Controller
         $codigo = strtoupper(trim($filters['q'] ?? ''));
         $page = (int) ($filters['page'] ?? 1);
         $activeReceptacleQueue = $filters['queue'] ?? ($paso === 'abrir' ? 'opening' : 'expected');
-        $pendingKey = 'ips_receptacle_pending:'.$request->user()->id.':'.$paso.':'.$codigo;
+        $pendingKey = 'ips_receptacle_pending:'.$request->user()->id.$link->officeSessionSuffix().':'.$paso.':'.$codigo;
         $pendingPayload = $request->session()->get($pendingKey);
         $detail = null;
         $error = null;
@@ -1300,7 +1318,7 @@ class PaquetesIpsController extends Controller
             'idempotency_key' => ['required', 'string', 'min:8', 'max:128', 'regex:/^[A-Za-z0-9_.:-]+$/'],
         ]);
         $code = strtoupper(trim($data['codigo']));
-        $pendingKey = 'ips_receptacle_pending:'.$request->user()->id.':'.$paso.':'.$code;
+        $pendingKey = 'ips_receptacle_pending:'.$request->user()->id.$link->officeSessionSuffix().':'.$paso.':'.$code;
         $pending = $request->session()->get($pendingKey);
         if ($pending) {
             $payload = $pending;
@@ -1333,14 +1351,14 @@ class PaquetesIpsController extends Controller
             if (($result['status'] ?? null) === 'succeeded') {
                 $request->session()->forget($pendingKey);
                 if ($paso === 'recibir') {
-                    return redirect()->route('internacional.sacas', ['paso' => 'abrir', 'q' => $code])
+                    return redirect()->route('internacional.sacas', IpsOfficeContext::parameters($request, ['paso' => 'abrir', 'q' => $code]))
                         ->with('success', 'Saca recibida. Cuando la abras físicamente, confirma la apertura aquí.');
                 }
 
-                return redirect()->route('internacional.sacas', ['paso' => 'abrir', 'q' => $code])
+                return redirect()->route('internacional.sacas', IpsOfficeContext::parameters($request, ['paso' => 'abrir', 'q' => $code]))
                     ->with('success', 'Saca abierta. Desde aquí elige el registro que corresponde a los paquetes encontrados.');
             }
-            return redirect()->route('internacional.sacas', ['paso' => $paso, 'q' => $code])
+            return redirect()->route('internacional.sacas', IpsOfficeContext::parameters($request, ['paso' => $paso, 'q' => $code]))
                 ->withErrors(['ips' => $result['message'] ?? 'Consulte el estado antes de volver a operar.']);
         } catch (RequestException $e) {
             $response = $e->response->json() ?? [];
@@ -1348,11 +1366,11 @@ class PaquetesIpsController extends Controller
             if (in_array($status, ['rejected'], true)) {
                 $request->session()->forget($pendingKey);
             }
-            return redirect()->route('internacional.sacas', ['paso' => $paso, 'q' => $code])
+            return redirect()->route('internacional.sacas', IpsOfficeContext::parameters($request, ['paso' => $paso, 'q' => $code]))
                 ->withErrors(['ips' => $response['message'] ?? 'No se pudo confirmar. Si el resultado es incierto, reintenta el mismo código para consultar la misma operación.']);
         } catch (\Throwable $e) {
             report($e);
-            return redirect()->route('internacional.sacas', ['paso' => $paso, 'q' => $code])
+            return redirect()->route('internacional.sacas', IpsOfficeContext::parameters($request, ['paso' => $paso, 'q' => $code]))
                 ->withErrors(['ips' => 'No se pudo confirmar. Reintenta el mismo código; se conservará la clave de esta operación.']);
         }
     }

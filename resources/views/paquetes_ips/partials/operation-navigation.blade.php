@@ -22,7 +22,7 @@
                         <ol>
                             @foreach($group['tabs'] as $tab)
                                 <li class="{{ $activeOperationTab === $tab['key'] ? 'is-active' : '' }}">
-                                    <a href="{{ route($tab['route'], $tab['params'] ?? []) }}" @if($activeOperationTab === $tab['key']) aria-current="step" @endif>
+                                    <a href="{{ route($tab['route'], \App\Support\IpsOfficeContext::parameters(request(), $tab['params'] ?? [])) }}" @if($activeOperationTab === $tab['key']) aria-current="step" @endif>
                                         <span>{{ $loop->iteration }}</span>
                                         <strong>{{ $tab['label'] }}</strong>
                                         @if($activeOperationTab === $tab['key'])<small>Estás aquí</small>@endif

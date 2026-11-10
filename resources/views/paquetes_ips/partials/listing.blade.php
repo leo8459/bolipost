@@ -1,18 +1,19 @@
 @if($error)<div class="alert alert-warning" role="alert">{{ $error }}</div>@endif
 <section class="ips-panel">
                 <div class="ips-panel-header"><h2>{{ $pageTitle ?? 'Paquetes de tu oficina' }}</h2><span>{{ $error ? 'Consulta no disponible' : $packages->total().' resultados' }}</span></div>
-                <form method="GET" action="{{ $listingUrl ?? route('ips.index') }}" class="ips-search">
+                <form method="GET" action="{{ $listingUrl ?? route('ips.index', \App\Support\IpsOfficeContext::parameters(request(), [])) }}" class="ips-search">
+                    @if($link?->ips_office_cd !== null)<input type="hidden" name="office_cd" value="{{ $link->ips_office_cd }}">@endif
                     <label for="ips-code" class="sr-only">Código de seguimiento o identificador local exacto</label>
                     <input id="ips-code" type="search" name="q" maxlength="35" value="{{ $search }}" placeholder="Escanea o escribe un código…" class="form-control" autocomplete="off">
                     @if($preferredReceptaclePid ?? null)<input type="hidden" name="receptacle_pid" value="{{ $preferredReceptaclePid }}">@endif
                     <button class="btn btn-primary"><i class="fas fa-search mr-1"></i>Buscar</button>
-                    @if($search)<a href="{{ $listingClearUrl ?? $listingUrl ?? route('ips.index') }}" class="btn btn-light">Limpiar</a>@endif
+                    @if($search)<a href="{{ $listingClearUrl ?? $listingUrl ?? route('ips.index', \App\Support\IpsOfficeContext::parameters(request(), [])) }}" class="btn btn-light">Limpiar</a>@endif
                 </form>
                 @if($workflowHint ?? null)<p class="ips-footnote px-3 pt-0" role="note">{{ $workflowHint }}</p>@endif
                 @unless($isInternationalPage ?? false)
                 <nav class="ips-tabs" aria-label="Filtrar paquetes">
                     @foreach(['all'=>'Todos', 'reception'=>'Por recibir', 'pending'=>'Para retiro / reparto', 'returns'=>'Devoluciones IPS', 'delivered'=>'Entregados'] as $value=>$label)
-                        <a class="{{ $stage===$value?'is-active':'' }}" href="{{ route('ips.index', ['stage'=>$value,'q'=>$search]) }}" @if($stage===$value) aria-current="page" @endif>{{ $label }}</a>
+                        <a class="{{ $stage===$value?'is-active':'' }}" href="{{ route('ips.index', \App\Support\IpsOfficeContext::parameters(request(), ['stage'=>$value,'q'=>$search])) }}" @if($stage===$value) aria-current="page" @endif>{{ $label }}</a>
                     @endforeach
                 </nav>
                 @endunless
@@ -44,12 +45,12 @@
                                     @if($readOnly ?? false)<span class="text-muted">Solo consulta</span>
                                     @elseif(($workflowAction ?? '') === 'EMG' && !empty($package['reception_block_reason']))<span class="text-muted">No recepcionable en esta oficina</span><small class="text-warning" role="status">{{ $package['reception_block_reason'] }}</small>
                                     @elseif(isset($selection[$package['codigo']]))<span class="text-success"><i class="fas fa-check"></i> En bandeja</span>
-                                    @elseif(($workflowAction ?? '') === 'EMG' && !empty($package['route_mismatch_receipt']))<form class="ips-selection-add" method="POST" action="{{ $selectionAddUrl ?? route('ips.selection.add') }}">@csrf<input type="hidden" name="codigo" value="{{ $package['codigo'] }}"><button class="btn btn-sm btn-outline-warning"><i class="fas fa-exclamation-triangle"></i> Revisar recepción aquí</button></form><small class="text-warning" role="status">{{ $package['route_mismatch_note'] }}</small>
+                                    @elseif(($workflowAction ?? '') === 'EMG' && !empty($package['route_mismatch_receipt']))<form class="ips-selection-add" method="POST" action="{{ $selectionAddUrl ?? route('ips.selection.add', \App\Support\IpsOfficeContext::parameters(request(), [])) }}">@csrf<input type="hidden" name="codigo" value="{{ $package['codigo'] }}"><button class="btn btn-sm btn-outline-warning"><i class="fas fa-exclamation-triangle"></i> Revisar recepción aquí</button></form><small class="text-warning" role="status">{{ $package['route_mismatch_note'] }}</small>
                                     @elseif(($deliveryOnly ?? false) && empty(array_intersect(array_keys($deliveryActionLabels), $package['allowed_actions'] ?? [])))<span class="text-muted">Sin paso de distribución habilitado</span>
                                     @elseif(($workflowAction ?? null) && !in_array($workflowAction, $package['allowed_actions'] ?? [], true))<span class="text-muted">No habilitado para este paso</span>
                                     @elseif(!($workflowAction ?? null) && !($deliveryOnly ?? false) && !empty($package['allowed_actions']) && empty(array_intersect($package['allowed_actions'], array_keys($actions))))<span class="text-muted">Continúa desde Internacional</span>
                                     @elseif(empty($package['allowed_actions']) && strtoupper($search) !== strtoupper($package['codigo']))<span class="text-muted" title="Este paquete no tiene movimientos pendientes">Histórico</span>
-                                    @else<form class="ips-selection-add" method="POST" action="{{ $selectionAddUrl ?? route('ips.selection.add') }}">@csrf<input type="hidden" name="codigo" value="{{ $package['codigo'] }}">@if(($workflowAction ?? '') === 'CUSTOMS_RETURN' && $preferredReceptaclePid)<input type="hidden" name="receptacle_pid" value="{{ $preferredReceptaclePid }}">@endif @if($deliveryOnly ?? false)<input type="hidden" name="workflow" value="delivery">@endif<button class="btn btn-sm btn-outline-primary"><i class="fas fa-plus"></i> {{ ($workflowAction ?? null) ? 'Agregar al paso' : (($deliveryOnly ?? false) ? 'Agregar a entrega' : (empty($package['allowed_actions']) ? 'Agregar consulta' : 'Agregar')) }}</button></form>@endif
+                                    @else<form class="ips-selection-add" method="POST" action="{{ $selectionAddUrl ?? route('ips.selection.add', \App\Support\IpsOfficeContext::parameters(request(), [])) }}">@csrf<input type="hidden" name="codigo" value="{{ $package['codigo'] }}">@if(($workflowAction ?? '') === 'CUSTOMS_RETURN' && $preferredReceptaclePid)<input type="hidden" name="receptacle_pid" value="{{ $preferredReceptaclePid }}">@endif @if($deliveryOnly ?? false)<input type="hidden" name="workflow" value="delivery">@endif<button class="btn btn-sm btn-outline-primary"><i class="fas fa-plus"></i> {{ ($workflowAction ?? null) ? 'Agregar al paso' : (($deliveryOnly ?? false) ? 'Agregar a entrega' : (empty($package['allowed_actions']) ? 'Agregar consulta' : 'Agregar')) }}</button></form>@endif
                                 </td>
                             </tr>
                         @empty<tr><td colspan="9" class="ips-empty"><i class="fas fa-search"></i><p>{{ $error ? 'Listado no disponible.' : ($emptyMessage ?? 'No hay paquetes que coincidan con esta búsqueda y oficina.') }}</p></td></tr>@endforelse

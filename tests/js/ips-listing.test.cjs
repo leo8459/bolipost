@@ -12,10 +12,13 @@ function setup() {
         innerHTML: 'previous results',
         addEventListener: (name, fn) => { events[name] = fn; },
         setAttribute() {}, removeAttribute() {},
+        querySelector: () => null,
+        querySelectorAll: () => [],
+        classList: {add() {}, remove() {}},
     };
     const status = {hidden: true, textContent: ''};
     vm.runInNewContext(source, {
-        document: {getElementById: id => id === 'ips-listing' ? listing : status},
+        document: {getElementById: id => id === 'ips-listing' ? listing : status, querySelector: () => null},
         location: new URL('http://localhost/ips'), URL, URLSearchParams, AbortController,
         history: {pushState: (_state, _title, url) => history.push(url)},
         window: {addEventListener() {}},
@@ -62,7 +65,7 @@ test('an API failure retains the current results and URL with a visible explanat
     await tick();
     assert.equal(app.listing.innerHTML, 'previous results');
     assert.equal(app.history.length, 0);
-    assert.match(app.status.textContent, /IPS unavailable/);
+    assert.match(app.status.textContent, /No se pudo consultar IPS/);
     assert.equal(app.status.hidden, false);
 });
 

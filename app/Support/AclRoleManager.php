@@ -11,6 +11,23 @@ class AclRoleManager
 {
     public static function sync(): array
     {
+        try {
+            return DB::transaction(function (): array {
+                $permissionNames = self::syncRoles();
+
+                // Other requests may have cached the previous committed assignments.
+                DB::afterCommit(fn () => app(PermissionRegistrar::class)->forgetCachedPermissions());
+
+                return $permissionNames;
+            });
+        } finally {
+            // Also discard any permissions loaded before a rollback.
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
+        }
+    }
+
+    private static function syncRoles(): array
+    {
         $permissionNames = AclPermissionRegistry::syncPermissions();
         $guardName = (string) config('auth.defaults.guard', 'web');
         $superAdminRole = (string) config('acl.super_admin_role', 'administrador');
@@ -24,7 +41,11 @@ class AclRoleManager
         self::migrateLegacyRoles($guardName, $defaultRoles);
 
         foreach ($defaultRoles as $roleName) {
-            $role = Role::findOrCreate($roleName, $guardName);
+            $role = Role::query()
+                ->where('name', $roleName)
+                ->where('guard_name', $guardName)
+                ->lockForUpdate()
+                ->firstOrFail();
             $patterns = (array) ($templates[$roleName] ?? []);
 
             if ($patterns === []) {
@@ -47,8 +68,6 @@ class AclRoleManager
                 $role->syncPermissions($resolvedPermissions);
             }
         }
-
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         return $permissionNames;
     }

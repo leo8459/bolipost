@@ -32,8 +32,16 @@ class EnsureAclPermissionsSynced
 
         if (! Cache::has($cacheKey)) {
             try {
-                $this->syncAsSystem();
-                Cache::put($cacheKey, now()->toIso8601String(), now()->addSeconds($ttlSeconds));
+                Cache::lock('acl:permissions:sync:lock', 120)->get(function () use ($cacheKey, $ttlSeconds, $request): void {
+                    if (Cache::has($cacheKey)) {
+                        return;
+                    }
+
+                    $this->syncAsSystem();
+                    // Legacy role migration can change assignments already loaded on this user.
+                    $request->user()->unsetRelation('roles')->unsetRelation('permissions');
+                    Cache::put($cacheKey, now()->toIso8601String(), now()->addSeconds($ttlSeconds));
+                });
             } catch (\Throwable $exception) {
                 Log::warning('No se pudo sincronizar ACL automaticamente.', [
                     'message' => $exception->getMessage(),

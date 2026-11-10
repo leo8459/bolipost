@@ -95,6 +95,8 @@ class UserIpsLinkTest extends TestCase
             $table->unsignedSmallInteger('ips_office_cd')->nullable();
             $table->string('ips_office_fcd', 25)->nullable();
             $table->string('ips_office_name', 64)->nullable();
+            $table->string('delivery_agent_cd', 2)->nullable();
+            $table->string('delivery_agent_full_cd', 25)->nullable();
             $table->boolean('ipsweb')->default(false);
             $table->boolean('restrict_user_offices')->default(false);
             $table->boolean('active')->default(true);
@@ -143,13 +145,13 @@ class UserIpsLinkTest extends TestCase
             ->assertSee('TEST123BO')->assertSee('Receptor de prueba')
             ->assertSee('51 resultados')->assertSee('Página 1 de 3')
             ->assertDontSee('Consulta no disponible');
-        Http::assertSent(fn (Request $request) => $request['office_cd'] == 1 && $request['per_page'] == 25);
+        Http::assertSent(fn (Request $request) => str_contains($request->url(), '/ips/paquetes') && $request['office_cd'] == 1 && $request['per_page'] == 25);
         $partial = $this->getJson(route('ips.index'))->assertOk()->json('html');
         $this->assertStringContainsString('TEST123BO', $partial);
         $this->assertStringNotContainsString('<html', $partial);
         $this->assertStringNotContainsString('Tu bandeja', $partial);
         $this->assertStringNotContainsString('global-facturacion', $partial);
-        Http::assertSentCount(2);
+        $this->assertCount(2, Http::recorded(fn (Request $request) => str_contains($request->url(), '/ips/paquetes')));
     }
 
     public function test_failed_ips_query_is_not_presented_as_zero_packages(): void
@@ -181,6 +183,11 @@ class UserIpsLinkTest extends TestCase
                     'user_fid' => 'bindira_web',
                     'user_name' => 'Indira Cecilia Barrios Buitrago',
                     'office_name' => 'LA PAZ LC/AO',
+                    'office_cd' => 1,
+                    'offices' => [
+                        ['office_cd' => 1, 'office_fcd' => 'BOLPBA', 'office_name' => 'LA PAZ LC/AO'],
+                        ['office_cd' => 2, 'office_fcd' => 'BOSRZA', 'office_name' => 'SANTA CRUZ LC/AO'],
+                    ],
                     'ipsweb' => true,
                     'restrict_user_offices' => false,
                 ]],
@@ -194,6 +201,7 @@ class UserIpsLinkTest extends TestCase
             ->assertOk()
             ->assertSee('Indira Cecilia Barrios Buitrago')
             ->assertSee('WEBCLIENT_NG\\bindira_web')
+            ->assertSee('SANTA CRUZ LC/AO')
             ->assertSee('PID IPS');
 
         Http::assertSent(fn (Request $request) => str_contains($request->url(), '/api/v1/ips/usuarios')
@@ -234,6 +242,109 @@ class UserIpsLinkTest extends TestCase
             'ips_office_cd' => 1,
             'active' => true,
         ]);
+    }
+
+    public function test_listing_loads_all_offices_for_a_link_saved_before_multi_office_support(): void
+    {
+        $user = $this->workbenchUser();
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://sitra.test/api/v1/ips/usuarios/73' => Http::response(['data' => [
+                'user_pid' => 73, 'office_cd' => 1, 'office_name' => 'LA PAZ LC/AO',
+                'offices' => [
+                    ['office_cd' => 1, 'office_name' => 'LA PAZ LC/AO'],
+                    ['office_cd' => 2, 'office_name' => 'SANTA CRUZ LC/AO'],
+                    ['office_cd' => 3, 'office_name' => 'COCHABAMBA'],
+                ],
+            ]]),
+            'https://sitra.test/api/v1/ips/catalogos/entrega*' => Http::response(['data' => ['delivery_agents' => []]]),
+        ]);
+
+        $this->actingAs($user)->get(route('users.ips-links.index'))
+            ->assertOk()
+            ->assertSee('Oficinas en IPS (3)')
+            ->assertSee('LA PAZ LC/AO')
+            ->assertSee('SANTA CRUZ LC/AO')
+            ->assertSee('COCHABAMBA')
+            ->assertDontSee('SITRA solo devuelve la oficina principal');
+
+        // Viewing the directory must not change the user's operational office.
+        $this->assertSame(1, $user->fresh()->ipsLink->ips_office_cd);
+        $this->assertNull($user->fresh()->ipsLink->last_snapshot);
+    }
+
+    public function test_listing_reports_when_sitra_does_not_supply_assigned_offices(): void
+    {
+        $user = $this->workbenchUser();
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://sitra.test/api/v1/ips/usuarios/73' => Http::response(['data' => [
+                'user_pid' => 73, 'office_cd' => 1, 'office_name' => 'LA PAZ LC/AO',
+            ]]),
+            'https://sitra.test/api/v1/ips/catalogos/entrega*' => Http::response(['data' => ['delivery_agents' => []]]),
+        ]);
+
+        $this->actingAs($user)->get(route('users.ips-links.index'))
+            ->assertOk()
+            ->assertSee('LA PAZ LC/AO')
+            ->assertSee('SITRA solo devuelve la oficina principal');
+    }
+
+    public function test_listing_preserves_saved_offices_when_sitra_is_unavailable(): void
+    {
+        $user = $this->workbenchUser();
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://sitra.test/api/v1/ips/usuarios/73' => Http::response(['message' => 'Unavailable'], 503),
+            'https://sitra.test/api/v1/ips/catalogos/entrega*' => Http::response(['data' => ['delivery_agents' => []]]),
+        ]);
+
+        $this->actingAs($user)->get(route('users.ips-links.index'))
+            ->assertOk()
+            ->assertSee('LA PAZ LC/AO')
+            ->assertSee('No fue posible consultar las oficinas en SITRA');
+    }
+
+    public function test_verification_updates_all_offices_and_makes_them_available_for_parallel_work(): void
+    {
+        $user = $this->workbenchUser();
+        Http::fake([
+            'https://sitra.test/api/v1/ips/usuarios/73' => Http::response(['data' => [
+                'user_pid' => 73, 'user_fid' => 'operator', 'user_name' => 'Operador IPS',
+                'office_cd' => 1, 'office_fcd' => 'BOLPBA', 'office_name' => 'LA PAZ LC/AO',
+                'offices' => [
+                    ['office_cd' => 1, 'office_fcd' => 'BOLPBA', 'office_name' => 'LA PAZ LC/AO'],
+                    ['office_cd' => 2, 'office_fcd' => 'BOSRZA', 'office_name' => 'SANTA CRUZ LC/AO'],
+                ],
+            ]]),
+            'https://sitra.test/api/v1/ips/paquetes*' => Http::response(['data' => [], 'meta' => ['total' => 0]]),
+        ]);
+
+        $this->actingAs($user)->post(route('users.ips-links.verify', $user))
+            ->assertRedirect()->assertSessionHas('verification.oficinas', 'LA PAZ LC/AO, SANTA CRUZ LC/AO');
+        $this->assertSame([1, 2], array_column($user->fresh()->ipsLink->offices(), 'office_cd'));
+
+        $this->actingAs($user->fresh())->get(route('ips.index', ['office_cd' => 2]))
+            ->assertOk()->assertSee('SANTA CRUZ LC/AO')->assertSee('office_cd=1')->assertSee('office_cd=2')
+            ->assertSee('Cada pestaña conserva su propia bandeja');
+        $this->assertSame(1, $user->fresh()->ipsLink->ips_office_cd);
+    }
+
+    public function test_link_without_primary_office_can_use_its_assigned_offices(): void
+    {
+        $user = $this->workbenchUser();
+        Http::fake(['https://sitra.test/api/v1/ips/usuarios/73' => Http::response(['data' => [
+            'user_pid' => 73, 'user_fid' => 'operator', 'office_cd' => null,
+            'offices' => [
+                ['office_cd' => 2, 'office_fcd' => 'BOSRZA', 'office_name' => 'SANTA CRUZ LC/AO'],
+                ['office_cd' => 3, 'office_fcd' => 'BOCBBA', 'office_name' => 'COCHABAMBA'],
+            ],
+        ]])]);
+
+        $this->actingAs($user)->post(route('users.ips-links.verify', $user))->assertRedirect();
+        $link = $user->fresh()->ipsLink;
+        $this->assertSame(2, $link->ips_office_cd);
+        $this->assertSame([2, 3], array_column($link->offices(), 'office_cd'));
     }
 
     public function test_it_creates_ips_user_and_links_it(): void
