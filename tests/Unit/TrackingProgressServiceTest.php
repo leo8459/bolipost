@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Services\TrackingProgressService;
+use App\Support\AutomaticCancellationEvent;
 use Tests\TestCase;
 
 class TrackingProgressServiceTest extends TestCase
@@ -91,6 +92,19 @@ class TrackingProgressServiceTest extends TestCase
             (object) ['evento_id' => 4470, 'nombre_evento' => 'Envio cancelado desde encargado.'],
             (object) ['evento_id' => 2239, 'nombre_evento' => 'Delivery Express registrado.'],
         ], 'EMS');
+
+        $this->assertSame('Cancelado', $progress['steps'][1]);
+        $this->assertSame(1, $progress['current_index']);
+        $this->assertTrue($progress['is_cancelled']);
+        $this->assertSame('Envio cancelado', $progress['status']);
+    }
+
+    public function test_automatic_inactivity_cancellation_marks_tracking_as_cancelled(): void
+    {
+        $progress = app(TrackingProgressService::class)->resolve([
+            (object) ['nombre_evento' => AutomaticCancellationEvent::INACTIVITY],
+            (object) ['evento_id' => 295, 'nombre_evento' => 'Paquete recibido del cliente.'],
+        ], 'CONTRATO');
 
         $this->assertSame('Cancelado', $progress['steps'][1]);
         $this->assertSame(1, $progress['current_index']);

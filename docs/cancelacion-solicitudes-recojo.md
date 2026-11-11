@@ -5,6 +5,18 @@ envios de `paquetes_contrato` que siguen en SOLICITUD y cuya fecha de creacion
 es anterior a hace 20 dias. Con exactamente 20 dias todavia no se cancelan.
 La regla se aplica a todas las modalidades de envio.
 
+Cada cancelacion automatica registra en `eventos_contrato` el evento
+**Cancelación por tiempo inactivo de paquete.**, con la fecha y hora de la
+cancelacion. Eventos lo muestra como una accion de **Sistema**, incluso si la
+solicitud fue creada por un usuario de empresa. El seguimiento tambien reconoce
+este evento como una cancelacion. Se conserva el usuario de registro del paquete
+como referencia interna del evento.
+
+El cambio de estado y su evento se guardan en una misma transaccion por lote:
+si no se puede guardar el evento, tampoco se cancela ese lote. Repetir el comando
+no duplica eventos. No se agregan eventos retroactivos a paquetes ya cancelados,
+porque su estado no permite distinguir una cancelacion manual de una automatica.
+
 Se conserva el registro y su fecha de creacion. El comando exige que existan
 ambos estados; no utiliza identificadores fijos. Una segunda ejecucion no
 vuelve a modificar envios ya cancelados. Para consultar sin modificar:

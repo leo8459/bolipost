@@ -317,7 +317,7 @@ class TrackingProgressService
 
     private function isCancelledText(string $text): bool
     {
-        return $this->containsAny($text, ['envio cancelado', 'paquete cancelado']);
+        return $this->containsAny($text, ['envio cancelado', 'paquete cancelado', 'cancelacion por tiempo inactivo de paquete']);
     }
 
     private function isReturnStatus(object $event): bool
