@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Support\AutomaticCancellationEvent;
 use App\Support\CodigoContinuacionEvent;
 use App\Support\CarteroEvent;
 use App\Support\EncargadoEvent;
@@ -432,8 +433,14 @@ class EventosTabla extends Component
                 if ($this->tipo === 'contrato') {
                     $eventoNormalizado = mb_strtolower(Str::ascii((string) ($registro->evento_nombre ?? '')));
                     $registro->es_cancelacion = str_contains($eventoNormalizado, 'cancel');
+                    $esCancelacionAutomatica = $registro->evento_nombre === AutomaticCancellationEvent::INACTIVITY;
                     $registro->es_cancelacion_empresa = $registro->es_cancelacion
+                        && ! $esCancelacionAutomatica
                         && isset($empresaUserIds[(int) ($registro->user_id ?? 0)]);
+
+                    if ($esCancelacionAutomatica) {
+                        $registro->usuario_nombre = 'Sistema';
+                    }
 
                     if ($registro->es_cancelacion_empresa) {
                         $registro->evento_nombre = 'Envío cancelado por usuario de empresa.';

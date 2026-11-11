@@ -3,8 +3,11 @@
 namespace App\Console\Commands;
 
 use App\Models\Estado;
+use App\Models\Evento;
 use App\Models\Recojo;
+use App\Support\AutomaticCancellationEvent;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 
 class CancelExpiredPickupRequests extends Command
 {
@@ -38,8 +41,39 @@ class CancelExpiredPickupRequests extends Command
             return self::SUCCESS;
         }
 
-        // Una sola actualizacion conserva la condicion de estado al modificar cada envio.
-        $affected = $query->update(['estados_id' => (int) $cancelledStateId]);
+        $affected = 0;
+        $query->chunkById(200, function ($candidates) use ($query, $cancelledStateId, &$affected): void {
+            $affected += DB::transaction(function () use ($query, $candidates, $cancelledStateId): int {
+                // Volver a comprobar el estado bajo bloqueo evita cancelar solicitudes ya procesadas.
+                $packages = (clone $query)
+                    ->whereKey($candidates->modelKeys())
+                    ->lockForUpdate()
+                    ->get(['id', 'codigo', 'user_id']);
+
+                if ($packages->isEmpty()) {
+                    return 0;
+                }
+
+                $event = Evento::query()->firstOrCreate([
+                    'nombre_evento' => AutomaticCancellationEvent::INACTIVITY,
+                ]);
+                $now = now();
+                $count = (clone $query)->whereKey($packages->modelKeys())->update([
+                    'estados_id' => (int) $cancelledStateId,
+                    'updated_at' => $now,
+                ]);
+
+                DB::table('eventos_contrato')->insert($packages->map(fn (Recojo $package): array => [
+                    'codigo' => $package->codigo,
+                    'evento_id' => $event->id,
+                    'user_id' => $package->user_id,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ])->all());
+
+                return $count;
+            });
+        });
         $this->info("Envios cancelados automaticamente: {$affected}");
 
         return self::SUCCESS;
