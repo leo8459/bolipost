@@ -17,6 +17,9 @@
             'from' => $filters['from'] ?? now()->toDateString(),
             'to' => $filters['to'] ?? now()->toDateString(),
         ];
+        $manualDeliveryTicketRoute = $isRegionalKardex
+            ? 'mis-ventas.kardex-regional.ticket-manual'
+            : 'mis-ventas.kardex.ticket-manual';
     @endphp
 
     <div class="kardex-page">
@@ -53,6 +56,7 @@
                         @unless($isRegionalKardex)
                             <button type="submit" formaction="{{ route('mis-ventas.export.pdf') }}" class="btn btn-outline-primary" data-kardex-download="pdf" data-kardex-download-label="PDF Mis ventas" data-pdf-modal-ignore><i class="fas fa-file-pdf mr-1"></i> PDF Mis ventas</button>
                         @endunless
+                        <button type="button" class="btn btn-outline-primary kardex-manual-ticket-trigger" id="kardexManualTicketOpen"><i class="fas fa-box-open mr-1" aria-hidden="true"></i>Ticket de entrega manual</button>
                         @if($isRegionalKardex && auth()->user()?->can('mis-ventas.kardex-regional'))
                             <a href="{{ route('ventas-sucursal.index', [
                                 'from' => $baseParams['from'],
@@ -316,6 +320,32 @@
         </div>
     </div>
 
+    <div id="kardexManualTicketModal" class="kardex-ticket-modal" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="kardexManualTicketTitle" aria-describedby="kardexManualTicketDescription">
+        <div class="kardex-ticket-modal__backdrop" data-kardex-ticket-close></div>
+        <div class="kardex-ticket-modal__dialog" role="document">
+            <div class="kardex-ticket-modal__header">
+                <div class="kardex-ticket-modal__icon" aria-hidden="true"><i class="fas fa-box-open"></i></div>
+                <div>
+                    <span class="kardex-ticket-modal__eyebrow">EMISIÓN MANUAL</span>
+                    <h2 id="kardexManualTicketTitle">Ticket de entrega</h2>
+                </div>
+                <button type="button" class="kardex-ticket-modal__close" aria-label="Cerrar" data-kardex-ticket-close>&times;</button>
+            </div>
+            <p id="kardexManualTicketDescription" class="kardex-ticket-modal__description">Ingresa el código de guía del envío. Este ticket se genera directamente con los datos postales y no necesita factura.</p>
+            <form id="kardexManualTicketForm" method="POST" action="{{ route($manualDeliveryTicketRoute) }}">
+                @csrf
+                <label class="kardex-ticket-modal__label" for="kardexManualTicketCode">Código de guía</label>
+                <div class="kardex-ticket-modal__input-wrap"><i class="fas fa-barcode" aria-hidden="true"></i><input id="kardexManualTicketCode" name="codigo" type="text" maxlength="35" pattern="[A-Za-z0-9-]+" autocomplete="off" autocapitalize="characters" placeholder="Ej. EE000747552BO" required></div>
+                <small class="kardex-ticket-modal__hint">Puedes generar el comprobante aunque la entrega no esté asociada a una venta o factura.</small>
+                <div id="kardexManualTicketStatus" class="kardex-ticket-modal__status" hidden role="status" aria-live="polite"></div>
+                <div class="kardex-ticket-modal__actions">
+                    <button type="button" class="btn btn-light" data-kardex-ticket-close>Cancelar</button>
+                    <button type="submit" id="kardexManualTicketGenerate" class="btn btn-primary"><i class="fas fa-file-pdf mr-1" aria-hidden="true"></i>Generar ticket</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div id="kardexDownloadModal" class="kardex-download-modal" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="kardexDownloadTitle" aria-describedby="kardexDownloadMessage">
         <div class="kardex-download-modal__backdrop"></div>
         <div class="kardex-download-modal__dialog" role="document">
@@ -444,6 +474,30 @@
     .kardex-download-modal.is-error .kardex-download-modal__icon{background:#fff1e5;color:#c56b15}
     .kardex-download-modal.is-error .kardex-download-modal__progress span{width:100%;animation:none;background:#e8b126}
     .kardex-download-modal__dialog .btn{margin-top:1rem}
+    .kardex-ticket-modal{position:fixed;inset:0;z-index:2060;display:flex;align-items:center;justify-content:center;padding:1rem}
+    .kardex-ticket-modal[hidden]{display:none!important}
+    .kardex-ticket-modal__backdrop{position:absolute;inset:0;background:rgba(13,30,49,.62);backdrop-filter:blur(4px)}
+    .kardex-ticket-modal__dialog{position:relative;width:min(100%,510px);padding:1.45rem;border:1px solid #e0e8ef;border-radius:17px;background:#fff;box-shadow:0 24px 70px rgba(13,30,49,.3);animation:kardexDownloadAppear .2s ease-out}
+    .kardex-ticket-modal__header{display:flex;align-items:center;gap:.85rem}
+    .kardex-ticket-modal__icon{display:grid;flex:0 0 48px;width:48px;height:48px;border-radius:14px;background:#edf7f0;color:#28704e;font-size:1.2rem;place-items:center}
+    .kardex-ticket-modal__eyebrow{display:block;margin-bottom:.18rem;color:#708397;font-size:.63rem;font-weight:800;letter-spacing:.09em}
+    .kardex-ticket-modal__header h2{margin:0;color:#18324b;font-size:1.14rem;font-weight:800}
+    .kardex-ticket-modal__close{display:grid;width:36px;height:36px;margin-left:auto;border:1px solid #dbe4ec;border-radius:50%;background:#fff;color:#5c7083;font-size:1.35rem;line-height:1;place-items:center}
+    .kardex-ticket-modal__close:hover{background:#f3f6f9;color:#18324b}
+    .kardex-ticket-modal__description{margin:1.05rem 0;color:#65788c;font-size:.86rem;line-height:1.55}
+    .kardex-ticket-modal__label{display:block;margin:0 0 .38rem;color:#42596f;font-size:.77rem;font-weight:750}
+    .kardex-ticket-modal__input-wrap{position:relative}
+    .kardex-ticket-modal__input-wrap i{position:absolute;top:50%;left:.9rem;transform:translateY(-50%);color:#6e879c}
+    .kardex-ticket-modal__input-wrap input{width:100%;height:46px;padding:.65rem .85rem .65rem 2.6rem;border:1px solid #d5e0e9;border-radius:9px;background:#fff;color:#233e57;font-size:.92rem;font-weight:700;letter-spacing:.035em;outline:none}
+    .kardex-ticket-modal__input-wrap input:focus{border-color:#6d9abd;box-shadow:0 0 0 3px rgba(29,79,122,.12)}
+    .kardex-ticket-modal__hint{display:block;margin-top:.4rem;color:#788a9c;font-size:.73rem;line-height:1.45}
+    .kardex-ticket-modal__status{margin-top:.8rem;padding:.65rem .8rem;border:1px solid #d9e5ee;border-radius:9px;background:#f3f8fc;color:#315773;font-size:.79rem;line-height:1.45}
+    .kardex-ticket-modal__status--success{border-color:#c5e5cf;background:#eff9f2;color:#25643c}
+    .kardex-ticket-modal__status--error{border-color:#f0c8c8;background:#fff4f4;color:#a33e49}
+    .kardex-ticket-modal__actions{display:flex;justify-content:flex-end;gap:.5rem;margin-top:1.15rem;padding-top:.95rem;border-top:1px solid #edf1f4}
+    .kardex-ticket-modal__actions .btn{min-height:38px;border-radius:7px;font-size:.8rem;font-weight:750}
+    .kardex-ticket-modal__actions .btn-primary{border-color:#1d4f7a;background:#1d4f7a}
+    .kardex-ticket-modal__actions .btn-primary:hover{border-color:#153e63;background:#153e63}
     @keyframes kardexDownloadProgress{0%{transform:translateX(-115%)}100%{transform:translateX(300%)}}
     @keyframes kardexDownloadAppear{from{opacity:0;transform:translateY(6px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
     @media(prefers-reduced-motion:reduce){.kardex-download-modal__progress span{animation-duration:.01ms!important;animation-iteration-count:1!important}.kardex-download-modal__dialog{animation:none}}
@@ -453,6 +507,7 @@
         .kardex-summary-card{min-height:100px;padding:.75rem .8rem}.kardex-summary-card strong{font-size:1.25rem}.kardex-summary-card small{font-size:.68rem}
         .kardex-history-header{padding:.75rem .85rem}.kardex-history-header__title h3{font-size:.9rem}.kardex-history-header__count strong{font-size:.7rem}
         .kardex-table-wrap{max-height:calc(100vh - 355px)}.kardex-table{min-width:1370px}
+        .kardex-ticket-modal__dialog{padding:1.15rem;border-radius:14px}.kardex-ticket-modal__header h2{font-size:1rem}.kardex-ticket-modal__actions{flex-direction:column-reverse}.kardex-ticket-modal__actions .btn{width:100%}
     }
 </style>
 @stop
@@ -467,8 +522,16 @@
             const message = document.getElementById('kardexDownloadMessage');
             const icon = document.getElementById('kardexDownloadIcon');
             const closeButton = document.getElementById('kardexDownloadClose');
+            const manualTicketOpenButton = document.getElementById('kardexManualTicketOpen');
+            const manualTicketModal = document.getElementById('kardexManualTicketModal');
+            const manualTicketForm = document.getElementById('kardexManualTicketForm');
+            const manualTicketCode = document.getElementById('kardexManualTicketCode');
+            const manualTicketStatus = document.getElementById('kardexManualTicketStatus');
+            const manualTicketGenerateButton = document.getElementById('kardexManualTicketGenerate');
             let isDownloading = false;
             let closeTimer = null;
+            let isGeneratingManualTicket = false;
+            let manualTicketLastTrigger = null;
 
             if (!form || !modal) {
                 return;
@@ -524,6 +587,112 @@
                     throw new Error('El servidor no devolvió un archivo Excel válido.');
                 }
             };
+
+            const showManualTicketModal = () => {
+                if (!manualTicketModal) {
+                    return;
+                }
+
+                manualTicketLastTrigger = manualTicketOpenButton;
+                manualTicketStatus.hidden = true;
+                manualTicketStatus.className = 'kardex-ticket-modal__status';
+                manualTicketStatus.textContent = '';
+                manualTicketGenerateButton.disabled = false;
+                manualTicketGenerateButton.innerHTML = '<i class="fas fa-file-pdf mr-1" aria-hidden="true"></i>Generar ticket';
+                manualTicketModal.hidden = false;
+                manualTicketModal.setAttribute('aria-hidden', 'false');
+                document.body.style.overflow = 'hidden';
+                manualTicketCode.focus();
+            };
+
+            const hideManualTicketModal = () => {
+                if (!manualTicketModal || isGeneratingManualTicket) {
+                    return;
+                }
+
+                manualTicketModal.hidden = true;
+                manualTicketModal.setAttribute('aria-hidden', 'true');
+                document.body.style.overflow = '';
+                if (manualTicketLastTrigger instanceof HTMLElement) {
+                    manualTicketLastTrigger.focus();
+                }
+            };
+
+            const generateManualDeliveryTicket = async (event) => {
+                event.preventDefault();
+                if (isGeneratingManualTicket || !manualTicketForm.reportValidity()) {
+                    return;
+                }
+
+                isGeneratingManualTicket = true;
+                manualTicketGenerateButton.disabled = true;
+                manualTicketCode.disabled = true;
+                manualTicketGenerateButton.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-1" aria-hidden="true"></i>Generando…';
+                manualTicketStatus.hidden = false;
+                manualTicketStatus.className = 'kardex-ticket-modal__status';
+                manualTicketStatus.textContent = 'Consultando la guía y preparando el ticket…';
+
+                try {
+                    const response = await fetch(manualTicketForm.action, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            Accept: 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: new FormData(manualTicketForm),
+                    });
+
+                    if (!response.ok) {
+                        const payload = await response.json().catch(() => ({}));
+                        const messages = {
+                            403: 'Tu cuenta no tiene permiso para generar este ticket.',
+                            404: 'No encontramos esa guía en el sistema postal. Revisa el código e intenta nuevamente.',
+                            422: 'Ingresa un código de guía válido para generar el ticket.',
+                            502: 'No se pudo consultar el sistema postal en este momento. Intenta nuevamente.',
+                        };
+                        throw new Error(String(payload.message || messages[response.status] || 'No se pudo generar el ticket. Intenta nuevamente.'));
+                    }
+
+                    const blob = await response.blob();
+                    await validateFile(blob, 'pdf');
+                    const objectUrl = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = objectUrl;
+                    link.download = filenameFromResponse(response, 'ticket-entrega-' + manualTicketCode.value.trim().toUpperCase() + '.pdf');
+                    link.style.display = 'none';
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
+
+                    manualTicketStatus.className = 'kardex-ticket-modal__status kardex-ticket-modal__status--success';
+                    manualTicketStatus.textContent = 'Ticket generado y enviado a descargas.';
+                    manualTicketGenerateButton.innerHTML = '<i class="fas fa-redo mr-1" aria-hidden="true"></i>Generar otro';
+                } catch (error) {
+                    manualTicketStatus.className = 'kardex-ticket-modal__status kardex-ticket-modal__status--error';
+                    manualTicketStatus.textContent = error.message || 'No se pudo generar el ticket. Intenta nuevamente.';
+                    manualTicketGenerateButton.innerHTML = '<i class="fas fa-file-pdf mr-1" aria-hidden="true"></i>Reintentar';
+                } finally {
+                    isGeneratingManualTicket = false;
+                    manualTicketCode.disabled = false;
+                    manualTicketGenerateButton.disabled = false;
+                }
+            };
+
+            manualTicketOpenButton?.addEventListener('click', showManualTicketModal);
+            manualTicketModal?.querySelectorAll('[data-kardex-ticket-close]').forEach((button) => {
+                button.addEventListener('click', hideManualTicketModal);
+            });
+            manualTicketForm?.addEventListener('submit', generateManualDeliveryTicket);
+            manualTicketCode?.addEventListener('input', () => {
+                manualTicketCode.value = manualTicketCode.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+            });
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && manualTicketModal && !manualTicketModal.hidden) {
+                    hideManualTicketModal();
+                }
+            });
 
             const beginDownload = async (button) => {
                 if (isDownloading) {

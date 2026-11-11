@@ -5370,6 +5370,7 @@
             const FACTURACION_MONITOR_CONFIG_STORAGE_KEY = 'facturacion-monitor-config:' + facturacionMonitorUserId;
             const FACTURACION_MONITOR_BROADCAST_NAME = 'facturacion-qr-monitor';
             let facturacionMonitorChannel = null;
+            let facturacionMonitorWindow = null;
 
             const readFacturacionMonitorConfig = () => {
                 try {
@@ -5413,8 +5414,11 @@
 
                 try {
                     const parsed = new URL(normalizedUrl, window.location.origin);
+                    const expiresAt = Number(parsed.searchParams.get('expires') || 0);
                     return /\/facturacion\/monitor\/display\/[^/?#]+/i.test(parsed.pathname)
-                        && parsed.searchParams.has('signature');
+                        && parsed.searchParams.has('signature')
+                        && Number.isFinite(expiresAt)
+                        && expiresAt > Math.floor(Date.now() / 1000);
                 } catch (error) {
                     return false;
                 }
@@ -5641,22 +5645,25 @@
                 });
             };
 
-            const ensureFacturacionMonitorTab = (urlOverride = '') => {
-                const config = resolveFacturacionMonitorConfig();
-                const effectiveUrl = String(urlOverride || config.url || '').trim();
-                if (!config.enabled || effectiveUrl === '') {
-                    return false;
+            const reserveFacturacionMonitorWindow = () => {
+                if (facturacionMonitorWindow && !facturacionMonitorWindow.closed) {
+                    return facturacionMonitorWindow;
                 }
 
                 try {
-                    window.open(effectiveUrl, 'facturacionQrMonitorDisplay', 'noopener');
-                    return true;
+                    const displayWindow = window.open('about:blank', 'facturacionQrMonitorDisplay');
+                    if (!displayWindow) {
+                        return null;
+                    }
+
+                    facturacionMonitorWindow = displayWindow;
+                    return displayWindow;
                 } catch (error) {
-                    return false;
+                    return null;
                 }
             };
 
-            const activateFacturacionMonitor = (urlOverride = '', showFeedback = true) => {
+            const activateFacturacionMonitor = (urlOverride = '', displayWindow = null, showFeedback = true) => {
                 const normalizedUrl = String(urlOverride || '').trim();
                 if (normalizedUrl === '') {
                     return false;
@@ -5669,7 +5676,17 @@
 
                 persistFacturacionMonitorConfig({ enabled: true, url: monitorUrl });
                 setFacturacionMonitorButtonState();
-                ensureFacturacionMonitorTab(monitorUrl);
+                if (displayWindow && !displayWindow.closed) {
+                    try {
+                        displayWindow.location.replace(monitorUrl);
+                        displayWindow.opener = null;
+                    } catch (error) {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+
                 if (facturacionCurrentQrState && facturacionCurrentQrState.image_data) {
                     publishFacturacionMonitorState(facturacionCurrentQrState, monitorUrl);
                 } else {
@@ -5711,64 +5728,45 @@
             };
 
             const configureFacturacionMonitor = async () => {
-                const current = resolveFacturacionMonitorConfig();
-                const preferredUrl = String(current.url || '').trim();
-                if (preferredUrl !== '') {
-                    activateFacturacionMonitor(preferredUrl, true);
+                const displayWindow = reserveFacturacionMonitorWindow();
+                if (!displayWindow) {
+                    renderFacturacionShortcutFeedback({
+                        type: 'warning',
+                        title: 'No se pudo abrir la pantalla QR',
+                        message: 'El navegador bloqueo la ventana del monitor QR.',
+                        detail: 'Permite las ventanas emergentes de este sitio y vuelve a tocar el boton Pantalla QR.',
+                    });
                     return;
                 }
+
+                if (facturacionMonitorConfigBtn instanceof HTMLButtonElement) {
+                    facturacionMonitorConfigBtn.disabled = true;
+                }
+
                 try {
+                    // La URL guardada puede haber vencido o haber sido firmada
+                    // antes de una rotacion de clave. Solicita una firma nueva
+                    // cada vez que se activa el monitor.
                     const signedUrl = await fetchFacturacionMonitorSignedUrl();
-                    activateFacturacionMonitor(signedUrl, true);
+                    if (!activateFacturacionMonitor(signedUrl, displayWindow, true)) {
+                        throw new Error('No se pudo cargar el monitor QR en la ventana abierta.');
+                    }
                 } catch (error) {
-                    persistFacturacionMonitorConfig({ enabled: false, url: '' });
-                    setFacturacionMonitorButtonState();
+                    if (displayWindow && !displayWindow.closed) {
+                        displayWindow.close();
+                    }
+                    facturacionMonitorWindow = null;
                     renderFacturacionShortcutFeedback({
                         type: 'warning',
                         title: 'Pantalla QR no disponible',
                         message: String(error && error.message ? error.message : 'No se pudo activar automaticamente la pantalla QR.'),
-                        detail: 'Revisa la sesion o la configuracion del monitor QR e intenta nuevamente.',
+                        detail: 'Revisa la sesion y vuelve a intentarlo. La URL firmada se renovara al activar el monitor.',
                     });
+                } finally {
+                    if (facturacionMonitorConfigBtn instanceof HTMLButtonElement) {
+                        facturacionMonitorConfigBtn.disabled = false;
+                    }
                 }
-                return;
-                persistFacturacionMonitorConfig({ enabled: false, url: '' });
-                setFacturacionMonitorButtonState();
-                renderFacturacionShortcutFeedback({
-                    type: 'warning',
-                    title: 'Pantalla QR no disponible',
-                    message: 'No hay una URL automatica configurada para este monitor QR.',
-                    detail: 'Configura la URL por defecto del monitor QR en Aplicacion para habilitarlo sin intervencion manual.',
-                });
-                return;
-                const enteredUrl = null;
-
-                if (enteredUrl === null) {
-                    return;
-                }
-
-                const normalizedUrl = String(enteredUrl || '').trim();
-                if (normalizedUrl === '') {
-                    persistFacturacionMonitorConfig({ enabled: false, url: '' });
-                    setFacturacionMonitorButtonState();
-                    renderFacturacionShortcutFeedback({
-                        type: 'info',
-                        title: 'Pantalla QR desactivada',
-                        message: 'Este navegador ya no enviara el QR a una pestaña externa.',
-                        detail: 'Las demas cajas seguiran funcionando con su propia configuracion.',
-                    });
-                    return;
-                }
-
-                persistFacturacionMonitorConfig({ enabled: true, url: normalizedUrl });
-                setFacturacionMonitorButtonState();
-                ensureFacturacionMonitorTab(normalizedUrl);
-                publishFacturacionMonitorAdsState();
-                renderFacturacionShortcutFeedback({
-                    type: 'success',
-                    title: 'Pantalla QR configurada',
-                    message: 'Este navegador replicara el QR en la pestaña externa configurada.',
-                    detail: normalizedUrl,
-                });
             };
 
             const resolveProcessingCopy = (form = null) => {
