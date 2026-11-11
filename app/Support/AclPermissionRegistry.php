@@ -531,10 +531,25 @@ class AclPermissionRegistry
      * @var array<string, array<int, string>>
      */
     private const ROUTE_ACCESS_PERMISSION_OVERRIDES = [
-        'internacional.sacas' => [
-            'internacional.sacas',
-            'internacional.section',
-        ],
+        'internacional.section' => ['internacional.menu'],
+        'internacional.warehouse' => ['internacional.menu'],
+        'internacional.sacas' => ['internacional.menu'],
+        'internacional.sacas.operate' => ['internacional.menu'],
+        'internacional.sacas.incidents.store' => ['internacional.menu'],
+        'internacional.sacas.incidents.sent' => ['internacional.menu'],
+        'internacional.sacas.incidents.resolve' => ['internacional.menu'],
+        'internacional.sacas.incidents.print' => ['internacional.menu'],
+        'internacional.sacas.incidents.evidence' => ['internacional.menu'],
+        'internacional.my-delivery.selection.add' => ['internacional.menu'],
+        'internacional.my-delivery.selection.remove' => ['internacional.menu'],
+        'internacional.my-delivery.operate' => ['internacional.menu'],
+        'internacional.selection.add' => ['internacional.menu'],
+        'internacional.selection.remove' => ['internacional.menu'],
+        'internacional.operate' => ['internacional.menu'],
+        'internacional.workflow.selection.add' => ['internacional.menu'],
+        'internacional.workflow.selection.remove' => ['internacional.menu'],
+        'internacional.workflow.operate' => ['internacional.menu'],
+        'internacional.inbound.create' => ['internacional.menu'],
         'paquetes-ems.todos' => ['paquetes-ems.todos'],
         'delivery-express.paquetes-faro.index' => ['paquetes-ems.solicitudes.index'],
         'delivery-express.paquetes-faro.invoice' => ['paquetes-ems.solicitudes.index'],
@@ -2018,6 +2033,16 @@ class AclPermissionRegistry
     private static function actionLabel(string $permissionName, string $actionKey): string
     {
         $specialLabels = [
+            'internacional.menu' => 'Acceso: Menú Internacional',
+            'internacional.menu.mi-almacen.recibir-destino' => 'Submenú: Mi Almacén · Recibir paquetes en destino',
+            'internacional.menu.mi-almacen.por-entregar' => 'Submenú: Mi Almacén · Por entregar',
+            'internacional.menu.mis-paquetes.asignados-a-mi' => 'Submenú: Mis paquetes · Asignados a mí',
+            'internacional.menu.mis-paquetes.entregados-por-mi' => 'Submenú: Mis paquetes · Entregados por mí',
+            'internacional.menu.recibir-abrir-saca' => 'Submenú: Recibir y abrir saca',
+            'internacional.menu.clasificar-despachar' => 'Submenú: Clasificar y despachar',
+            'internacional.menu.rezago-devoluciones' => 'Submenú: Rezago y devoluciones',
+            'internacional.menu.todos-paquetes' => 'Submenú: Todos los paquetes',
+            'internacional.menu.entregados-oficina' => 'Submenú: Entregados en la oficina',
             'mis-ventas.kardex' => 'Ventana: Kardex personal',
             'mis-ventas.kardex-regional' => 'Ventana: Kardex por Sucursal',
             'paquetes-ems.todos' => 'Acceso: Todos los paquetes EMS, contratos y Delivery Express',
@@ -2449,6 +2474,16 @@ class AclPermissionRegistry
     private static function permissionHint(string $permissionName, string $moduleKey, string $actionKey): ?string
     {
         $specialHints = [
+            'internacional.menu' => 'Permite ver el menú Internacional. También debe asignarse el permiso de cada submenú al que tendrá acceso el rol.',
+            'internacional.menu.mi-almacen.recibir-destino' => 'Permite abrir Recibir paquetes en destino y sus operaciones autorizadas.',
+            'internacional.menu.mi-almacen.por-entregar' => 'Permite abrir Por entregar y sus operaciones autorizadas.',
+            'internacional.menu.mis-paquetes.asignados-a-mi' => 'Permite abrir los paquetes asignados al usuario y sus operaciones autorizadas.',
+            'internacional.menu.mis-paquetes.entregados-por-mi' => 'Permite consultar los paquetes entregados por el usuario.',
+            'internacional.menu.recibir-abrir-saca' => 'Permite recibir y abrir sacas, registrar paquetes de la saca y sus devoluciones de Aduana.',
+            'internacional.menu.clasificar-despachar' => 'Permite clasificar paquetes, definir su destino y asociarlos a sacas nacionales.',
+            'internacional.menu.rezago-devoluciones' => 'Permite consultar rezago y devoluciones internacionales.',
+            'internacional.menu.todos-paquetes' => 'Permite consultar todos los paquetes internacionales asociados a la oficina.',
+            'internacional.menu.entregados-oficina' => 'Permite consultar paquetes entregados en la oficina.',
             'paquetes-ems.todos' => 'Controla el acceso al listado de consulta de EMS, contratos y Delivery Express.',
             'internacional.section' => 'Controla el acceso a las ventanas de recorrido nacional, rezago y consulta de paquetes internacionales.',
             'internacional.warehouse' => 'Controla el acceso a las vistas de entregas del Almacén internacional.',
@@ -2699,6 +2734,22 @@ class AclPermissionRegistry
     private static function shouldHidePermissionFromMatrix(string $permissionName): bool
     {
         if ($permissionName === 'facturacion.modes.configured') {
+            return true;
+        }
+
+        // These technical route permissions are superseded by the explicit
+        // Internacional menu + submenu ACL. Keeping them assignable in the
+        // role matrix would suggest they grant access on their own.
+        if (
+            in_array($permissionName, [
+                'internacional.section',
+                'internacional.warehouse',
+                'internacional.sacas',
+                'internacional.inbound.create',
+            ], true)
+            || str_starts_with($permissionName, 'internacional.sacas.')
+            || str_starts_with($permissionName, 'internacional.my-delivery.')
+        ) {
             return true;
         }
 

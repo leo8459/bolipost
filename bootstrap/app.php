@@ -13,6 +13,7 @@ use App\Http\Middleware\EnsureExternalApiAbility;
 use App\Http\Middleware\EnsureExternalApiAnyAbility;
 use App\Http\Middleware\EnsureExternalApiJwt;
 use App\Http\Middleware\EnsureInternalWebAccess;
+use App\Http\Middleware\EnsureInternationalMenuPermission;
 use App\Http\Middleware\EnsureRoutePermission;
 use App\Http\Middleware\EnsureSingleMobileSession;
 use App\Http\Middleware\EnsureSiopApiToken;
@@ -46,6 +47,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'route.permission' => EnsureRoutePermission::class,
+            'international.menu-access' => EnsureInternationalMenuPermission::class,
             'route.permission.cliente' => EnsureClienteRoutePermission::class,
             'guest.cliente' => RedirectIfClienteAuthenticated::class,
             'cliente.guard' => UseClienteGuard::class,

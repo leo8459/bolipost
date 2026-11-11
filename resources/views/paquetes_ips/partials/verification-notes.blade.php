@@ -69,6 +69,7 @@
                             <div class="d-flex flex-wrap align-items-center">
                                 <a class="btn btn-sm btn-outline-primary mr-2 mb-1" target="_blank" rel="noopener" href="{{ route('internacional.sacas.incidents.print', \App\Support\IpsOfficeContext::parameters(request(), ['codigo' => $receptacle['codigo'], 'note' => $note->id])) }}"><i class="fas fa-print mr-1"></i>Preparar impresión</a>
                                 @if($note->status === 'pending_transmission')
+                                    @can('internacional.workflow.operate')
                                     <details class="ips-vn-transition mb-1">
                                         <summary>Registrar transmisión externa</summary>
                                         <form class="border rounded p-2 mt-2" method="POST" action="{{ route('internacional.sacas.incidents.sent', \App\Support\IpsOfficeContext::parameters(request(), ['codigo' => $receptacle['codigo'], 'note' => $note->id])) }}">
@@ -82,8 +83,10 @@
                                             <button class="btn btn-sm btn-primary" type="submit">Guardar envío</button>
                                         </form>
                                     </details>
+                                    @endcan
                                 @elseif($note->status === 'sent')
                                     <span class="small text-muted mr-2 mb-1">{{ $note->transmission_method }} · VN {{ $note->external_vn_number }} · {{ $note->sent_at?->timezone('America/La_Paz')->format('d/m/Y') }}</span>
+                                    @can('internacional.workflow.operate')
                                     <details class="ips-vn-transition mb-1">
                                         <summary>Registrar respuesta y cerrar</summary>
                                         <form class="border rounded p-2 mt-2" method="POST" action="{{ route('internacional.sacas.incidents.resolve', \App\Support\IpsOfficeContext::parameters(request(), ['codigo' => $receptacle['codigo'], 'note' => $note->id])) }}">
@@ -93,6 +96,7 @@
                                             <button class="btn btn-sm btn-success" type="submit">Cerrar incidencia</button>
                                         </form>
                                     </details>
+                                    @endcan
                                 @endif
                             </div>
                         </article>
@@ -102,6 +106,7 @@
                 <div class="ips-vn-empty mb-3"><i class="fas fa-check-circle text-muted mr-2" aria-hidden="true"></i>Todavía no hay incidencias registradas para esta saca.</div>
             @endif
 
+            @can('internacional.workflow.operate')
             <details class="ips-vn-create" @if($errors->hasAny(['incident_type', 'document_type', 'package_code', 'comparison_source', 'comparison_reference', 'basis_confirmed', 'declared_count', 'observed_count', 'description', 'outer_condition', 'contents_condition', 'contents_at_risk', 'evidence'])) open @endif>
                 <summary class="btn btn-outline-primary"><i class="fas fa-plus mr-1" aria-hidden="true"></i>Registrar incidencia</summary>
                 <form class="ips-vn-form border rounded mt-3 p-3" method="POST" enctype="multipart/form-data" action="{{ route('internacional.sacas.incidents.store', \App\Support\IpsOfficeContext::parameters(request(), ['codigo' => $receptacle['codigo']])) }}" data-comparison-types="{{ implode(',', $comparisonTypes) }}" data-package-types="{{ implode(',', $packageIncidentTypes) }}">
@@ -215,6 +220,7 @@
                     <small class="d-block text-muted mt-2">Códigos UPU: saca/paquete dañado 35 · faltante 40 · faltante con evidencia de robo 42 · excedente 41 · mal encaminado 43. Una diferencia de cantidad a granel se detalla en CP 78.</small>
                 </form>
             </details>
+            @endcan
         </div>
     </section>
 

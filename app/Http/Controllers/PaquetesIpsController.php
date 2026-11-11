@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\IpsVerificationNote;
 use App\Services\SitraIpsClient;
 use App\Services\SitraTrackingEventsClient;
+use App\Support\InternationalMenuAcl;
 use App\Support\IpsOfficeContext;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Request;
@@ -385,6 +386,7 @@ class PaquetesIpsController extends Controller
         $group = null;
         $tab = null;
         $groups = self::INTERNATIONAL_OPERATION_GROUPS;
+        $user = auth()->user();
 
         if ($receptaclePid !== null) {
             foreach ($groups['recepcion']['tabs'] as &$navigationTab) {
@@ -410,11 +412,38 @@ class PaquetesIpsController extends Controller
             [$group, $tab] = self::INTERNATIONAL_OPERATION_TABS[$section];
         }
 
+        foreach ($groups as $groupKey => &$navigationGroup) {
+            $navigationGroup['tabs'] = array_values(array_filter(
+                $navigationGroup['tabs'],
+                function (array $navigationTab) use ($user): bool {
+                    $permission = InternationalMenuAcl::permissionForLink(
+                        (string) ($navigationTab['route'] ?? ''),
+                        (array) ($navigationTab['params'] ?? [])
+                    );
+
+                    return InternationalMenuAcl::userCanAccess($user, $permission);
+                }
+            ));
+
+            if ($navigationGroup['tabs'] === []) {
+                unset($groups[$groupKey]);
+            }
+        }
+        unset($navigationGroup);
+
+        $warehouseTabs = array_values(array_filter(
+            self::WAREHOUSE_TABS,
+            fn (array $warehouseTab): bool => InternationalMenuAcl::userCanAccess(
+                $user,
+                InternationalMenuAcl::permissionForWarehouseView((string) data_get($warehouseTab, 'params.warehouseView'))
+            )
+        ));
+
         return [
             $groups,
             $group,
             $tab,
-            self::WAREHOUSE_TABS,
+            $warehouseTabs,
         ];
     }
 
@@ -508,7 +537,21 @@ class PaquetesIpsController extends Controller
         $courierConfigurationMessage = ! $link || ! $link->active || $link->ips_office_cd === null
             ? 'Tu cuenta necesita un vínculo IPS activo con una oficina antes de consultar el reparto.'
             : 'Tu cuenta IPS está vinculada, pero falta asociarla a un cartero activo de su regional.';
-        $readOnly = ($isInternationalPage && ! $deliveryOnly && ! $workflowAction) || $courierConfigurationMissing;
+        $workbenchPermissions = $workflowAction
+            ? [
+                'internacional.workflow.selection.add',
+                'internacional.workflow.selection.remove',
+                'internacional.workflow.operate',
+            ]
+            : ($deliveryOnly ? [
+                'internacional.selection.add',
+                'internacional.selection.remove',
+                'internacional.operate',
+            ] : []);
+        $canUseWorkbench = collect($workbenchPermissions)->every(fn (string $permission): bool => $request->user()->can($permission));
+        $readOnly = ($isInternationalPage && ! $deliveryOnly && ! $workflowAction)
+            || $courierConfigurationMissing
+            || ! $canUseWorkbench;
         $listingUrl = $section === 'almacen'
             ? route('internacional.warehouse', IpsOfficeContext::parameters($request, ['warehouseView' => $warehouseView]))
             : ($isInternationalPage
@@ -638,7 +681,7 @@ class PaquetesIpsController extends Controller
                 ? route('internacional.my-delivery.operate', IpsOfficeContext::parameters($request, []))
                 : ($deliveryOnly ? route('internacional.operate', IpsOfficeContext::parameters($request, [])) : route('ips.operate', IpsOfficeContext::parameters($request, []))));
         $operationLabel = $workflowAction ? self::ACTIONS[$workflowAction] : null;
-        [$operationGroups, $operationGroup, $activeOperationTab] = $this->operationNavigation($section, $warehouseView, null, $preferredReceptaclePid);
+        [$operationGroups, $operationGroup, $activeOperationTab, $warehouseTabs] = $this->operationNavigation($section, $warehouseView, null, $preferredReceptaclePid);
         $workflowHint = match ($workflowAction) {
             'EMR' => 'Escanea los marbetes encontrados; IPS registra un movimiento individual por paquete.',
             'EDN' => 'Agrupa solo paquetes compatibles con la misma oficina de destino.',
@@ -651,7 +694,7 @@ class PaquetesIpsController extends Controller
             'packages', 'search', 'stage', 'selection', 'error', 'link', 'actions',
             'section', 'pageTitle', 'pageDescription',
             'warehouseView',
-            'operationGroups', 'operationGroup', 'activeOperationTab',
+            'operationGroups', 'operationGroup', 'activeOperationTab', 'warehouseTabs',
             'isInternationalPage', 'deliveryOnly', 'courierOnly', 'selectionWorkflow', 'deliveryActionLabels', 'readOnly', 'listingUrl', 'listingClearUrl', 'workflowAction', 'workflowKey', 'operationLabel', 'workflowHint', 'preferredReceptaclePid',
             'courierConfigurationMissing', 'courierConfigurationMessage',
             'internationalWorkflow',
