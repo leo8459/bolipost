@@ -2,9 +2,11 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\User;
 use App\Support\AclPermissionRegistry;
 use Closure;
 use Illuminate\Http\Request;
+use Spatie\Permission\PermissionRegistrar;
 use Symfony\Component\HttpFoundation\Response;
 
 class EnsureRoutePermission
@@ -63,6 +65,19 @@ class EnsureRoutePermission
         foreach ($existingPermissions as $permission) {
             if ($user->can($permission)) {
                 return $next($request);
+            }
+        }
+
+        // A role may have been assigned or edited after this worker loaded ACL.
+        // Retry with committed assignments before rejecting a persisted user.
+        if ($user instanceof User && $user->exists) {
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
+            $user->unsetRelation('roles')->unsetRelation('permissions');
+
+            foreach ($existingPermissions as $permission) {
+                if ($user->can($permission)) {
+                    return $next($request);
+                }
             }
         }
 
