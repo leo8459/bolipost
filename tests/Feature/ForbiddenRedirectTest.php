@@ -9,6 +9,8 @@ class ForbiddenRedirectTest extends TestCase
 {
     public function test_route_permission_screen_redirects_to_public_tracking(): void
     {
+        config()->set('acl.forbidden_redirect_url', 'https://trackingbo.correos.gob.bo/inicio');
+
         Route::middleware('web')->get('/testing/forbidden', function () {
             abort(403, 'No tienes permiso para acceder a esta ventana o accion.');
         });

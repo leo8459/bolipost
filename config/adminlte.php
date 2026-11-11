@@ -821,13 +821,13 @@ $config = [
         [
             'text' => 'Internacional',
             'icon' => 'fas fa-globe-americas',
-            'can' => 'internacional.section',
+            'can' => ['internacional.section', 'internacional.warehouse'],
             'active' => ['internacional/*'],
             'submenu' => [
                 [
                     'text' => 'Mi Almacén',
                     'icon' => 'fas fa-warehouse',
-                    'can' => 'internacional.section',
+                    'can' => ['internacional.section', 'internacional.warehouse'],
                     'active' => ['internacional/almacen/por-entregar*', 'internacional/recepcion-oficina*'],
                     'submenu' => [
                         [
