@@ -605,16 +605,29 @@ $config = [
             ],
         ],
         [
-            'text' => 'Delivery Express',
-            'icon' => 'fas fa-shipping-fast',
-            'can' => 'paquetes-ems.solicitudes.index',
+            'text' => 'Control de paquetes',
+            'icon' => 'fas fa-boxes',
             'submenu' => [
                 [
                     'text' => 'Paquetes Delivery Express por Faro',
                     'url' => 'delivery-express/paquetes-faro',
                     'icon' => 'fas fa-boxes',
-                    'can' => 'paquetes-ems.solicitudes.index',
+                    'can' => 'delivery-express.paquetes-faro.index',
                     'active' => ['delivery-express/paquetes-faro*'],
+                ],
+                [
+                    'text' => 'Paquetes Contratos',
+                    'url' => 'control-paquetes/contratos',
+                    'icon' => 'fas fa-file-contract',
+                    'can' => 'control-paquetes.contratos.index',
+                    'active' => ['control-paquetes/contratos*'],
+                ],
+                [
+                    'text' => 'Paquetes EMS',
+                    'url' => 'control-paquetes/ems',
+                    'icon' => 'fas fa-mail-bulk',
+                    'can' => 'control-paquetes.ems.index',
+                    'active' => ['control-paquetes/ems*'],
                 ],
             ],
         ],

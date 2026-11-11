@@ -12,7 +12,6 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class DeliveryExpressControlController extends Controller
@@ -101,7 +100,11 @@ class DeliveryExpressControlController extends Controller
             'destino' => (clone $baseQuery)->where(function ($query): void {
                 $query->where('forma_pago', 'destino')->orWhere('pago_destinatario', true);
             })->count(),
+            'delivered' => (clone $baseQuery)->whereHas('estadoRegistro', fn ($query) =>
+                $query->whereRaw('trim(upper(nombre_estado)) = ?', ['ENTREGADO'])
+            )->count(),
         ];
+        $summary['not_delivered'] = $summary['total'] - $summary['delivered'];
 
         $solicitudes = (clone $baseQuery)
             ->latest('created_at')
@@ -570,36 +573,7 @@ class DeliveryExpressControlController extends Controller
 
     private function resolveDepartmentScope(?User $user): ?array
     {
-        if (!$user) {
-            return [];
-        }
-
-        $roles = $user->getRoleNames()->map(
-            fn ($role) => str_replace(
-                [' ', '-'],
-                '_',
-                mb_strtolower(Str::ascii(trim((string) $role)))
-            )
-        );
-
-        $hasGlobalAccess = $user->hasGlobalDepartmentAccess()
-            || $roles->contains(fn ($role) => in_array($role, [
-                'admin',
-                'administrador',
-                'super_admin',
-                'superadmin',
-                'super_administrador',
-                'superadministrador',
-                'gestor',
-                'administrador_operaciones',
-                'administrador_de_operaciones',
-            ], true));
-
-        if ($hasGlobalAccess) {
-            return null;
-        }
-
-        return $user->regionalesLista();
+        return \App\Support\PackageControlScope::forUser($user);
     }
 
     private function matchesDepartmentScope(?array $departmentScope, array $locations): bool

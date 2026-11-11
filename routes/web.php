@@ -48,6 +48,7 @@ use App\Http\Controllers\PaquetesEmsBoletaController;
 use App\Http\Controllers\PaquetesEmsController;
 use App\Http\Controllers\PaquetesIpsController;
 use App\Http\Controllers\PaquetesOrdiController;
+use App\Http\Controllers\PackageControlController;
 use App\Http\Controllers\PaqueteriaFlowController;
 use App\Http\Controllers\PerformanceController;
 use App\Http\Controllers\PermissionController;
@@ -545,6 +546,10 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/paquetes-ems/solicitudes', [PaquetesEmsController::class, 'indexSolicitudes'])->name('paquetes-ems.solicitudes.index');
     Route::get('/delivery-express/paquetes-faro', [DeliveryExpressControlController::class, 'index'])
         ->name('delivery-express.paquetes-faro.index');
+    Route::get('/control-paquetes/contratos', [PackageControlController::class, 'contratos'])
+        ->name('control-paquetes.contratos.index');
+    Route::get('/control-paquetes/ems', [PackageControlController::class, 'ems'])
+        ->name('control-paquetes.ems.index');
     Route::get('/delivery-express/paquetes-faro/factura/{cliente}/{cart}', [DeliveryExpressControlController::class, 'downloadInvoice'])
         ->whereNumber('cliente')
         ->whereNumber('cart')
