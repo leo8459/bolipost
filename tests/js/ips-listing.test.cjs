@@ -6,8 +6,11 @@ const vm = require('node:vm');
 const source = readFileSync(join(__dirname, '../../public/js/ips-listing.js'), 'utf8');
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
-function setup() {
-    const events = {}, pending = [], history = [];
+function setup(workflowAction = '') {
+    const events = {}, windowEvents = {}, pending = [], history = [];
+    const workspace = {dataset: {workflowAction, scanEnabled: workflowAction ? '1' : '0'}};
+    const dialog = {open: false, showModal() { this.open = true; }};
+    const modalCode = {textContent: ''};
     const listing = {
         innerHTML: 'previous results',
         addEventListener: (name, fn) => { events[name] = fn; },
@@ -18,20 +21,29 @@ function setup() {
     };
     const status = {hidden: true, textContent: ''};
     vm.runInNewContext(source, {
-        document: {getElementById: id => id === 'ips-listing' ? listing : status, querySelector: () => null},
+        document: {
+            getElementById: id => ({'ips-listing': listing, 'ips-listing-status': status, 'ips-already-received': dialog, 'ips-already-received-code': modalCode}[id] || null),
+            querySelector: selector => selector === '.ips-workspace' ? workspace : null,
+            querySelectorAll: () => [],
+        },
+        FormData: class {
+            constructor(form) { this.fields = new Map(Object.entries(form?.fields || {})); }
+            get(key) { return this.fields.get(key); }
+            append(key, value) { this.fields.set(key, value); }
+        },
         location: new URL('http://localhost/ips'), URL, URLSearchParams, AbortController,
         history: {pushState: (_state, _title, url) => history.push(url)},
-        window: {addEventListener() {}},
+        window: {addEventListener: (name, fn) => { windowEvents[name] = fn; }},
         fetch: (url, options) => new Promise(resolve => pending.push({url, options, resolve})),
     });
     const click = query => events.click({
-        target: {closest: () => ({href: 'http://localhost/ips?' + query})},
+        target: {closest: selector => selector === '.ips-already-received' ? null : ({href: 'http://localhost/ips?' + query})},
         button: 0, preventDefault() {},
     });
     const respond = (index, data, ok = true) => pending[index].resolve({
-        ok, headers: {get: () => 'application/json'}, json: async () => data,
+        ok, status: ok ? 200 : 409, headers: {get: () => 'application/json'}, json: async () => data,
     });
-    return {events, listing, status, pending, history, click, respond};
+    return {events, windowEvents, listing, status, pending, history, click, respond, dialog, modalCode};
 }
 
 test('pagination requests a read-only fragment and replaces just the listing', async () => {
@@ -72,5 +84,28 @@ test('an API failure retains the current results and URL with a visible explanat
 test('selection and delivery forms are not intercepted by list navigation', () => {
     const app = setup();
     app.events.submit({target: {closest: () => null}, preventDefault: () => assert.fail('intercepted operation')});
+    assert.equal(app.pending.length, 0);
+});
+
+test('scanning an already received package opens the modal without adding it', async () => {
+    const app = setup('EMG');
+    const form = {fields: {q: 'PACKAGE01'}, querySelector: () => null};
+    app.events.submit({
+        target: {closest: selector => selector === '.ips-search' ? form : null},
+        preventDefault() {},
+    });
+    assert.equal(app.pending[0].options.method, 'POST');
+    app.respond(0, {error_code: 'already_received', code: 'PACKAGE01', message: 'Este paquete ya está recibido.'}, false);
+    await tick();
+    assert.equal(app.dialog.open, true);
+    assert.equal(app.modalCode.textContent, 'PACKAGE01');
+    assert.equal(app.status.textContent, 'Este paquete ya está recibido.');
+});
+
+test('selecting the received indicator opens the modal without a request', () => {
+    const app = setup('EMG');
+    app.events.click({target: {closest: () => ({dataset: {code: 'PACKAGE01'}})}});
+    assert.equal(app.dialog.open, true);
+    assert.equal(app.modalCode.textContent, 'PACKAGE01');
     assert.equal(app.pending.length, 0);
 });

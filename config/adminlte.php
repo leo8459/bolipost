@@ -421,6 +421,13 @@ $config = [
                             'icon' => 'fas fa-user',
                         ],
                         [
+                            'text' => 'Personal IPS',
+                            'url' => 'administrador/personal-ips',
+                            'icon' => 'fas fa-users',
+                            'can' => 'admin-only-menu',
+                            'active' => ['administrador/personal-ips'],
+                        ],
+                        [
                             'text' => 'Clientes DELIVERY EXPRESS',
                             'url' => 'clientes-admin',
                             'icon' => 'fas fa-address-book',

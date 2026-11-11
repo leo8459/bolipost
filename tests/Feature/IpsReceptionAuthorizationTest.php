@@ -16,6 +16,62 @@ use Tests\TestCase;
 
 class IpsReceptionAuthorizationTest extends TestCase
 {
+    public static function receptionResults(): array
+    {
+        return [['succeeded'], ['processing'], ['uncertain'], ['rejected']];
+    }
+
+    #[DataProvider('receptionResults')]
+    public function test_destination_receipt_clears_only_confirmed_packages(string $status): void
+    {
+        $request = $this->operationRequest(18, 'EMG');
+        $key = 'ips_international_emg_workbench.7001_office_18';
+        $selection = $request->session()->get('ips_workbench.7001_office_18');
+        $selection['OTHERPACKAGE'] = ['package' => ['codigo' => 'OTHERPACKAGE'], 'status' => 'ready', 'payload' => null];
+        $request->session()->put($key, $selection);
+        $ips = Mockery::mock(SitraIpsClient::class);
+        $ips->shouldReceive('user')->once()->with(73)->andReturn($this->snapshot());
+        $ips->shouldReceive('package')->once()->with('PACKAGE01', 18)->andReturn(['package' => $this->package('EMG')]);
+        $ips->shouldReceive('event')->once()->andReturn(['status' => $status]);
+        $tracking = Mockery::mock(SitraTrackingEventsClient::class);
+        if ($status === 'succeeded') {
+            $tracking->shouldReceive('forget')->once()->with('PACKAGE01');
+        } else {
+            $tracking->shouldNotReceive('forget');
+        }
+
+        $result = app(PaquetesIpsController::class)->operateInternational($request, $ips, $tracking, 'recepcion-oficina')->getData(true);
+
+        $this->assertSame($status, $result['status']);
+        $remaining = $request->session()->get($key);
+        $this->assertArrayHasKey('OTHERPACKAGE', $remaining);
+        if ($status === 'succeeded') {
+            $this->assertArrayNotHasKey('PACKAGE01', $remaining);
+            $this->assertTrue($result['selection_removed']);
+            $this->assertSame(1, $result['count']);
+        } else {
+            $this->assertSame($status, $remaining['PACKAGE01']['status']);
+            $this->assertNotEmpty($remaining['PACKAGE01']['payload']['idempotency_key']);
+        }
+    }
+
+    public function test_already_received_package_returns_a_modal_error_without_adding_it(): void
+    {
+        $request = $this->operationRequest(18, 'EMG');
+        $ips = Mockery::mock(SitraIpsClient::class);
+        $ips->shouldReceive('package')->once()->with('PACKAGE01', 18)->andReturn(['package' => [
+            'codigo' => 'PACKAGE01', 'operational_event_cd' => 32, 'event_cd' => 35,
+            'allowed_actions' => ['EMG'],
+        ]]);
+        $ips->shouldNotReceive('event');
+
+        $response = app(PaquetesIpsController::class)->addInternationalSelection($request, $ips, 'recepcion-oficina');
+
+        $this->assertSame(409, $response->getStatusCode());
+        $this->assertSame('already_received', $response->getData(true)['error_code']);
+        $this->assertNull($request->session()->get('ips_international_emg_workbench.7001_office_18'));
+    }
+
     public static function officesAndActions(): array
     {
         return [[17, 'EMG'], [18, 'EMG'], [17, 'EMI'], [18, 'EMI']];

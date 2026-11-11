@@ -52,6 +52,7 @@ use App\Http\Controllers\PackageControlController;
 use App\Http\Controllers\PaqueteriaFlowController;
 use App\Http\Controllers\PerformanceController;
 use App\Http\Controllers\PermissionController;
+use App\Http\Controllers\PersonalIpsController;
 use App\Http\Controllers\PesoController;
 use App\Http\Controllers\PlantillaController;
 use App\Http\Controllers\PreregistroController;
@@ -450,6 +451,9 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::put('/tracking-local-event-rules/{trackingLocalEventRule}', [TrackingLocalEventRuleController::class, 'update'])->name('tracking-local-event-rules.update');
     Route::delete('/tracking-local-event-rules/{trackingLocalEventRule}', [TrackingLocalEventRuleController::class, 'destroy'])->name('tracking-local-event-rules.destroy');
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
+    Route::get('/administrador/personal-ips', [PersonalIpsController::class, 'index'])
+        ->middleware('can:admin-only-menu')
+        ->name('personal-ips.index');
     Route::get('/users/ips-links', [UserIpsLinkController::class, 'index'])->name('users.ips-links.index');
     Route::post('/users/{user}/ips-link', [UserIpsLinkController::class, 'store'])->name('users.ips-links.store');
     Route::put('/users/{user}/ips-link/delivery-agent', [UserIpsLinkController::class, 'updateDeliveryAgent'])->name('users.ips-links.delivery-agent.update');

@@ -13,6 +13,7 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use JeroenNoten\LaravelAdminLte\Menu\Filters\GateFilter;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class UserIpsLinkTest extends TestCase
@@ -111,6 +112,85 @@ class UserIpsLinkTest extends TestCase
             $table->text('value')->nullable();
             $table->timestamps();
         });
+    }
+
+    public function test_personal_ips_shows_api_account_status_and_assigned_offices(): void
+    {
+        $admin = $this->workbenchUser();
+        $admin->assignRole(Role::findOrCreate('administrador', 'web'));
+        Http::preventStrayRequests();
+        Http::fake(['https://sitra.test/api/v1/ips/usuarios*' => Http::response([
+            'data' => [
+                ['user_pid' => 1, 'user_fid' => 'vigente', 'user_name' => 'Persona vigente', 'valid_ind' => '1'],
+                ['user_pid' => 2, 'user_fid' => 'habilitado', 'valid_ind' => '3', 'offices' => [
+                    ['office_cd' => 1, 'office_name' => 'LA PAZ LC/AO'],
+                    ['office_cd' => 2, 'office_name' => 'SANTA CRUZ LC/AO'],
+                ]],
+                ['user_pid' => 3, 'user_fid' => 'baja', 'valid_ind' => '0'],
+                ['user_pid' => 73, 'user_fid' => 'sin_estado'],
+            ],
+            'meta' => ['page' => 1, 'per_page' => 100, 'has_more' => false],
+        ])]);
+
+        $response = $this->actingAs($admin)->get(route('personal-ips.index'))
+            ->assertOk()
+            ->assertSee('Personal IPS')
+            ->assertSee('Persona vigente')
+            ->assertSee('LA PAZ LC/AO')
+            ->assertSee('SANTA CRUZ LC/AO')
+            ->assertSee('badge badge-success">Activo', false)
+            ->assertSee('badge badge-danger">Inactivo', false)
+            ->assertSee('Sin estado informado')
+            ->assertSee('los inactivos no se incluyen en los resultados');
+
+        $this->assertSame(2, substr_count($response->getContent(), 'badge badge-success">Activo'));
+        $this->assertSame(1, substr_count($response->getContent(), 'badge badge-danger">Inactivo'));
+        $this->assertSame(1, substr_count($response->getContent(), 'badge badge-secondary">Sin estado informado'));
+        Http::assertSent(fn (Request $request) => (int) $request['per_page'] === 100);
+    }
+
+    public function test_personal_ips_forwards_search_and_pagination_to_sitra(): void
+    {
+        $admin = $this->workbenchUser();
+        $admin->assignRole(Role::findOrCreate('administrador', 'web'));
+        Http::preventStrayRequests();
+        Http::fake(['https://sitra.test/api/v1/ips/usuarios*' => Http::response([
+            'data' => [['user_pid' => 196, 'user_fid' => 'operador', 'valid_ind' => '3']],
+            'meta' => ['page' => 2, 'per_page' => 50, 'has_more' => true],
+        ])]);
+
+        $this->actingAs($admin)->get(route('personal-ips.index', ['q' => 'operador', 'page' => 2, 'per_page' => 50]))
+            ->assertOk()
+            ->assertSee('Página 2')
+            ->assertSee(route('personal-ips.index', ['q' => 'operador', 'per_page' => 50, 'page' => 3]));
+
+        Http::assertSent(fn (Request $request) => $request['q'] === 'operador'
+            && (int) $request['page'] === 2
+            && (int) $request['per_page'] === 50
+            && $request->hasHeader('Authorization', 'Bearer test-token'));
+        Http::assertSentCount(1);
+    }
+
+    public function test_personal_ips_distinguishes_a_service_failure_from_an_empty_listing(): void
+    {
+        $admin = $this->workbenchUser();
+        $admin->assignRole(Role::findOrCreate('administrador', 'web'));
+        Http::fake(['https://sitra.test/api/v1/ips/usuarios*' => Http::response(['message' => 'Unavailable'], 503)]);
+
+        $this->actingAs($admin)->get(route('personal-ips.index'))
+            ->assertOk()
+            ->assertSee('No fue posible consultar el personal IPS en SITRA')
+            ->assertSee('No se pudo cargar el listado.')
+            ->assertDontSee('No se encontraron usuarios IPS.');
+    }
+
+    public function test_personal_ips_is_restricted_to_administrators(): void
+    {
+        $operator = $this->workbenchUser();
+        Http::preventStrayRequests();
+
+        $this->actingAs($operator)->get(route('personal-ips.index'))->assertForbidden();
+        Http::assertNothingSent();
     }
 
     private function workbenchUser(): User

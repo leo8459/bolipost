@@ -12,6 +12,13 @@
     };
     setScanPlaceholder();
 
+    function showAlreadyReceived(code) {
+        const dialog = document.getElementById('ips-already-received');
+        if (!dialog) return;
+        document.getElementById('ips-already-received-code').textContent = code;
+        if (!dialog.open) dialog.showModal();
+    }
+
     async function load(url, push = true) {
         if (url.origin !== location.origin || url.pathname !== location.pathname) {
             location.assign(url.href);
@@ -70,6 +77,7 @@
                 credentials: 'same-origin',
             });
             const result = await response.json().catch(() => ({}));
+            if (result.error_code === 'already_received') showAlreadyReceived(result.code);
             if (!response.ok || !result.code) throw new Error(result.message || 'No se pudo guardar el paquete.');
             const row = addForm.closest('tr');
             row.querySelector('td:last-child').innerHTML = '<span class="text-success"><i class="fas fa-check"></i> En bandeja</span>';
@@ -100,8 +108,9 @@
         while (scanQueue.length) {
             const code = scanQueue.shift();
             const alreadyInTray = [...document.querySelectorAll('.ips-tray-item')]
-                .some(row => row.dataset.code === code);
+                .find(row => row.dataset.code === code);
             if (alreadyInTray) {
+                if (alreadyInTray.dataset.status === 'succeeded') showAlreadyReceived(code);
                 status.hidden = false;
                 status.textContent = 'Ese paquete ya está en la bandeja.';
                 continue;
@@ -117,6 +126,7 @@
                     credentials: 'same-origin',
                 });
                 const result = await response.json().catch(() => ({}));
+                if (result.error_code === 'already_received') showAlreadyReceived(result.code || code);
                 if (!response.ok || !result.code) {
                     if (fixedWorkflow === 'EMR' && response.status === 404) {
                         try {
@@ -195,6 +205,11 @@
         });
     });
     listing.addEventListener('click', event => {
+        const receivedButton = event.target.closest('.ips-already-received');
+        if (receivedButton) {
+            showAlreadyReceived(receivedButton.dataset.code);
+            return;
+        }
         const link = event.target.closest('.ips-tabs a, .ips-pagination a, .ips-search a');
         if (!link || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
         event.preventDefault();
@@ -205,6 +220,15 @@
         if (!code) return;
         const codeCell = [...listing.querySelectorAll('.ips-code')].find(node => node.textContent.trim() === code);
         const cell = codeCell?.closest('tr')?.querySelector('td:last-child');
+        if (cell && event.detail.received) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'btn btn-sm btn-outline-success ips-already-received';
+            button.dataset.code = code;
+            button.textContent = 'Ya recibido';
+            cell.replaceChildren(button);
+            return;
+        }
         if (!cell || cell.querySelector('.ips-selection-add')) return;
         const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
         const workspace = document.querySelector('.ips-workspace');

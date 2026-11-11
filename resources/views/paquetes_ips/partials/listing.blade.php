@@ -1,12 +1,15 @@
 @if($error)<div class="alert alert-warning" role="alert">{{ $error }}</div>@endif
+@php
+    $searchPurpose = ($deliveryOnly ?? false) ? 'entregar' : (in_array($workflowAction ?? '', ['EMR', 'EMG', 'CUSTOMS_RETURN'], true) ? 'recibir' : '');
+@endphp
 <section class="ips-panel">
                 <div class="ips-panel-header"><h2>{{ $pageTitle ?? 'Paquetes de tu oficina' }}</h2><span>{{ $error ? 'Consulta no disponible' : $packages->total().' resultados' }}</span></div>
-                <form method="GET" action="{{ $listingUrl ?? route('ips.index', \App\Support\IpsOfficeContext::parameters(request(), [])) }}" class="ips-search">
+                <form method="GET" action="{{ $listingUrl ?? route('ips.index', \App\Support\IpsOfficeContext::parameters(request(), [])) }}" class="ips-search {{ $searchPurpose ? 'ips-search--operation' : '' }}">
                     @if($link?->ips_office_cd !== null)<input type="hidden" name="office_cd" value="{{ $link->ips_office_cd }}">@endif
-                    <label for="ips-code" class="sr-only">Código de seguimiento o identificador local exacto</label>
+                    <label for="ips-code" class="{{ $searchPurpose ? 'ips-search-label' : 'sr-only' }}">{{ $searchPurpose ? 'Escanea o escribe el código del paquete para '.$searchPurpose : 'Código de seguimiento o identificador local exacto' }}</label>
                     <input id="ips-code" type="search" name="q" maxlength="35" value="{{ $search }}" placeholder="Escanea o escribe un código…" class="form-control" autocomplete="off">
                     @if($preferredReceptaclePid ?? null)<input type="hidden" name="receptacle_pid" value="{{ $preferredReceptaclePid }}">@endif
-                    <button class="btn btn-primary"><i class="fas fa-search mr-1"></i>Buscar</button>
+                    <button type="submit" class="btn btn-primary ips-search-submit"><i class="fas fa-search mr-2" aria-hidden="true"></i><span>{{ $searchPurpose ? 'Buscar para '.$searchPurpose : 'Buscar' }}</span></button>
                     @if($search)<a href="{{ $listingClearUrl ?? $listingUrl ?? route('ips.index', \App\Support\IpsOfficeContext::parameters(request(), [])) }}" class="btn btn-light">Limpiar</a>@endif
                 </form>
                 @if($workflowHint ?? null)<p class="ips-footnote px-3 pt-0" role="note">{{ $workflowHint }}</p>@endif
@@ -43,6 +46,7 @@
                                 <td><span class="badge badge-{{ $package['stage']['tone'] }}">{{ $displayStageLabel }}</span><small>{{ !empty($package['event_at_local']) ? \Illuminate\Support\Carbon::parse($package['event_at_local'])->format('d/m/Y H:i') : 'Hora local no informada' }}</small>@if(!empty($package['reception_block_reason']))<small>Evento {{ $package['operational_event_cd'] ?? $package['event_cd'] }} · estado IPS {{ $package['state_cd'] ?? 'no informado' }}</small>@endif</td>
                                 <td>
                                     @if($readOnly ?? false)<span class="text-muted">Solo consulta</span>
+                                    @elseif(($workflowAction ?? '') === 'EMG' && $packageEvent === 32)<button type="button" class="btn btn-sm btn-outline-success ips-already-received" data-code="{{ $package['codigo'] }}"><i class="fas fa-check"></i> Ya recibido</button>
                                     @elseif(($workflowAction ?? '') === 'EMG' && !empty($package['reception_block_reason']))<span class="text-muted">No recepcionable en esta oficina</span><small class="text-warning" role="status">{{ $package['reception_block_reason'] }}</small>
                                     @elseif(isset($selection[$package['codigo']]))<span class="text-success"><i class="fas fa-check"></i> En bandeja</span>
                                     @elseif(($workflowAction ?? '') === 'EMG' && !empty($package['route_mismatch_receipt']))<form class="ips-selection-add" method="POST" action="{{ $selectionAddUrl ?? route('ips.selection.add', \App\Support\IpsOfficeContext::parameters(request(), [])) }}">@csrf<input type="hidden" name="codigo" value="{{ $package['codigo'] }}"><button class="btn btn-sm btn-outline-warning"><i class="fas fa-exclamation-triangle"></i> Revisar recepción aquí</button></form><small class="text-warning" role="status">{{ $package['route_mismatch_note'] }}</small>

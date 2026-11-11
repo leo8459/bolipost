@@ -1,9 +1,12 @@
 @extends('adminlte::page')
-@section('title', 'IPS')
+@section('title', $deliveryOnly ? 'Entrega de paquetes | IPS' : (in_array($workflowAction ?? '', ['EMR', 'EMG', 'CUSTOMS_RETURN'], true) ? 'Recepción de paquetes | IPS' : 'IPS'))
 @section('content')
 @include('paquetes_ips.partials.offices')
-<div class="ips-workspace" data-delivery-only="{{ $deliveryOnly ? '1' : '0' }}" data-courier-only="{{ $courierOnly ? '1' : '0' }}" data-workflow-action="{{ $workflowAction ?? '' }}" data-scan-enabled="{{ $readOnly ? '0' : '1' }}" data-preferred-receptacle="{{ $preferredReceptaclePid ?? '' }}" data-add-label="{{ ($workflowAction ?? null) ? 'Agregar al paso' : (($deliveryOnly ?? false) ? 'Agregar a entrega' : 'Agregar') }}" data-selection-add-url="{{ $selectionAddUrl }}" data-operate-url="{{ $operateUrl }}">
-    @if(!$warehouseView && ($workflowAction ?? null) !== 'EDN')
+@php($workbenchMode = $deliveryOnly ? 'delivery' : (in_array($workflowAction ?? '', ['EMR', 'EMG', 'CUSTOMS_RETURN'], true) ? 'reception' : ''))
+<div class="ips-workspace" data-mode="{{ $workbenchMode }}" data-delivery-only="{{ $deliveryOnly ? '1' : '0' }}" data-courier-only="{{ $courierOnly ? '1' : '0' }}" data-workflow-action="{{ $workflowAction ?? '' }}" data-scan-enabled="{{ $readOnly ? '0' : '1' }}" data-preferred-receptacle="{{ $preferredReceptaclePid ?? '' }}" data-add-label="{{ ($workflowAction ?? null) ? 'Agregar al paso' : (($deliveryOnly ?? false) ? 'Agregar a entrega' : 'Agregar') }}" data-selection-add-url="{{ $selectionAddUrl }}" data-operate-url="{{ $operateUrl }}">
+    @if($workbenchMode)
+        @include('paquetes_ips.partials.workbench-heading')
+    @elseif(!$warehouseView && ($workflowAction ?? null) !== 'EDN')
     <header class="ips-heading">
         <div>
             <span class="ips-eyebrow">GESTIÓN POSTAL INTERNACIONAL</span>
@@ -77,7 +80,7 @@
             @include('paquetes_ips.partials.listing')
         </main>
         @unless($readOnly)
-        <aside class="ips-panel ips-tray" aria-label="Bandeja de trabajo">
+        <aside class="ips-panel ips-tray" aria-label="{{ $workbenchMode === 'delivery' ? 'Bandeja de entrega' : ($workbenchMode === 'reception' ? 'Lote de recepción' : 'Bandeja de trabajo') }}">
             <div class="ips-panel-header"><h2><i class="fas fa-clipboard-list mr-2"></i><span id="ips-tray-title">{{ $courierOnly ? 'Mi reparto' : ($deliveryOnly ? 'Procesar entregas' : (($workflowAction ?? null) ? $operationLabel.' · por registrar' : 'Tu bandeja')) }}</span></h2><span id="ips-tray-count">{{ count($selection) }}/50 en bandeja</span></div>
             <div class="ips-tray-body">
                 @if(!$deliveryOnly && !($workflowAction ?? null))
@@ -209,7 +212,7 @@
                 <button id="ips-process" class="btn btn-primary btn-block mt-3" disabled>Selecciona paquetes compatibles</button>
                 @if($workflowAction)<button id="ips-clear-completed" class="btn btn-outline-primary btn-block mt-2" type="button" hidden>Preparar siguiente lote</button>@endif
                 <p id="ips-progress" role="status" aria-live="polite" class="ips-help"></p>
-                <button id="ips-receipt-summary-open" class="btn btn-outline-primary btn-block" type="button" hidden>Ver resumen de recepción</button>
+                <button id="ips-receipt-summary-open" class="btn btn-outline-primary btn-block" type="button" hidden>{{ $deliveryOnly ? 'Ver resumen de entrega' : 'Ver resumen de recepción' }}</button>
                 <button id="ips-refresh" class="btn btn-outline-primary btn-block" hidden onclick="location.reload()">Actualizar resultados</button>
             </div>
         </aside>
@@ -218,17 +221,33 @@
     @endif
 </div>
 @unless($readOnly)
+<dialog id="ips-already-received" aria-labelledby="ips-already-received-title" aria-describedby="ips-already-received-message">
+    <form method="dialog">
+        <div class="ips-received-alert-heading">
+            <button class="ips-received-alert-close" type="submit" aria-label="Cerrar aviso"><i class="fas fa-times" aria-hidden="true"></i></button>
+            <span class="ips-received-alert-icon" aria-hidden="true"><i class="fas fa-exclamation-triangle"></i></span>
+            <p class="ips-received-alert-eyebrow">RECEPCIÓN YA REGISTRADA</p>
+            <h3 id="ips-already-received-title">Este paquete ya está recibido</h3>
+        </div>
+        <div class="ips-received-alert-body">
+            <div class="ips-received-alert-package"><span>Código del paquete</span><p id="ips-already-received-code"></p></div>
+            <p id="ips-already-received-message">La recepción ya fue registrada. Continúa en Almacén internacional → Por entregar.</p>
+            <button class="btn btn-primary ips-received-alert-done" type="submit" autofocus><i class="fas fa-check mr-2" aria-hidden="true"></i>Entendido</button>
+        </div>
+    </form>
+</dialog>
 <dialog id="ips-receipt-summary" aria-labelledby="ips-receipt-summary-title" aria-describedby="ips-receipt-summary-description">
     <div class="ips-receipt-summary-heading">
         <span id="ips-receipt-summary-icon" class="ips-receipt-summary-icon" aria-hidden="true"><i class="fas fa-check"></i></span>
-        <div><p class="ips-receipt-summary-eyebrow">RESULTADO DEL LOTE</p><h3 id="ips-receipt-summary-title">Resumen de recepción</h3></div>
+        <div><p id="ips-receipt-summary-eyebrow" class="ips-receipt-summary-eyebrow">RESULTADO DEL LOTE</p><h3 id="ips-receipt-summary-title">Resumen de recepción</h3></div>
         <button id="ips-receipt-summary-close" type="button" class="ips-receipt-summary-close" aria-label="Cerrar resumen"><i class="fas fa-times" aria-hidden="true"></i></button>
     </div>
+    <div class="ips-receipt-summary-body">
     <p id="ips-receipt-summary-description"></p>
     <dl class="ips-receipt-summary-counts">
-        <div class="ips-receipt-summary-received"><dt>Recibidos</dt><dd id="ips-receipt-summary-received">0</dd></div>
+        <div class="ips-receipt-summary-received"><dt id="ips-receipt-summary-success-label">Recibidos</dt><dd id="ips-receipt-summary-received">0</dd></div>
         <div><dt>Sin confirmar</dt><dd id="ips-receipt-summary-pending">0</dd></div>
-        <div><dt>No recibidos</dt><dd id="ips-receipt-summary-rejected">0</dd></div>
+        <div><dt id="ips-receipt-summary-rejected-label">No recibidos</dt><dd id="ips-receipt-summary-rejected">0</dd></div>
     </dl>
     <p id="ips-receipt-summary-help" class="ips-receipt-summary-help"></p>
     <details class="ips-receipt-summary-details">
@@ -239,12 +258,61 @@
         <button id="ips-receipt-summary-review" class="btn btn-outline-primary" type="button" hidden>Revisar paquetes</button>
         <button id="ips-receipt-summary-done" class="btn btn-primary" type="button" autofocus>Entendido</button>
     </div>
+    </div>
 </dialog>
 @endunless
-<dialog id="ips-confirm"><form method="dialog"><h3>Confirmar movimiento</h3><p id="ips-confirm-description"></p><p id="ips-confirm-codes"></p><p>Se validará cada paquete nuevamente. Cada movimiento tendrá su propio resultado.</p><label id="ips-customs-confirm-fields" class="ips-customs-confirm-label" hidden><input id="ips-customs-confirm" type="checkbox" required> Confirmo que Aduana devolvió físicamente estos paquetes a la oficina y que ahora se entregan a sus destinatarios.</label><div class="d-flex justify-content-end mt-3"><button value="cancel" formnovalidate class="btn btn-light mr-2">Volver</button><button value="confirm" class="btn btn-primary">Confirmar y registrar</button></div></form></dialog>
+<dialog id="ips-confirm" aria-labelledby="ips-confirm-title" aria-describedby="ips-confirm-description">
+    <form method="dialog">
+        <div class="ips-delivery-confirm-heading"><span aria-hidden="true"><i class="fas fa-hand-holding-heart"></i></span><p>ENTREGA AL DESTINATARIO</p></div>
+        <h3 id="ips-confirm-title">Confirmar movimiento</h3>
+        <p id="ips-confirm-description"></p>
+        <p id="ips-confirm-codes"></p>
+        <p class="ips-delivery-confirm-note">Confirma únicamente si el destinatario ya recibió físicamente el paquete.</p>
+        <p>Cada paquete tendrá su propio resultado. Revisa el resumen al terminar.</p>
+        <label id="ips-customs-confirm-fields" class="ips-customs-confirm-label" hidden><input id="ips-customs-confirm" type="checkbox" required> Confirmo que Aduana devolvió físicamente estos paquetes a la oficina y que ahora se entregan a sus destinatarios.</label>
+        <div class="ips-confirm-actions d-flex justify-content-end mt-3"><button value="cancel" formnovalidate class="btn btn-light mr-2">Volver</button><button id="ips-confirm-submit" value="confirm" class="btn btn-primary">Confirmar y registrar</button></div>
+    </form>
+</dialog>
 @endsection
 @section('css')
 <style>
+.ips-workspace[data-mode="reception"],.ips-workspace[data-mode="delivery"]{--ips-mode-accent:#245b99;--ips-mode-dark:#173e6b;--ips-mode-soft:#eaf3ff;--ips-mode-border:#a8c8ee}
+.ips-workbench-heading{display:flex;align-items:center;gap:22px;margin:0 0 24px;padding:28px;border:1px solid var(--ips-mode-border);border-left:8px solid var(--ips-mode-accent);border-radius:18px;background:linear-gradient(120deg,var(--ips-mode-soft),#fff);box-shadow:0 6px 22px #17314d0a}
+.ips-workbench-icon{display:grid;place-items:center;flex:0 0 82px;height:82px;border-radius:20px;background:var(--ips-mode-accent);color:#fff;font-size:2.2rem}
+.ips-workbench-heading-content{flex:1;min-width:0}
+.ips-workbench-mode{display:inline-block;padding:6px 12px;margin:0 0 10px;border-radius:8px;background:var(--ips-mode-accent);color:#fff;font-size:.8rem;letter-spacing:.08em;font-weight:800}
+.ips-workbench-heading h1{font-size:1.9rem;line-height:1.2;font-weight:800;color:var(--ips-mode-dark);margin:0 0 10px}
+.ips-workbench-heading p{font-size:.98rem;line-height:1.55;color:#506177;margin:0;max-width:800px}
+.ips-workbench-office{display:flex;align-items:center;gap:10px;padding:14px 18px;border:1px solid var(--ips-mode-border);border-radius:12px;background:#ffffffbf;color:var(--ips-mode-dark);max-width:250px}
+.ips-workbench-office small{display:block;margin-bottom:4px;font-size:.65rem;font-weight:700;letter-spacing:.06em}
+.ips-workbench-office strong{font-size:.9rem}
+.ips-workspace[data-mode] .ips-workbench-heading~.ips-layout .ips-panel-header{background:var(--ips-mode-accent)}
+.ips-workspace[data-mode="delivery"] #ips-process,.ips-workspace[data-mode="delivery"] .ips-search .btn-primary{background:#245b99;border-color:#245b99}
+.ips-workspace[data-mode="delivery"] #ips-process:not(:disabled):hover,.ips-workspace[data-mode="delivery"] .ips-search .btn-primary:hover{background:#1a477b;border-color:#1a477b}
+.ips-workspace[data-mode="delivery"] .ips-selection-add .btn-outline-primary,.ips-workspace[data-mode="delivery"] #ips-receipt-summary-open{color:#245b99;border-color:#245b99}
+.ips-workspace[data-mode="delivery"] .ips-selection-add .btn-outline-primary:hover,.ips-workspace[data-mode="delivery"] #ips-receipt-summary-open:hover{background:#245b99;color:#fff}
+.ips-workspace[data-mode="delivery"] .ips-delivery-action.is-active{background:#eaf3ff;border-color:#7fa9de;color:#1a477b}
+.ips-workspace[data-mode="delivery"] .ips-delivery-action.is-active small{color:#245b99}
+.ips-workspace[data-mode="delivery"] .ips-tray{border-top:5px solid #245b99}
+.ips-workspace[data-mode="reception"] .ips-tray{border-top:5px solid #245b99}
+@media(max-width:1100px){.ips-workbench-heading{flex-wrap:wrap}.ips-workbench-office{max-width:none}}
+@media(max-width:600px){.ips-workbench-heading{gap:16px;padding:20px}.ips-workbench-icon{flex-basis:58px;height:58px;border-radius:14px;font-size:1.6rem}.ips-workbench-heading-content{flex-basis:calc(100% - 80px)}.ips-workbench-heading h1{font-size:1.4rem}.ips-workbench-mode{font-size:.65rem;letter-spacing:.04em}.ips-workbench-heading p{font-size:.9rem}.ips-workbench-office{width:100%;box-sizing:border-box}}
+#ips-already-received{box-sizing:border-box;border:0;border-top:8px solid #f4ad18;border-radius:22px;max-width:760px;width:calc(100% - 32px);max-height:calc(100dvh - 32px);overflow:auto;padding:0;color:#263e59;background:#fff;box-shadow:0 28px 100px #09192b77}
+#ips-already-received::backdrop{background:#0b1b30c7;backdrop-filter:blur(5px)}
+.ips-received-alert-heading{position:relative;text-align:center;padding:38px 54px 30px;background:linear-gradient(135deg,#fff8e7,#ffedbd);border-bottom:1px solid #f1d799}
+.ips-received-alert-close{position:absolute;top:12px;right:12px;display:grid;place-items:center;width:44px;height:44px;border:0;border-radius:50%;background:#ffffffb3;color:#79500a;font-size:1.15rem;cursor:pointer}
+.ips-received-alert-close:hover{background:#fff}
+.ips-received-alert-icon{display:grid;place-items:center;width:90px;height:90px;margin:0 auto 20px;border:2px solid #e8a51c;border-radius:50%;background:#fff5d6;color:#996000;font-size:2.6rem;box-shadow:0 0 0 9px #f4ad181a}
+.ips-received-alert-eyebrow{margin:0 0 10px;font-size:.8rem;font-weight:800;letter-spacing:.12em;color:#825308}
+#ips-already-received h3{max-width:560px;margin:0 auto;font-size:2.15rem;line-height:1.2;font-weight:800;color:#573900;text-wrap:balance}
+.ips-received-alert-body{padding:30px 42px 36px;text-align:center}
+.ips-received-alert-package{padding:18px 20px;margin-bottom:22px;border:1px solid #dce6f1;border-radius:12px;background:#f3f6fa}
+.ips-received-alert-package>span{display:block;margin-bottom:7px;font-size:.8rem;font-weight:700;color:#63778e}
+#ips-already-received-code{margin:0;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:1.65rem;font-weight:800;letter-spacing:.04em;color:#234f8b;overflow-wrap:anywhere}
+#ips-already-received-message{margin:0 0 26px;font-size:1.12rem;line-height:1.65;color:#43566d}
+#ips-already-received .ips-received-alert-done{width:100%;min-height:56px;border-radius:12px;font-size:1.1rem;font-weight:700}
+#ips-already-received button:focus-visible{outline:3px solid #234f8b;outline-offset:4px}
+@media(max-width:600px){.ips-received-alert-heading{padding:32px 24px 24px}.ips-received-alert-body{padding:24px 20px}.ips-received-alert-icon{width:76px;height:76px;font-size:2.2rem}#ips-already-received h3{font-size:1.65rem}#ips-already-received-code{font-size:1.25rem}#ips-already-received-message{font-size:1rem}}
 .ips-heading{display:flex;justify-content:space-between;gap:20px;padding:10px 5px 20px;align-items:center}.ips-heading h1{font-weight:800;color:#183352;margin:3px 0}.ips-heading p,.ips-footnote{color:#697b90;margin:0;font-size:.9rem}.ips-eyebrow{font-size:.68rem;color:#47698e;letter-spacing:.14em;font-weight:700}.ips-identity{display:flex;gap:12px;align-items:center;padding:12px 18px;background:white;border:1px solid #dce6f1;border-radius:12px;color:#254e80}.ips-identity small{display:block;color:#718096}
 .ips-operation-nav{background:#fff;border:1px solid #dce6f1;border-radius:12px;padding:12px 14px;margin:0 0 14px;box-shadow:0 4px 16px #17314d08}.ips-operation-groups,.ips-operation-tabs,.ips-warehouse-nav{display:flex;gap:7px;align-items:center;overflow-x:auto}.ips-operation-groups{padding-bottom:9px;border-bottom:1px solid #edf1f6}.ips-operation-groups a,.ips-operation-tabs a,.ips-warehouse-nav a{display:inline-flex;align-items:center;min-height:36px;padding:7px 12px;border-radius:8px;color:#47617d;font-size:.8rem;text-decoration:none;white-space:nowrap}.ips-operation-groups a{font-weight:700}.ips-operation-groups a.active,.ips-operation-tabs a.active,.ips-warehouse-nav a.active{background:#eaf1fc;color:#214c84;font-weight:700}.ips-operation-tabs{padding-top:8px}.ips-operation-description{font-size:.76rem;color:#718096;margin:8px 3px 0}.ips-warehouse-nav{background:#fff;border:1px solid #dce6f1;border-radius:12px;padding:8px;margin:0 0 14px;box-shadow:0 4px 16px #17314d08}
 .ips-flow{background:#fff;border:1px solid #dce6f1;border-radius:14px;padding:18px 20px;margin:0 0 18px;box-shadow:0 5px 20px #17314d08}.ips-flow-heading{display:flex;justify-content:space-between;gap:16px;align-items:center}.ips-flow-heading h2{font-size:1rem;font-weight:700;color:#234f8b;margin:0 0 3px}.ips-flow-heading p,.ips-flow-heading>span{font-size:.78rem;color:#697b90;margin:0}.ips-flow-heading>span{white-space:nowrap;font-weight:700}.ips-flow-steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));list-style:none;padding:0;margin:18px 0;gap:8px}.ips-flow-steps li{min-width:0}.ips-flow-steps a{display:flex;gap:9px;align-items:center;height:100%;padding:10px;border:1px solid #e1e8f0;border-radius:10px;color:#64758a;font-size:.78rem;text-decoration:none}.ips-flow-steps li.is-current a{background:#edf4ff;border-color:#7fa9de;color:#1e4d87;font-weight:700}.ips-flow-number{display:grid;place-items:center;flex:0 0 28px;height:28px;border-radius:50%;background:#edf1f6;font-weight:700}.ips-flow-steps li.is-current .ips-flow-number{background:#234f8b;color:#fff}.ips-flow-steps small{display:block;font-size:.68rem;color:#7a8ba0;margin-top:2px}.ips-flow-rules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;border-top:1px solid #edf1f6;padding-top:12px}.ips-flow-rules p{font-size:.76rem;color:#60748a;margin:0}.ips-flow-rules strong{color:#294c72}.ips-receipt-confirm-label{display:flex;gap:4px;align-items:flex-start;font-size:.78rem;color:#284e75;cursor:pointer}.ips-receipt-confirm-label input{margin-top:3px}
@@ -254,7 +322,66 @@
 .ips-tray{position:sticky;top:75px}.ips-tray-body{padding:18px}.ips-tray-body>p{font-size:.82rem;color:#697b90}.ips-tray-body label{font-size:.82rem;color:#324c69}.ips-tray-items{max-height:480px;overflow:auto}.ips-tray-item{padding:12px 0;border-bottom:1px solid #e8eef4;font-size:.8rem}.ips-tray-item small{display:block;color:#738297;margin:5px 0}.ips-tray-item .ips-item-stage{font-weight:700;color:#435d79}.ips-tray-item.is-ineligible{opacity:.65}.ips-help{font-size:.77rem;color:#63778e;margin:10px 0}.ips-action-heading{font-size:.83rem;font-weight:700;color:#324c69;margin:14px 0 8px}.ips-delivery-action-group{border-top:1px solid #edf1f6;padding:8px 0}.ips-delivery-action-group[hidden],.ips-delivery-action[hidden]{display:none!important}.ips-delivery-action-group h4{font-size:.67rem;text-transform:uppercase;letter-spacing:.06em;color:#718096;margin:0 0 6px}.ips-delivery-action-options{display:grid;gap:5px}.ips-delivery-action{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;padding:8px 10px;border:1px solid #dbe4ef;border-radius:8px;background:#fff;color:#315279;text-align:left;font-size:.76rem;line-height:1.25;cursor:pointer}.ips-delivery-action:hover{background:#f5f8fc;border-color:#9db5d2}.ips-delivery-action:focus-visible{outline:3px solid #9dc2f1;outline-offset:1px}.ips-delivery-action.is-active{background:#eaf1fc;border-color:#6d96c5;color:#1f4d83;font-weight:700}.ips-delivery-action small{flex:0 0 auto;color:#718096;font-size:.66rem;font-weight:500;white-space:nowrap;margin:0}.ips-delivery-action.is-active small{color:#315b88}.ips-empty{text-align:center;padding:35px 20px!important;color:#7e8da0}.ips-empty>i{font-size:1.8rem;opacity:.5;margin-bottom:10px}.ips-empty p{margin:8px 0}.ips-tray-item[data-status=succeeded] .ips-item-message{color:#18794e}.ips-tray-item[data-status=rejected] .ips-item-message{color:#b33c38}
 #ips-confirm{border:0;border-radius:15px;max-width:520px;width:90%;padding:28px;color:#263e59;box-shadow:0 20px 70px #10233e55}#ips-confirm::backdrop{background:#10233e88}#ips-confirm h3{font-size:1.3rem;font-weight:700}#ips-confirm p{font-size:.9rem}#ips-confirm-codes{max-height:160px;overflow:auto;background:#f0f4f9;padding:10px;border-radius:8px}.ips-customs-confirm-label{display:flex;gap:8px;align-items:flex-start;padding:12px;background:#fff7dc;border:1px solid #f0d580;border-radius:8px;font-size:.84rem;color:#5b4a17;cursor:pointer}.ips-customs-confirm-label input{margin-top:4px;flex:0 0 auto}#ips-customs-confirm-fields[hidden]{display:none!important}
 .ips-field-label{display:block;font-size:.74rem;font-weight:700;color:#385574;margin-bottom:4px}
-#ips-receipt-summary{border:0;border-radius:16px;width:calc(100% - 32px);max-width:560px;max-height:85vh;overflow:auto;padding:26px;color:#263e59;box-shadow:0 20px 70px #10233e55}#ips-receipt-summary::backdrop{background:#10233e88}.ips-receipt-summary-heading{display:flex;align-items:center;gap:12px;margin-bottom:18px}.ips-receipt-summary-icon{display:grid;place-items:center;flex:0 0 44px;height:44px;border-radius:50%;background:#e7f5ed;color:#18794e;font-size:1.2rem}#ips-receipt-summary[data-needs-review="true"] .ips-receipt-summary-icon{background:#fff4d8;color:#8a5b06}.ips-receipt-summary-eyebrow{font-size:.65rem;letter-spacing:.1em;color:#63778e;margin:0 0 4px}.ips-receipt-summary-heading h3{font-size:1.2rem;font-weight:700;margin:0}.ips-receipt-summary-close{margin-left:auto;align-self:flex-start;border:0;background:transparent;color:#63778e;padding:7px 10px;border-radius:6px}.ips-receipt-summary-close:hover{background:#edf1f6}#ips-receipt-summary-description{font-size:1.05rem;font-weight:600;margin-bottom:18px}.ips-receipt-summary-counts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 16px}.ips-receipt-summary-counts>div{display:flex;flex-direction:column-reverse;text-align:center;background:#f0f4f9;border-radius:10px;padding:12px 5px}.ips-receipt-summary-counts dt{font-size:.75rem;font-weight:500;color:#52677e}.ips-receipt-summary-counts dd{font-size:1.8rem;line-height:1.2;font-weight:750;margin:0 0 4px}.ips-receipt-summary-counts .ips-receipt-summary-received{background:#e7f5ed;color:#18794e}.ips-receipt-summary-help{font-size:.85rem;color:#52677e}.ips-receipt-summary-details{border:1px solid #e0e7ef;border-radius:10px;padding:12px 14px}.ips-receipt-summary-details summary{cursor:pointer;font-weight:600;font-size:.85rem;color:#234f8b}.ips-receipt-summary-details ul{list-style:none;max-height:230px;overflow:auto;padding:0;margin:10px 0 0}.ips-receipt-summary-details li{padding:10px 0;border-top:1px solid #edf1f6;font-size:.8rem;overflow-wrap:anywhere}.ips-receipt-summary-details li p{margin:5px 0 0;color:#52677e}.ips-receipt-summary-item-heading{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px}.ips-receipt-summary-state{font-weight:600;color:#8a5b06}.ips-receipt-summary-state.is-received{color:#18794e}.ips-receipt-summary-state.is-rejected{color:#b33c38}.ips-receipt-summary-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;margin-top:22px}.ips-receipt-summary-actions button{min-height:42px}
+.ips-search--operation{flex-wrap:wrap;align-items:stretch;gap:12px;background:#f5f9ff;border-bottom:1px solid #dce6f1}
+.ips-search--operation .ips-search-label{flex-basis:100%;margin:0;font-size:1rem;font-weight:700;color:#173e6b}
+.ips-search--operation #ips-code{min-height:54px;height:auto;border-radius:10px;font-size:1.05rem}
+.ips-search--operation .ips-search-submit{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-width:210px;min-height:54px;padding:12px 22px;border-radius:10px;font-size:1.05rem;font-weight:700;background:#245b99;border-color:#245b99;box-shadow:0 4px 10px #245b9926}
+.ips-search--operation .ips-search-submit:hover{background:#1a477b;border-color:#1a477b}
+.ips-search--operation .ips-search-submit:focus-visible{outline:3px solid #7fa9de;outline-offset:3px}
+.ips-search--operation>a{display:inline-flex;align-items:center;justify-content:center;border-radius:10px}
+@media(max-width:600px){.ips-search--operation #ips-code{flex-basis:100%;width:100%}.ips-search--operation .ips-search-submit{flex:1;min-width:0}.ips-search--operation .ips-search-label{font-size:.95rem}}
+.ips-delivery-confirm-heading,.ips-delivery-confirm-note{display:none}
+#ips-confirm[data-operation="delivery"]{box-sizing:border-box;max-width:760px;width:calc(100% - 32px);max-height:calc(100dvh - 32px);overflow:auto;border-top:8px solid #245b99;border-radius:22px;padding:34px 40px;text-align:center}
+#ips-confirm[data-operation="delivery"]::backdrop{background:#0b1b30c7;backdrop-filter:blur(5px)}
+#ips-confirm[data-operation="delivery"] .ips-delivery-confirm-heading{display:block}
+.ips-delivery-confirm-heading>span{display:grid;place-items:center;width:86px;height:86px;margin:0 auto 20px;border:2px solid #7fa9de;border-radius:50%;background:#eaf3ff;color:#245b99;font-size:2.6rem;box-shadow:0 0 0 9px #245b9912}
+#ips-confirm .ips-delivery-confirm-heading>p{font-size:.8rem;letter-spacing:.12em;font-weight:800;color:#245b99}
+#ips-confirm[data-operation="delivery"] h3{font-size:2.1rem;line-height:1.2;color:#173e6b}
+#ips-confirm[data-operation="delivery"] p{font-size:1.05rem;line-height:1.6}
+#ips-confirm[data-operation="delivery"] #ips-confirm-codes{padding:18px;font-size:1.3rem;font-weight:800;background:#eaf3ff;color:#1a477b;overflow-wrap:anywhere}
+#ips-confirm[data-operation="delivery"] .ips-delivery-confirm-note{display:block;padding:14px 18px;border:1px solid #a8c8ee;border-radius:12px;background:#f5f9ff;color:#1a477b;font-weight:700}
+#ips-confirm[data-operation="delivery"] .ips-confirm-actions{gap:12px}
+#ips-confirm[data-operation="delivery"] .ips-confirm-actions button{flex:1;min-width:0;min-height:56px;border-radius:12px;font-size:1rem;font-weight:700;white-space:normal}
+#ips-confirm[data-operation="delivery"] #ips-confirm-submit{background:#245b99;border-color:#245b99}
+#ips-confirm[data-operation="delivery"] #ips-confirm-submit:hover{background:#1a477b;border-color:#1a477b}
+@media(max-width:600px){#ips-confirm[data-operation="delivery"]{padding:28px 20px}#ips-confirm[data-operation="delivery"] h3{font-size:1.65rem}#ips-confirm[data-operation="delivery"] .ips-confirm-actions{flex-direction:column}#ips-confirm[data-operation="delivery"] .ips-confirm-actions button{margin-right:0!important}}
+#ips-receipt-summary{box-sizing:border-box;border:0;border-top:8px solid #245b99;border-radius:22px;width:calc(100% - 32px);max-width:760px;max-height:calc(100dvh - 32px);overflow:auto;padding:0;color:#263e59;background:#fff;box-shadow:0 28px 100px #09192b77}
+#ips-receipt-summary::backdrop{background:#0b1b30c7;backdrop-filter:blur(5px)}
+.ips-receipt-summary-heading{position:relative;display:flex;flex-direction:column;align-items:center;gap:18px;text-align:center;padding:32px 54px 28px;background:linear-gradient(135deg,#f5f9ff,#dbeafe);border-bottom:1px solid #a8c8ee}
+.ips-receipt-summary-icon{display:grid;place-items:center;width:86px;height:86px;border:2px solid #7fa9de;border-radius:50%;background:#eaf3ff;color:#245b99;font-size:2.6rem;box-shadow:0 0 0 9px #245b9912}
+.ips-receipt-summary-eyebrow{font-size:.8rem;font-weight:800;letter-spacing:.12em;color:#245b99;margin:0 0 10px}
+.ips-receipt-summary-heading h3{font-size:2.15rem;line-height:1.2;font-weight:800;color:#173e6b;margin:0;text-wrap:balance}
+.ips-receipt-summary-close{position:absolute;top:12px;right:12px;display:grid;place-items:center;width:44px;height:44px;border:0;background:#ffffffb3;color:#245b99;border-radius:50%;font-size:1.15rem;cursor:pointer}
+.ips-receipt-summary-close:hover{background:#fff}
+.ips-receipt-summary-body{padding:28px 40px 34px}
+#ips-receipt-summary-description{font-size:1.4rem;line-height:1.4;font-weight:750;text-align:center;margin:0 0 24px}
+.ips-receipt-summary-counts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 22px}
+.ips-receipt-summary-counts>div{display:flex;flex-direction:column-reverse;text-align:center;background:#f0f4f9;border:1px solid #dce6f1;border-radius:14px;padding:18px 8px}
+.ips-receipt-summary-counts dt{font-size:.9rem;font-weight:600;color:#52677e}
+.ips-receipt-summary-counts dd{font-size:2.75rem;line-height:1.2;font-weight:800;margin:0 0 6px}
+.ips-receipt-summary-counts .ips-receipt-summary-received{background:#e7f5ed;border-color:#b9dfca;color:#18794e}
+.ips-receipt-summary-counts .ips-receipt-summary-received dt{color:#18794e}
+.ips-receipt-summary-help{font-size:1.05rem;line-height:1.6;color:#52677e;margin:0 0 22px}
+.ips-receipt-summary-details{border:1px solid #dce6f1;border-radius:12px;padding:16px 18px}
+.ips-receipt-summary-details summary{cursor:pointer;font-weight:700;font-size:1rem;color:#234f8b}
+.ips-receipt-summary-details ul{list-style:none;max-height:260px;overflow:auto;padding:0;margin:14px 0 0}
+.ips-receipt-summary-details li{padding:14px 0;border-top:1px solid #edf1f6;font-size:.95rem;overflow-wrap:anywhere}
+.ips-receipt-summary-details li p{margin:7px 0 0;line-height:1.5;color:#52677e}
+.ips-receipt-summary-item-heading{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px}
+.ips-receipt-summary-state{font-weight:700;color:#8a5b06}
+.ips-receipt-summary-state.is-received{color:#18794e}
+.ips-receipt-summary-state.is-rejected{color:#b33c38}
+.ips-receipt-summary-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:26px}
+.ips-receipt-summary-actions button{flex:1;min-width:0;min-height:56px;border-radius:12px;font-size:1.05rem;font-weight:700;white-space:normal}
+#ips-receipt-summary button:focus-visible,#ips-receipt-summary summary:focus-visible{outline:3px solid #234f8b;outline-offset:4px}
+#ips-receipt-summary[data-needs-review="true"]{border-top-color:#f4ad18}
+#ips-receipt-summary #ips-receipt-summary-done{background:#245b99;border-color:#245b99}
+#ips-receipt-summary #ips-receipt-summary-done:hover{background:#1a477b;border-color:#1a477b}
+#ips-receipt-summary[data-needs-review="true"] .ips-receipt-summary-heading{background:linear-gradient(135deg,#fff8e7,#ffedbd);border-bottom-color:#f1d799}
+#ips-receipt-summary[data-needs-review="true"] .ips-receipt-summary-icon{border-color:#e8a51c;background:#fff5d6;color:#996000;box-shadow:0 0 0 9px #f4ad181a}
+#ips-receipt-summary[data-needs-review="true"] .ips-receipt-summary-heading h3{color:#573900}
+#ips-receipt-summary[data-needs-review="true"] .ips-receipt-summary-eyebrow,#ips-receipt-summary[data-needs-review="true"] .ips-receipt-summary-close{color:#825308}
+@media(max-width:600px){.ips-receipt-summary-heading{padding:28px 24px 24px}.ips-receipt-summary-heading h3{font-size:1.65rem}.ips-receipt-summary-icon{width:72px;height:72px;font-size:2.2rem}.ips-receipt-summary-body{padding:24px 20px}.ips-receipt-summary-counts{gap:7px}.ips-receipt-summary-counts>div{padding:14px 4px}.ips-receipt-summary-counts dd{font-size:2rem}.ips-receipt-summary-counts dt{font-size:.75rem}#ips-receipt-summary-description{font-size:1.2rem}.ips-receipt-summary-help{font-size:1rem}.ips-receipt-summary-actions{flex-direction:column}}
 .ips-batch-fields .ips-help{display:block;margin:6px 0 0}
 .ips-layout--readonly{grid-template-columns:minmax(0,1fr)}
 #ips-action[hidden]{display:none!important}
@@ -286,20 +413,32 @@ document.addEventListener('DOMContentLoaded', () => {
             row.scrollIntoView({behavior: 'smooth', block: 'center'});
         }
     });
-    function showReceiptSummary(batchRows) {
+    function showReceiptSummary(batchRows, summaryAction = 'EMG') {
+        const delivery = summaryAction === 'EMI';
         const received = batchRows.filter(row => row.dataset.status === 'succeeded').length;
         const pending = batchRows.filter(row => ['processing', 'uncertain'].includes(row.dataset.status)).length;
         const rejected = batchRows.length - received - pending;
         receiptRowsToReview = batchRows.filter(row => row.dataset.status !== 'succeeded');
         receiptSummary.dataset.needsReview = String(receiptRowsToReview.length > 0);
+        receiptSummary.dataset.operation = delivery ? 'delivery' : 'reception';
+        document.getElementById('ips-receipt-summary-eyebrow').textContent = delivery ? 'ENTREGA AL DESTINATARIO' : 'RECEPCIÓN EN OFICINA';
+        document.getElementById('ips-receipt-summary-title').textContent = delivery
+            ? (receiptRowsToReview.length ? 'Entrega por revisar' : 'Entrega completada')
+            : (receiptRowsToReview.length ? 'Recepción por revisar' : 'Recepción completada');
         document.getElementById('ips-receipt-summary-icon').firstElementChild.className = receiptRowsToReview.length ? 'fas fa-exclamation-triangle' : 'fas fa-check';
-        document.getElementById('ips-receipt-summary-description').textContent = received + ' de ' + batchRows.length + (batchRows.length === 1 ? ' paquete recibido.' : ' paquetes recibidos.');
+        document.getElementById('ips-receipt-summary-description').textContent = received + ' de ' + batchRows.length + (delivery
+            ? (batchRows.length === 1 ? ' paquete entregado.' : ' paquetes entregados.')
+            : (batchRows.length === 1 ? ' paquete recibido.' : ' paquetes recibidos.'));
+        document.getElementById('ips-receipt-summary-success-label').textContent = delivery ? 'Entregados' : 'Recibidos';
+        document.getElementById('ips-receipt-summary-rejected-label').textContent = delivery ? 'No entregados' : 'No recibidos';
         document.getElementById('ips-receipt-summary-received').textContent = received;
         document.getElementById('ips-receipt-summary-pending').textContent = pending;
         document.getElementById('ips-receipt-summary-rejected').textContent = rejected;
-        document.getElementById('ips-receipt-summary-help').textContent = pending
-            ? 'Hay recepciones que aún no se han confirmado. Consulta su resultado antes de intentar otro movimiento.'
-            : (rejected ? 'Algunos paquetes no se recibieron. Revisa el detalle y corrige lo indicado para continuar.' : 'La recepción quedó registrada. Puedes preparar el siguiente lote.');
+        document.getElementById('ips-receipt-summary-help').textContent = delivery
+            ? (pending ? 'Hay entregas que aún no se han confirmado. Consulta su resultado antes de volver a registrarlas.'
+                : (rejected ? 'Algunos paquetes no se entregaron. Revisa el detalle y corrige lo indicado para continuar.' : 'La entrega al destinatario quedó registrada. Puedes continuar con el siguiente paquete.'))
+            : (pending ? 'Hay recepciones que aún no se han confirmado. Consulta su resultado antes de intentar otro movimiento.'
+                : (rejected ? 'Algunos paquetes no se recibieron. Revisa el detalle y corrige lo indicado para continuar.' : 'La recepción quedó registrada. Puedes preparar el siguiente lote.'));
         document.getElementById('ips-receipt-summary-review').hidden = receiptRowsToReview.length === 0;
         const items = document.getElementById('ips-receipt-summary-items');
         items.replaceChildren();
@@ -313,7 +452,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const succeeded = row.dataset.status === 'succeeded';
             const awaiting = ['processing', 'uncertain'].includes(row.dataset.status);
             state.className = 'ips-receipt-summary-state' + (succeeded ? ' is-received' : (awaiting ? '' : ' is-rejected'));
-            state.textContent = succeeded ? 'Recibido' : (awaiting ? 'Sin confirmar' : 'No recibido');
+            state.textContent = succeeded ? (delivery ? 'Entregado' : 'Recibido') : (awaiting ? 'Sin confirmar' : (delivery ? 'No entregado' : 'No recibido'));
             const message = document.createElement('p');
             message.textContent = row.querySelector('.ips-item-message').textContent;
             heading.append(code, state);
@@ -321,6 +460,7 @@ document.addEventListener('DOMContentLoaded', () => {
             items.appendChild(item);
         });
         receiptSummary.querySelector('details').open = receiptRowsToReview.length > 0;
+        receiptSummaryOpen.textContent = delivery ? 'Ver resumen de entrega' : 'Ver resumen de recepción';
         receiptSummaryOpen.hidden = false;
         receiptSummary.showModal();
     }
@@ -812,6 +952,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const targetDescription = batchTarget && !batchTargetFields.hidden
             ? ' Destino común: ' + batchTarget.options[batchTarget.selectedIndex]?.textContent.trim() + '.'
             : '';
+        dialog.dataset.operation = action.value === 'EMI' ? 'delivery' : '';
+        document.getElementById('ips-confirm-title').textContent = action.value === 'EMI' ? 'Confirmar entrega al destinatario' : 'Confirmar movimiento';
+        document.getElementById('ips-confirm-submit').textContent = action.value === 'EMI' ? 'Sí, registrar entrega' : 'Confirmar y registrar';
         document.getElementById('ips-confirm-description').textContent = action.value === 'EMI' && customsRows.length
             ? 'Se registrará la devolución de Aduana y la entrega final para los envíos indicados.'
             : (action.value === 'CUSTOMS_PRESENT'
@@ -878,6 +1021,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 row.querySelector('.ips-item-message').hidden = false;
                 if (!editableRejection) row.querySelectorAll('input:not(.ips-choice), select').forEach(field => field.disabled = true);
                 if (result.status === 'succeeded') successes++;
+                if (result.status === 'succeeded' && result.selection_removed) {
+                    rows = rows.filter(candidate => candidate !== row);
+                    row.remove();
+                    if (trayCount) trayCount.textContent = rows.length + '/50 en bandeja';
+                    window.dispatchEvent(new CustomEvent('ips:selection-removed', {detail: {...result, received: true}}));
+                }
             } catch(e) {
                 row.dataset.status = 'uncertain'; row.dataset.payloadAction = chosenAction;
                 row.querySelector('.ips-item-message').hidden = false;
@@ -886,14 +1035,22 @@ document.addEventListener('DOMContentLoaded', () => {
             row.querySelector('.ips-choice').checked = false;
         }
         running = false; action.disabled = false;
+        if (chosenAction === 'EMG' && !rows.length && !document.querySelector('.ips-tray-items .ips-empty')) {
+            const empty = document.createElement('div');
+            empty.className = 'ips-empty';
+            empty.innerHTML = '<i class="fas fa-inbox"></i><p>Tu bandeja está vacía.<br>Escanea los paquetes del siguiente lote.</p>';
+            document.querySelector('.ips-tray-items')?.appendChild(empty);
+        }
         if (fixedWorkflow && !rows.some(row => row.querySelector('.ips-choice').checked)) selectNextWorkflowBatch();
         update();
         progress.textContent = chosenAction === 'EMG'
             ? successes + ' recepciones registradas en IPS de ' + selected.length + '. Revisa el resultado de cada paquete.'
-            : successes + ' confirmados de ' + selected.length + '. Revisa el resultado de cada paquete.';
+            : (chosenAction === 'EMI'
+                ? successes + ' entregas registradas de ' + selected.length + '. Revisa el resultado de cada paquete.'
+                : successes + ' confirmados de ' + selected.length + '. Revisa el resultado de cada paquete.');
         document.getElementById('ips-refresh').hidden = false;
-        receiptSummaryOpen.hidden = chosenAction !== 'EMG';
-        if (chosenAction === 'EMG') showReceiptSummary(selected);
+        receiptSummaryOpen.hidden = !['EMG', 'EMI'].includes(chosenAction);
+        if (['EMG', 'EMI'].includes(chosenAction)) showReceiptSummary(selected, chosenAction);
     }
     dialog.addEventListener('close', () => {
         if (dialog.returnValue !== 'confirm') return;

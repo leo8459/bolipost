@@ -562,6 +562,10 @@ class PaquetesIpsController extends Controller
             ? 'ips_'.$workflowKey.'_workbench.'
             : ($courierOnly ? 'ips_my_delivery_workbench.' : ($deliveryOnly ? 'ips_delivery_workbench.' : 'ips_workbench.'));
         $selection = $request->session()->get($selectionKey.$request->user()->id.($link?->officeSessionSuffix() ?? ''), []);
+        if ($workflowAction === 'EMG') {
+            $selection = array_filter($selection, fn ($entry) => ($entry['status'] ?? null) !== 'succeeded');
+            $request->session()->put($selectionKey.$request->user()->id.($link?->officeSessionSuffix() ?? ''), $selection);
+        }
         try {
             [$link] = $this->context($request, $workflowKey ?? ($courierOnly ? 'my_delivery' : ($deliveryOnly ? 'delivery' : 'standard')));
             if ($workflowAction === 'CUSTOMS_RETURN') {
@@ -766,8 +770,14 @@ class PaquetesIpsController extends Controller
             }
             if ($requiredAction !== null) {
                 if ($requiredAction === 'EMG'
-                    && (int) ($package['operational_event_cd'] ?? $package['event_cd'] ?? 0) === 32
-                    && (int) ($package['state_cd'] ?? -1) === 0) {
+                    && (int) ($package['operational_event_cd'] ?? $package['event_cd'] ?? 0) === 32) {
+                    if ($request->expectsJson()) {
+                        return response()->json([
+                            'error_code' => 'already_received',
+                            'message' => 'Este paquete ya está recibido. Continúa en Almacén internacional → Por entregar.',
+                            'code' => $package['codigo'],
+                        ], 409);
+                    }
                     abort(409, 'Este paquete ya fue recibido en la oficina (evento 32). No lo recibas otra vez; continúa en Almacén internacional → Por entregar.');
                 }
                 if ($requiredAction === 'EMG'
@@ -1060,6 +1070,12 @@ class PaquetesIpsController extends Controller
         abort_unless(isset($selection[$code]), 422, 'Agregue el paquete a la bandeja primero.');
         $entry = $selection[$code];
         if ($entry['status'] === 'succeeded') {
+            if ($requiredAction === 'EMG') {
+                unset($selection[$code]);
+                $request->session()->put($key, $selection);
+
+                return response()->json(['status' => 'succeeded', 'message' => 'Este paquete ya está recibido.', 'operation_id' => $entry['operation_id'] ?? null, 'selection_removed' => true, 'code' => $code, 'count' => count($selection)]);
+            }
             return response()->json(['status' => 'succeeded', 'message' => 'Operación ya confirmada.', 'operation_id' => $entry['operation_id'] ?? null]);
         }
         $routeMismatchReceipt = ! empty($entry['route_mismatch_receipt']);
@@ -1214,12 +1230,17 @@ class PaquetesIpsController extends Controller
                 ? 'Llegada física tras la devolución de Aduana (evento 38) registrada desde la saca abierta. No se registró entrega al destinatario.'
                 : ($result['message'] ?? 'Movimiento registrado correctamente en IPS.')));
         $selection[$code]['operation_id'] = $result['operation_id'] ?? null;
+        $result['message'] = $selection[$code]['message'];
+        if ($requiredAction === 'EMG' && ($result['status'] ?? null) === 'succeeded') {
+            unset($selection[$code]);
+            $result['selection_removed'] = true;
+            $result['code'] = $code;
+            $result['count'] = count($selection);
+        }
         $request->session()->put($key, $selection);
         if (($result['status'] ?? null) === 'succeeded') {
             $trackingEvents?->forget($code);
         }
-
-        $result['message'] = $selection[$code]['message'];
 
         return response()->json($result);
     }
