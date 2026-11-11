@@ -36,6 +36,7 @@ use App\Http\Controllers\FacturaFirmaPdfController;
 use App\Http\Controllers\FinancialReportController;
 use App\Http\Controllers\IngresosVentanillasController;
 use App\Http\Controllers\IpsReceptacleIncidentController;
+use App\Http\Controllers\KardexManualDeliveryTicketController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\IndicadorController;
 use App\Http\Controllers\MalencaminadoController;
@@ -347,6 +348,12 @@ Route::get('/mis-ventas/kardex-regional/export/pdf', [MisVentasController::class
 Route::get('/mis-ventas/kardex-regional/export/excel', [MisVentasController::class, 'exportKardexRegionalExcel'])
     ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
     ->name('mis-ventas.kardex-regional.export.excel');
+Route::post('/mis-ventas/kardex/ticket-entrega-manual', KardexManualDeliveryTicketController::class)
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('mis-ventas.kardex.ticket-manual');
+Route::post('/mis-ventas/kardex-regional/ticket-entrega-manual', KardexManualDeliveryTicketController::class)
+    ->middleware(['auth', 'internal.only', 'verified', 'route.permission'])
+    ->name('mis-ventas.kardex-regional.ticket-manual');
 Route::get('/ventas-sucursal', [MisVentasController::class, 'branchIndex'])
     ->middleware(['auth', 'internal.only', 'verified'])
     ->name('ventas-sucursal.index');
