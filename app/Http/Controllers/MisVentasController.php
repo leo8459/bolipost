@@ -344,22 +344,7 @@ class MisVentasController extends Controller
 
     private function kardexOperationGroupLabel(array $row): string
     {
-        $operation = $this->normalizeKardexText((string) data_get($row, 'modalidad_entrega', ''));
-        $deliveryDetail = $this->normalizeKardexText((string) data_get($row, 'operacion_detalle', ''));
-
-        if ($operation === 'ENTREGA' && str_contains($deliveryDetail, 'ENTREGADO')) {
-            if (str_contains($deliveryDetail, 'NO DOMICILIARIA')) {
-                return 'ENTREGADOS NO DOMICILIARIOS';
-            }
-
-            if (str_contains($deliveryDetail, 'DOMICILIARIA')) {
-                return 'ENTREGADOS DOMICILIARIOS';
-            }
-
-            return 'ENTREGADOS SIN MODALIDAD REGISTRADA';
-        }
-
-        return match ($operation) {
+        return match ($this->normalizeKardexText((string) data_get($row, 'modalidad_entrega', ''))) {
             'ADMISION' => 'ADMISIONES',
             'ENTREGA', 'DISTRIBUCION DOMICILIARIA', 'DISTRIBUCION NO DOMICILIARIA' => 'ENTREGAS',
             default => 'ADMISIONES',
@@ -371,10 +356,16 @@ class MisVentasController extends Controller
         return match ($this->normalizeKardexText($group)) {
             'ADMISIONES' => 1,
             'ENTREGAS' => 2,
-            'ENTREGADOS DOMICILIARIOS' => 3,
-            'ENTREGADOS NO DOMICILIARIOS' => 4,
-            'ENTREGADOS SIN MODALIDAD REGISTRADA' => 5,
-            default => 6,
+            default => 3,
+        };
+    }
+
+    private function kardexDeliverySubgroupRank(string $subgroup): int
+    {
+        return match ($this->normalizeKardexText($subgroup)) {
+            'ENTREGA DISTRIBUCION NO DOMICILIARIA' => 1,
+            'ENTREGA DISTRIBUCION DOMICILIARIA' => 2,
+            default => 3,
         };
     }
 
@@ -386,26 +377,49 @@ class MisVentasController extends Controller
             ->groupBy(fn (array $row): string => (string) data_get($row, 'operacion_grupo', $this->kardexOperationGroupLabel($row)))
             ->sortBy(fn (Collection $groupRows, string $label): int => $this->kardexOperationGroupRank($label))
             ->map(function (Collection $operationRows, string $label) use ($groupServices, &$nextRowNumber): array {
+                $isDeliveryGroup = $this->normalizeKardexText($label) === 'ENTREGAS';
+                $subgroupRows = $isDeliveryGroup
+                    ? $operationRows
+                        ->groupBy(fn (array $row): string => trim((string) data_get($row, 'operacion_subgrupo', '')))
+                        ->sortBy(fn (Collection $rows, string $subgroup): int => $this->kardexDeliverySubgroupRank($subgroup))
+                    : collect(['' => $operationRows->values()]);
+
+                $deliverySubgroups = $subgroupRows->map(function (Collection $rows, string $subgroup) use ($groupServices, &$nextRowNumber): array {
+                    $serviceGroups = $groupServices
+                        ? $rows
+                            ->groupBy(fn (array $row): string => $this->normalizeKardexText(trim((string) data_get($row, 'tipo_correspondencia', ''))) ?: 'SIN DETALLE')
+                            ->sortKeysUsing(fn ($left, $right) => strnatcasecmp((string) $left, (string) $right))
+                        : collect(['' => $rows->values()]);
+
+                    $serviceGroups = $serviceGroups->map(fn (Collection $serviceRows) => $serviceRows
+                        ->values()
+                        ->map(function (array $row) use (&$nextRowNumber): array {
+                            $row['nro'] = ++$nextRowNumber;
+
+                            return $row;
+                        })
+                        ->values());
+                    $subgroupRows = $serviceGroups->flatten(1)->values();
+
+                    return [
+                        'label' => $subgroup,
+                        'rows' => $subgroupRows,
+                        'service_groups' => $serviceGroups,
+                        'total_importe' => round((float) $subgroupRows->sum(fn ($row) => (float) data_get($row, 'importe', 0)), 2),
+                    ];
+                });
+                $operationRows = $deliverySubgroups->flatMap(fn (array $subgroup) => $subgroup['rows'])->values();
                 $serviceGroups = $groupServices
                     ? $operationRows
                         ->groupBy(fn (array $row): string => $this->normalizeKardexText(trim((string) data_get($row, 'tipo_correspondencia', ''))) ?: 'SIN DETALLE')
                         ->sortKeysUsing(fn ($left, $right) => strnatcasecmp((string) $left, (string) $right))
-                    : collect(['' => $operationRows->values()]);
-
-                $serviceGroups = $serviceGroups->map(fn (Collection $serviceRows) => $serviceRows
-                    ->values()
-                    ->map(function (array $row) use (&$nextRowNumber): array {
-                        $row['nro'] = ++$nextRowNumber;
-
-                        return $row;
-                    })
-                    ->values());
-                $operationRows = $serviceGroups->flatten(1)->values();
+                    : collect(['' => $operationRows]);
 
                 return [
                     'label' => $label,
                     'rows' => $operationRows->values(),
                     'service_groups' => $serviceGroups,
+                    'delivery_subgroups' => $isDeliveryGroup ? $deliverySubgroups->values() : collect(),
                     'total_importe' => round((float) $operationRows->sum(fn ($row) => (float) data_get($row, 'importe', 0)), 2),
                 ];
             })
@@ -712,7 +726,32 @@ class MisVentasController extends Controller
             $sheet->getStyle('K' . $rowNumber)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
             $rowNumber++;
 
-            foreach (collect(data_get($operationGroup, 'service_groups', [])) as $serviceName => $serviceRows) {
+            $deliverySubgroups = collect(data_get($operationGroup, 'delivery_subgroups', []));
+            if ($deliverySubgroups->isEmpty()) {
+                $deliverySubgroups = collect([[
+                    'label' => '',
+                    'rows' => $operationRows,
+                    'service_groups' => data_get($operationGroup, 'service_groups', []),
+                    'total_importe' => data_get($operationGroup, 'total_importe', 0),
+                ]]);
+            }
+
+            foreach ($deliverySubgroups as $deliverySubgroup) {
+                $subgroupLabel = trim((string) data_get($deliverySubgroup, 'label', ''));
+                $subgroupRows = collect(data_get($deliverySubgroup, 'rows', []));
+                if ($subgroupLabel !== '') {
+                    $sheet->mergeCells('A' . $rowNumber . ':J' . $rowNumber);
+                    $sheet->setCellValue('A' . $rowNumber, $subgroupLabel . ' · ' . number_format($subgroupRows->count()) . ' registros');
+                    $sheet->setCellValue('K' . $rowNumber, 'Bs ' . number_format((float) data_get($deliverySubgroup, 'total_importe', 0), 2, ',', '.'));
+                    $sheet->getStyle('A' . $rowNumber . ':K' . $rowNumber)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('C9DEEF');
+                    $sheet->getStyle('A' . $rowNumber . ':K' . $rowNumber)->getFont()->setBold(true)->getColor()->setRGB('18324B');
+                    $sheet->getStyle('A' . $rowNumber . ':K' . $rowNumber)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+                    $sheet->getStyle('A' . $rowNumber)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+                    $sheet->getStyle('K' . $rowNumber)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+                    $rowNumber++;
+                }
+
+            foreach (collect(data_get($deliverySubgroup, 'service_groups', [])) as $serviceName => $serviceRows) {
                 $serviceRows = collect($serviceRows)->values();
                 if ($groupServices && $showServiceSubtitles) {
                     $sheet->mergeCells('A' . $rowNumber . ':J' . $rowNumber);
@@ -770,6 +809,7 @@ class MisVentasController extends Controller
             }
             $rowNumber++;
                 }
+            }
             }
         }
 
@@ -2720,7 +2760,7 @@ class MisVentasController extends Controller
                 $paymentLabel = $isDeliveryExpress
                     ? $this->resolveKardexDeliveryExpressPaymentMode($splitRow, $deliveryExpressPayments)
                     : '';
-                $distributionLabel = $stages
+                $rawDistributionLabel = $stages
                     ->first(fn (string $stage) => in_array(
                         $this->normalizeKardexText($stage),
                         [
@@ -2734,21 +2774,20 @@ class MisVentasController extends Controller
                     ));
                 $officeArrivalLabel = $stages
                     ->first(fn (string $stage) => $this->normalizeKardexText($stage) === 'RECIBIDO EN OFICINA DE ENTREGA');
+                $distributionLabel = $this->kardexDeliveryModeLabel($rawDistributionLabel ?? $officeArrivalLabel);
 
                 if ($isDeliveryExpress) {
                     $splitRow['forma_cobro_delivery_express'] = $paymentLabel;
-                    $splitRow['estado_distribucion_delivery_express'] = (string) ($distributionLabel ?? '');
-                    $splitRow['estado_operativo_delivery_express'] = (string) ($distributionLabel ?? $officeArrivalLabel ?? '');
+                    $splitRow['estado_distribucion_delivery_express'] = $distributionLabel ?? '';
+                    $splitRow['estado_operativo_delivery_express'] = $distributionLabel ?? '';
                     $details = collect([
                         $paymentLabel !== '' ? 'COBRO: ' . $paymentLabel : null,
-                        $distributionLabel ?: ($officeArrivalLabel ? 'ESTADO: ' . $officeArrivalLabel : null),
+                        $distributionLabel,
                     ])->filter()->values();
                     $splitRow['operacion_detalle'] = $details->implode(' · ');
                 } else {
                     $splitRow['operacion_detalle'] = $this->normalizeKardexText($splitRow['modalidad_entrega']) === 'ENTREGA'
-                        ? $stages
-                        ->reject(fn (string $stage) => $this->normalizeKardexText($stage) === $this->normalizeKardexText($splitRow['modalidad_entrega']))
-                        ->implode(' / ')
+                        ? ($distributionLabel ?? '')
                         : '';
                 }
 
@@ -2774,6 +2813,30 @@ class MisVentasController extends Controller
 
                 return $row;
             });
+    }
+
+    private function kardexDeliveryModeLabel(?string $stage): ?string
+    {
+        return match ($this->normalizeKardexText((string) $stage)) {
+            'DISTRIBUCION DOMICILIARIA', 'ENTREGADO DOMICILIARIA' => 'DISTRIBUCIÓN DOMICILIARIA',
+            'DISTRIBUCION NO DOMICILIARIA',
+            'ENTREGADO NO DOMICILIARIA',
+            'RECIBIDO EN OFICINA DE ENTREGA' => 'DISTRIBUCIÓN NO DOMICILIARIA',
+            default => null,
+        };
+    }
+
+    private function kardexDeliverySubgroupLabel(string $operation, string $deliveryMode): ?string
+    {
+        if ($this->normalizeKardexText($operation) !== 'ENTREGA') {
+            return null;
+        }
+
+        return match ($this->normalizeKardexText($deliveryMode)) {
+            'DISTRIBUCION NO DOMICILIARIA' => 'ENTREGA · DISTRIBUCIÓN NO DOMICILIARIA',
+            'DISTRIBUCION DOMICILIARIA' => 'ENTREGA · DISTRIBUCIÓN DOMICILIARIA',
+            default => null,
+        };
     }
 
     private function isKardexDeliveryExpressRow(array $row): bool
@@ -3105,9 +3168,18 @@ class MisVentasController extends Controller
                 ->map(fn ($event) => strtotime((string) (data_get($event, 'timeline_sort_at') ?? data_get($event, 'created_at', ''))) ?: 0)
                 ->filter(fn (int $timestamp) => $timestamp > 0)
                 ->max();
+            $explicitDeliveryModeEvent = $this->latestKardexIpsDeliveryModeEvent(collect((array) $events));
+            $explicitDeliveryModeTimestamp = $explicitDeliveryModeEvent !== null
+                ? (strtotime((string) (data_get($explicitDeliveryModeEvent, 'timeline_sort_at') ?? data_get($explicitDeliveryModeEvent, 'created_at', ''))) ?: null)
+                : null;
+            $explicitDeliveryModeIsCurrent = $explicitDeliveryModeEvent !== null
+                && (! isset($stages[$code])
+                    || ($explicitDeliveryModeTimestamp !== null
+                        && $explicitDeliveryModeTimestamp >= (int) ($stageTimestamps[$code] ?? 0)));
             if (isset($stages[$code])
                 && ($latestTrackingTimestamp === null
-                    || $latestTrackingTimestamp <= (int) ($stageTimestamps[$code] ?? 0))) {
+                    || $latestTrackingTimestamp <= (int) ($stageTimestamps[$code] ?? 0))
+                && ! $explicitDeliveryModeIsCurrent) {
                 continue;
             }
 
@@ -3119,6 +3191,25 @@ class MisVentasController extends Controller
         }
 
         return $stages;
+    }
+
+    private function latestKardexIpsDeliveryModeEvent(Collection $events): ?object
+    {
+        return $events
+            ->map(fn ($event) => (object) (is_array($event) ? $event : (array) $event))
+            ->filter(fn (object $event): bool => (int) ($event->codigo_evento ?? 0) === 37
+                && $this->normalizeKardexDeliveryMode($event->delivery_mode ?? null) !== null)
+            ->sortByDesc(fn (object $event): int => strtotime((string) ($event->timeline_sort_at ?? $event->created_at ?? '')) ?: 0)
+            ->first();
+    }
+
+    private function normalizeKardexDeliveryMode(mixed $value): ?string
+    {
+        return match (strtoupper(trim((string) $value))) {
+            'DOMICILIARIA' => 'DOMICILIARIA',
+            'NO_DOMICILIARIA' => 'NO_DOMICILIARIA',
+            default => null,
+        };
     }
 
     private function resolveKardexSitraOperationalStage(array $events, string $code): ?string
@@ -3137,6 +3228,7 @@ class MisVentasController extends Controller
         $currentStep = $this->normalizeKardexText((string) data_get($progress, 'steps.'.(int) data_get($progress, 'current_index', 0), ''));
         $progressStatus = $this->normalizeKardexText((string) data_get($progress, 'status', ''));
         $latestEvent = (object) $events->first();
+        $explicitDeliveryModeEvent = $this->latestKardexIpsDeliveryModeEvent($events);
         $latestEventCode = is_numeric($latestEvent->codigo_evento ?? null)
             ? (int) $latestEvent->codigo_evento
             : null;
@@ -3191,7 +3283,8 @@ class MisVentasController extends Controller
         // El evento actual manda sobre los eventos históricos. Por ejemplo,
         // un envío entregado puede conservar eventos anteriores de Aduana.
         if ($progressStatus === 'ENTREGADO' || in_array($latestEventCode, [37, 1250], true)) {
-            $deliveryMode = strtoupper(trim((string) ($latestEvent->delivery_mode ?? '')));
+            $deliveryMode = $this->normalizeKardexDeliveryMode($latestEvent->delivery_mode ?? null)
+                ?? $this->normalizeKardexDeliveryMode($explicitDeliveryModeEvent?->delivery_mode ?? null);
             if ($deliveryMode === 'DOMICILIARIA') {
                 return 'ENTREGADO · DOMICILIARIA';
             }
@@ -3608,6 +3701,7 @@ class MisVentasController extends Controller
             default => $estadoEmision !== '' ? $estadoEmision : 'SIN ESTADO',
         };
         $operacion = trim((string) ($row['modalidad_entrega'] ?? '-')) ?: '-';
+        $operacionSubgrupo = $this->kardexDeliverySubgroupLabel($operacion, (string) ($row['operacion_detalle'] ?? ''));
         $esEntrega = $this->normalizeKardexText($operacion) === 'ENTREGA';
         $destino = $esCasilla
             ? ''
@@ -3642,6 +3736,7 @@ class MisVentasController extends Controller
             'pais_ciudad' => $ubicacion !== '' ? $ubicacion : '-',
             'ubicacion_tipo' => $esEntrega ? 'ORIGEN' : 'DESTINO',
             'modalidad_entrega' => $operacion,
+            'operacion_subgrupo' => $operacionSubgrupo,
             'numero_factura' => trim((string) ($row['numero_factura'] ?? '-')) ?: '-',
             'importe' => (float) ($row['importe_general'] ?? 0),
             'importe_venta' => (float) ($row['importe_venta'] ?? $row['importe_general'] ?? 0),

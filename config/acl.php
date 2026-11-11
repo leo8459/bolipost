@@ -106,6 +106,16 @@ return [
     |
     */
     'custom_permissions' => [
+        'internacional.menu',
+        'internacional.menu.mi-almacen.recibir-destino',
+        'internacional.menu.mi-almacen.por-entregar',
+        'internacional.menu.mis-paquetes.asignados-a-mi',
+        'internacional.menu.mis-paquetes.entregados-por-mi',
+        'internacional.menu.recibir-abrir-saca',
+        'internacional.menu.clasificar-despachar',
+        'internacional.menu.rezago-devoluciones',
+        'internacional.menu.todos-paquetes',
+        'internacional.menu.entregados-oficina',
         'facturacion.mode.efectivo',
         'facturacion.mode.qr_factura',
         'facturacion.mode.qr_solo',

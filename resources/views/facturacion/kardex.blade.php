@@ -624,6 +624,7 @@
                     return;
                 }
 
+                const formData = new FormData(manualTicketForm);
                 isGeneratingManualTicket = true;
                 manualTicketGenerateButton.disabled = true;
                 manualTicketCode.disabled = true;
@@ -640,7 +641,7 @@
                             Accept: 'application/json',
                             'X-Requested-With': 'XMLHttpRequest',
                         },
-                        body: new FormData(manualTicketForm),
+                        body: formData,
                     });
 
                     if (!response.ok) {
@@ -651,7 +652,10 @@
                             422: 'Ingresa un código de guía válido para generar el ticket.',
                             502: 'No se pudo consultar el sistema postal en este momento. Intenta nuevamente.',
                         };
-                        throw new Error(String(payload.message || messages[response.status] || 'No se pudo generar el ticket. Intenta nuevamente.'));
+                        const errorMessage = response.status === 422
+                            ? messages[422]
+                            : (payload.message || messages[response.status] || 'No se pudo generar el ticket. Intenta nuevamente.');
+                        throw new Error(String(errorMessage));
                     }
 
                     const blob = await response.blob();
@@ -687,6 +691,9 @@
             manualTicketForm?.addEventListener('submit', generateManualDeliveryTicket);
             manualTicketCode?.addEventListener('input', () => {
                 manualTicketCode.value = manualTicketCode.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+                if (manualTicketStatus.classList.contains('kardex-ticket-modal__status--error')) {
+                    manualTicketStatus.hidden = true;
+                }
             });
             document.addEventListener('keydown', (event) => {
                 if (event.key === 'Escape' && manualTicketModal && !manualTicketModal.hidden) {

@@ -291,6 +291,7 @@
                                     </div>
                                 @endif
                                 <div class="ips-receptacle-next-step__action">
+                                    @can('internacional.workflow.operate')
                                     <form method="POST" action="{{ route('internacional.sacas.operate', \App\Support\IpsOfficeContext::parameters(request(), ['paso' => $operationStep])) }}">
                                         {!! csrf_field() !!}
                                         <input type="hidden" name="codigo" value="{{ $receptacle['codigo'] }}">
@@ -299,6 +300,9 @@
                                         @if($operationStep === 'recibir')<input type="hidden" name="physical_receipt_confirmed" value="1">@endif
                                         <button class="btn btn-warning btn-block" type="submit"><i class="{{ $operationStep === 'abrir' ? 'fas fa-box-open' : 'fas fa-check' }} mr-1" aria-hidden="true"></i>{{ $isPending ? 'Consultar operación pendiente' : ($operationStep === 'abrir' ? 'Abrir saca' : 'Recibir saca') }}</button>
                                     </form>
+                                    @else
+                                        <p class="small text-muted mb-0">Tu rol tiene acceso de consulta. Para recibir o abrir sacas, también necesita el permiso de operación internacional.</p>
+                                    @endcan
                                 </div>
                             </div>
                         @elseif($showPackageAction)
