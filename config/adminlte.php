@@ -1511,6 +1511,16 @@ $config = [
     */
 
     'plugins' => [
+        'NavigationReady' => [
+            'active' => true,
+            'files' => [
+                [
+                    'type' => 'js',
+                    'asset' => true,
+                    'location' => 'js/adminlte-navigation.js',
+                ],
+            ],
+        ],
         'CustomTheme' => [
             'active' => true,
             'files' => [

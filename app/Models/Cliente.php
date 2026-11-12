@@ -26,7 +26,7 @@ class Cliente extends Authenticatable
 
     public function adminlte_image(): string
     {
-        return (string) ($this->avatar ?: 'https://picsum.photos/300/300');
+        return (string) ($this->avatar ?: asset('images/user-avatar.svg'));
     }
 
     public function adminlte_desc(): string

@@ -332,7 +332,7 @@
                 <div class="card-body">
                     <div class="client-profile__heading">
                         <img
-                            src="{{ $cliente->avatar ?: 'https://picsum.photos/120/120' }}"
+                            src="{{ $cliente->adminlte_image() }}"
                             alt="Avatar del cliente"
                             class="client-profile__avatar"
                         >

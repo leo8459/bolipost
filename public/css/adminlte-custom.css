@@ -765,3 +765,25 @@ body,
     margin-right:.35rem;
     font-size:.78rem;
 }
+
+/* Institutional logo beside the user name, with the same oval shape as the brand. */
+.main-header .user-menu img.user-image[src$="/images/AGBClogo1.png"]{
+    width:92px;
+    height:32px;
+    margin-top:-4px;
+    object-fit:contain;
+    border:2px solid #fff;
+    border-radius:999px;
+    padding:2px 8px;
+    background:#ffcf32;
+}
+
+.main-header .user-menu .user-header > img[src$="/images/AGBClogo1.png"]{
+    width:140px;
+    height:48px;
+    object-fit:contain;
+    border:2px solid #fff;
+    border-radius:999px;
+    padding:3px 12px;
+    background:#ffcf32;
+}
