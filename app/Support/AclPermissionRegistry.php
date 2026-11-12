@@ -737,6 +737,13 @@ class AclPermissionRegistry
             'paquetes-ems.solicitudes.send-almacen',
             'feature.paquetes-ems.solicitudes.index.assign',
         ],
+        'paquetes-ems.solicitudes.tickets' => [
+            'paquetes-ems.solicitudes.ticket',
+            'feature.paquetes-ems.solicitudes.index.print',
+            'feature.paquetes-ems.solicitudes.index.create',
+            'paquetes-ems.solicitudes.send-almacen',
+            'feature.paquetes-ems.solicitudes.index.assign',
+        ],
         'paquetes-ems.solicitudes.ticket' => [
             'paquetes-ems.solicitudes.ticket',
             'feature.paquetes-ems.solicitudes.index.print',

@@ -156,6 +156,14 @@
                                 @unless(in_array($entry['status'],['processing','uncertain'],true))<form class="ml-auto ips-selection-remove" method="POST" action="{{ route($selectionRemoveRouteName, \App\Support\IpsOfficeContext::parameters(request(), ($workflowAction ?? null) ? (['section' => $section, 'codigo' => $code] + (($workflowAction === 'CUSTOMS_RETURN' && !empty($entry['receptacle_pid'])) ? ['receptacle_pid' => $entry['receptacle_pid']] : [])) : ['codigo' => $code])) }}">@csrf @method('DELETE')<button type="submit" class="btn btn-sm text-muted" aria-label="Quitar {{ $code }}"><i class="fas fa-times"></i></button></form>@endunless
                             </div>
                             <small class="ips-item-stage">Etapa actual · {{ $entry['package']['stage']['label'] }}</small>
+                            @if(($workflowAction ?? '') === 'EMG')
+                                <div class="ips-upu-zone-fields mt-2">
+                                    <label class="ips-field-label">Zona / dirección
+                                        <textarea class="form-control form-control-sm ips-upu-zone" rows="2" maxlength="1000" @disabled(!empty($entry['payload']))>{{ isset($entry['upu_receipt']) ? ($entry['upu_receipt']['zona'] ?? '') : ($entry['package']['address'] ?? '') }}</textarea>
+                                    </label>
+                                    <small>Dirección de IPS. Puedes editarla para guardarla en Bolipost al recibir.</small>
+                                </div>
+                            @endif
                             @if(!empty($entry['route_mismatch_receipt']))<p class="alert alert-warning py-2 px-2 mt-2 mb-2">Ruta IPS: {{ $entry['package']['next_office_name'] ?: 'otra oficina' }}. Se intentará registrar evento 32 aquí; no se agregará un evento de cambio de ruta. La operación depende de la respuesta IPS.</p>@endif
                             <div class="ips-physical-receipt mt-2" @if(($workflowAction ?? '') !== 'EMR') hidden @endif>
                                 <label class="ips-receipt-confirm-label"><input class="ips-physical-receipt-confirm mr-1" type="checkbox" @checked(!empty($entry['payload']['physical_receipt_confirmed'])) @disabled(!empty($entry['payload']))> Confirmo que el envío llegó físicamente a esta oficina.</label>
@@ -804,6 +812,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ? '<div class="ips-delivery-fields mt-2" hidden><label class="ips-field-label">Modalidad efectiva de entrega</label><input type="hidden" class="ips-delivery-mode" value="DOMICILIARIA"><span class="d-block">Cartero · domiciliaria</span></div>'
             : '<div class="ips-delivery-fields mt-2" hidden><label class="ips-field-label">Modalidad efectiva de entrega</label><select class="form-control form-control-sm ips-delivery-mode"><option value="">Seleccionar modalidad</option><option value="NO_DOMICILIARIA">Ventanilla · no domiciliaria</option><option value="DOMICILIARIA">Cartero · domiciliaria</option></select></div>';
         article.innerHTML = '<div class="d-flex align-items-center"><input class="ips-choice mr-2" type="checkbox" aria-label="Seleccionar '+data.code+'"><strong>'+data.code+'</strong><form class="ml-auto ips-selection-remove" method="POST" action="'+(data.remove_url || '')+'"><input type="hidden" name="_token" value="'+document.querySelector('meta[name="csrf-token"]')?.content+'"><input type="hidden" name="_method" value="DELETE"><button type="submit" class="btn btn-sm text-muted" aria-label="Quitar '+data.code+'"><i class="fas fa-times"></i></button></form></div>'
+            + (fixedWorkflow === 'EMG' ? '<div class="ips-upu-zone-fields mt-2"><label class="ips-field-label">Zona / dirección<textarea class="form-control form-control-sm ips-upu-zone" rows="2" maxlength="1000"></textarea></label><small>Dirección de IPS. Puedes editarla para guardarla en Bolipost al recibir.</small></div>' : '')
             + '<small class="ips-item-stage"></small><div class="ips-physical-receipt mt-2" hidden><label class="ips-receipt-confirm-label"><input class="ips-physical-receipt-confirm mr-1" type="checkbox"> Confirmo que el envío llegó físicamente a esta oficina.</label></div><small class="ips-item-message" role="status" hidden></small>'
             + '<input class="form-control form-control-sm ips-signatory mt-2" maxlength="64" placeholder="Persona que recibió (opcional)" aria-label="Receptor real de '+data.code+'" hidden>'
             + '<div class="ips-delivery-fields mt-2" hidden><label class="ips-field-label">Modalidad efectiva de entrega</label><select class="form-control form-control-sm ips-delivery-mode"><option value="">Seleccionar modalidad</option><option value="NO_DOMICILIARIA">Ventanilla · no domiciliaria</option><option value="DOMICILIARIA">Cartero · domiciliaria</option></select></div>'
@@ -813,6 +822,8 @@ document.addEventListener('DOMContentLoaded', () => {
             + '<div class="ips-exchange-receptacle-fields mt-2" hidden><label class="ips-field-label">Envase internacional recibido y abierto</label><select class="form-control form-control-sm ips-exchange-receptacle" required><option value="">Seleccionar envase</option></select></div>'
             + '<div class="ips-condition-fields mt-2" hidden><label class="ips-field-label">Condicion fisica del paquete</label><select class="form-control form-control-sm ips-package-condition"><option value="">Revisar y seleccionar</option></select></div>';
         if (courierOnly) article.querySelector('.ips-delivery-fields').outerHTML = deliveryModeField;
+        const upuZone = article.querySelector('.ips-upu-zone');
+        if (upuZone) upuZone.value = packageData.address ?? '';
         article.querySelector('.ips-item-stage').textContent = 'Etapa actual · ' + ((packageData.stage && packageData.stage.label) || 'Paquete IPS');
         if (data.route_mismatch_receipt) {
             const routeNote = document.createElement('p');
@@ -991,6 +1002,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     operation.receptacle_pid = workspaceRoot?.dataset.preferredReceptacle || '';
                 }
                 if (chosenAction === 'EMG') operation.physical_receipt_confirmed = batchPhysicalConfirm?.checked || false;
+                const upuZone = row.querySelector('.ips-upu-zone');
+                if (chosenAction === 'EMG' && upuZone) {
+                    operation.zona = upuZone.value;
+                    upuZone.disabled = true;
+                }
                 if (chosenAction === 'EMG' && row.dataset.routeMismatch === '1') operation.route_mismatch_confirmed = routeMismatchConfirm?.checked || false;
                 if (chosenAction === 'EMI') operation.delivery_mode = row.querySelector('.ips-delivery-mode').value;
                 if (chosenAction === 'EDN') operation.next_office_cd = row.querySelector('.ips-next-office').value;
@@ -1015,11 +1031,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const result = await response.json();
                 const validationOnly = response.status === 422;
                 const editableRejection = ['needs_reason','needs_physical_confirmation'].includes(result.status) || validationOnly;
+                if (editableRejection && upuZone) upuZone.disabled = false;
                 row.dataset.status = editableRejection ? 'ready' : (result.status || 'rejected');
                 row.dataset.payloadAction = editableRejection ? '' : chosenAction;
                 row.querySelector('.ips-item-message').textContent = result.message || 'Revise la respuesta antes de continuar.';
                 row.querySelector('.ips-item-message').hidden = false;
-                if (!editableRejection) row.querySelectorAll('input:not(.ips-choice), select').forEach(field => field.disabled = true);
+                if (!editableRejection) row.querySelectorAll('input:not(.ips-choice), select, textarea').forEach(field => field.disabled = true);
                 if (result.status === 'succeeded') successes++;
                 if (result.status === 'succeeded' && result.selection_removed) {
                     rows = rows.filter(candidate => candidate !== row);

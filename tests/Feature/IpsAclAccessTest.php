@@ -32,6 +32,7 @@ class IpsAclAccessTest extends TestCase
         parent::setUp();
 
         (require database_path('migrations/2025_06_11_195557_create_permission_tables.php'))->up();
+        (require database_path('migrations/2026_11_12_000000_create_paquetes_upu_table.php'))->up();
         AclPermissionRegistry::syncPermissions();
     }
 
@@ -319,7 +320,7 @@ class IpsAclAccessTest extends TestCase
 
     private function user(array $permissions = []): User
     {
-        $user = new User(['name' => 'Operador']);
+        $user = new User(['name' => 'Operador', 'ciudad' => 'LA PAZ']);
         $user->id = 1;
         $user->setRelation('roles', new Collection());
         $user->setRelation('permissions', Permission::whereIn('name', $permissions)->get());

@@ -51,7 +51,7 @@
         <span class="solicitud-package-icon"><i class="fas fa-box-open" aria-hidden="true"></i></span>
         <div>
             <strong>Medidas del paquete</strong>
-            <p>Menos de 3 kg y de 50 × 40 × 30 cm. Si supera los l&iacute;mites, se aplica un recargo de Bs 10.</p>
+            <p>Menos de 3 kg y de 50 × 40 × 30 cm. Si supera los l&iacute;mites, se aplica un recargo de Bs 10 por cada kilogramo extra o fraccion.</p>
         </div>
     </div>
 </aside>

@@ -183,9 +183,6 @@ class PaquetesEmsController extends Controller
                 'estadoRegistro:id,nombre_estado',
                 'servicioExtra:id,nombre,descripcion',
                 'destino:id,nombre_destino',
-                'tarifarioTiktoker:id,origen_id,destino_id,peso1',
-                'tarifarioTiktoker.origen:id,nombre_origen',
-                'tarifarioTiktoker.destino:id,nombre_destino',
             ])
             ->when($estadoSolicitudId > 0, function ($query) use ($estadoSolicitudId) {
                 $query->where('estado_id', $estadoSolicitudId);
@@ -208,10 +205,6 @@ class PaquetesEmsController extends Controller
                     'ciudad',
                     'origen',
                     'precio',
-                    'paquete_muy_grande',
-                    'recargo_volumen',
-                    'pago_destinatario',
-                    'tarifario_tiktoker_id',
                     'created_at',
                 ])
                 ->orderByRaw(
@@ -244,10 +237,7 @@ class PaquetesEmsController extends Controller
                         'telefono_destinatario' => $solicitud->telefono_destinatario,
                         'ciudad' => $solicitud->ciudad,
                         'origen' => $solicitud->origen,
-                        'precio_base' => (float) ($solicitud->tarifarioTiktoker?->peso1 ?? $solicitud->precio ?? 0),
-                        'paquete_muy_grande' => (bool) $solicitud->paquete_muy_grande,
-                        'recargo_volumen' => (bool) $solicitud->recargo_volumen,
-                        'pago_destinatario' => (bool) $solicitud->pago_destinatario,
+                        'precio_guardado' => (float) ($solicitud->precio ?? 0),
                         'created_at' => optional($solicitud->created_at)->format('d/m/Y H:i'),
                     ];
                 })
@@ -279,11 +269,12 @@ class PaquetesEmsController extends Controller
         $data = $request->validate([
             'solicitud_ids' => ['required', 'array', 'min:1'],
             'solicitud_ids.*' => ['integer', 'exists:solicitud_clientes,id'],
-            'paquetes_muy_grandes' => ['nullable', 'array'],
-            'paquetes_muy_grandes.*' => ['nullable', 'boolean'],
+            'kilos_extras' => ['nullable', 'array'],
+            'kilos_extras.*' => ['required', 'integer', 'min:0'],
         ], [], [
             'solicitud_ids' => 'solicitudes',
             'solicitud_ids.*' => 'solicitud',
+            'kilos_extras.*' => 'kilos extras',
         ]);
 
         $estadoSolicitudId = (int) (Estado::query()
@@ -306,13 +297,14 @@ class PaquetesEmsController extends Controller
             ->values()
             ->all();
 
-        $paquetesMuyGrandes = collect($data['paquetes_muy_grandes'] ?? [])
-            ->mapWithKeys(fn ($value, $id) => [(int) $id => filter_var($value, FILTER_VALIDATE_BOOLEAN)])
+        $kilosExtras = collect($data['kilos_extras'] ?? [])
+            ->mapWithKeys(fn ($value, $id) => [(int) $id => (int) $value])
             ->all();
 
         $updated = 0;
+        $updatedIds = [];
 
-        DB::transaction(function () use ($ids, $paquetesMuyGrandes, $estadoSolicitudId, $estadoAlmacenId, &$updated) {
+        DB::transaction(function () use ($ids, $kilosExtras, $estadoSolicitudId, $estadoAlmacenId, &$updated, &$updatedIds) {
             $solicitudes = SolicitudCliente::query()
                 ->whereIn('id', $ids)
                 ->where('estado_id', $estadoSolicitudId)
@@ -320,31 +312,15 @@ class PaquetesEmsController extends Controller
                 ->get();
 
             foreach ($solicitudes as $solicitud) {
-                [$tarifario] = $this->resolveTarifarioYPrecio(
-                    (int) $solicitud->servicio_extra_id,
-                    (string) $solicitud->origen,
-                    (int) $solicitud->destino_id,
-                    (float) ($solicitud->peso ?? 0),
-                    (bool) $solicitud->pago_destinatario,
-                    (bool) $solicitud->recargo_volumen
-                );
-
-                $esMuyGrande = (bool) ($paquetesMuyGrandes[(int) $solicitud->id] ?? false);
-
+                $extras = $kilosExtras[(int) $solicitud->id] ?? 0;
                 $solicitud->update([
                     'estado_id' => $estadoAlmacenId,
-                    'tarifario_tiktoker_id' => (int) $tarifario->id,
-                    'precio' => TiktokerTariffPriceCalculator::calculate(
-                        $tarifario,
-                        (float) ($solicitud->peso ?? 0),
-                        (bool) $solicitud->pago_destinatario,
-                        $esMuyGrande,
-                        (bool) $solicitud->recargo_volumen
-                    ),
-                    'paquete_muy_grande' => $esMuyGrande,
+                    'peso' => $extras > 0 ? round((float) $solicitud->peso + $extras, 3) : $solicitud->peso,
+                    'precio' => round((float) $solicitud->precio + $extras * 10, 2),
                 ]);
 
                 $updated++;
+                $updatedIds[] = (int) $solicitud->id;
             }
         });
 
@@ -353,7 +329,7 @@ class PaquetesEmsController extends Controller
 
             if ($actorUserId > 0) {
                 $solicitudes = SolicitudCliente::query()
-                    ->whereIn('id', $ids)
+                    ->whereIn('id', $updatedIds)
                     ->where('estado_id', $estadoAlmacenId)
                     ->get(['codigo_solicitud', 'barcode']);
 
@@ -365,7 +341,7 @@ class PaquetesEmsController extends Controller
             }
         }
 
-        return redirect()
+        $response = redirect()
             ->route('paquetes-ems.solicitudes.index')
             ->with(
                 $updated > 0 ? 'success' : 'error',
@@ -373,6 +349,14 @@ class PaquetesEmsController extends Controller
                     ? $updated.' solicitud(es) enviada(s) a ALMACEN correctamente.'
                     : 'No se actualizo ninguna solicitud. Verifica que sigan en estado SOLICITUD.'
             );
+
+        if ($updated > 0) {
+            $response->with('solicitud_ticket_url', route('paquetes-ems.solicitudes.tickets', [
+                'solicitud_ids' => $updatedIds,
+            ]));
+        }
+
+        return $response;
     }
 
     public function findSolicitud(Request $request): JsonResponse
@@ -422,6 +406,7 @@ class PaquetesEmsController extends Controller
             'pago_destinatario' => (bool) $solicitud->pago_destinatario,
             'forma_pago' => $solicitud->forma_pago
                 ?: ($solicitud->pago_destinatario ? 'destino' : 'origen'),
+            'tipo_pago' => $solicitud->tipo_pago,
             'recargo_volumen' => (bool) $solicitud->recargo_volumen,
         ]);
     }
@@ -444,9 +429,8 @@ class PaquetesEmsController extends Controller
             'origen' => ['required', 'string'],
             'destino_id' => ['required', 'integer', 'exists:destino,id'],
             'peso' => ['required', 'numeric', 'min:0.001'],
-            'forma_pago' => ['nullable', 'in:origen,destino,pagado'],
+            'forma_pago' => ['nullable', 'in:origen,destino'],
             'pago_destinatario' => ['nullable', 'boolean'],
-            'recargo_volumen' => ['nullable', 'boolean'],
         ]);
 
         $formaPago = (string) $request->input(
@@ -460,8 +444,7 @@ class PaquetesEmsController extends Controller
                 (string) $request->input('origen'),
                 (int) $request->input('destino_id'),
                 (float) $request->input('peso'),
-                $formaPago === 'destino',
-                $request->boolean('recargo_volumen')
+                $formaPago === 'destino'
             );
         } catch (\RuntimeException $exception) {
             return response()->json([
@@ -473,6 +456,7 @@ class PaquetesEmsController extends Controller
             'tarifario_tiktoker_id' => (int) $tarifario->id,
             'precio' => number_format($precio, 2, '.', ''),
             'precio_base' => number_format((float) $tarifario->peso1, 2, '.', ''),
+            'recargo_peso' => number_format($this->calculateRecargoPeso((float) $request->input('peso')), 2, '.', ''),
             'recargo_pago_destino' => number_format(
                 $formaPago === 'destino' ? SolicitudCliente::RECARGO_PAGO_DESTINO : 0,
                 2,
@@ -509,9 +493,9 @@ class PaquetesEmsController extends Controller
             'destino_id' => ['required', 'integer', 'exists:destino,id'],
             'cantidad' => ['required', 'integer', 'min:1'],
             'peso' => ['required', 'numeric', 'min:0.001'],
-            'forma_pago' => ['required', 'in:origen,destino,pagado'],
+            'forma_pago' => ['required', 'in:origen,destino'],
+            'tipo_pago' => ['nullable', 'required_if:forma_pago,origen', 'prohibited_unless:forma_pago,origen', 'in:efectivo,qr'],
             'pago_destinatario' => ['nullable', 'boolean'],
-            'recargo_volumen' => ['nullable', 'boolean'],
             'contenido' => ['required', 'string'],
             'nombre_remitente' => ['required', 'string', 'max:255'],
             'carnet' => ['required', 'string', 'max:255'],
@@ -529,8 +513,7 @@ class PaquetesEmsController extends Controller
                 (string) $data['origen'],
                 (int) $data['destino_id'],
                 (float) $data['peso'],
-                $data['forma_pago'] === 'destino',
-                (bool) ($data['recargo_volumen'] ?? false)
+                $data['forma_pago'] === 'destino'
             );
         } catch (\RuntimeException $exception) {
             return redirect()
@@ -564,6 +547,13 @@ class PaquetesEmsController extends Controller
                 ->withErrors(['direccion_entrega' => 'La direccion de entrega es obligatoria.']);
         }
 
+        $solicitudId = (int) ($data['solicitud_id'] ?? 0);
+        $solicitud = $solicitudId > 0 ? SolicitudCliente::query()->find($solicitudId) : null;
+        $pagaEnOrigen = $data['forma_pago'] === 'origen';
+        $tipoPago = $data['tipo_pago'] ?? null;
+        $pagado = $pagaEnOrigen && ($tipoPago === 'efectivo'
+            || ($tipoPago === 'qr' && $solicitud?->forma_pago === 'pagado' && $solicitud?->tipo_pago === 'qr'));
+
         $payload = [
             'estado_id' => $estadoAlmacenId,
             'servicio_extra_id' => (int) $data['servicio_extra_id'],
@@ -575,11 +565,12 @@ class PaquetesEmsController extends Controller
             'peso' => (float) $data['peso'],
             'precio' => $precio,
             'pago_destinatario' => $data['forma_pago'] === 'destino',
-            'forma_pago' => (string) $data['forma_pago'],
+            'forma_pago' => $pagado ? 'pagado' : (string) $data['forma_pago'],
+            'tipo_pago' => $tipoPago,
             'recargo_pago_destino' => $data['forma_pago'] === 'destino'
                 ? SolicitudCliente::RECARGO_PAGO_DESTINO
                 : 0,
-            'recargo_volumen' => (bool) ($data['recargo_volumen'] ?? false),
+            'recargo_volumen' => false,
             'nombre_remitente' => strtoupper(trim((string) $data['nombre_remitente'])),
             'nombre_envia' => null,
             'carnet' => trim((string) $data['carnet']),
@@ -593,12 +584,6 @@ class PaquetesEmsController extends Controller
             'destino_id' => (int) $data['destino_id'],
             'tarifario_tiktoker_id' => (int) $tarifarioTiktoker->id,
         ];
-
-        $solicitudId = (int) ($data['solicitud_id'] ?? 0);
-        $solicitud = null;
-        if ($solicitudId > 0) {
-            $solicitud = SolicitudCliente::query()->find($solicitudId);
-        }
 
         if ($solicitud) {
             $solicitud->update($payload);
@@ -636,19 +621,20 @@ class PaquetesEmsController extends Controller
 
                 return redirect()
                     ->route('paquetes-ems.solicitudes.index')
-                    ->with('error', 'La solicitud se guardo y se mando a ALMACEN, pero no se pudo agregar al carrito de facturacion.');
+                    ->with('error', 'La solicitud se guardo y se mando a ALMACEN, pero no se pudo agregar al carrito de facturacion.')
+                    ->with('solicitud_ticket_url', route('paquetes-ems.solicitudes.ticket', ['solicitud' => $solicitud, 'download' => 1]));
             }
 
             return redirect()
                 ->route('paquetes-ems.solicitudes.index')
                 ->with('success', 'Solicitud guardada y mandada a ALMACEN. Tambien se agrego al carrito de facturacion.')
-                ->with('solicitud_ticket_url', route('paquetes-ems.solicitudes.ticket', $solicitud));
+                ->with('solicitud_ticket_url', route('paquetes-ems.solicitudes.ticket', ['solicitud' => $solicitud, 'download' => 1]));
         }
 
         return redirect()
             ->route('paquetes-ems.solicitudes.index')
             ->with('success', 'Solicitud guardada y mandada a ALMACEN.')
-            ->with('solicitud_ticket_url', route('paquetes-ems.solicitudes.ticket', $solicitud));
+            ->with('solicitud_ticket_url', route('paquetes-ems.solicitudes.ticket', ['solicitud' => $solicitud, 'download' => 1]));
     }
 
     private function canUseFacturacionShortcut($user): bool
@@ -686,6 +672,37 @@ class PaquetesEmsController extends Controller
         });
     }
 
+    public function ticketsSolicitudes(Request $request)
+    {
+        $this->authorizeAnyPermission($request, [
+            'feature.paquetes-ems.solicitudes.index.assign',
+            'paquetes-ems.solicitudes.send-almacen',
+            'feature.paquetes-ems.solicitudes.index.print',
+            'feature.paquetes-ems.solicitudes.index.create',
+            'paquetes-ems.solicitudes.ticket',
+        ]);
+
+        $data = $request->validate([
+            'solicitud_ids' => ['required', 'array', 'min:1', 'max:1000'],
+            'solicitud_ids.*' => ['required', 'integer', 'exists:solicitud_clientes,id'],
+        ]);
+
+        $solicitudes = SolicitudCliente::query()
+            ->with(['destino:id,nombre_destino'])
+            ->whereIn('id', $data['solicitud_ids'])
+            ->orderBy('id')
+            ->get();
+
+        $filename = $solicitudes->count() === 1
+            ? 'solicitud-'.$solicitudes->first()->codigo_solicitud.'.pdf'
+            : 'solicitudes-almacen.pdf';
+
+        return Pdf::loadView('paquetes_ems.solicitud-ticket', [
+            'solicitudes' => $solicitudes,
+            'isPdf' => true,
+        ])->setPaper([0, 0, 226.77, 950])->download($filename);
+    }
+
     public function ticketSolicitud(Request $request, SolicitudCliente $solicitud)
     {
         $this->authorizeAnyPermission($request, [
@@ -699,6 +716,14 @@ class PaquetesEmsController extends Controller
             'servicioExtra:id,nombre,descripcion',
             'destino:id,nombre_destino',
         ]);
+
+        if ($request->boolean('download')) {
+            return Pdf::loadView('paquetes_ems.solicitud-ticket', [
+                'solicitud' => $solicitud,
+                'isPdf' => true,
+            ])->setPaper([0, 0, 226.77, 950])
+                ->download('solicitud-'.$solicitud->codigo_solicitud.'.pdf');
+        }
 
         return view('paquetes_ems.solicitud-ticket', [
             'solicitud' => $solicitud,
@@ -2865,7 +2890,13 @@ class PaquetesEmsController extends Controller
             $pagoDestinatario,
             false,
             $recargoVolumen
-        );
+        ) + $this->calculateRecargoPeso($peso);
+    }
+
+    private function calculateRecargoPeso(float $peso): float
+    {
+        // El peso se registra en kg, con precision de tres decimales.
+        return ceil(max(0, round($peso, 3) - 3)) * 10.00;
     }
 
     private function nullableTrim(?string $value): ?string

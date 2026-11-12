@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Ticket {{ $solicitud->codigo_solicitud }}</title>
+    <title>{{ isset($solicitudes) ? 'Tickets de solicitudes' : 'Ticket '.$solicitud->codigo_solicitud }}</title>
     @unless($isPdf ?? false)
         <link rel="stylesheet" href="{{ asset('css/pdf-generation-modal.css') }}">
     @endunless
@@ -323,9 +323,14 @@
                 color: rgba(0, 0, 0, .16);
             }
         }
+        @if($isPdf ?? false)
+            .ticket { page-break-after: always; }
+            .ticket:last-of-type { page-break-after: auto; }
+        @endif
     </style>
 </head>
 <body>
+    @foreach(($solicitudes ?? [$solicitud]) as $solicitud)
     @php
         $codigo = (string) $solicitud->codigo_solicitud;
         $barcodePng = null;
@@ -431,6 +436,16 @@
                         <span class="label">Forma de pago</span>
                         <span class="value">{{ $solicitud->forma_pago_label }}</span>
                     </div>
+                    @if($solicitud->tipo_pago)
+                    <div class="field full">
+                        <span class="label">Tipo de pago</span>
+                        <span class="value">{{ $solicitud->tipo_pago === 'efectivo' ? 'Efectivo' : ($solicitud->tipo_pago === 'qr' ? 'QR' : $solicitud->tipo_pago) }}</span>
+                    </div>
+                    @endif
+                    <div class="field full">
+                        <span class="label">Peso</span>
+                        <span class="value">{{ $solicitud->peso !== null ? \App\Support\BolivianNumber::format((float) $solicitud->peso, 3) . ' kg' : '-' }}</span>
+                    </div>
                     <div class="field full">
                         <span class="label">Contenido</span>
                         <span class="value">{{ $solicitud->contenido ?: '-' }}</span>
@@ -452,11 +467,7 @@
             </div>
 
             <div class="volume-notice">
-                @if($solicitud->recargo_volumen)
-                    Se aplic&oacute; un recargo de Bs 10 por tama&ntilde;o excesivo.
-                @else
-                    Importante: Si el volumen del paquete es muy grande, se a&ntilde;adir&aacute; un recargo de Bs 10 al precio indicado.
-                @endif
+                Importante: Si el peso del paquete supera los 3 kg, se le cobrar&aacute;n 10 Bs por cada kilo extra o fracci&oacute;n.
             </div>
 
             <div class="pickup-notice">
@@ -478,6 +489,7 @@
             </div>
         </section>
     </main>
+    @endforeach
 
     @unless($isPdf ?? false)
         <div class="actions">

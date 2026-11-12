@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\IpsVerificationNote;
+use App\Models\PaqueteUpu;
 use App\Services\SitraIpsClient;
 use App\Services\SitraTrackingEventsClient;
 use App\Support\InternationalMenuAcl;
@@ -1045,6 +1046,7 @@ class PaquetesIpsController extends Controller
             'route_mismatch_confirmed' => ['sometimes', 'accepted'],
             'receptacle_pid' => ['sometimes', 'uuid'],
             'signatory' => ['nullable', 'string', 'max:64'],
+            'zona' => ['sometimes', 'nullable', 'string', 'max:1000'],
             'delivery_mode' => ['required_if:action,EMI', 'nullable', 'in:DOMICILIARIA,NO_DOMICILIARIA'],
             'non_delivery_reason' => ['required_if:action,EMH', 'nullable', 'integer', 'min:1'],
             'non_delivery_measure' => ['required_if:action,EMH', 'nullable', 'string', 'size:1'],
@@ -1069,8 +1071,15 @@ class PaquetesIpsController extends Controller
         $code = strtoupper($data['codigo']);
         abort_unless(isset($selection[$code]), 422, 'Agregue el paquete a la bandeja primero.');
         $entry = $selection[$code];
+        if ($requiredAction === 'EMG' && empty($entry['upu_receipt'])) {
+            $destination = trim((string) $request->user()->ciudad);
+            abort_unless($destination !== '', 422, 'Configure el departamento del usuario antes de recibir paquetes.');
+            $selection[$code]['upu_receipt'] = $this->upuReceiptData($code, $entry['package'], $destination);
+            $entry = $selection[$code];
+        }
         if ($entry['status'] === 'succeeded') {
             if ($requiredAction === 'EMG') {
+                PaqueteUpu::firstOrCreate(['codigo' => $code], $entry['upu_receipt']);
                 unset($selection[$code]);
                 $request->session()->put($key, $selection);
 
@@ -1190,6 +1199,12 @@ class PaquetesIpsController extends Controller
                     $payload['non_delivery_measure'] = $data['non_delivery_measure'];
                 }
                 $selection[$code]['payload'] = $payload;
+                if ($requiredAction === 'EMG') {
+                    $selection[$code]['upu_receipt'] = $this->upuReceiptData($code, $current, $selection[$code]['upu_receipt']['destino']);
+                    if (array_key_exists('zona', $data)) {
+                        $selection[$code]['upu_receipt']['zona'] = $data['zona'];
+                    }
+                }
                 $selection[$code]['status'] = 'processing';
                 $request->session()->put($key, $selection);
                 $request->session()->save();
@@ -1221,6 +1236,15 @@ class PaquetesIpsController extends Controller
             report($e);
             $result = ['status' => $payload ? 'uncertain' : 'rejected', 'message' => 'No se pudo confirmar. Reintente la misma acción; se conservará la solicitud original.'];
         }
+        if ($requiredAction === 'EMG' && ($result['status'] ?? null) === 'succeeded') {
+            try {
+                PaqueteUpu::firstOrCreate(['codigo' => $code], $selection[$code]['upu_receipt']);
+            } catch (\Throwable $e) {
+                report($e);
+                $result['status'] = 'uncertain';
+                $result['message'] = 'IPS confirmó la recepción, pero falta guardar el paquete en Bolipost. Reintente la misma acción para completar el registro.';
+            }
+        }
         $selection[$code]['status'] = $result['status'] ?? 'uncertain';
         $selection[$code]['message'] = ($result['status'] ?? null) === 'succeeded' && ($payload['event'] ?? null) === 'EMG' && ! empty($payload['route_mismatch_confirmed'])
             ? 'IPS confirmó la recepción en esta oficina (evento 32). No se agregó un evento de cambio de ruta.'
@@ -1243,6 +1267,18 @@ class PaquetesIpsController extends Controller
         }
 
         return response()->json($result);
+    }
+
+    private function upuReceiptData(string $code, array $package, string $destination): array
+    {
+        return [
+            'codigo' => $code,
+            'destinatario' => $package['recipient'] ?? null,
+            'telefono' => $package['phone'] ?? null,
+            'destino' => $destination,
+            'zona' => $package['address'] ?? null,
+            'peso' => $package['weight_kg'] ?? null,
+        ];
     }
 
     // Legacy links now prepare the unified workbench; no unconfirmed write.

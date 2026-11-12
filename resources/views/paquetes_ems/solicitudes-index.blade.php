@@ -206,21 +206,19 @@
             vertical-align:middle;
         }
 
-        .solicitudes-large-check{
+        .solicitudes-extra-kilos{
             display:flex;
-            align-items:flex-start;
+            align-items:center;
             gap:8px;
-            min-width:260px;
+            min-width:180px;
             margin:0;
             font-size:.86rem;
             line-height:1.25;
             color:#163b6c;
-            cursor:pointer;
         }
 
-        .solicitudes-large-check input{
-            margin-top:2px;
-            flex:0 0 auto;
+        .solicitudes-extra-kilos input{
+            width:85px;
         }
 
         .solicitudes-table-card{
@@ -408,6 +406,13 @@
         $solicitudTicketUrl = session('solicitud_ticket_url');
     @endphp
 
+    @if ($solicitudTicketUrl)
+                <div class="alert alert-info mx-3 mt-3 mb-0">
+                    La descarga de la gu&iacute;a se iniciar&aacute; autom&aacute;ticamente.
+                    <a href="{{ $solicitudTicketUrl }}" id="solicitudGuiaDownload" download>Descargar gu&iacute;a PDF</a>
+                </div>
+    @endif
+
     @if (session('error'))
                 <div class="alert alert-danger mx-3 mt-3 mb-0">
                     {{ session('error') }}
@@ -436,7 +441,7 @@
                                     <th>Telefono</th>
                                     <th>Destino</th>
                                     <th>Precio</th>
-                                    <th>Paquete grande</th>
+                                    <th>Kilos extras</th>
                                     <th style="width:90px;"></th>
                                 </tr>
                             </thead>
@@ -552,8 +557,7 @@
             'telefono_destinatario' => $solicitud->telefono_destinatario,
             'ciudad' => $solicitud->destino?->nombre_destino ?: $solicitud->ciudad,
             'origen' => $solicitud->origen,
-            'precio_base' => (float) ($solicitud->tarifarioTiktoker?->peso1 ?? $solicitud->precio ?? 0),
-            'paquete_muy_grande' => (bool) $solicitud->paquete_muy_grande,
+            'precio_guardado' => (float) ($solicitud->precio ?? 0),
         ];
     })->values();
 @endphp
@@ -576,9 +580,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const visibleItems = @json($solicitudesVisibleItems);
 
     if (ticketUrl) {
-        window.setTimeout(function () {
-            window.open(ticketUrl, '_blank', 'noopener');
-        }, 150);
+        document.getElementById('solicitudGuiaDownload')?.click();
     }
 
     if (!searchForm || !searchInput || !datalist || !almacenForm) {
@@ -623,12 +625,6 @@ document.addEventListener('DOMContentLoaded', function () {
             hidden.value = item.id;
             selectedInputs.appendChild(hidden);
 
-            const largeHidden = document.createElement('input');
-            largeHidden.type = 'hidden';
-            largeHidden.name = 'paquetes_muy_grandes[' + item.id + ']';
-            largeHidden.value = item.paquete_muy_grande ? '1' : '0';
-            selectedInputs.appendChild(largeHidden);
-
             const row = document.createElement('tr');
             [item.value || item.codigo_solicitud || item.barcode || 'SIN CODIGO', item.destinatario || '-', item.telefono_destinatario || '-', item.ciudad || '-']
                 .forEach(function (value, index) {
@@ -644,31 +640,37 @@ document.addEventListener('DOMContentLoaded', function () {
                     row.appendChild(cell);
                 });
 
-            const mismoDestino = normalize(item.origen) !== '' && normalize(item.origen) === normalize(item.ciudad);
-            const precioBase = Number(item.precio_base || 0);
-            const recargo = item.paquete_muy_grande ? (mismoDestino ? 5 : 10) : 0;
-            const recargoPagoDestino = item.pago_destinatario ? 2.5 : 0;
-            const recargoVolumen = item.recargo_volumen ? 10 : 0;
+            const precioGuardado = Number(item.precio_guardado || 0);
             const priceCell = document.createElement('td');
-            priceCell.textContent = 'Bs ' + window.BolivianNumber.format(precioBase + recargo + recargoPagoDestino + recargoVolumen, 2);
+            const updatePrice = function () {
+                priceCell.textContent = 'Bs ' + window.BolivianNumber.format(precioGuardado + (item.kilos_extras || 0) * 10, 2);
+            };
+            updatePrice();
             row.appendChild(priceCell);
 
-            const largeCell = document.createElement('td');
-            const largeLabel = document.createElement('label');
-            largeLabel.className = 'solicitudes-large-check';
-            const largeCheckbox = document.createElement('input');
-            largeCheckbox.type = 'checkbox';
-            largeCheckbox.checked = Boolean(item.paquete_muy_grande);
-            const largeText = document.createElement('span');
-            largeText.textContent = 'Si el paquete es muy grande se aumenta el precio en base al tarifario';
-            largeCheckbox.addEventListener('change', function () {
-                item.paquete_muy_grande = largeCheckbox.checked;
-                renderPrelist();
+            const kilosCell = document.createElement('td');
+            const kilosLabel = document.createElement('label');
+            kilosLabel.className = 'solicitudes-extra-kilos';
+            const kilosInput = document.createElement('input');
+            kilosInput.type = 'number';
+            kilosInput.name = 'kilos_extras[' + item.id + ']';
+            kilosInput.min = '0';
+            kilosInput.step = '1';
+            kilosInput.required = true;
+            kilosInput.value = item.kilos_extras || 0;
+            kilosInput.className = 'form-control form-control-sm';
+            kilosInput.setAttribute('aria-label', 'Kilos extras de ' + (item.value || item.codigo_solicitud || item.id));
+            const kilosText = document.createElement('span');
+            kilosText.textContent = 'Cada kilo extra aumenta el peso y suma Bs 10.';
+            kilosInput.addEventListener('input', function () {
+                if (!kilosInput.validity.valid) return;
+                item.kilos_extras = Number(kilosInput.value);
+                updatePrice();
             });
-            largeLabel.appendChild(largeCheckbox);
-            largeLabel.appendChild(largeText);
-            largeCell.appendChild(largeLabel);
-            row.appendChild(largeCell);
+            kilosLabel.appendChild(kilosInput);
+            kilosLabel.appendChild(kilosText);
+            kilosCell.appendChild(kilosLabel);
+            row.appendChild(kilosCell);
 
             const actionCell = document.createElement('td');
             const removeButton = document.createElement('button');
@@ -692,7 +694,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const addItem = function (item) {
         const key = String(item.id);
         const wasSelected = selectedItems.has(key);
-        selectedItems.set(key, item);
+        if (!wasSelected) selectedItems.set(key, { ...item, kilos_extras: 0 });
         renderPrelist();
         searchInput.value = '';
         renderSuggestions([]);

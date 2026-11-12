@@ -3,12 +3,15 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\PaquetesIpsController;
+use App\Models\PaqueteUpu;
 use App\Models\User;
 use App\Models\UserIpsLink;
 use App\Services\SitraIpsClient;
 use App\Services\SitraTrackingEventsClient;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use Mockery;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -16,6 +19,13 @@ use Tests\TestCase;
 
 class IpsReceptionAuthorizationTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        (require database_path('migrations/2026_11_12_000000_create_paquetes_upu_table.php'))->up();
+    }
+
     public static function receptionResults(): array
     {
         return [['succeeded'], ['processing'], ['uncertain'], ['rejected']];
@@ -43,16 +53,176 @@ class IpsReceptionAuthorizationTest extends TestCase
         $result = app(PaquetesIpsController::class)->operateInternational($request, $ips, $tracking, 'recepcion-oficina')->getData(true);
 
         $this->assertSame($status, $result['status']);
+        $this->assertDatabaseCount('paquetes_upu', $status === 'succeeded' ? 1 : 0);
         $remaining = $request->session()->get($key);
         $this->assertArrayHasKey('OTHERPACKAGE', $remaining);
         if ($status === 'succeeded') {
             $this->assertArrayNotHasKey('PACKAGE01', $remaining);
             $this->assertTrue($result['selection_removed']);
             $this->assertSame(1, $result['count']);
+            $this->assertDatabaseHas('paquetes_upu', [
+                'codigo' => 'PACKAGE01', 'destinatario' => 'Destinatario IPS',
+                'telefono' => '+591 70000000', 'destino' => 'LA PAZ',
+                'zona' => 'Zona Central, calle 1', 'peso' => 1.275,
+            ]);
         } else {
             $this->assertSame($status, $remaining['PACKAGE01']['status']);
             $this->assertNotEmpty($remaining['PACKAGE01']['payload']['idempotency_key']);
         }
+    }
+
+    public function test_pending_receipt_preserves_local_data_and_does_not_duplicate_a_retry(): void
+    {
+        $request = $this->operationRequest(18, 'EMG');
+        $key = 'ips_international_emg_workbench.7001_office_18';
+        $request->session()->put($key, $request->session()->get('ips_workbench.7001_office_18'));
+        $request->merge(['destino' => 'PANDO', 'destinatario' => 'Alterado', 'peso' => 99, 'zona' => 'Zona corregida por el operador']);
+        $ips = Mockery::mock(SitraIpsClient::class);
+        $ips->shouldReceive('user')->once()->andReturn($this->snapshot());
+        $current = $this->package('EMG');
+        $current['recipient'] = 'Destinatario actualizado';
+        $ips->shouldReceive('package')->once()->andReturn(['package' => $current]);
+        $ips->shouldReceive('event')->once()->ordered()->andReturn(['status' => 'processing']);
+        $tracking = Mockery::mock(SitraTrackingEventsClient::class);
+        $tracking->shouldReceive('forget')->twice()->with('PACKAGE01');
+        $controller = app(PaquetesIpsController::class);
+
+        $first = $controller->operateInternational($request, $ips, $tracking, 'recepcion-oficina')->getData(true);
+
+        $this->assertSame('processing', $first['status']);
+        $this->assertDatabaseCount('paquetes_upu', 0);
+        $pending = $request->session()->get($key);
+        $payload = $pending['PACKAGE01']['payload'];
+        $this->assertArrayNotHasKey('zona', $payload);
+        $request->user()->ciudad = 'COCHABAMBA';
+        $request->merge(['zona' => 'Otra dirección durante el reintento']);
+        $ips->shouldReceive('event')->twice()->ordered()->with('PACKAGE01', $payload)->andReturn(['status' => 'succeeded']);
+
+        $second = $controller->operateInternational($request, $ips, $tracking, 'recepcion-oficina')->getData(true);
+        $request->session()->put($key, $pending);
+        $third = $controller->operateInternational($request, $ips, $tracking, 'recepcion-oficina')->getData(true);
+
+        $this->assertSame('succeeded', $second['status']);
+        $this->assertSame('succeeded', $third['status']);
+        $this->assertDatabaseCount('paquetes_upu', 1);
+        $package = PaqueteUpu::sole();
+        $this->assertSame('Destinatario actualizado', $package->destinatario);
+        $this->assertSame('LA PAZ', $package->destino);
+        $this->assertSame('1.275', $package->peso);
+        $this->assertSame('Zona corregida por el operador', $package->zona);
+    }
+
+    public static function editedZones(): array
+    {
+        return [['Zona Sur, calle 2, casa 10'], [null]];
+    }
+
+    #[DataProvider('editedZones')]
+    public function test_receipt_saves_the_edited_zone_only_in_bolipost(?string $zone): void
+    {
+        $request = $this->operationRequest(18, 'EMG');
+        $request->merge(['zona' => $zone]);
+        $request->session()->put('ips_international_emg_workbench.7001_office_18', $request->session()->get('ips_workbench.7001_office_18'));
+        $ips = Mockery::mock(SitraIpsClient::class);
+        $ips->shouldReceive('user')->once()->andReturn($this->snapshot());
+        $ips->shouldReceive('package')->once()->andReturn(['package' => $this->package('EMG')]);
+        $ips->shouldReceive('event')->once()->with('PACKAGE01', Mockery::on(
+            fn (array $payload): bool => ! array_key_exists('zona', $payload)
+        ))->andReturn(['status' => 'succeeded']);
+        $tracking = Mockery::mock(SitraTrackingEventsClient::class);
+        $tracking->shouldReceive('forget')->once()->with('PACKAGE01');
+
+        $result = app(PaquetesIpsController::class)->operateInternational($request, $ips, $tracking, 'recepcion-oficina')->getData(true);
+
+        $this->assertSame('succeeded', $result['status']);
+        $this->assertSame($zone, PaqueteUpu::sole()->zona);
+    }
+
+    public function test_invalid_zone_is_rejected_before_registering_the_receipt(): void
+    {
+        $request = $this->operationRequest(18, 'EMG');
+        $request->merge(['zona' => str_repeat('a', 1001)]);
+        $ips = Mockery::mock(SitraIpsClient::class);
+        $ips->shouldNotReceive('event');
+
+        try {
+            app(PaquetesIpsController::class)->operateInternational($request, $ips, Mockery::mock(SitraTrackingEventsClient::class), 'recepcion-oficina');
+            $this->fail('Debe validar la zona antes de recibir el paquete.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('zona', $exception->errors());
+        }
+        $this->assertDatabaseCount('paquetes_upu', 0);
+    }
+
+    public function test_local_save_failure_keeps_the_receipt_available_for_retry(): void
+    {
+        $request = $this->operationRequest(18, 'EMG');
+        $key = 'ips_international_emg_workbench.7001_office_18';
+        $request->session()->put($key, $request->session()->get('ips_workbench.7001_office_18'));
+        $ips = Mockery::mock(SitraIpsClient::class);
+        $ips->shouldReceive('user')->once()->andReturn($this->snapshot());
+        $ips->shouldReceive('package')->once()->andReturn(['package' => $this->package('EMG')]);
+        $ips->shouldReceive('event')->once()->ordered()->andReturnUsing(function (): array {
+            Schema::drop('paquetes_upu');
+
+            return ['status' => 'succeeded'];
+        });
+        $tracking = Mockery::mock(SitraTrackingEventsClient::class);
+        $tracking->shouldReceive('forget')->once()->with('PACKAGE01');
+        $controller = app(PaquetesIpsController::class);
+
+        $result = $controller->operateInternational($request, $ips, $tracking, 'recepcion-oficina')->getData(true);
+
+        $this->assertSame('uncertain', $result['status']);
+        $this->assertStringContainsString('falta guardar el paquete en Bolipost', $result['message']);
+        $pending = $request->session()->get($key)['PACKAGE01'];
+        $this->assertSame('uncertain', $pending['status']);
+        $this->assertNotEmpty($pending['payload']['idempotency_key']);
+        (require database_path('migrations/2026_11_12_000000_create_paquetes_upu_table.php'))->up();
+        $ips->shouldReceive('event')->once()->ordered()->with('PACKAGE01', $pending['payload'])->andReturn(['status' => 'succeeded']);
+
+        $retry = $controller->operateInternational($request, $ips, $tracking, 'recepcion-oficina')->getData(true);
+
+        $this->assertSame('succeeded', $retry['status']);
+        $this->assertTrue($retry['selection_removed']);
+        $this->assertDatabaseCount('paquetes_upu', 1);
+    }
+
+    public function test_receipt_requires_the_logged_in_users_department_before_writing_to_ips(): void
+    {
+        $request = $this->operationRequest(18, 'EMG');
+        $request->user()->ciudad = null;
+        $request->session()->put('ips_international_emg_workbench.7001_office_18', $request->session()->get('ips_workbench.7001_office_18'));
+        $ips = Mockery::mock(SitraIpsClient::class);
+        $ips->shouldNotReceive('event');
+
+        try {
+            app(PaquetesIpsController::class)->operateInternational($request, $ips, Mockery::mock(SitraTrackingEventsClient::class), 'recepcion-oficina');
+            $this->fail('No debe recibir sin el departamento del usuario.');
+        } catch (HttpException $exception) {
+            $this->assertSame(422, $exception->getStatusCode());
+        }
+        $this->assertDatabaseCount('paquetes_upu', 0);
+    }
+
+    public function test_previously_confirmed_receipt_is_saved_locally_before_removing_it(): void
+    {
+        $request = $this->operationRequest(18, 'EMG');
+        $key = 'ips_international_emg_workbench.7001_office_18';
+        $selection = $request->session()->get('ips_workbench.7001_office_18');
+        $selection['PACKAGE01']['status'] = 'succeeded';
+        $request->session()->put($key, $selection);
+        $ips = Mockery::mock(SitraIpsClient::class);
+        $ips->shouldNotReceive('event');
+
+        $result = app(PaquetesIpsController::class)->operateInternational(
+            $request, $ips, Mockery::mock(SitraTrackingEventsClient::class), 'recepcion-oficina'
+        )->getData(true);
+
+        $this->assertSame('succeeded', $result['status']);
+        $this->assertTrue($result['selection_removed']);
+        $this->assertSame([], $request->session()->get($key));
+        $this->assertDatabaseHas('paquetes_upu', ['codigo' => 'PACKAGE01', 'destino' => 'LA PAZ']);
     }
 
     public function test_already_received_package_returns_a_modal_error_without_adding_it(): void
@@ -189,12 +359,16 @@ class IpsReceptionAuthorizationTest extends TestCase
 
     private function package(string $action): array
     {
-        return ['codigo' => 'PACKAGE01', 'event_cd' => 35, 'event_at' => '2026-11-09T12:00:00Z', 'allowed_actions' => [$action]];
+        return [
+            'codigo' => 'PACKAGE01', 'event_cd' => 35, 'event_at' => '2026-11-09T12:00:00Z', 'allowed_actions' => [$action],
+            'recipient' => 'Destinatario IPS', 'phone' => '+591 70000000',
+            'address' => 'Zona Central, calle 1', 'city' => 'Santa Cruz', 'weight_kg' => 1.275,
+        ];
     }
 
     private function operationRequest(int $office, string $action): Request
     {
-        $user = new User(['name' => 'Operador']);
+        $user = new User(['name' => 'Operador', 'ciudad' => 'LA PAZ']);
         $user->id = 7001;
         $user->setRelation('ipsLink', new UserIpsLink([
             'ips_user_pid' => 73, 'ips_office_cd' => 17, 'active' => true, 'last_snapshot' => $this->snapshot(),
