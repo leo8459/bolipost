@@ -165,6 +165,7 @@ class MisVentasController extends Controller
         try {
             // Carga los registros del cajero en formato de detalle Kardex y complementa sus destinos mediante tracking.
             [$sales, , $scopeMetadata] = $this->loadScopedVentas($service, $user, array_merge($filters, ['q' => '']), 'own');
+            $sales = $this->excludePendingQrRowsFromKardex($sales);
             $rows = $this->buildKardexViewRows($sales, $ipsClient, $destinationClient, $eventsClient);
             $summary = array_merge($this->emptySummary(), [
                 'totalVentas' => $rows->unique('venta_group_key')->count(),
@@ -251,6 +252,7 @@ class MisVentasController extends Controller
                 array_merge($filters, ['q' => '']),
                 'branch_kardex'
             );
+            $sales = $this->excludePendingQrRowsFromKardex($sales);
             $failedCashiers = (int) ($scopeMetadata['sucursal_failed_cashier_count'] ?? 0);
             $cashierCount = (int) ($scopeMetadata['sucursal_cashier_count'] ?? 0);
             $sucursalCashierCount = $cashierCount;
@@ -2326,6 +2328,29 @@ class MisVentasController extends Controller
             || trim((string) data_get($row, 'qr_transaction_id', '')) !== ''
             || strtolower(trim((string) data_get($row, 'canal_emision', ''))) === 'qr'
             || $this->hasQrOrderCodePrefix($codigoOrden);
+    }
+
+    private function excludePendingQrRowsFromKardex(Collection $rows): Collection
+    {
+        return $rows
+            ->reject(function ($row): bool {
+                if (! $this->isQrPaymentRow($row)) {
+                    return false;
+                }
+
+                $paymentStatus = strtolower(trim((string) data_get($row, 'estado_pago', '')));
+
+                return in_array($paymentStatus, [
+                    'pendiente',
+                    'pending',
+                    'pendiente_pago',
+                    'pending_payment',
+                    'holding',
+                    'waiting',
+                    'processing',
+                ], true);
+            })
+            ->values();
     }
 
     private function hasQrOrderCodePrefix(string $codigoOrden): bool
