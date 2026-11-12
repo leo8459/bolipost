@@ -13,7 +13,7 @@
         .meta { margin-top: 6px; }
         .meta-label { font-weight:700; }
         .meta-value { text-align:center; font-weight:700; }
-        .data { margin-top: 8px; }
+        .data { margin-top: 8px; table-layout:fixed; font-size:7.5px; }
         .data th { border:1px solid #111; background:#d9d9d9; text-align:center; font-weight:700; padding:5px 3px; }
         .data td { border:1px solid #111; padding:3px; vertical-align:middle; }
         .center { text-align:center; } .right { text-align:right; }
@@ -44,6 +44,7 @@
                 'responsable_name' => $responsableName,
                 'ventanilla_name' => $ventanillaName,
                 'total_importe' => $totalImporte,
+                'payment_metrics' => $paymentMetrics ?? [],
                 'operation_groups' => collect($operationGroups ?? []),
             ]]);
     @endphp
@@ -86,30 +87,32 @@
     </table>
 
     <table class="data">
-        <thead><tr><th>N°</th><th>FECHA</th><th>CANTIDAD</th><th>REGIONAL</th><th>TIPO DE CORRESPONDENCIA</th><th>CÓDIGO DE ENVÍO</th><th>PESO</th><th>PAÍS/CIUDAD DE DESTINO / CIUDAD DE ORIGEN</th><th>OPERACIÓN</th><th>N° FACTURA</th><th>IMPORTE</th></tr></thead>
+        <colgroup><col style="width:3%"><col style="width:7%"><col style="width:5%"><col style="width:5%"><col style="width:13%"><col style="width:14%"><col style="width:5%"><col style="width:15%"><col style="width:8%"><col style="width:8%"><col style="width:9%"><col style="width:8%"></colgroup>
+        <thead><tr><th>N°</th><th>FECHA</th><th>CANTIDAD</th><th>REGIONAL</th><th>TIPO DE CORRESPONDENCIA</th><th>CÓDIGO DE ENVÍO</th><th>PESO</th><th>PAÍS/CIUDAD DE DESTINO / CIUDAD DE ORIGEN</th><th>OPERACIÓN</th><th>MEDIO DE PAGO</th><th>N° FACTURA</th><th>IMPORTE</th></tr></thead>
         <tbody>
             @php
                 $sectionRows = collect(data_get($section, 'rows', $visibleRows));
                 $sectionOperationGroups = collect(data_get($section, 'operation_groups', []));
+                $sectionPaymentMetrics = (array) data_get($section, 'payment_metrics', $paymentMetrics ?? []);
             @endphp
             @if($sectionOperationGroups->isEmpty())
-                <tr><td colspan="11" class="center">Sin datos para los filtros aplicados.</td></tr>
+                <tr><td colspan="12" class="center">Sin datos para los filtros aplicados.</td></tr>
             @else
             @foreach($sectionOperationGroups as $operationGroup)
                 @php($deliverySubgroups = collect(data_get($operationGroup, 'delivery_subgroups', [])))
-                <tr class="operation-group"><td colspan="9">{{ data_get($operationGroup, 'label') }} · {{ number_format(collect(data_get($operationGroup, 'rows', []))->count()) }} registros</td><td colspan="2" class="right">Bs {{ number_format((float) data_get($operationGroup, 'total_importe', 0), 2, ',', '.') }}</td></tr>
+                <tr class="operation-group"><td colspan="10">{{ data_get($operationGroup, 'label') }} · {{ number_format(collect(data_get($operationGroup, 'rows', []))->count()) }} registros</td><td colspan="2" class="right">Bs {{ number_format((float) data_get($operationGroup, 'total_importe', 0), 2, ',', '.') }}</td></tr>
                 @if($deliverySubgroups->isEmpty())
                     @php($deliverySubgroups = collect([['label' => '', 'rows' => data_get($operationGroup, 'rows', []), 'service_groups' => data_get($operationGroup, 'service_groups', []), 'total_importe' => data_get($operationGroup, 'total_importe', 0)]]))
                 @endif
                 @foreach($deliverySubgroups as $deliverySubgroup)
                     @php($operationServiceGroups = collect(data_get($deliverySubgroup, 'service_groups', [])))
                     @if(trim((string) data_get($deliverySubgroup, 'label', '')) !== '')
-                <tr class="delivery-subgroup"><td colspan="9">{{ data_get($deliverySubgroup, 'label') }} · {{ number_format(collect(data_get($deliverySubgroup, 'rows', []))->count()) }} registros</td><td colspan="2" class="right">Bs {{ number_format((float) data_get($deliverySubgroup, 'total_importe', 0), 2, ',', '.') }}</td></tr>
+                <tr class="delivery-subgroup"><td colspan="10">{{ data_get($deliverySubgroup, 'label') }} · {{ number_format(collect(data_get($deliverySubgroup, 'rows', []))->count()) }} registros</td><td colspan="2" class="right">Bs {{ number_format((float) data_get($deliverySubgroup, 'total_importe', 0), 2, ',', '.') }}</td></tr>
                     @endif
                     @foreach($operationServiceGroups as $serviceName => $serviceRows)
                     @php($serviceRows = collect($serviceRows))
                     @if(str_contains(mb_strtoupper((string) $serviceName), 'SERVICIO DE PAGO DE CONTRATOS') || str_contains(mb_strtoupper((string) $serviceName), 'SERVICIO ECA'))
-                <tr class="service-group"><td colspan="9">{{ mb_strtoupper((string) $serviceName) }} · {{ number_format($serviceRows->count()) }} registros</td><td colspan="2" class="right">Bs {{ number_format((float) $serviceRows->sum(fn ($row) => (float) data_get($row, 'importe', 0)), 2, ',', '.') }}</td></tr>
+                <tr class="service-group"><td colspan="10">{{ mb_strtoupper((string) $serviceName) }} · {{ number_format($serviceRows->count()) }} registros</td><td colspan="2" class="right">Bs {{ number_format((float) $serviceRows->sum(fn ($row) => (float) data_get($row, 'importe', 0)), 2, ',', '.') }}</td></tr>
                     @endif
                     @foreach($serviceRows as $row)
                 <tr class="{{ data_get($row, 'es_anulada') ? 'annulled-row' : '' }}">
@@ -136,6 +139,7 @@
                             <br><small>{{ data_get($row, 'operacion_detalle') }}</small>
                         @endif
                     </td>
+                    <td class="center">{{ data_get($row, 'metodo_pago_label', 'EFECTIVO') }}</td>
                     <td class="center {{ data_get($row, 'es_anulada') ? 'annulled-invoice' : 'active-invoice' }}">{{ data_get($row, 'numero_factura') }}</td>
                     <td class="right">Bs {{ number_format((float) data_get($row, 'importe', 0), 2, ',', '.') }}</td>
                 </tr>
@@ -146,8 +150,10 @@
             @endif
         </tbody>
         <tfoot class="totals">
-            <tr><td colspan="10" class="right">TOTAL PARCIAL</td><td class="right">Bs {{ number_format((float) data_get($section, 'total_importe', $totalImporte), 2, ',', '.') }}</td></tr>
-            <tr><td colspan="10" class="right">TOTAL GENERAL</td><td class="right">Bs {{ number_format((float) data_get($section, 'total_importe', $totalImporte), 2, ',', '.') }}</td></tr>
+            <tr><td colspan="11" class="right">TOTAL PARCIAL</td><td class="right">Bs {{ number_format((float) data_get($section, 'total_importe', $totalImporte), 2, ',', '.') }}</td></tr>
+            <tr><td colspan="11" class="right">TOTAL GENERAL</td><td class="right">Bs {{ number_format((float) data_get($section, 'total_importe', $totalImporte), 2, ',', '.') }}</td></tr>
+            <tr><td colspan="11" class="right">EFECTIVO · {{ number_format((int) data_get($sectionPaymentMetrics, 'ventasEfectivo', 0)) }} ventas</td><td class="right">Bs {{ number_format((float) data_get($sectionPaymentMetrics, 'montoEfectivo', 0), 2, ',', '.') }}</td></tr>
+            <tr><td colspan="11" class="right">QR CONFIRMADO · {{ number_format((int) data_get($sectionPaymentMetrics, 'ventasQrPagadas', 0)) }} ventas</td><td class="right">Bs {{ number_format((float) data_get($sectionPaymentMetrics, 'montoQr', 0), 2, ',', '.') }}</td></tr>
         </tfoot>
     </table>
 
