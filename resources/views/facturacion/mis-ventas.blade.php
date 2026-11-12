@@ -200,6 +200,12 @@
         </div>
         <div class="card-body">
             <form method="GET" action="{{ route($pageContext['filter_route']) }}" id="ventasFiltersForm">
+                @if($isBranchScope && !empty($filters['cashier_filter_applied']))
+                    <input type="hidden" name="cashier_filter_applied" value="1">
+                    @foreach(($filters['cashier_ids'] ?? []) as $cashierId)
+                        <input type="hidden" name="cashier_ids[]" value="{{ $cashierId }}">
+                    @endforeach
+                @endif
                 <div class="row">
                     <div class="col-xl-4 col-lg-6 mb-3">
                         <label class="ventas-label">Buscar</label>

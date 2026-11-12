@@ -2283,6 +2283,43 @@ class FacturacionCartService
             return ['rows' => [], 'errors' => []];
         }
 
+        $cacheFilters = $filters;
+        ksort($cacheFilters);
+        $cacheUsers = $users
+            ->map(fn (User $user) => [
+                'id' => trim((string) $user->id),
+                'email' => strtolower(trim((string) $user->email)),
+                'alias' => strtolower(trim((string) ($user->alias ?? ''))),
+                'ci' => strtoupper(preg_replace('/\\s+/', '', trim((string) ($user->ci ?? '')))),
+                'sucursal_id' => (int) ($user->sucursal_id ?? 0),
+            ])
+            ->sortBy('id')
+            ->values()
+            ->all();
+        $cacheKey = 'facturacion:kardex-sucursal-batch:' . hash('sha256', (string) json_encode([
+            'users' => $cacheUsers,
+            'filters' => $cacheFilters,
+        ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE));
+        $cached = Cache::get($cacheKey);
+        if (is_array($cached) && isset($cached['rows'], $cached['errors'])) {
+            return $cached;
+        }
+
+        $result = $this->fetchSucursalKardexBatchUncached($users->all(), $filters);
+        if (empty($result['errors'])) {
+            Cache::put($cacheKey, $result, now()->addMinutes(2));
+        }
+
+        return $result;
+    }
+
+    private function fetchSucursalKardexBatchUncached(array $users, array $filters): array
+    {
+        $users = collect($users)->filter(fn ($user) => $user instanceof User)->values();
+        if ($users->isEmpty()) {
+            return ['rows' => [], 'errors' => []];
+        }
+
         $payload = array_filter([
             'fechaInicio' => $filters['from'] ?? null,
             'fechaFin' => $filters['to'] ?? null,

@@ -96,6 +96,7 @@ class MisVentasController extends Controller
     public function exportKardexPdf(Request $request, FacturacionCartService $service, SitraIpsClient $ipsClient, SitraTrackingDestinationClient $destinationClient, SitraTrackingEventsClient $eventsClient): Response
     {
         $report = $this->buildKardexReport($request, $service, $ipsClient, $destinationClient, $eventsClient);
+        abort_if(!empty($report['kardexError']), 503, 'No se generó el PDF porque no se pudieron cargar todos los datos del Kardex. Intenta nuevamente en unos segundos.');
         $pdf = Pdf::loadView('facturacion.kardex-pdf', array_merge($report, [
             'generatedAt' => now(),
         ]))->setPaper('A4', 'landscape');
@@ -111,6 +112,7 @@ class MisVentasController extends Controller
     public function exportKardexExcel(Request $request, FacturacionCartService $service, SitraIpsClient $ipsClient, SitraTrackingDestinationClient $destinationClient, SitraTrackingEventsClient $eventsClient): StreamedResponse
     {
         $report = $this->buildKardexReport($request, $service, $ipsClient, $destinationClient, $eventsClient);
+        abort_if(!empty($report['kardexError']), 503, 'No se generó el Excel porque no se pudieron cargar todos los datos del Kardex. Intenta nuevamente en unos segundos.');
         $spreadsheet = $this->buildKardexSpreadsheet($report);
         $filename = 'kardex-facturacion-' . now()->format('Ymd-His') . '.xlsx';
 
@@ -132,6 +134,7 @@ class MisVentasController extends Controller
     public function exportKardexRegionalPdf(Request $request, FacturacionCartService $service, SitraIpsClient $ipsClient, SitraTrackingDestinationClient $destinationClient, SitraTrackingEventsClient $eventsClient): Response
     {
         $report = $this->buildKardexRegionalReport($request, $service, $ipsClient, $destinationClient, $eventsClient);
+        abort_if(!empty($report['kardexError']), 503, 'No se generó el PDF porque no se pudieron cargar todos los datos del Kardex por Sucursal. Intenta nuevamente en unos segundos.');
         $pdf = Pdf::loadView('facturacion.kardex-pdf', array_merge($report, [
             'generatedAt' => now(),
         ]))->setPaper('A4', 'landscape');
@@ -147,6 +150,7 @@ class MisVentasController extends Controller
     public function exportKardexRegionalExcel(Request $request, FacturacionCartService $service, SitraIpsClient $ipsClient, SitraTrackingDestinationClient $destinationClient, SitraTrackingEventsClient $eventsClient): StreamedResponse
     {
         $report = $this->buildKardexRegionalReport($request, $service, $ipsClient, $destinationClient, $eventsClient);
+        abort_if(!empty($report['kardexError']), 503, 'No se generó el Excel porque no se pudieron cargar todos los datos del Kardex por Sucursal. Intenta nuevamente en unos segundos.');
         $spreadsheet = $this->buildKardexSpreadsheet($report);
         $filename = 'kardex-sucursal-' . now()->format('Ymd-His') . '.xlsx';
 
@@ -205,6 +209,7 @@ class MisVentasController extends Controller
             'rows' => $rows,
             'visibleRows' => $visibleRows,
             'operationGroups' => $this->buildKardexOperationGroups($visibleRows, true),
+            'paymentMetrics' => $paymentMetrics,
             'totalVentas' => $paymentMetrics['totalVentas'],
             'ventasEfectivo' => $paymentMetrics['ventasEfectivo'],
             'montoEfectivo' => $paymentMetrics['montoEfectivo'],
@@ -226,6 +231,16 @@ class MisVentasController extends Controller
         [$user, $filters] = $this->resolveRequestContext($request, 'own');
         $sucursalId = (int) ($user->sucursal_id ?? 0);
         abort_if($sucursalId <= 0, 403, 'Tu cuenta no tiene una sucursal asignada para consultar el Kardex por Sucursal.');
+
+        $availableCashiers = $this->resolveSucursalCashiers($user);
+        $selectedCashiers = $this->filterCashiersBySelection($availableCashiers, $filters);
+        $selectedCashierIds = $selectedCashiers
+            ->pluck('id')
+            ->map(fn ($id): string => trim((string) $id))
+            ->values()
+            ->all();
+        $filters['cashier_filter_applied'] = true;
+        $filters['cashier_ids'] = $selectedCashierIds;
 
         $sucursalLabel = collect([
             $user->sucursal?->nombre,
@@ -301,30 +316,35 @@ class MisVentasController extends Controller
 
                 return $row;
             });
+        $paymentMetrics = $this->summarizeKardexPaymentMetrics($visibleRows);
         $cashierSections = $this->buildKardexRegionalCashierSections($visibleRows);
 
         return [
             'user' => $user,
             'filters' => $filters,
             'summary' => array_merge($this->emptySummary(), [
-                'totalVentas' => $rows->count(),
+                'totalVentas' => $paymentMetrics['totalVentas'],
                 'montoTotal' => round((float) $rows->sum(fn ($row) => (float) data_get($row, 'importe', 0)), 2),
             ]),
             'rows' => $rows,
             'visibleRows' => $visibleRows,
             'cashierSections' => $cashierSections,
             'operationGroups' => $this->buildKardexOperationGroups($visibleRows, true),
-            'totalVentas' => $visibleRows->count(),
-            'ventasEfectivo' => 0,
-            'montoEfectivo' => 0,
-            'ventasQrPagadas' => 0,
-            'montoQr' => 0,
+            'paymentMetrics' => $paymentMetrics,
+            'totalVentas' => $paymentMetrics['totalVentas'],
+            'ventasEfectivo' => $paymentMetrics['ventasEfectivo'],
+            'montoEfectivo' => $paymentMetrics['montoEfectivo'],
+            'ventasQrPagadas' => $paymentMetrics['ventasQrPagadas'],
+            'montoQr' => $paymentMetrics['montoQr'],
             'totalImporte' => round((float) $visibleRows->sum(fn ($row) => (float) data_get($row, 'importe', 0)), 2),
             'totalPeso' => round((float) $visibleRows->sum(fn ($row) => (float) data_get($row, 'peso', 0)), 3),
             'totalAnuladas' => $visibleRows->filter(fn ($row) => (bool) data_get($row, 'es_anulada'))->count(),
             'kardexError' => $kardexError,
             'kardexPartialWarning' => $kardexPartialWarning,
             'sucursalCashierCount' => $sucursalCashierCount,
+            'availableSucursalCashierCount' => $availableCashiers->count(),
+            'cashierOptions' => $availableCashiers,
+            'selectedCashierIds' => $selectedCashierIds,
             'isRegionalKardex' => true,
             'officePostal' => $sucursalLabel,
             'responsableName' => 'KARDEX POR SUCURSAL',
@@ -471,6 +491,7 @@ class MisVentasController extends Controller
                     'operation_groups' => $this->buildKardexOperationGroups($detailRows, true),
                     'total_importe' => round((float) $detailRows->sum(fn ($row) => (float) data_get($row, 'importe', 0)), 2),
                     'total_peso' => round((float) $detailRows->sum(fn ($row) => (float) data_get($row, 'peso', 0)), 3),
+                    'payment_metrics' => $this->summarizeKardexPaymentMetrics($detailRows),
                 ];
             })
             ->sortBy(fn (array $section) => $this->normalizeKardexText((string) $section['sheet_name']))
@@ -484,14 +505,35 @@ class MisVentasController extends Controller
         return User::query()
             ->where('sucursal_id', $sucursalId)
             ->permission('feature.dashboard.facturacion')
-            ->with(['sucursal', 'roles.permissions', 'permissions'])
+            ->with('sucursal')
             ->orderBy('name')
             ->get()
             ->values();
     }
 
+    private function filterCashiersBySelection(Collection $cashiers, array $filters): Collection
+    {
+        if (! (bool) ($filters['cashier_filter_applied'] ?? false)) {
+            return $cashiers->values();
+        }
+
+        $selectedIds = collect($filters['cashier_ids'] ?? [])
+            ->map(fn ($id): string => trim((string) $id))
+            ->filter()
+            ->unique()
+            ->flip();
+
+        return $cashiers
+            ->filter(fn (User $cashier): bool => $selectedIds->has(trim((string) $cashier->id)))
+            ->values();
+    }
+
     private function fetchSucursalRawRows(FacturacionCartService $service, Collection $cashiers, array $filters): array
     {
+        if ($cashiers->isEmpty()) {
+            return [collect(), 0, 0];
+        }
+
         $rows = collect();
         $batch = $service->fetchSucursalKardexBatch($cashiers->all(), $filters);
         $failedUsers = (array) ($batch['errors'] ?? []);
@@ -658,7 +700,7 @@ class MisVentasController extends Controller
     private function populateKardexWorksheet(Worksheet $sheet, array $report, bool $groupServices, bool $showServiceSubtitles = false): void
     {
 
-        foreach (['A' => 6, 'B' => 13, 'C' => 11, 'D' => 10, 'E' => 42, 'F' => 31, 'G' => 10, 'H' => 24, 'I' => 26, 'J' => 13, 'K' => 15] as $column => $width) {
+        foreach (['A' => 6, 'B' => 13, 'C' => 11, 'D' => 10, 'E' => 42, 'F' => 31, 'G' => 10, 'H' => 24, 'I' => 26, 'J' => 14, 'K' => 13, 'L' => 15] as $column => $width) {
             $sheet->getColumnDimension($column)->setWidth($width);
         }
 
@@ -668,8 +710,8 @@ class MisVentasController extends Controller
 
         $sheet->mergeCells('A1:B2');
         $sheet->mergeCells('C1:E2');
-        $sheet->mergeCells('F1:K2');
-        $sheet->getStyle('A1:K2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+        $sheet->mergeCells('F1:L2');
+        $sheet->getStyle('A1:L2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
         $this->addKardexLogo($sheet, public_path('images/LOGO 19-2-26.png'), 'A1', 118, 46);
         $this->addKardexLogo($sheet, public_path('images/ministerio-obras-publicas.png'), 'F1', 250, 46);
 
@@ -679,12 +721,12 @@ class MisVentasController extends Controller
         $sheet->getStyle('B3:E5')->getFont()->setBold(true)->setSize(10);
         $sheet->getStyle('B3:E5')->getBorders()->getOutline()->setBorderStyle(Border::BORDER_THIN);
 
-        $sheet->mergeCells('H3:K3');
-        $sheet->mergeCells('H4:K5');
+        $sheet->mergeCells('H3:L3');
+        $sheet->mergeCells('H4:L5');
         $sheet->setCellValue('H3', 'Dirección de Operaciones');
         $sheet->setCellValue('H4', 'ADMISIONES / ENTREGAS');
-        $sheet->getStyle('H3:K5')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
-        $sheet->getStyle('H3:K5')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
+        $sheet->getStyle('H3:L5')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle('H3:L5')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
 
         $sheet->mergeCells('A6:C6');
         $sheet->setCellValue('A6', 'Oficina Postal:');
@@ -692,40 +734,40 @@ class MisVentasController extends Controller
         $sheet->setCellValue('D6', strtoupper((string) data_get($report, 'officePostal', '')));
         $sheet->mergeCells('F6:G6');
         $sheet->setCellValue('F6', 'Fecha de recaudación:');
-        $sheet->mergeCells('H6:K6');
+        $sheet->mergeCells('H6:L6');
         $sheet->setCellValue('H6', $this->formatKardexExportDate((string) data_get($report, 'filters.to')));
         $sheet->mergeCells('A7:C7');
         $sheet->setCellValue('A7', 'Nombre Responsable:');
-        $sheet->mergeCells('D7:K7');
+        $sheet->mergeCells('D7:L7');
         $sheet->setCellValue('D7', strtoupper((string) data_get($report, 'responsableName', '')));
-        $sheet->getStyle('A6:K7')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
-        $sheet->getStyle('A6:K7')->getFont()->setBold(true);
-        $sheet->getStyle('A6:K7')->getAlignment()->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
+        $sheet->getStyle('A6:L7')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle('A6:L7')->getFont()->setBold(true);
+        $sheet->getStyle('A6:L7')->getAlignment()->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
         $sheet->getStyle('A6:C7')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
         $sheet->getStyle('D6:E6')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-        $sheet->getStyle('H6:K6')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-        $sheet->getStyle('D7:K7')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('H6:L6')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('D7:L7')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-        $headers = ['N°', 'FECHA', 'CANTIDAD', 'REGIONAL', 'TIPO DE CORRESPONDENCIA', 'CÓDIGO DE ENVÍO', 'PESO', 'PAÍS/CIUDAD DE DESTINO / CIUDAD DE ORIGEN', 'OPERACIÓN', 'N° FACTURA', 'IMPORTE'];
+        $headers = ['N°', 'FECHA', 'CANTIDAD', 'REGIONAL', 'TIPO DE CORRESPONDENCIA', 'CÓDIGO DE ENVÍO', 'PESO', 'PAÍS/CIUDAD DE DESTINO / CIUDAD DE ORIGEN', 'OPERACIÓN', 'MEDIO DE PAGO', 'N° FACTURA', 'IMPORTE'];
         $sheet->fromArray($headers, null, 'A9');
-        $sheet->getStyle('A9:K9')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('D9D9D9');
-        $sheet->getStyle('A9:K9')->getFont()->setBold(true)->setSize(9);
-        $sheet->getStyle('A9:K9')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
-        $sheet->getStyle('A9:K9')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle('A9:L9')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('D9D9D9');
+        $sheet->getStyle('A9:L9')->getFont()->setBold(true)->setSize(9);
+        $sheet->getStyle('A9:L9')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
+        $sheet->getStyle('A9:L9')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
 
         $rowNumber = 10;
         $visibleRows = collect($report['visibleRows'] ?? [])->values();
         $operationGroups = $this->buildKardexOperationGroups($visibleRows, $groupServices);
         foreach ($operationGroups as $operationGroup) {
             $operationRows = collect(data_get($operationGroup, 'rows', []))->values();
-            $sheet->mergeCells('A' . $rowNumber . ':J' . $rowNumber);
+            $sheet->mergeCells('A' . $rowNumber . ':K' . $rowNumber);
             $sheet->setCellValue('A' . $rowNumber, mb_strtoupper((string) data_get($operationGroup, 'label', 'ADMISIONES')) . ' · ' . number_format($operationRows->count()) . ' registros');
-            $sheet->setCellValue('K' . $rowNumber, 'Bs ' . number_format((float) data_get($operationGroup, 'total_importe', 0), 2, ',', '.'));
-            $sheet->getStyle('A' . $rowNumber . ':K' . $rowNumber)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('1D4F7A');
-            $sheet->getStyle('A' . $rowNumber . ':K' . $rowNumber)->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
-            $sheet->getStyle('A' . $rowNumber . ':K' . $rowNumber)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+            $sheet->setCellValue('L' . $rowNumber, 'Bs ' . number_format((float) data_get($operationGroup, 'total_importe', 0), 2, ',', '.'));
+            $sheet->getStyle('A' . $rowNumber . ':L' . $rowNumber)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('1D4F7A');
+            $sheet->getStyle('A' . $rowNumber . ':L' . $rowNumber)->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
+            $sheet->getStyle('A' . $rowNumber . ':L' . $rowNumber)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
             $sheet->getStyle('A' . $rowNumber)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-            $sheet->getStyle('K' . $rowNumber)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+            $sheet->getStyle('L' . $rowNumber)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
             $rowNumber++;
 
             $deliverySubgroups = collect(data_get($operationGroup, 'delivery_subgroups', []));
@@ -742,28 +784,28 @@ class MisVentasController extends Controller
                 $subgroupLabel = trim((string) data_get($deliverySubgroup, 'label', ''));
                 $subgroupRows = collect(data_get($deliverySubgroup, 'rows', []));
                 if ($subgroupLabel !== '') {
-                    $sheet->mergeCells('A' . $rowNumber . ':J' . $rowNumber);
+                    $sheet->mergeCells('A' . $rowNumber . ':K' . $rowNumber);
                     $sheet->setCellValue('A' . $rowNumber, $subgroupLabel . ' · ' . number_format($subgroupRows->count()) . ' registros');
-                    $sheet->setCellValue('K' . $rowNumber, 'Bs ' . number_format((float) data_get($deliverySubgroup, 'total_importe', 0), 2, ',', '.'));
-                    $sheet->getStyle('A' . $rowNumber . ':K' . $rowNumber)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('C9DEEF');
-                    $sheet->getStyle('A' . $rowNumber . ':K' . $rowNumber)->getFont()->setBold(true)->getColor()->setRGB('18324B');
-                    $sheet->getStyle('A' . $rowNumber . ':K' . $rowNumber)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+                    $sheet->setCellValue('L' . $rowNumber, 'Bs ' . number_format((float) data_get($deliverySubgroup, 'total_importe', 0), 2, ',', '.'));
+                    $sheet->getStyle('A' . $rowNumber . ':L' . $rowNumber)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('C9DEEF');
+                    $sheet->getStyle('A' . $rowNumber . ':L' . $rowNumber)->getFont()->setBold(true)->getColor()->setRGB('18324B');
+                    $sheet->getStyle('A' . $rowNumber . ':L' . $rowNumber)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
                     $sheet->getStyle('A' . $rowNumber)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-                    $sheet->getStyle('K' . $rowNumber)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+                    $sheet->getStyle('L' . $rowNumber)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
                     $rowNumber++;
                 }
 
             foreach (collect(data_get($deliverySubgroup, 'service_groups', [])) as $serviceName => $serviceRows) {
                 $serviceRows = collect($serviceRows)->values();
                 if ($groupServices && $showServiceSubtitles) {
-                    $sheet->mergeCells('A' . $rowNumber . ':J' . $rowNumber);
+                    $sheet->mergeCells('A' . $rowNumber . ':K' . $rowNumber);
                     $sheet->setCellValue('A' . $rowNumber, mb_strtoupper((string) $serviceName) . ' · ' . number_format($serviceRows->count()) . ' registros');
-                    $sheet->setCellValue('K' . $rowNumber, 'Bs ' . number_format((float) $serviceRows->sum(fn ($row) => (float) data_get($row, 'importe', 0)), 2, ',', '.'));
-                    $sheet->getStyle('A' . $rowNumber . ':K' . $rowNumber)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('D9EAF7');
-                    $sheet->getStyle('A' . $rowNumber . ':K' . $rowNumber)->getFont()->setBold(true)->getColor()->setRGB('18324B');
-                    $sheet->getStyle('A' . $rowNumber . ':K' . $rowNumber)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+                    $sheet->setCellValue('L' . $rowNumber, 'Bs ' . number_format((float) $serviceRows->sum(fn ($row) => (float) data_get($row, 'importe', 0)), 2, ',', '.'));
+                    $sheet->getStyle('A' . $rowNumber . ':L' . $rowNumber)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('D9EAF7');
+                    $sheet->getStyle('A' . $rowNumber . ':L' . $rowNumber)->getFont()->setBold(true)->getColor()->setRGB('18324B');
+                    $sheet->getStyle('A' . $rowNumber . ':L' . $rowNumber)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
                     $sheet->getStyle('A' . $rowNumber)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-                    $sheet->getStyle('K' . $rowNumber)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+                    $sheet->getStyle('L' . $rowNumber)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
                     $rowNumber++;
                 }
 
@@ -790,24 +832,25 @@ class MisVentasController extends Controller
                     .(trim((string) data_get($row, 'operacion_detalle', '')) !== ''
                         ? ' · '.trim((string) data_get($row, 'operacion_detalle'))
                         : ''),
+                data_get($row, 'metodo_pago_label', 'EFECTIVO'),
                 data_get($row, 'numero_factura'),
                 'Bs ' . number_format((float) data_get($row, 'importe', 0), 2, ',', '.'),
             ], null, 'A' . $rowNumber);
             $hasDeliveryMode = trim((string) data_get($row, 'modalidad_entrega', '-')) !== '-';
             $hasOperationDetail = trim((string) data_get($row, 'operacion_detalle', '')) !== '';
             $sheet->getRowDimension($rowNumber)->setRowHeight(((bool) data_get($row, 'es_casilla') && $detalleCasilla !== '') || $hasDeliveryMode || $hasOperationDetail ? 30 : 18);
-            $sheet->getStyle('A' . $rowNumber . ':K' . $rowNumber)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
-            $sheet->getStyle('A' . $rowNumber . ':K' . $rowNumber)->getAlignment()->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
+            $sheet->getStyle('A' . $rowNumber . ':L' . $rowNumber)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+            $sheet->getStyle('A' . $rowNumber . ':L' . $rowNumber)->getAlignment()->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
             $sheet->getStyle('A' . $rowNumber . ':D' . $rowNumber)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle('G' . $rowNumber . ':J' . $rowNumber)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle('K' . $rowNumber)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+            $sheet->getStyle('G' . $rowNumber . ':K' . $rowNumber)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle('L' . $rowNumber)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
             if ((bool) data_get($row, 'es_anulada')) {
-                $sheet->getStyle('J' . $rowNumber)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FFC7CE');
-                $sheet->getStyle('J' . $rowNumber)->getFont()->getColor()->setRGB('C00000');
-                $sheet->getStyle('J' . $rowNumber)->getFont()->setBold(true);
+                $sheet->getStyle('K' . $rowNumber)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FFC7CE');
+                $sheet->getStyle('K' . $rowNumber)->getFont()->getColor()->setRGB('C00000');
+                $sheet->getStyle('K' . $rowNumber)->getFont()->setBold(true);
             } else {
-                $sheet->getStyle('J' . $rowNumber)->getFont()->getColor()->setRGB('198754');
-                $sheet->getStyle('J' . $rowNumber)->getFont()->setBold(true);
+                $sheet->getStyle('K' . $rowNumber)->getFont()->getColor()->setRGB('198754');
+                $sheet->getStyle('K' . $rowNumber)->getFont()->setBold(true);
             }
             $rowNumber++;
                 }
@@ -817,39 +860,46 @@ class MisVentasController extends Controller
 
         $lastDataRow = max(10, $rowNumber - 1);
         $totalRow = $rowNumber;
-        $sheet->mergeCells('A' . $totalRow . ':J' . $totalRow);
+        $paymentMetrics = $this->summarizeKardexPaymentMetrics($visibleRows);
+        $sheet->mergeCells('A' . $totalRow . ':K' . $totalRow);
         $sheet->setCellValue('A' . $totalRow, 'TOTAL PARCIAL');
-        $sheet->setCellValue('K' . $totalRow, 'Bs ' . number_format((float) $report['totalImporte'], 2, ',', '.'));
-        $sheet->mergeCells('A' . ($totalRow + 1) . ':J' . ($totalRow + 1));
+        $sheet->setCellValue('L' . $totalRow, 'Bs ' . number_format((float) $report['totalImporte'], 2, ',', '.'));
+        $sheet->mergeCells('A' . ($totalRow + 1) . ':K' . ($totalRow + 1));
         $sheet->setCellValue('A' . ($totalRow + 1), 'TOTAL GENERAL');
-        $sheet->setCellValue('K' . ($totalRow + 1), 'Bs ' . number_format((float) $report['totalImporte'], 2, ',', '.'));
-        $sheet->getStyle('A' . $totalRow . ':K' . ($totalRow + 1))->getFont()->setBold(true);
-        $sheet->getStyle('A' . $totalRow . ':K' . ($totalRow + 1))->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
-        $sheet->getStyle('A' . $totalRow . ':A' . ($totalRow + 1))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
-        $sheet->getStyle('K' . $totalRow . ':K' . ($totalRow + 1))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+        $sheet->setCellValue('L' . ($totalRow + 1), 'Bs ' . number_format((float) $report['totalImporte'], 2, ',', '.'));
+        $sheet->mergeCells('A' . ($totalRow + 2) . ':K' . ($totalRow + 2));
+        $sheet->setCellValue('A' . ($totalRow + 2), 'EFECTIVO · ' . number_format((int) $paymentMetrics['ventasEfectivo']) . ' ventas');
+        $sheet->setCellValue('L' . ($totalRow + 2), 'Bs ' . number_format((float) $paymentMetrics['montoEfectivo'], 2, ',', '.'));
+        $sheet->mergeCells('A' . ($totalRow + 3) . ':K' . ($totalRow + 3));
+        $sheet->setCellValue('A' . ($totalRow + 3), 'QR CONFIRMADO · ' . number_format((int) $paymentMetrics['ventasQrPagadas']) . ' ventas');
+        $sheet->setCellValue('L' . ($totalRow + 3), 'Bs ' . number_format((float) $paymentMetrics['montoQr'], 2, ',', '.'));
+        $sheet->getStyle('A' . $totalRow . ':L' . ($totalRow + 3))->getFont()->setBold(true);
+        $sheet->getStyle('A' . $totalRow . ':L' . ($totalRow + 3))->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle('A' . $totalRow . ':A' . ($totalRow + 3))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+        $sheet->getStyle('L' . $totalRow . ':L' . ($totalRow + 3))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
 
-        $obsRow = $totalRow + 3;
+        $obsRow = $totalRow + 5;
         $sheet->mergeCells('A' . $obsRow . ':E' . ($obsRow + 5));
         $sheet->setCellValue('A' . $obsRow, 'Observaciones');
         $sheet->mergeCells('F' . $obsRow . ':G' . ($obsRow + 5));
         $sheet->setCellValue('F' . ($obsRow + 5), "SELLO / FIRMA DE CONFORMIDAD\nRECAUDADOR");
         $sheet->mergeCells('H' . $obsRow . ':I' . ($obsRow + 5));
         $sheet->setCellValue('H' . ($obsRow + 5), "SELLO / FIRMA DE CONFORMIDAD\nREVISOR");
-        $sheet->mergeCells('J' . $obsRow . ':K' . ($obsRow + 5));
+        $sheet->mergeCells('J' . $obsRow . ':L' . ($obsRow + 5));
         $sheet->setCellValue('J' . ($obsRow + 5), "SELLO RECEPCIÓN\nTESORERÍA");
         foreach (range($obsRow, $obsRow + 5) as $footerRow) {
             $sheet->getRowDimension($footerRow)->setRowHeight(22);
         }
-        $sheet->getStyle('A' . $obsRow . ':K' . ($obsRow + 5))->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
-        $sheet->getStyle('F' . $obsRow . ':K' . ($obsRow + 5))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_BOTTOM)->setWrapText(true);
+        $sheet->getStyle('A' . $obsRow . ':L' . ($obsRow + 5))->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle('F' . $obsRow . ':L' . ($obsRow + 5))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_BOTTOM)->setWrapText(true);
         $sheet->getStyle('A' . $obsRow)->getAlignment()->setVertical(Alignment::VERTICAL_TOP);
 
         $sheet->freezePane('A10');
-        $sheet->setAutoFilter('A9:K' . $lastDataRow);
+        $sheet->setAutoFilter('A9:L' . $lastDataRow);
         $sheet->getPageSetup()->setFitToWidth(1)->setFitToHeight(0)->setOrientation(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::ORIENTATION_LANDSCAPE);
         $sheet->getPageMargins()->setTop(0.35)->setRight(0.25)->setLeft(0.25)->setBottom(0.35);
-        $sheet->getPageSetup()->setPrintArea('A1:K' . ($obsRow + 5));
-        $sheet->getStyle('A1:K' . ($obsRow + 5))->getAlignment()->setShrinkToFit(false);
+        $sheet->getPageSetup()->setPrintArea('A1:L' . ($obsRow + 5));
+        $sheet->getStyle('A1:L' . ($obsRow + 5))->getAlignment()->setShrinkToFit(false);
 
     }
 
@@ -1099,6 +1149,9 @@ class MisVentasController extends Controller
             'q' => ['nullable', 'string', 'max:120'],
             'per_page' => ['nullable', 'integer', 'min:10', 'max:100'],
             'page' => ['nullable', 'integer', 'min:1'],
+            'cashier_filter_applied' => ['nullable', 'boolean'],
+            'cashier_ids' => ['nullable', 'array', 'max:500'],
+            'cashier_ids.*' => ['integer', 'distinct'],
         ]);
 
         return [$user, [
@@ -1109,6 +1162,13 @@ class MisVentasController extends Controller
             'q' => trim((string) ($validated['q'] ?? '')),
             'per_page' => (int) ($validated['per_page'] ?? 20),
             'page' => (int) ($validated['page'] ?? 1),
+            'cashier_filter_applied' => $request->boolean('cashier_filter_applied'),
+            'cashier_ids' => collect($validated['cashier_ids'] ?? [])
+                ->map(fn ($id): string => trim((string) $id))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all(),
         ]];
     }
 
@@ -1194,7 +1254,7 @@ class MisVentasController extends Controller
         } elseif ($scope === 'branch_kardex') {
             [$rawRows, $failedCashiers, $cashierCount] = $this->fetchSucursalRawRows(
                 $service,
-                $this->resolveSucursalCashiers($user),
+                $this->filterCashiersBySelection($this->resolveSucursalCashiers($user), $filters),
                 $filters
             );
             $scopeMetadata['sucursal_cashier_count'] = $cashierCount;
@@ -1259,13 +1319,19 @@ class MisVentasController extends Controller
         }
 
         $isMissingFastEndpoint = preg_match('/\b404\b/', $optimizedError) === 1;
+        $isRateLimited = preg_match('/\b429\b/', $optimizedError) === 1;
         Log::warning('No se pudo usar el endpoint optimizado del Kardex personal.', [
             'user_id' => $user->id,
             'from' => $fullRangeFilters['from'] ?? null,
             'to' => $fullRangeFilters['to'] ?? null,
             'reason' => $optimizedError,
-            'fallback' => $isMissingFastEndpoint ? 'legacy' : 'carts_only',
+            'fallback' => $isMissingFastEndpoint ? 'legacy' : ($isRateLimited ? 'none_rate_limited' : 'carts_only'),
         ]);
+
+        if ($isRateLimited) {
+            $sourceErrors['detalle'] = $optimizedError;
+            throw new \RuntimeException('El servicio de facturación limitó temporalmente la consulta del Kardex. Intenta nuevamente en unos segundos.');
+        }
 
         $kardex = ['detalle' => []];
         if ($isMissingFastEndpoint) {
@@ -1279,6 +1345,10 @@ class MisVentasController extends Controller
                     'to' => $fullRangeFilters['to'] ?? null,
                     'reason' => $exception->getMessage(),
                 ]);
+
+                if (preg_match('/\b429\b/', $exception->getMessage()) === 1) {
+                    throw new \RuntimeException('El servicio de facturación limitó temporalmente la consulta del Kardex. Intenta nuevamente en unos segundos.');
+                }
             }
         } else {
             $sourceErrors['detalle'] = $optimizedError;
@@ -1382,7 +1452,7 @@ class MisVentasController extends Controller
 
     private function fetchBranchRawRows(FacturacionCartService $service, User $viewer, array $filters): Collection
     {
-        return $this->resolveBranchCashiers($viewer)
+        return $this->filterCashiersBySelection($this->resolveBranchCashiers($viewer), $filters)
             ->flatMap(function (User $cashier) use ($service, $filters) {
                 try {
                     return $this->fetchOwnRawRows($service, $cashier, $filters)
@@ -2501,6 +2571,13 @@ class MisVentasController extends Controller
             $metodoPago = strtolower(trim((string) data_get($cart, 'metodo_pago', $canalEmision === 'qr' ? 'qr' : 'efectivo')));
             $estadoPago = strtolower(trim((string) data_get($cart, 'estado_pago', 'pendiente')));
             $estadoEmision = strtoupper(trim((string) data_get($cart, 'estado_emision', '')));
+            $estadoSufe = strtoupper(trim((string) (
+                data_get($cart, 'estado_sufe')
+                ?? data_get($cart, 'estadoSufe')
+                ?? data_get($respuesta, 'estadoSufe')
+                ?? data_get($respuesta, 'consultaSefe.estado_sufe')
+                ?? ''
+            )));
             $mensajeEmision = trim((string) data_get($cart, 'mensaje_emision', ''));
             $esCuentaPorCobrar = (bool) data_get($cart, 'es_cuenta_por_cobrar', false);
             $empresaContrato = trim((string) data_get($cart, 'empresa_nombre', ''));
@@ -2608,6 +2685,7 @@ class MisVentasController extends Controller
                 'metodo_pago' => $metodoPago,
                 'estado_pago' => $estadoPago,
                 'estado_emision' => $estadoEmision,
+                'estado_sufe' => $estadoSufe,
                 'section_key' => $sectionKey,
                 'emision_label' => $emisionLabel,
                 'estado_label' => $estadoColumn['label'],
@@ -3710,14 +3788,19 @@ class MisVentasController extends Controller
             || in_array($estadoVenta, ['anulado', 'descartado'], true)
             || ($row['section_key'] ?? '') === 'factura_anulada';
         $metodoPago = strtolower(trim((string) ($row['metodo_pago'] ?? '')));
-        $estadoPago = strtolower(trim((string) ($row['estado_pago'] ?? '')));
+        $saleReference = mb_strtoupper(trim((string) ($row['venta_referencia'] ?? '')));
+        $isQrPayment = $metodoPago === 'qr'
+            || trim((string) ($row['qr_transaction_id'] ?? '')) !== ''
+            || str_starts_with($saleReference, 'VQ-')
+            || str_starts_with($saleReference, 'VQC-');
+        $isOfficialSale = strtolower(trim((string) ($row['canal_emision'] ?? ''))) === 'oficial'
+            || str_starts_with($saleReference, 'OFI-')
+            || mb_strtoupper(trim((string) ($row['cliente'] ?? ''))) === 'ENVIO OFICIAL';
         $metodoPagoLabel = (bool) ($row['es_cuenta_por_cobrar'] ?? false)
             ? 'CUENTA POR COBRAR'
-            : (strtolower(trim((string) ($row['canal_emision'] ?? ''))) === 'oficial'
+            : ($isOfficialSale
                 ? 'REGISTRO OFICIAL'
-                : ($metodoPago === 'qr'
-                    ? 'QR · ' . strtoupper($estadoPago !== '' ? $estadoPago : 'PENDIENTE')
-                    : 'EFECTIVO'));
+                : ($isQrPayment ? 'QR' : 'EFECTIVO'));
         $estadoVentaLabel = match ($estadoVenta) {
             'emitido' => 'EMITIDO',
             'pendiente_pago' => 'PENDIENTE DE PAGO',
