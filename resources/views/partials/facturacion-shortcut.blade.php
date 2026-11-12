@@ -4850,7 +4850,7 @@
     </style>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
+        const initializeFacturacionShortcut = function () {
             const facturacionShortcutModal = document.getElementById('facturacionShortcutModal');
             const openFacturacionShortcutBtn = document.getElementById('openFacturacionShortcut');
             const closeFacturacionShortcutBtn = document.getElementById('closeFacturacionShortcut');
@@ -6980,7 +6980,7 @@
             };
 
             const fetchAndSyncFacturacionShortcutSections = async () => {
-                const response = await fetch(window.location.href, {
+                const response = await fetch(@json(route('facturacion.shortcut', absolute: false)), {
                     method: 'GET',
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest',
@@ -10599,7 +10599,12 @@
                 setFacturacionSubmittingState(null, false);
                 restoreFacturaBackgroundTracking();
             });
-        });
+        };
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeFacturacionShortcut, { once: true });
+        } else {
+            initializeFacturacionShortcut();
+        }
     </script>
 @endif
 

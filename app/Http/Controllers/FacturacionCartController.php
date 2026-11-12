@@ -21,6 +21,13 @@ use Illuminate\Validation\ValidationException;
 
 class FacturacionCartController extends Controller
 {
+    public function shortcut(Request $request): \Illuminate\View\View
+    {
+        $this->authorizeFacturacionAccess($request->user('web'));
+
+        return view('partials.facturacion-shortcut');
+    }
+
     public function searchFrequentClients(Request $request, FacturacionClienteFrecuenteService $frequentClients): JsonResponse
     {
         $user = $request->user();

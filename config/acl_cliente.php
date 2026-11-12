@@ -86,7 +86,7 @@ return [
     ],
 
     'sync' => [
-        'enabled' => true,
+        'enabled' => env('ACL_SYNC_ON_REQUEST', false),
         'ttl_seconds' => 300,
     ],
 ];

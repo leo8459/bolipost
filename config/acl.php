@@ -270,12 +270,12 @@ return [
     | Automatic ACL Sync
     |--------------------------------------------------------------------------
     |
-    | Keeps route and action permissions synchronized in production without
-    | requiring manual seeding after each deployment.
+    | Scheduled acl:sync keeps permissions updated without blocking navigation.
+    | Enable the legacy request-time fallback only when no scheduler is available.
     |
     */
     'sync' => [
-        'enabled' => true,
+        'enabled' => env('ACL_SYNC_ON_REQUEST', false),
         'ttl_seconds' => 300,
     ],
 

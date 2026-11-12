@@ -1,0 +1,40 @@
+#facturacionShortcutLauncher > .global-facturacion-fab {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 1080;
+    border: 0;
+    border-radius: 999px;
+    padding: 0 18px;
+    min-height: 58px;
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    background: linear-gradient(135deg, #20539a, #0f3f78);
+    color: #fff;
+    box-shadow: 0 18px 38px rgba(15, 63, 120, .28);
+    font-weight: 700;
+    cursor: pointer;
+}
+#facturacionShortcutLauncher > .global-facturacion-fab:disabled {
+    cursor: wait;
+    opacity: .7;
+}
+#facturacionShortcutLoadStatus:not([hidden]) {
+    position: fixed;
+    right: 24px;
+    bottom: 92px;
+    z-index: 1080;
+    max-width: min(340px, calc(100vw - 48px));
+    padding: 12px;
+    border-radius: 8px;
+    background: #fff;
+    color: #163b6d;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, .2);
+}
+@media (max-width: 575.98px) {
+    #facturacionShortcutLauncher > .global-facturacion-fab {
+        right: 12px;
+        bottom: 12px;
+    }
+}

@@ -184,7 +184,7 @@
             @include('alertas_empresa.partials.recipient-modal')
         @endauth
 
-        @include('partials.facturacion-shortcut')
+        @include('partials.facturacion-shortcut-launcher')
 
         @hasSection('footer')
             @include('adminlte::partials.footer.footer')

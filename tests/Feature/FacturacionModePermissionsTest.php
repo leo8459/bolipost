@@ -28,6 +28,87 @@ class FacturacionModePermissionsTest extends TestCase
         AclPermissionRegistry::syncPermissions('web');
     }
 
+    public function test_navigation_renders_billing_launcher_without_querying_remote_cart_or_cash_register(): void
+    {
+        $user = $this->userWithModes(['qr_solo']);
+        $service = Mockery::mock(FacturacionCartService::class);
+        $service->shouldNotReceive('getRemoteContextForUser');
+        $service->shouldNotReceive('fetchCajaEstado');
+        $this->instance(FacturacionCartService::class, $service);
+
+        $this->actingAs($user);
+        $html = view('partials.facturacion-shortcut-launcher')->render();
+
+        $this->assertStringContainsString('id="openFacturacionShortcut"', $html);
+        $this->assertStringContainsString('/facturacion/shortcut', $html);
+        $this->assertStringNotContainsString('id="facturacionShortcutModal"', $html);
+        $this->assertLessThan(5000, strlen($html));
+    }
+
+    public function test_billing_fragment_loads_on_demand_for_authorized_user(): void
+    {
+        $user = $this->userWithModes(['qr_solo']);
+        $service = Mockery::mock(FacturacionCartService::class);
+        $service->shouldReceive('getRemoteContextForUser')->once()->andReturn(['draft' => null, 'last' => null]);
+        $service->shouldReceive('fetchCajaEstado')->once()->andReturn(['estado' => 'SIN_APERTURA']);
+        $this->instance(FacturacionCartService::class, $service);
+
+        $this->actingAs($user)->get(route('facturacion.shortcut'), ['X-Requested-With' => 'XMLHttpRequest'])
+            ->assertOk()
+            ->assertSee('id="facturacionShortcutModal"', false)
+            ->assertSee('initializeFacturacionShortcut', false)
+            ->assertHeader('Cache-Control', 'max-age=0, must-revalidate, no-cache, no-store, private');
+    }
+
+    public function test_billing_fragment_denies_users_without_billing_access(): void
+    {
+        $service = Mockery::mock(FacturacionCartService::class);
+        $service->shouldNotReceive('getRemoteContextForUser');
+        $service->shouldNotReceive('fetchCajaEstado');
+        $this->instance(FacturacionCartService::class, $service);
+
+        $this->actingAs(User::factory()->create())->getJson(route('facturacion.shortcut'))->assertForbidden();
+    }
+
+    public function test_billing_fragment_requires_authentication(): void
+    {
+        $this->getJson(route('facturacion.shortcut'))->assertUnauthorized();
+    }
+
+    public function test_billing_feedback_preserves_the_full_dialog_after_redirect(): void
+    {
+        $user = $this->userWithModes(['qr_solo']);
+        $service = Mockery::mock(FacturacionCartService::class);
+        $service->shouldReceive('getRemoteContextForUser')->once()->andReturn(['draft' => null, 'last' => null]);
+        $service->shouldReceive('fetchCajaEstado')->once()->andReturn(['estado' => 'SIN_APERTURA']);
+        $this->instance(FacturacionCartService::class, $service);
+
+        $this->actingAs($user)->withSession(['facturacion_feedback' => [
+            'type' => 'success', 'action' => 'emitir', 'message' => 'Venta registrada.',
+        ]]);
+        $html = view('partials.facturacion-shortcut-launcher')->render();
+
+        $this->assertStringContainsString('id="facturacionShortcutModal"', $html);
+        $this->assertStringContainsString('Venta registrada.', $html);
+        $this->assertStringNotContainsString('facturacion-shortcut-loader.js', $html);
+    }
+
+    public function test_scheduled_command_synchronizes_internal_and_client_permissions(): void
+    {
+        config([
+            'acl.default_roles' => ['administrador'],
+            'acl.legacy_role_aliases' => [],
+            'acl.role_templates' => ['administrador' => ['*']],
+        ]);
+
+        $this->artisan('acl:sync')->assertSuccessful();
+
+        $this->assertDatabaseHas('permissions', ['name' => 'feature.dashboard.facturacion', 'guard_name' => 'web']);
+        $this->assertDatabaseHas('permissions', ['name' => 'clientes.dashboard', 'guard_name' => 'cliente']);
+        $this->assertDatabaseHas('roles', ['name' => 'administrador', 'guard_name' => 'web']);
+        $this->assertDatabaseHas('roles', ['name' => 'tiktokero', 'guard_name' => 'cliente']);
+    }
+
     public function test_legacy_billing_role_opens_with_all_three_methods_checked(): void
     {
         $role = $this->createBillingRole('Caja legado', [
@@ -123,14 +204,14 @@ class FacturacionModePermissionsTest extends TestCase
         $service = Mockery::mock(FacturacionCartService::class);
         $service->shouldReceive('updateDraftBillingData')->once()->with($user, Mockery::on(
             fn (array $snapshot): bool => ($snapshot['canal_emision'] ?? null) === 'qr'
-        ))->andReturn(null);
+        ), null)->andReturn(null);
         $service->shouldReceive('getRemoteContextForUser')->once()->with($user)->andReturn([
-            'draft' => (object) ['items' => [(object) ['id' => 1]]],
+            'draft' => (object) ['id' => 57, 'items' => [(object) ['id' => 1]]],
         ]);
         $service->shouldReceive('emitirBorrador')->once()->with($user, Mockery::on(
             fn (array $snapshot): bool => ($snapshot['canal_emision'] ?? null) === 'qr'
                 && ($snapshot['auto_emit_invoice'] ?? null) === null
-        ))->andThrow(new \RuntimeException('Prueba detenida antes de una emision real.'));
+        ), 57)->andThrow(new \RuntimeException('Prueba detenida antes de una emision real.'));
         $service->shouldReceive('consultarEstadoEmision')->once()->with($user, 57, false, false)->andReturn([
             'carrito' => null,
             'respuesta' => [],

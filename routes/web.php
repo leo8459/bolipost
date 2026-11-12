@@ -169,6 +169,7 @@ Route::post('/window-load-metrics', [WindowLoadMetricsController::class, 'store'
     ->middleware('throttle:60,1')
     ->name('window-load-metrics.store');
 Route::middleware(['auth', 'internal.only'])->group(function () {
+    Route::get('/facturacion/shortcut', [FacturacionCartController::class, 'shortcut'])->name('facturacion.shortcut');
     Route::get('/qz/certificate', [QzSecurityController::class, 'qzCertificate'])->name('qz.certificate');
     Route::post('/qz/sign', [QzSecurityController::class, 'qzSign'])->name('qz.sign');
     Route::put('/facturacion/cart/billing', [FacturacionCartController::class, 'updateBillingData'])->name('facturacion.cart.billing.update');

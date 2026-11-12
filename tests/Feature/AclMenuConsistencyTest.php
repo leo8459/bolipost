@@ -118,6 +118,7 @@ class AclMenuConsistencyTest extends TestCase
 
     public function test_sync_reloads_user_roles_after_migrating_a_legacy_assignment(): void
     {
+        config(['acl.sync.enabled' => true]);
         $role = $this->roleWithIpsPermission('ADMINISTRADOR');
         $user = new User(['name' => 'Administrador']);
         $user->id = 1;
@@ -144,6 +145,7 @@ class AclMenuConsistencyTest extends TestCase
 
     public function test_parallel_request_does_not_start_a_second_automatic_sync(): void
     {
+        config(['acl.sync.enabled' => true]);
         $user = new User(['name' => 'Operador']);
         $request = Request::create('/inicio');
         $request->setUserResolver(fn () => $user);
