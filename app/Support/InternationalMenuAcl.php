@@ -94,6 +94,9 @@ class InternationalMenuAcl
         if ($routeName === 'internacional.inbound.create') {
             return self::SUBMENU_RECEIVE_SACK;
         }
+        if ($routeName === 'internacional.destination.create') {
+            return self::SUBMENU_RECEIVE_DESTINATION;
+        }
 
         if (str_starts_with($routeName, 'internacional.my-delivery.')) {
             return self::SUBMENU_ASSIGNED_TO_ME;

@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\AlertaEmpresa;
 use App\Models\Empresa;
 use App\Models\User;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -182,6 +184,30 @@ class AlertaEmpresaController extends Controller
         );
 
         return back()->with('success', 'Alerta marcada como vista.');
+    }
+
+    public function reporteVistas(Request $request, AlertaEmpresa $alertaEmpresa): Response
+    {
+        $user = $request->user();
+        abort_unless($user->isSuperAdmin() || $user->can('feature.alertas-empresa.print-readers'), 403);
+        abort_unless($alertaEmpresa->aprobada_at, 404, 'La alerta todavía no fue publicada.');
+
+        $lectores = $alertaEmpresa->lectores()->with('empresa:id,nombre,sigla');
+
+        if ($user->hasRole('empresa')) {
+            $this->authorizeRecipient($request, $alertaEmpresa, false);
+            $lectores->where('users.empresa_id', $user->empresa_id);
+        }
+
+        $alertaEmpresa->setRelation('lectores', $lectores->get(['users.id', 'name', 'empresa_id']));
+        $alertaEmpresa->load('aprobador:id,name');
+
+        return Pdf::loadView('alertas_empresa.reporte-vistas-pdf', [
+            'alerta' => $alertaEmpresa,
+            'gruposLectores' => $alertaEmpresa->lectoresAgrupadosPorEmpresa(),
+            'generatedAt' => now(),
+        ])->setPaper('letter', 'portrait')
+            ->download('reporte-vistas-alerta-'.$alertaEmpresa->id.'.pdf');
     }
 
     private function authorizeRecipient(Request $request, AlertaEmpresa $alertaEmpresa, bool $allowManager = true): void

@@ -359,7 +359,7 @@ class AclPermissionRegistry
         'servicios-adicionales.index' => ['edit'],
         'solicitudes-cambio.index' => ['create', 'manage'],
         'empresas.historial.index' => ['search', 'view-pdf'],
-        'alertas-empresa.index' => ['view', 'create', 'approve', 'readers', 'delete', 'export', 'manage'],
+        'alertas-empresa.index' => ['view', 'create', 'approve', 'readers', 'print-readers', 'delete', 'export', 'manage'],
         'servicios.index' => ['create', 'edit', 'delete'],
         'tarifario-padre.index' => ['create', 'edit', 'delete'],
         'conceptos-facturacion.index' => ['create', 'edit', 'delete'],
@@ -553,6 +553,7 @@ class AclPermissionRegistry
         'internacional.workflow.selection.remove' => ['internacional.menu'],
         'internacional.workflow.operate' => ['internacional.menu'],
         'internacional.inbound.create' => ['internacional.menu'],
+        'internacional.destination.create' => ['internacional.menu'],
         'paquetes-ems.todos' => ['paquetes-ems.todos'],
         'delivery-express.paquetes-faro.invoice' => ['delivery-express.paquetes-faro.index'],
         'mis-ventas.kardex.ticket-manual' => ['mis-ventas.kardex'],
@@ -2125,6 +2126,7 @@ class AclPermissionRegistry
             'feature.alertas-empresa.create' => 'Boton: Mandar alerta',
             'feature.alertas-empresa.approve' => 'Boton: Corregir y aprobar publicación',
             'feature.alertas-empresa.readers' => 'Boton: Ver usuarios que marcaron visto',
+            'feature.alertas-empresa.print-readers' => 'Boton: Imprimir reporte de vistas (PDF)',
             'feature.alertas-empresa.delete' => 'Boton: Eliminar alerta',
             'feature.alertas-empresa.export' => 'Boton: Ver PDF adjunto',
             'feature.alertas-empresa.manage' => 'Acciones generales de alertas',
@@ -2570,6 +2572,7 @@ class AclPermissionRegistry
             'feature.alertas-empresa.create' => 'Controla el boton Mandar alerta, el modal y el boton Enviar alerta.',
             'feature.alertas-empresa.approve' => 'Controla el boton y el modal para corregir, aprobar y publicar una alerta pendiente.',
             'feature.alertas-empresa.readers' => 'Controla el boton y el modal con los usuarios que marcaron una alerta como vista.',
+            'feature.alertas-empresa.print-readers' => 'Permite descargar e imprimir el reporte PDF de vistas, agrupado por empresa y usuario. Se configura independientemente del permiso para ver las vistas.',
             'feature.alertas-empresa.delete' => 'Controla el boton Eliminar del historial de alertas.',
             'feature.alertas-empresa.export' => 'Controla el boton Ver PDF dentro del historial de alertas.',
             'feature.alertas-empresa.manage' => 'Agrupa las acciones generales del modulo Alertas para empresas.',
@@ -2761,6 +2764,7 @@ class AclPermissionRegistry
                 'internacional.warehouse',
                 'internacional.sacas',
                 'internacional.inbound.create',
+                'internacional.destination.create',
             ], true)
             || str_starts_with($permissionName, 'internacional.sacas.')
             || str_starts_with($permissionName, 'internacional.my-delivery.')

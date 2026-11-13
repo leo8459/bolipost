@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\IpsVerificationNote;
 use App\Models\PaqueteUpu;
 use App\Services\SitraIpsClient;
+use App\Services\IpsCombinedOfficeWorkbench;
 use App\Services\SitraTrackingEventsClient;
 use App\Support\InternationalMenuAcl;
 use App\Support\IpsOfficeContext;
+use App\Support\IpsDeliveryReceipt;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -45,7 +47,7 @@ class PaquetesIpsController extends Controller
         'almacen' => [
             'stage' => 'warehouse',
             'title' => 'Almacén internacional',
-            'description' => 'Paquetes listos para entrega y envíos que figuran en Aduana. Si Aduana ya devolvió físicamente un envío, puedes registrar aquí su devolución y entrega al destinatario.',
+            'description' => 'Primero registra la recepción física del paquete en esta oficina. Después podrás registrar su entrega al destinatario.',
         ],
         'inventario' => [
             'stage' => 'delivered',
@@ -68,7 +70,7 @@ class PaquetesIpsController extends Controller
         'por-entregar' => [
             'stage' => 'warehouse',
             'title' => 'Almacén internacional · Por entregar',
-            'description' => 'Paquetes habilitados para distribución en tu oficina. Si el destinatario recibe de inmediato un envío que sigue en Aduana, la entrega registra en orden los eventos 38 y 37.',
+            'description' => 'La baja requiere una recepción confirmada en esta oficina (evento 32). Si aún no recibiste el paquete, vuelve a Recibir paquetes en destino.',
         ],
         'asignados-a-mi' => [
             'stage' => 'warehouse',
@@ -164,7 +166,7 @@ class PaquetesIpsController extends Controller
         'recepcion-oficina' => [
             'action' => 'EMG',
             'stage' => 'reception',
-            'event_cd' => [13, 35, 72],
+            'event_cd' => [13, 35, 38, 72],
             'title' => 'Recibir paquetes en oficina de entrega',
             'description' => 'Lista paquetes que IPS encaminó a esta oficina. Si escaneas uno con otra oficina de destino, podrás revisar su recepción física aquí sin crear un evento de cambio de ruta.',
             'requires' => 'El envío llegó físicamente a la oficina de destino indicada por su ruta.',
@@ -251,7 +253,54 @@ class PaquetesIpsController extends Controller
             default => 'ips_'.$workflow.'_workbench.',
         };
 
+        $combinedOffices = in_array($workflow, ['international_emg', 'delivery'], true)
+            ? IpsOfficeContext::combinedOffices($request) : [];
+        if ($combinedOffices !== []) {
+            $request->attributes->set('ips_combined_offices', $combinedOffices);
+            $key = $keyPrefix.$user->id.'_offices_'.implode('_', array_column($combinedOffices, 'office_cd'));
+            if (! $request->session()->has($key)) {
+                $combinedSelection = [];
+                foreach ($combinedOffices as $office) {
+                    $officeLink = clone $link;
+                    $officeLink->ips_office_cd = $office['office_cd'];
+                    foreach ($request->session()->get($keyPrefix.$user->id.$officeLink->officeSessionSuffix(), []) as $code => $entry) {
+                        $entry['office_cd'] = $office['office_cd'];
+                        $entry['package']['workbench_office_cd'] = $office['office_cd'];
+                        $entry['package']['workbench_office_name'] = $office['office_name'];
+                        if (! isset($combinedSelection[$code]) || ! empty($entry['payload'])) {
+                            $combinedSelection[$code] = $entry;
+                        }
+                    }
+                }
+                $request->session()->put($key, $combinedSelection);
+            }
+            $code = strtoupper(trim((string) $request->input('codigo', '')));
+            $entryOffice = $request->session()->get($key)[$code]['office_cd'] ?? null;
+            if ($entryOffice !== null) {
+                abort_unless(in_array((int) $entryOffice, array_column($combinedOffices, 'office_cd'), true), 403);
+                $request->merge(['office_cd' => $entryOffice]);
+                $link = IpsOfficeContext::resolve($request);
+            }
+
+            return [$link, $key];
+        }
+
         return [$link, $keyPrefix.$user->id.$link->officeSessionSuffix()];
+    }
+
+    private function automaticReceiptOffice(array $package, Request $request): ?int
+    {
+        $options = $package['receipt_office_options'] ?? [];
+        if ($options === []) {
+            return isset($package['workbench_office_cd']) ? (int) $package['workbench_office_cd'] : null;
+        }
+        $allowed = array_column($options, 'office_cd');
+        foreach ([$package['receipt_office_locked_cd'] ?? null, $package['workbench_office_cd'] ?? null,
+            $request->user()?->ipsLink?->ips_office_cd] as $candidate) {
+            if ($candidate !== null && in_array((int) $candidate, $allowed, true)) return (int) $candidate;
+        }
+
+        return (int) $options[0]['office_cd'];
     }
 
     private function receptionBlockReason(array $package, int $officeCd): string
@@ -497,6 +546,9 @@ class PaquetesIpsController extends Controller
         $stage = $warehousePage['stage'] ?? $internationalWorkflow['stage'] ?? $internationalPage['stage'] ?? ($filters['stage'] ?? 'all');
         $search = strtoupper(trim($filters['q'] ?? ''));
         $page = (int) ($filters['page'] ?? 1);
+        if ($section === 'recepcion-oficina' && $search !== '') {
+            $page = 1;
+        }
         $preferredReceptaclePid = in_array($section, ['recepcion-cambio', 'devolucion-aduana'], true)
             ? ($filters['receptacle_pid'] ?? null)
             : null;
@@ -525,10 +577,17 @@ class PaquetesIpsController extends Controller
         $isInternationalPage = $internationalPage !== null || $internationalWorkflow !== null;
         $courierOnly = $section === 'almacen' && $warehouseView === 'asignados-a-mi';
         $deliveryOnly = $section === 'almacen' && in_array($warehouseView, ['por-entregar', 'asignados-a-mi'], true);
+        $workbenchActions = $workflowAction ? [$workflowAction]
+            : ($courierOnly ? ['EDG', 'EMH', 'EMI'] : ($deliveryOnly ? ['EMI'] : null));
         if ($courierOnly) {
             $emptyMessage = 'No tienes paquetes asignados pendientes de salida o en reparto.';
         }
         $link = IpsOfficeContext::resolve($request);
+        $combinedOffices = ($workflowAction === 'EMG' || ($deliveryOnly && ! $courierOnly))
+            ? IpsOfficeContext::combinedOffices($request) : [];
+        if ($combinedOffices !== []) {
+            [$link, $combinedSelectionKey] = $this->context($request, $workflowKey ?? 'delivery');
+        }
         $courierConfigurationMissing = $courierOnly && (
             ! $link
             || ! $link->active
@@ -562,10 +621,17 @@ class PaquetesIpsController extends Controller
         $selectionKey = $workflowKey
             ? 'ips_'.$workflowKey.'_workbench.'
             : ($courierOnly ? 'ips_my_delivery_workbench.' : ($deliveryOnly ? 'ips_delivery_workbench.' : 'ips_workbench.'));
-        $selection = $request->session()->get($selectionKey.$request->user()->id.($link?->officeSessionSuffix() ?? ''), []);
+        $resolvedSelectionKey = $combinedSelectionKey ?? $selectionKey.$request->user()->id.($link?->officeSessionSuffix() ?? '');
+        $selection = $request->session()->get($resolvedSelectionKey, []);
         if ($workflowAction === 'EMG') {
             $selection = array_filter($selection, fn ($entry) => ($entry['status'] ?? null) !== 'succeeded');
-            $request->session()->put($selectionKey.$request->user()->id.($link?->officeSessionSuffix() ?? ''), $selection);
+            foreach ($selection as &$receiptEntry) {
+                if (! empty($receiptEntry['needs_receipt_office'])) {
+                    $receiptEntry['package']['receipt_office_locked_cd'] = $this->automaticReceiptOffice($receiptEntry['package'], $request);
+                }
+            }
+            unset($receiptEntry);
+            $request->session()->put($resolvedSelectionKey, $selection);
         }
         try {
             [$link] = $this->context($request, $workflowKey ?? ($courierOnly ? 'my_delivery' : ($deliveryOnly ? 'delivery' : 'standard')));
@@ -578,15 +644,20 @@ class PaquetesIpsController extends Controller
             }
             if ($workflowAction && $search !== '') {
                 try {
-                    $package = $ips->package($search, (int) $link->ips_office_cd)['package'];
+                    $package = ($combinedOffices !== []
+                        ? (new IpsCombinedOfficeWorkbench($ips))->package($search, $combinedOffices, $workflowAction)
+                        : $ips->package($search, (int) $link->ips_office_cd))['package'];
                     if (in_array($workflowAction, $package['allowed_actions'] ?? [], true)) {
                         $items = collect([$package]);
                         $total = 1;
                     } elseif ($workflowAction === 'EMG') {
-                        if ($this->markRouteMismatchReceipt($package, (int) $link->ips_office_cd)) {
+                        $receiptOffice = (int) ($package['workbench_office_cd'] ?? $link->ips_office_cd);
+                        if (! empty($package['receipt_office_options'])) {
+                            $package['reception_block_reason'] = $package['receipt_office_note'];
+                        } elseif ($this->markRouteMismatchReceipt($package, $receiptOffice)) {
                             $package['route_mismatch_note'] = 'La ruta IPS indica '.$package['next_office_name'].'; puedes revisar este paquete si llegó físicamente aquí. Se intentará registrar solo el evento 32 en esta oficina, sin crear un evento de cambio de ruta. IPS decidirá si lo permite.';
                         } else {
-                            $package['reception_block_reason'] = $this->receptionBlockReason($package, (int) $link->ips_office_cd);
+                            $package['reception_block_reason'] = $this->receptionBlockReason($package, $receiptOffice);
                             $emptyMessage = $package['reception_block_reason'];
                         }
                         $items = collect([$package]);
@@ -600,6 +671,9 @@ class PaquetesIpsController extends Controller
                         $missingPackageCode = $search;
                     } elseif ($workflowAction === 'EMG') {
                         $emptyMessage = 'Este código no aparece en IPS. Verifica el marbete o consulta el historial con el código correcto.';
+                        if (preg_match('/^L[A-Z][0-9]{9}[A-Z]{2}$/', $search) === 1) {
+                            $missingPackageCode = $search;
+                        }
                     }
                 }
             } elseif (! ($internationalWorkflow['search_only'] ?? false)) {
@@ -616,7 +690,9 @@ class PaquetesIpsController extends Controller
                 if (!empty($warehousePage['delivery_agent'])) {
                     $packageFilters['delivery_agent_cd'] = $this->normalizeDeliveryAgentCode((string) $link->delivery_agent_cd);
                 }
-                $payload = $ips->packages($packageFilters);
+                $payload = $combinedOffices !== []
+                    ? (new IpsCombinedOfficeWorkbench($ips))->packages($packageFilters, $combinedOffices)
+                    : $ips->packages($packageFilters);
                 $items = collect($payload['data'] ?? []);
                 $total = (int) ($payload['meta']['total'] ?? 0);
             }
@@ -626,7 +702,27 @@ class PaquetesIpsController extends Controller
             report($e);
             $error = 'No se pudo consultar IPS. Intente actualizar; no se modificó ningún paquete.';
         }
+        if ($section === 'almacen' && $warehouseView === 'por-entregar') {
+            $items = collect($this->withUpuRecipientData($items->all()));
+        }
         $deliveryCatalogActions = ['HANDOVER_AGENT', 'EMH', 'CUSTOMS_PRESENT'];
+        if ($link?->ips_office_cd !== null) {
+            $items = $items->map(fn ($package) => IpsDeliveryReceipt::restrict($package, (int) ($package['workbench_office_cd'] ?? $link->ips_office_cd)));
+            if ($workbenchActions !== null) {
+                $items = $items->map(function ($package) use ($workbenchActions) {
+                    $package['allowed_actions'] = array_values(array_intersect($package['allowed_actions'] ?? [], $workbenchActions));
+
+                    return $package;
+                });
+            }
+            foreach ($selection as &$selectedEntry) {
+                $selectedEntry['package'] = IpsDeliveryReceipt::restrict($selectedEntry['package'], (int) ($selectedEntry['office_cd'] ?? $link->ips_office_cd));
+                if ($workbenchActions !== null) {
+                    $selectedEntry['package']['allowed_actions'] = array_values(array_intersect($selectedEntry['package']['allowed_actions'] ?? [], $workbenchActions));
+                }
+            }
+            unset($selectedEntry);
+        }
         $selectionNeedsDeliveryCatalog = collect($selection)->contains(fn ($entry) => array_intersect($deliveryCatalogActions, data_get($entry, 'package.allowed_actions', [])) !== []);
         $resultNeedsDeliveryCatalog = $items->contains(fn ($package) => array_intersect($deliveryCatalogActions, $package['allowed_actions'] ?? []) !== []);
         if (! $readOnly && ! $error && (! $deliveryOnly || $selectionNeedsDeliveryCatalog || $resultNeedsDeliveryCatalog)) {
@@ -637,17 +733,32 @@ class PaquetesIpsController extends Controller
                 // Keep package lookup available if the optional attempt catalog is unavailable.
             }
         }
-        if ($workflowAction === 'EMR' && ! $error) {
+        if (in_array($workflowAction, ['EMR', 'EMG'], true) && ! $error) {
+            $pendingPrefix = $workflowAction === 'EMG' ? 'ips_destination_create_pending:' : 'ips_inbound_create_pending:';
+            if ($workflowAction === 'EMG' && $search !== '') {
+                foreach ($combinedOffices ?: [['office_cd' => $link->ips_office_cd]] as $pendingOffice) {
+                    $pendingLink = clone $link;
+                    $pendingLink->ips_office_cd = $pendingOffice['office_cd'];
+                    $pending = $request->session()->get($pendingPrefix.$request->user()->id.$pendingLink->officeSessionSuffix().':'.$search);
+                    if ($pending) {
+                        $missingPackageCode = $search;
+                        $inboundPending = $pending;
+                        break;
+                    }
+                }
+            }
             if ($missingPackageCode) {
-                $pendingKey = 'ips_inbound_create_pending:'.$request->user()->id.$link->officeSessionSuffix().':'.$missingPackageCode;
-                $inboundPending = $request->session()->get($pendingKey);
+                $pendingKey = $pendingPrefix.$request->user()->id.$link->officeSessionSuffix().':'.$missingPackageCode;
+                $inboundPending ??= $request->session()->get($pendingKey);
                 $inboundCreateKey = data_get($inboundPending, 'idempotency_key')
                     ?? old('idempotency_key')
                     ?? $request->session()->get('inbound_create_key')
                     ?? (string) Str::uuid();
             }
             try {
-                $catalog = $ips->catalog((int) $link->ips_office_cd) + $catalog;
+                if ($workflowAction === 'EMR' || $missingPackageCode) {
+                    $catalog = $ips->catalog((int) $link->ips_office_cd) + $catalog;
+                }
             } catch (\Throwable $e) {
                 report($e);
                 $error = 'No se pudo cargar el catálogo para dar de alta el envío. No se modificó IPS.';
@@ -667,10 +778,10 @@ class PaquetesIpsController extends Controller
             ? [$workflowAction => self::ACTIONS[$workflowAction]]
             : ($courierOnly
                 ? array_intersect_key(self::DELIVERY_ACTION_LABELS, array_flip(['EDG', 'EMH', 'EMI']))
-                : ($deliveryOnly ? self::DELIVERY_ACTION_LABELS : array_intersect_key(self::ACTIONS, array_flip(['EMG', 'EDH', 'EDG', 'EMH', 'EMI']))));
+                : ($deliveryOnly ? array_intersect_key(self::DELIVERY_ACTION_LABELS, ['EMI' => true]) : array_intersect_key(self::ACTIONS, array_flip(['EMG', 'EDH', 'EDG', 'EMH', 'EMI']))));
         $deliveryActionLabels = $courierOnly
             ? array_intersect_key(self::DELIVERY_ACTION_LABELS, array_flip(['EDG', 'EMH', 'EMI']))
-            : self::DELIVERY_ACTION_LABELS;
+            : ($deliveryOnly ? array_intersect_key(self::DELIVERY_ACTION_LABELS, ['EMI' => true]) : self::DELIVERY_ACTION_LABELS);
         $selectionWorkflow = $courierOnly ? 'my_delivery' : 'delivery';
         $selectionAddUrl = $workflowAction
             ? route('internacional.workflow.selection.add', IpsOfficeContext::parameters($request, ['section' => $section]))
@@ -705,7 +816,7 @@ class PaquetesIpsController extends Controller
             'internationalWorkflow',
             'emptyMessage',
             'missingPackageCode', 'inboundPending', 'inboundCreateKey',
-            'selectionAddUrl', 'selectionRemoveRouteName', 'operateUrl', 'catalog'
+            'selectionAddUrl', 'selectionRemoveRouteName', 'operateUrl', 'catalog', 'combinedOffices'
         );
         if ($request->expectsJson()) {
             if ($error) {
@@ -722,6 +833,32 @@ class PaquetesIpsController extends Controller
     public function warehouse(Request $request, SitraIpsClient $ips, string $warehouseView)
     {
         return $this->index($request, $ips, 'almacen', $warehouseView);
+    }
+
+    private function withUpuRecipientData(array $packages): array
+    {
+        $fields = ['recipient' => 'destinatario', 'phone' => 'telefono', 'address' => 'zona'];
+        $codes = collect($packages)
+            ->filter(fn (array $package) => collect(array_keys($fields))->contains(fn ($field) => blank($package[$field] ?? null)))
+            ->pluck('codigo')->filter()->unique()->values();
+        if ($codes->isEmpty()) {
+            return $packages;
+        }
+        $localPackages = PaqueteUpu::query()->whereIn('codigo', $codes)
+            ->get(['codigo', ...array_values($fields)])->keyBy('codigo');
+
+        return array_map(function (array $package) use ($fields, $localPackages): array {
+            $local = $localPackages->get($package['codigo']);
+            if ($local) {
+                foreach ($fields as $remoteField => $localField) {
+                    if (blank($package[$remoteField] ?? null) && filled($local->{$localField})) {
+                        $package[$remoteField] = $local->{$localField};
+                    }
+                }
+            }
+
+            return $package;
+        }, $packages);
     }
 
     public function addDeliverySelection(Request $request, SitraIpsClient $ips)
@@ -748,10 +885,45 @@ class PaquetesIpsController extends Controller
             'codigo' => ['required', 'string', 'max:35', 'regex:/^[A-Za-z0-9-]+$/'],
             'workflow' => ['nullable', 'in:delivery,my_delivery'],
             'receptacle_pid' => ['nullable', 'uuid'],
+            'receipt_office_cd' => [$requiredAction === 'EMG' && $request->attributes->get('ips_combined_offices') ? 'nullable' : 'prohibited', 'integer',
+                \Illuminate\Validation\Rule::in(array_column($request->attributes->get('ips_combined_offices', []), 'office_cd'))],
         ]);
         try {
-            $package = $ips->package(strtoupper($data['codigo']), (int) $link->ips_office_cd)['package'];
+            $combinedOffices = $request->attributes->get('ips_combined_offices', []);
+            $existingReceipt = $request->session()->get($key, [])[strtoupper($data['codigo'])] ?? null;
+            $receiptOffice = ! empty($existingReceipt['route_mismatch_receipt']) ? ($existingReceipt['office_cd'] ?? null) : null;
+            $package = ($combinedOffices !== []
+                ? (new IpsCombinedOfficeWorkbench($ips))->package(strtoupper($data['codigo']), $combinedOffices, $requiredAction ?? 'EMI', $receiptOffice !== null ? (int) $receiptOffice : null)
+                : $ips->package(strtoupper($data['codigo']), (int) $link->ips_office_cd))['package'];
+            if ($requiredAction === 'EMG' && $combinedOffices !== []) {
+                $fixedOffice = $this->automaticReceiptOffice($package, $request);
+                if (isset($data['receipt_office_cd']) && (int) $data['receipt_office_cd'] !== $fixedOffice) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'receipt_office_cd' => 'La oficina asignada automáticamente no se puede cambiar.',
+                    ]);
+                }
+                if (isset($data['receipt_office_cd']) && $receiptOffice === null && ! empty($package['receipt_office_options'])) {
+                    $fixed = collect($combinedOffices)->firstWhere('office_cd', $fixedOffice);
+                    $package = $ips->package($package['codigo'], $fixedOffice)['package'];
+                    $package['workbench_office_cd'] = $fixedOffice;
+                    $package['workbench_office_name'] = $fixed['office_name'];
+                    $package['workbench_office_fcd'] = $fixed['office_fcd'];
+                    $receiptOffice = $fixedOffice;
+                }
+                $package['receipt_office_locked_cd'] = $fixedOffice;
+            }
+            if ($combinedOffices !== []) {
+                $request->merge(['office_cd' => $package['workbench_office_cd']]);
+                $link = IpsOfficeContext::resolve($request);
+            }
             $office = (int) $link->ips_office_cd;
+            $package = IpsDeliveryReceipt::restrict($package, $office);
+            $needsReceiptOffice = $requiredAction === 'EMG' && ! empty($package['receipt_office_options']) && $receiptOffice === null;
+            if ($needsReceiptOffice) {
+                // Prepare the tray with a fixed office; IPS is rechecked on confirmation.
+                $package['allowed_actions'] = ['EMG'];
+                $package['needs_receipt_office'] = true;
+            }
             $deliveryWorkflow = in_array($workflow, ['delivery', 'my_delivery'], true);
             $routeMismatchReceipt = false;
             $receptaclePid = isset($data['receptacle_pid']) ? strtolower((string) $data['receptacle_pid']) : null;
@@ -804,8 +976,14 @@ class PaquetesIpsController extends Controller
             if ($deliveryWorkflow) {
                 $allowedDeliveryActions = $workflow === 'my_delivery'
                     ? ['EDG', 'EMH', 'EMI']
-                    : array_keys(self::DELIVERY_ACTION_LABELS);
-                abort_unless(array_intersect($allowedDeliveryActions, $package['allowed_actions'] ?? []) !== [], 409, 'IPS no habilita movimientos de distribución para este paquete y oficina. Actualiza el listado.');
+                    : ['EMI'];
+                abort_unless(array_intersect($allowedDeliveryActions, $package['allowed_actions'] ?? []) !== [], 409,
+                    $package['delivery_block_reason'] ?? 'IPS no habilita movimientos de distribución para este paquete y oficina. Actualiza el listado.');
+            }
+            $selectionActions = $requiredAction !== null ? [$requiredAction]
+                : ($deliveryWorkflow ? $allowedDeliveryActions : null);
+            if ($selectionActions !== null) {
+                $package['allowed_actions'] = array_values(array_intersect($package['allowed_actions'] ?? [], $selectionActions));
             }
             $selection = $request->session()->get($key, []);
             $code = $package['codigo'];
@@ -831,7 +1009,7 @@ class PaquetesIpsController extends Controller
                 return back()->with('success', 'El paquete ya está en la bandeja.');
             }
             abort_if(count($selection) >= 50, 422, 'La bandeja admite hasta 50 paquetes.');
-            $selection[$code] = ['package' => $package, 'receptacle_pid' => $receptaclePid, 'route_mismatch_receipt' => $routeMismatchReceipt, 'status' => 'ready', 'message' => null, 'payload' => null];
+            $selection[$code] = ['package' => $package, 'office_cd' => (int) $link->ips_office_cd, 'needs_receipt_office' => $needsReceiptOffice, 'receptacle_pid' => $receptaclePid, 'route_mismatch_receipt' => $routeMismatchReceipt, 'status' => 'ready', 'message' => null, 'payload' => null];
             $request->session()->put($key, $selection);
 
             if ($request->expectsJson()) {
@@ -885,23 +1063,34 @@ class PaquetesIpsController extends Controller
         return back();
     }
 
-    public function createInboundPackage(Request $request, SitraIpsClient $ips, SitraTrackingEventsClient $trackingEvents)
+    public function createDestinationPackage(Request $request, SitraIpsClient $ips, SitraTrackingEventsClient $trackingEvents)
     {
-        [$link] = $this->context($request, 'international_emr');
+        return $this->createInboundPackage($request, $ips, $trackingEvents, true);
+    }
+
+    public function createInboundPackage(Request $request, SitraIpsClient $ips, SitraTrackingEventsClient $trackingEvents, bool $destinationReceipt = false)
+    {
+        [$link] = $this->context($request, $destinationReceipt ? 'international_emg' : 'international_emr');
+        $section = $destinationReceipt ? 'recepcion-oficina' : 'recepcion-cambio';
+        $pendingPrefix = $destinationReceipt ? 'ips_destination_create_pending:' : 'ips_inbound_create_pending:';
         $code = strtoupper(trim((string) $request->input('codigo')));
-        $pendingKey = 'ips_inbound_create_pending:'.$request->user()->id.$link->officeSessionSuffix().':'.$code;
+        $request->merge(['codigo' => $code]);
+        $pendingKey = $pendingPrefix.$request->user()->id.$link->officeSessionSuffix().':'.$code;
         $pending = $code !== '' ? $request->session()->get($pendingKey) : null;
         $rules = [
-            'codigo' => ['required', 'string', 'max:35', 'regex:/^[A-Za-z0-9-]+$/'],
+            'codigo' => ['required', 'string', 'max:35', $destinationReceipt ? 'regex:/^L[A-Z][0-9]{9}[A-Z]{2}$/' : 'regex:/^[A-Za-z0-9-]+$/'],
             'idempotency_key' => ['required', 'string', 'min:8', 'max:128', 'regex:/^[A-Za-z0-9_.:-]+$/'],
         ];
+        if ($destinationReceipt && $request->attributes->get('ips_combined_offices')) {
+            $rules['office_cd'] = ['required', 'integer', \Illuminate\Validation\Rule::in(array_column($request->attributes->get('ips_combined_offices'), 'office_cd'))];
+        }
         if (! $pending) {
             $rules += [
                 'weight_kg' => ['required', 'numeric', 'gt:0', 'max:999.999', 'decimal:0,3'],
                 'mail_class' => ['required', 'string', 'size:1', 'regex:/^[A-Za-z0-9]$/'],
-                'condition_cd' => ['required', 'integer', 'min:1'],
-                'origin_country' => ['required', 'string', 'size:2', 'regex:/^[A-Z]{2}$/'],
-                'receptacle_pid' => ['required', 'uuid'],
+                'condition_cd' => $destinationReceipt ? ['prohibited'] : ['required', 'integer', 'min:1'],
+                'origin_country' => ['required', 'string', 'size:2', 'regex:/^[A-Z]{2}$/', ...($destinationReceipt ? ['not_in:BO'] : [])],
+                'receptacle_pid' => $destinationReceipt ? ['prohibited'] : ['required', 'uuid'],
                 'physical_receipt_confirmed' => ['required', 'accepted'],
                 'sender' => ['required', 'array:name,address,city,country,postcode,phone,email'],
                 'recipient' => ['required', 'array:name,address,city,country,postcode,phone,email'],
@@ -915,7 +1104,7 @@ class PaquetesIpsController extends Controller
                 'recipient.name' => ['required', 'string', 'max:64'],
                 'recipient.address' => ['required', 'string', 'max:105'],
                 'recipient.city' => ['required', 'string', 'max:32'],
-                'recipient.country' => ['required', 'string', 'size:2', 'regex:/^[A-Z]{2}$/'],
+                'recipient.country' => ['required', 'string', 'size:2', 'regex:/^[A-Z]{2}$/', ...($destinationReceipt ? ['in:BO'] : [])],
                 'recipient.postcode' => ['nullable', 'string', 'max:20'],
                 'recipient.phone' => ['nullable', 'string', 'max:64'],
                 'recipient.email' => ['nullable', 'email', 'max:64'],
@@ -923,15 +1112,19 @@ class PaquetesIpsController extends Controller
         }
         $data = $request->validate($rules);
         $code = strtoupper(trim($data['codigo']));
-        $pendingKey = 'ips_inbound_create_pending:'.$request->user()->id.$link->officeSessionSuffix().':'.$code;
+        $pendingKey = $pendingPrefix.$request->user()->id.$link->officeSessionSuffix().':'.$code;
 
         if ($pending) {
             abort_unless(hash_equals((string) $pending['idempotency_key'], (string) $data['idempotency_key']), 409, 'La solicitud original está pendiente. Consulte con la misma clave antes de iniciar otra.');
             $payload = $pending;
         } else {
+            if ($destinationReceipt) {
+                abort_unless(trim((string) $request->user()->ciudad) !== '', 422, 'Configure el departamento del usuario antes de recibir paquetes.');
+                IpsOfficeContext::assertCurrentAssignment($link, $ips);
+            }
             $effectiveAt = Carbon::now('America/La_Paz');
             $payload = [
-                'event' => 'EMD',
+                'event' => $destinationReceipt ? 'EMG' : 'EMD',
                 'codigo' => $code,
                 'occurred_at' => $effectiveAt->format('Y-m-d\\TH:i:sP'),
                 'office_cd' => (int) $link->ips_office_cd,
@@ -942,12 +1135,21 @@ class PaquetesIpsController extends Controller
                 'origin_country' => strtoupper($data['origin_country']),
                 'destination_country' => 'BO',
                 'weight_kg' => (float) $data['weight_kg'],
-                'condition_cd' => (int) $data['condition_cd'],
-                'receptacle_pid' => $data['receptacle_pid'],
                 'physical_receipt_confirmed' => true,
                 'sender' => $data['sender'],
                 'recipient' => $data['recipient'],
             ];
+            if (! $destinationReceipt) {
+                $payload['condition_cd'] = (int) $data['condition_cd'];
+                $payload['receptacle_pid'] = $data['receptacle_pid'];
+            } else {
+                $request->session()->put($pendingKey.':receipt', $this->upuReceiptData($code, [
+                    'recipient' => $payload['recipient']['name'],
+                    'phone' => $payload['recipient']['phone'] ?? null,
+                    'address' => $payload['recipient']['address'],
+                    'weight_kg' => $payload['weight_kg'],
+                ], trim((string) $request->user()->ciudad)));
+            }
             $request->session()->put($pendingKey, $payload);
             $request->session()->save();
         }
@@ -955,43 +1157,46 @@ class PaquetesIpsController extends Controller
         try {
             $result = $ips->createPackage($payload);
             if (($result['status'] ?? null) === 'succeeded') {
-                $request->session()->forget($pendingKey);
+                if ($destinationReceipt) {
+                    PaqueteUpu::firstOrCreate(['codigo' => $code], $request->session()->get($pendingKey.':receipt'));
+                }
+                $request->session()->forget([$pendingKey, $pendingKey.':receipt']);
                 $trackingEvents->forget($code);
 
-                return redirect()->route('internacional.section', IpsOfficeContext::parameters($request, ['section' => 'recepcion-cambio', 'q' => $code]))
-                    ->with('success', 'Paquete creado y recepción en oficina de cambio confirmada por IPS.');
+                return redirect()->route($destinationReceipt ? 'internacional.warehouse' : 'internacional.section', IpsOfficeContext::parameters($request, $destinationReceipt ? ['warehouseView' => 'por-entregar', 'q' => $code] : ['section' => $section, 'q' => $code]))
+                    ->with('success', $destinationReceipt ? 'Envío L creado y recibido en IPS. Ya puedes registrar su entrega al destinatario.' : 'Paquete creado y recepción en oficina de cambio confirmada por IPS.');
             }
             if (($result['status'] ?? null) === 'rejected') {
-                $request->session()->forget($pendingKey);
+                $request->session()->forget([$pendingKey, $pendingKey.':receipt']);
                 $formInput = $this->inboundCreateFormInput($payload);
                 $request->session()->flash('inbound_create_key', $formInput['idempotency_key']);
 
-                return redirect()->route('internacional.section', IpsOfficeContext::parameters($request, ['section' => 'recepcion-cambio', 'q' => $code]))
+                return redirect()->route('internacional.section', IpsOfficeContext::parameters($request, ['section' => $section, 'q' => $code]))
                     ->withErrors(['ips' => $result['message'] ?? 'IPS rechazó el registro. Revise los datos y vuelva a intentarlo.'])
                     ->withInput($formInput);
             }
 
-            return redirect()->route('internacional.section', IpsOfficeContext::parameters($request, ['section' => 'recepcion-cambio', 'q' => $code]))
+            return redirect()->route('internacional.section', IpsOfficeContext::parameters($request, ['section' => $section, 'q' => $code]))
                 ->withErrors(['ips' => $result['message'] ?? 'La operación sigue pendiente. Reintente con la misma clave para consultar el resultado.']);
         } catch (RequestException $e) {
             $result = $e->response->json() ?? [];
             $status = $result['status'] ?? ($e->response->status() >= 500 ? 'uncertain' : 'rejected');
             if ($status === 'rejected') {
-                $request->session()->forget($pendingKey);
+                $request->session()->forget([$pendingKey, $pendingKey.':receipt']);
                 $formInput = $this->inboundCreateFormInput($payload);
                 $request->session()->flash('inbound_create_key', $formInput['idempotency_key']);
 
-                return redirect()->route('internacional.section', IpsOfficeContext::parameters($request, ['section' => 'recepcion-cambio', 'q' => $code]))
+                return redirect()->route('internacional.section', IpsOfficeContext::parameters($request, ['section' => $section, 'q' => $code]))
                     ->withErrors(['ips' => $result['message'] ?? 'IPS rechazó el registro. Revise los datos y vuelva a intentarlo.'])
                     ->withInput($formInput);
             }
 
-            return redirect()->route('internacional.section', IpsOfficeContext::parameters($request, ['section' => 'recepcion-cambio', 'q' => $code]))
+            return redirect()->route('internacional.section', IpsOfficeContext::parameters($request, ['section' => $section, 'q' => $code]))
                 ->withErrors(['ips' => $result['message'] ?? 'No se pudo confirmar. Si queda pendiente, reintente exactamente la misma operación.']);
         } catch (\Throwable $e) {
             report($e);
 
-            return redirect()->route('internacional.section', IpsOfficeContext::parameters($request, ['section' => 'recepcion-cambio', 'q' => $code]))
+            return redirect()->route('internacional.section', IpsOfficeContext::parameters($request, ['section' => $section, 'q' => $code]))
                 ->withErrors(['ips' => 'No se pudo confirmar el resultado. Reintente la operación original; no se generará otra clave.']);
         }
     }
@@ -1000,12 +1205,13 @@ class PaquetesIpsController extends Controller
     {
         return [
             'codigo' => $payload['codigo'],
+            'office_cd' => $payload['office_cd'],
             'idempotency_key' => (string) Str::uuid(),
             'weight_kg' => $payload['weight_kg'],
             'mail_class' => $payload['mail_class'],
-            'condition_cd' => $payload['condition_cd'],
+            'condition_cd' => $payload['condition_cd'] ?? null,
             'origin_country' => $payload['origin_country'],
-            'receptacle_pid' => $payload['receptacle_pid'],
+            'receptacle_pid' => $payload['receptacle_pid'] ?? null,
             'physical_receipt_confirmed' => true,
             'sender' => $payload['sender'],
             'recipient' => $payload['recipient'],
@@ -1033,7 +1239,7 @@ class PaquetesIpsController extends Controller
     {
         [$link, $key] = $this->context($request, $workflow);
         $actionRule = $requiredAction ?? match ($workflow) {
-            'delivery' => 'EDH,HANDOVER_AGENT,CUSTOMS_PRESENT,EDG,EMH,EMI',
+            'delivery' => 'EMI',
             'my_delivery' => 'EDG,EMH,EMI',
             default => 'EMG,EDH,EDG,EMH,EMI',
         };
@@ -1041,12 +1247,19 @@ class PaquetesIpsController extends Controller
             'codigo' => ['required', 'string', 'max:35'],
             'action' => ['required', 'in:'.$actionRule],
             'confirmed' => ['required', 'accepted'],
-            'customs_return_confirmed' => ['sometimes', 'accepted'],
+            'customs_return_confirmed' => ['prohibited'],
             'physical_receipt_confirmed' => ['sometimes', 'accepted'],
             'route_mismatch_confirmed' => ['sometimes', 'accepted'],
+            'receipt_office_cd' => [$requiredAction === 'EMG' && $request->attributes->get('ips_combined_offices') ? 'sometimes' : 'prohibited', 'integer',
+                \Illuminate\Validation\Rule::in(array_column($request->attributes->get('ips_combined_offices', []), 'office_cd'))],
             'receptacle_pid' => ['sometimes', 'uuid'],
             'signatory' => ['nullable', 'string', 'max:64'],
             'zona' => ['sometimes', 'nullable', 'string', 'max:1000'],
+            'upu_receipt' => [$requiredAction === 'EMG' ? 'sometimes' : 'prohibited', 'array:destinatario,telefono,zona,peso'],
+            'upu_receipt.destinatario' => ['required_with:upu_receipt', 'string', 'max:255'],
+            'upu_receipt.telefono' => ['nullable', 'string', 'max:64'],
+            'upu_receipt.zona' => ['nullable', 'string', 'max:1000'],
+            'upu_receipt.peso' => ['required_with:upu_receipt', 'numeric', 'gt:0', 'max:999.999', 'decimal:0,3'],
             'delivery_mode' => ['required_if:action,EMI', 'nullable', 'in:DOMICILIARIA,NO_DOMICILIARIA'],
             'non_delivery_reason' => ['required_if:action,EMH', 'nullable', 'integer', 'min:1'],
             'non_delivery_measure' => ['required_if:action,EMH', 'nullable', 'string', 'size:1'],
@@ -1071,6 +1284,34 @@ class PaquetesIpsController extends Controller
         $code = strtoupper($data['codigo']);
         abort_unless(isset($selection[$code]), 422, 'Agregue el paquete a la bandeja primero.');
         $entry = $selection[$code];
+        if ($requiredAction === 'EMG' && isset($data['receipt_office_cd'])) {
+            $fixedOffice = ! empty($entry['needs_receipt_office'])
+                ? $this->automaticReceiptOffice($entry['package'], $request)
+                : (int) ($entry['payload']['office_cd'] ?? $entry['office_cd'] ?? $link->ips_office_cd);
+            if ((int) $data['receipt_office_cd'] !== $fixedOffice) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'receipt_office_cd' => 'La oficina asignada automáticamente no se puede cambiar.',
+                ]);
+            }
+        }
+        if ($requiredAction === 'EMG' && ! empty($entry['needs_receipt_office']) && empty($entry['payload'])) {
+            $officeCd = $this->automaticReceiptOffice($entry['package'], $request);
+            if ($officeCd === null || ! in_array($officeCd, array_column($entry['package']['receipt_office_options'] ?? [], 'office_cd'), true)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'receipt_office_cd' => 'La oficina asignada automáticamente no está disponible para este paquete.',
+                ]);
+            }
+            $request->merge(['office_cd' => $officeCd]);
+            $link = IpsOfficeContext::resolve($request);
+            $selection[$code]['office_cd'] = $officeCd;
+            $selection[$code]['route_mismatch_receipt'] = true;
+            $selection[$code]['needs_receipt_office'] = false;
+            $selection[$code]['package']['workbench_office_cd'] = $officeCd;
+            $selection[$code]['package']['workbench_office_name'] = $link->ips_office_name;
+            $selection[$code]['package']['workbench_office_fcd'] = $link->ips_office_fcd;
+            unset($selection[$code]['package']['receipt_office_options'], $selection[$code]['package']['receipt_office_note'], $selection[$code]['package']['needs_receipt_office']);
+            $entry = $selection[$code];
+        }
         if ($requiredAction === 'EMG' && empty($entry['upu_receipt'])) {
             $destination = trim((string) $request->user()->ciudad);
             abort_unless($destination !== '', 422, 'Configure el departamento del usuario antes de recibir paquetes.');
@@ -1083,7 +1324,7 @@ class PaquetesIpsController extends Controller
                 unset($selection[$code]);
                 $request->session()->put($key, $selection);
 
-                return response()->json(['status' => 'succeeded', 'message' => 'Este paquete ya está recibido.', 'operation_id' => $entry['operation_id'] ?? null, 'selection_removed' => true, 'code' => $code, 'count' => count($selection)]);
+                return response()->json(['status' => 'succeeded', 'message' => 'Este paquete ya está recibido y registrado en UPU.', 'upu_saved' => true, 'operation_id' => $entry['operation_id'] ?? null, 'selection_removed' => true, 'code' => $code, 'count' => count($selection)]);
             }
             return response()->json(['status' => 'succeeded', 'message' => 'Operación ya confirmada.', 'operation_id' => $entry['operation_id'] ?? null]);
         }
@@ -1092,6 +1333,8 @@ class PaquetesIpsController extends Controller
         abort_unless(! $request->boolean('route_mismatch_confirmed') || $routeMismatchReceipt, 409, 'La confirmación de ruta distinta no corresponde a este paquete.');
         abort_unless(! $routeMismatchReceipt || $request->boolean('route_mismatch_confirmed'), 422, 'Confirma que el paquete con ruta distinta llegó físicamente a esta oficina antes de intentar recibirlo.');
         $payload = $entry['payload'] ?? null;
+        abort_if($data['action'] === 'EMI' && ! empty($payload['customs_return_confirmed']), 409,
+            'Primero debes recibir el paquete en esta oficina (evento 32). La devolución de Aduana y la baja deben registrarse por separado.');
         if ($payload && $payload['event'] !== $data['action']) {
             return response()->json(['status' => 'rejected', 'message' => 'Esta operación ya tiene una acción registrada. Mantenga la misma acción para consultar su resultado.'], 409);
         }
@@ -1105,16 +1348,15 @@ class PaquetesIpsController extends Controller
                 if ($workflow === 'my_delivery') {
                     $this->assertAssignedCourierPackage($current, (string) $link->delivery_agent_cd);
                 }
-                $customsReturnDelivery = $workflow === 'delivery'
-                    && $data['action'] === 'EMI'
-                    && in_array((int) ($current['operational_event_cd'] ?? $current['event_cd']), [31, 34], true)
-                    && (int) ($current['state_cd'] ?? -1) === 1
-                    && in_array('CUSTOMS_RETURN', $current['allowed_actions'] ?? [], true);
+                if ($data['action'] === 'EMI') {
+                    abort_unless(IpsDeliveryReceipt::confirmed($current, (int) $link->ips_office_cd), 409,
+                        'Primero debes recibir el paquete en esta oficina (evento 32). Después podrás registrar la baja.');
+                }
                 $routeMismatchAttempt = $routeMismatchReceipt
                     && $request->boolean('route_mismatch_confirmed')
                     && $this->isRouteMismatchReceiptCandidate($current, (int) $link->ips_office_cd);
                 abort_unless(
-                    in_array($data['action'], $current['allowed_actions'] ?? [], true) || $customsReturnDelivery || $routeMismatchAttempt,
+                    in_array($data['action'], $current['allowed_actions'] ?? [], true) || $routeMismatchAttempt,
                     409,
                     'La etapa u oficina ya no permite esta acción. Actualice el paquete.'
                 );
@@ -1148,10 +1390,7 @@ class PaquetesIpsController extends Controller
                     abort_unless($validReceptacle, 422, 'Seleccione una saca abierta que IPS habilita para este envío.');
                     $payload['domestic_receptacle_pid'] = $receptaclePid;
                 }
-                if ($customsReturnDelivery) {
-                    abort_unless($request->boolean('customs_return_confirmed'), 422, 'Confirme que Aduana devolvió físicamente el envío antes de registrar la entrega.');
-                    $payload['customs_return_confirmed'] = true;
-                } elseif ($data['action'] === 'CUSTOMS_RETURN') {
+                if ($data['action'] === 'CUSTOMS_RETURN') {
                     $expectedReceptaclePid = strtolower((string) ($entry['receptacle_pid'] ?? ''));
                     abort_unless($expectedReceptaclePid !== ''
                         && hash_equals($expectedReceptaclePid, strtolower((string) ($data['receptacle_pid'] ?? ''))),
@@ -1164,9 +1403,6 @@ class PaquetesIpsController extends Controller
                         'El paquete ya no pertenece a la saca seleccionada. Actualiza el paso y escanéalo desde la saca vigente.'
                     );
                     $payload['receptacle_pid'] = $expectedReceptaclePid;
-                    $payload['customs_return_confirmed'] = true;
-                } else {
-                    abort_unless(! $request->boolean('customs_return_confirmed'), 422, 'La confirmación de devolución de Aduana no corresponde al estado actual del paquete.');
                 }
                 if ($data['action'] === 'EMR') {
                     $receptaclePid = (string) $data['exchange_receptacle_pid'];
@@ -1204,6 +1440,8 @@ class PaquetesIpsController extends Controller
                     if (array_key_exists('zona', $data)) {
                         $selection[$code]['upu_receipt']['zona'] = $data['zona'];
                     }
+                    $selection[$code]['upu_receipt'] = array_replace($selection[$code]['upu_receipt'],
+                        array_intersect_key($data['upu_receipt'] ?? [], array_flip(['destinatario', 'telefono', 'zona', 'peso'])));
                 }
                 $selection[$code]['status'] = 'processing';
                 $request->session()->put($key, $selection);
@@ -1239,6 +1477,7 @@ class PaquetesIpsController extends Controller
         if ($requiredAction === 'EMG' && ($result['status'] ?? null) === 'succeeded') {
             try {
                 PaqueteUpu::firstOrCreate(['codigo' => $code], $selection[$code]['upu_receipt']);
+                $result['upu_saved'] = true;
             } catch (\Throwable $e) {
                 report($e);
                 $result['status'] = 'uncertain';
@@ -1248,13 +1487,15 @@ class PaquetesIpsController extends Controller
         $selection[$code]['status'] = $result['status'] ?? 'uncertain';
         $selection[$code]['message'] = ($result['status'] ?? null) === 'succeeded' && ($payload['event'] ?? null) === 'EMG' && ! empty($payload['route_mismatch_confirmed'])
             ? 'IPS confirmó la recepción en esta oficina (evento 32). No se agregó un evento de cambio de ruta.'
-            : (($result['status'] ?? null) === 'succeeded' && ($payload['event'] ?? null) === 'EMI' && ! empty($payload['customs_return_confirmed'])
-            ? 'Devolución de Aduana (38) y entrega al destinatario (37) registradas en IPS.'
             : (($result['status'] ?? null) === 'succeeded' && ($payload['event'] ?? null) === 'CUSTOMS_RETURN'
                 ? 'Llegada física tras la devolución de Aduana (evento 38) registrada desde la saca abierta. No se registró entrega al destinatario.'
-                : ($result['message'] ?? 'Movimiento registrado correctamente en IPS.')));
+                : ($result['message'] ?? 'Movimiento registrado correctamente en IPS.'));
         $selection[$code]['operation_id'] = $result['operation_id'] ?? null;
         $result['message'] = $selection[$code]['message'];
+        if (! empty($result['upu_saved'])) {
+            $result['message'] .= ' Paquete registrado también en UPU de Bolipost.';
+            $selection[$code]['message'] = $result['message'];
+        }
         if ($requiredAction === 'EMG' && ($result['status'] ?? null) === 'succeeded') {
             unset($selection[$code]);
             $result['selection_removed'] = true;

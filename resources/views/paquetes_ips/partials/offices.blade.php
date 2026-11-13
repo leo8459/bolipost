@@ -1,4 +1,16 @@
-@if($link && count($link->offices()) > 1)
+@if(!empty($combinedOffices))
+    <section class="card mb-3" aria-label="Oficinas IPS unificadas">
+        <div class="card-body py-3">
+            <strong>Trabajando con las {{ count($combinedOffices) }} oficinas de La Paz</strong>
+            <p class="small text-muted mb-2">Todos sus paquetes aparecen en una sola tabla y bandeja. Cada recepción y entrega se registra en la oficina correspondiente al paquete.</p>
+            <div class="d-flex flex-wrap" style="gap: .5rem">
+                @foreach($combinedOffices as $assignedOffice)
+                    <span class="badge badge-primary px-3 py-2">{{ $assignedOffice['office_name'] }} · {{ $assignedOffice['office_fcd'] }}</span>
+                @endforeach
+            </div>
+        </div>
+    </section>
+@elseif($link && count($link->offices()) > 1)
     <section class="card mb-3" aria-label="Oficinas IPS asignadas">
         <div class="card-body py-3">
             <strong>Trabajando en {{ $link->ips_office_name ?: 'Oficina '.$link->ips_office_cd }}</strong>

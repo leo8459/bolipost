@@ -9,6 +9,15 @@ use Illuminate\Http\Request;
 
 class IpsOfficeContext
 {
+    public static function combinedOffices(Request $request): array
+    {
+        $offices = array_values(array_filter($request->user()?->ipsLink?->offices() ?? [],
+            fn ($office) => in_array(strtoupper($office['office_fcd']), ['BOLPBA', 'BOLPBB', 'BOLPBC'], true)));
+        usort($offices, fn ($a, $b) => $a['office_cd'] <=> $b['office_cd']);
+
+        return count($offices) > 1 ? $offices : [];
+    }
+
     public static function assertCurrentAssignment(UserIpsLink $link, SitraIpsClient $ips): void
     {
         try {
@@ -58,6 +67,11 @@ class IpsOfficeContext
 
     public static function parameters(Request $request, array $parameters = []): array
     {
+        if ($request->attributes->get('ips_combined_offices')) {
+            unset($parameters['office_cd']);
+
+            return $parameters;
+        }
         $officeCd = $request->attributes->get('ips_office_cd', $request->input('office_cd'));
 
         return $officeCd === null ? $parameters : $parameters + ['office_cd' => $officeCd];

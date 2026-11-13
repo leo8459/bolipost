@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 class AlertaEmpresa extends Model
 {
@@ -55,5 +57,18 @@ class AlertaEmpresa extends Model
     {
         return $this->belongsToMany(User::class, 'alerta_empresa_lecturas', 'alerta_empresa_id', 'user_id')
             ->withPivot('leida_at');
+    }
+
+    public function lectoresAgrupadosPorEmpresa(): Collection
+    {
+        return $this->lectores
+            ->groupBy(fn (User $lector) => $lector->empresa?->id ?? 'sin-empresa')
+            ->sortBy(fn (Collection $lectores) => $lectores->first()->empresa
+                ? '0'.Str::lower(Str::ascii($lectores->first()->empresa->nombre))
+                : '1')
+            ->map(fn (Collection $lectores) => $lectores
+                ->sortBy(fn (User $lector) => Str::lower(Str::ascii($lector->name)), SORT_NATURAL)
+                ->values())
+            ->values();
     }
 }

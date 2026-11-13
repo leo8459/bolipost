@@ -376,6 +376,8 @@ Route::middleware(['auth', 'internal.only', 'verified'])->group(function () {
         ->name('alertas-empresa.portada');
     Route::get('/alertas-empresa/{alertaEmpresa}/pdf', [AlertaEmpresaController::class, 'pdf'])
         ->name('alertas-empresa.pdf');
+    Route::get('/alertas-empresa/{alertaEmpresa}/reporte-vistas', [AlertaEmpresaController::class, 'reporteVistas'])
+        ->name('alertas-empresa.reporte-vistas');
     Route::post('/alertas-empresa/{alertaEmpresa}/vista', [AlertaEmpresaController::class, 'markAsRead'])
         ->name('alertas-empresa.read');
 });
@@ -700,6 +702,8 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
         ->middleware(['international.menu-access', 'can:internacional.workflow.operate'])->name('internacional.workflow.operate')->block(120, 10);
     Route::post('/internacional/recepcion-cambio/registrar-envio', [PaquetesIpsController::class, 'createInboundPackage'])
         ->middleware(['international.menu-access', 'can:internacional.workflow.operate'])->name('internacional.inbound.create')->block(120, 10);
+    Route::post('/internacional/recepcion-oficina/registrar-envio', [PaquetesIpsController::class, 'createDestinationPackage'])
+        ->middleware(['international.menu-access', 'can:internacional.workflow.operate'])->name('internacional.destination.create')->block(120, 10);
     Route::post('/ips/seleccionados', [PaquetesIpsController::class, 'addSelection'])->name('ips.selection.add')->block(120, 10);
     Route::post('/ips/operar', [PaquetesIpsController::class, 'operate'])->name('ips.operate')->block(120, 10);
     Route::delete('/ips/seleccionados/{codigo}', [PaquetesIpsController::class, 'removeSelection'])->where('codigo', '[A-Za-z0-9-]{1,35}')->name('ips.selection.remove')->block(120, 10);

@@ -5,9 +5,13 @@
     if (!listing || !status) return;
     let activeRequest;
     const workspace = document.querySelector('.ips-workspace');
-    const fixedWorkflow = Boolean(workspace?.dataset.workflowAction);
+    const fixedWorkflow = workspace?.dataset.workflowAction || '';
     const scanEnabled = workspace?.dataset.scanEnabled === '1';
     const setScanPlaceholder = () => {
+        if (fixedWorkflow === 'EMG') {
+            listing.querySelector('#ips-code')?.setAttribute('placeholder', 'Escanea un c\u00f3digo para recibir');
+            return;
+        }
         if (fixedWorkflow) listing.querySelector('#ips-code')?.setAttribute('placeholder', 'Escanea un c\u00f3digo para a\u00f1adir al lote');
     };
     setScanPlaceholder();
@@ -84,8 +88,11 @@
             const trayCount = document.getElementById('ips-tray-count');
             if (trayCount) trayCount.textContent = result.count + '/50 paquetes';
             window.dispatchEvent(new CustomEvent('ips:selection-added', {detail: {...result, scanned}}));
+            if (scanQueue.length) processScanQueue();
             status.hidden = false;
-            status.textContent = result.route_mismatch_receipt
+            status.textContent = fixedWorkflow === 'EMG'
+                ? 'Revisa los datos UPU y confirma la llegada f\u00edsica en el modal de recepci\u00f3n.'
+                : result.route_mismatch_receipt
                 ? 'Paquete con ruta a otra oficina agregado para revisar la recepción física. Confirma la diferencia de ruta en la bandeja antes de procesar.'
                 : (scanned ? 'Paquete agregado al lote. Escanea el siguiente.' : 'Paquete guardado en la bandeja.');
             setTimeout(() => { status.hidden = true; }, 3000);
@@ -99,7 +106,10 @@
         }
     }
 
-    const inboundQueueStorageKey = 'ips-inbound-next-scans:' + location.pathname + ':office:' + (new URL(location.href).searchParams.get('office_cd') || listing.querySelector('[name="office_cd"]')?.value || 'default');
+    const queueOfficeScope = workspace?.dataset.combinedOffices
+        ? 'group-' + workspace.dataset.combinedOffices
+        : (new URL(location.href).searchParams.get('office_cd') || listing.querySelector('[name="office_cd"]')?.value || 'default');
+    const inboundQueueStorageKey = 'ips-inbound-next-scans:' + location.pathname + ':office:' + queueOfficeScope;
 
     async function processScanQueue() {
         if (processingScans) return;
@@ -111,6 +121,14 @@
                 .find(row => row.dataset.code === code);
             if (alreadyInTray) {
                 if (alreadyInTray.dataset.status === 'succeeded') showAlreadyReceived(code);
+                else {
+                    const checkbox = alreadyInTray.querySelector('.ips-choice');
+                    if (checkbox && !checkbox.disabled) {
+                        checkbox.checked = true;
+                        checkbox.dispatchEvent(new Event('change', {bubbles: true}));
+                    }
+                    if (fixedWorkflow === 'EMG') window.dispatchEvent(new CustomEvent('ips:receipt-requested', {detail: {code}}));
+                }
                 status.hidden = false;
                 status.textContent = 'Ese paquete ya está en la bandeja.';
                 continue;
@@ -128,7 +146,7 @@
                 const result = await response.json().catch(() => ({}));
                 if (result.error_code === 'already_received') showAlreadyReceived(result.code || code);
                 if (!response.ok || !result.code) {
-                    if (fixedWorkflow === 'EMR' && response.status === 404) {
+                    if (response.status === 404 && (fixedWorkflow === 'EMR' || (fixedWorkflow === 'EMG' && /^L[A-Z][0-9]{9}[A-Z]{2}$/.test(code)))) {
                         try {
                             if (scanQueue.length) sessionStorage.setItem(inboundQueueStorageKey, JSON.stringify({codes: scanQueue, savedAt: Date.now()}));
                             else sessionStorage.removeItem(inboundQueueStorageKey);
@@ -154,7 +172,11 @@
                 if (trayCount) trayCount.textContent = result.count + '/50 paquetes';
                 window.dispatchEvent(new CustomEvent('ips:selection-added', {detail: {...result, scanned: true}}));
                 status.hidden = false;
-                status.textContent = result.route_mismatch_receipt
+                status.textContent = fixedWorkflow === 'EMG'
+                    ? 'Revisa los datos UPU y confirma la llegada f\u00edsica en el modal de recepci\u00f3n.'
+                    : result.package?.needs_receipt_office
+                    ? 'Paquete seleccionado y oficina asignada automáticamente. Confirma su llegada física en el modal de recepción.'
+                    : result.route_mismatch_receipt
                     ? 'Paquete con ruta a otra oficina agregado para revisar la recepción física. Confirma la diferencia de ruta en la bandeja antes de procesar.'
                     : 'Paquete agregado al lote. Escanea el siguiente.';
             } catch (error) {
@@ -163,7 +185,7 @@
             }
         }
         processingScans = false;
-        listing.querySelector('#ips-code')?.focus();
+        if (!document.querySelector('dialog[open]')) listing.querySelector('#ips-code')?.focus();
     }
     listing.addEventListener('submit', event => {
         const addForm = event.target.closest('.ips-selection-add');
@@ -239,6 +261,18 @@
         cell.innerHTML = '<form class="ips-selection-add" method="POST" action="'+addUrl+'"><input type="hidden" name="_token" value="'+token+'"><input type="hidden" name="codigo" value="'+code+'">'+workflowField+'<button class="btn btn-sm btn-outline-primary"><i class="fas fa-plus"></i> '+addLabel+'</button></form>';
     });
     window.addEventListener('popstate', () => load(new URL(location.href), false));
+    const selectInitialReception = () => {
+        const input = listing.querySelector('#ips-code');
+        const code = String(input?.value || '').trim().toUpperCase();
+        if (scanEnabled && fixedWorkflow === 'EMG' && /^[A-Z0-9-]{8,35}$/.test(code)
+            && !document.getElementById('ips-inbound-create')) {
+            scanQueue.push(code);
+            if (input) input.value = '';
+            processScanQueue();
+        }
+    };
+    if (document.readyState === 'complete') selectInitialReception();
+    else window.addEventListener('DOMContentLoaded', selectInitialReception, {once: true});
     try {
         const queued = JSON.parse(sessionStorage.getItem(inboundQueueStorageKey) || 'null');
         const created = [...document.querySelectorAll('.alert-success')]

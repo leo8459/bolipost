@@ -78,6 +78,13 @@
                                     @endif
                                 </td>
                                 <td class="text-right text-nowrap">
+                                    @aclcan('print-readers', null, 'alertas-empresa')
+                                        @if($alerta->aprobada_at)
+                                            <a class="btn btn-sm btn-outline-success" href="{{ route('alertas-empresa.reporte-vistas', $alerta, false) }}" title="Descargar reporte PDF de vistas por empresa y usuario">
+                                                <i class="fas fa-file-pdf mr-1"></i>Reporte de vistas
+                                            </a>
+                                        @endif
+                                    @endaclcan
                                     @aclcan('approve', null, 'alertas-empresa')
                                         @if(!$alerta->aprobada_at)
                                             <button class="btn btn-sm btn-success" type="button" data-toggle="modal" data-target="#approveAlertModal{{ $alerta->id }}" title="Corregir y aprobar publicación">
@@ -126,21 +133,37 @@
                         @else
                             <div class="table-responsive">
                                 <table class="table table-hover mb-0">
-                                    <thead class="thead-light"><tr><th>Usuario</th><th>Empresa</th><th>Fecha y hora</th></tr></thead>
+                                    <thead class="thead-light"><tr><th>Usuario</th><th>Fecha y hora</th></tr></thead>
                                     <tbody>
-                                        @foreach($alerta->lectores->sortByDesc(fn ($lector) => $lector->pivot->leida_at) as $lector)
-                                            <tr>
-                                                <td>{{ $lector->name }}</td>
-                                                <td>{{ $lector->empresa?->sigla ?: ($lector->empresa?->nombre ?: 'Sin empresa') }}</td>
-                                                <td>{{ \Illuminate\Support\Carbon::parse($lector->pivot->leida_at)->format('d/m/Y H:i') }}</td>
+                                        @foreach($alerta->lectoresAgrupadosPorEmpresa() as $lectoresEmpresa)
+                                            <tr class="table-light">
+                                                <th colspan="2">
+                                                    {{ $lectoresEmpresa->first()->empresa?->nombre ?: 'Sin empresa' }}
+                                                    <span class="badge badge-success ml-1">{{ $lectoresEmpresa->count() }} vistas</span>
+                                                </th>
                                             </tr>
+                                            @foreach($lectoresEmpresa as $lector)
+                                                <tr>
+                                                    <td>{{ $lector->name }}</td>
+                                                    <td>{{ \Illuminate\Support\Carbon::parse($lector->pivot->leida_at)->format('d/m/Y H:i') }}</td>
+                                                </tr>
+                                            @endforeach
                                         @endforeach
                                     </tbody>
                                 </table>
                             </div>
                         @endif
                     </div>
-                    <div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button></div>
+                    <div class="modal-footer">
+                        @aclcan('print-readers', null, 'alertas-empresa')
+                            @if($alerta->aprobada_at)
+                                <a class="btn btn-success" href="{{ route('alertas-empresa.reporte-vistas', $alerta, false) }}">
+                                    <i class="fas fa-file-pdf mr-1"></i>Descargar reporte de vistas
+                                </a>
+                            @endif
+                        @endaclcan
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                    </div>
                 </div>
             </div>
         </div>

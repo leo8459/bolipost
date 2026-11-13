@@ -17,6 +17,8 @@ use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Smalot\PdfParser\Parser;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -32,6 +34,8 @@ class AlertaEmpresaTest extends TestCase
             EnsureRoutePermission::class,
             RegistrarAuditoria::class,
         ]);
+
+        (require database_path('migrations/2025_06_11_195557_create_permission_tables.php'))->up();
 
         Schema::create('empresa', function (Blueprint $table): void {
             $table->id();
@@ -91,6 +95,7 @@ class AlertaEmpresaTest extends TestCase
         Schema::dropIfExists('alertas_empresa');
         Schema::dropIfExists('users');
         Schema::dropIfExists('empresa');
+        (require database_path('migrations/2025_06_11_195557_create_permission_tables.php'))->down();
 
         parent::tearDown();
     }
@@ -298,7 +303,215 @@ class AlertaEmpresaTest extends TestCase
 
         $this->assertContains('feature.alertas-empresa.approve', $permissions);
         $this->assertContains('feature.alertas-empresa.readers', $permissions);
+        $this->assertContains('feature.alertas-empresa.print-readers', $permissions);
         $this->assertContains('alertas-empresa.approve', $permissions);
+    }
+
+    public function test_views_report_downloads_pdf_grouped_by_company_and_sorted_by_user(): void
+    {
+        $admin = $this->createReportUser();
+        $salud = Empresa::query()->create([
+            'nombre' => 'MINISTERIO DE SALUD', 'sigla' => 'MS', 'codigo_cliente' => 'MS001',
+        ]);
+        $gestora = Empresa::query()->create([
+            'nombre' => 'GESTORA', 'sigla' => 'GP', 'codigo_cliente' => 'GP001',
+        ]);
+        $zulema = User::factory()->create(['name' => 'Zulema Salud', 'empresa_id' => $salud->id]);
+        $beatriz = User::factory()->create(['name' => 'Beatriz Gestora', 'empresa_id' => $gestora->id]);
+        $alvaro = User::factory()->create(['name' => 'Álvaro Gestora', 'empresa_id' => $gestora->id]);
+        $individual = User::factory()->create(['name' => 'Ana Individual', 'empresa_id' => null]);
+        $unread = User::factory()->create(['name' => 'Usuario sin lectura', 'empresa_id' => $gestora->id]);
+        $alerta = $this->createPublishedAlert();
+        $alerta->empresas()->attach([$salud->id, $gestora->id]);
+        $alerta->usuariosDestinatarios()->attach($individual);
+        $alerta->lectores()->attach([$zulema->id, $beatriz->id, $individual->id, $alvaro->id], [
+            'leida_at' => '2026-11-13 09:30:00',
+        ]);
+        $otherAlert = $this->createPublishedAlert();
+        $otherAlert->lectores()->attach($unread, ['leida_at' => now()]);
+
+        $response = $this->actingAs($admin)->get(route('alertas-empresa.reporte-vistas', $alerta));
+
+        $response->assertOk()->assertHeader('content-type', 'application/pdf');
+        $this->assertStringContainsString('reporte-vistas-alerta-'.$alerta->id.'.pdf', $response->headers->get('Content-Disposition'));
+        $this->assertStringStartsWith('%PDF-', $response->getContent());
+        $text = (new Parser)->parseContent($response->getContent())->getText();
+        $previousPosition = -1;
+        foreach (['GESTORA (GP)', 'Álvaro Gestora', 'Beatriz Gestora', 'MINISTERIO DE SALUD (MS)', 'Zulema Salud', 'Sin empresa', 'Ana Individual'] as $expected) {
+            $position = mb_strpos($text, $expected);
+            $this->assertNotFalse($position, $expected.' no aparece en el PDF.');
+            $this->assertGreaterThan($previousPosition, $position, $expected.' está fuera de orden.');
+            $previousPosition = $position;
+        }
+        $this->assertStringContainsString('13/11/2026 09:30', $text);
+        $this->assertStringNotContainsString($unread->name, $text);
+    }
+
+    public function test_views_report_handles_an_alert_without_readers(): void
+    {
+        $response = $this->actingAs($this->createReportUser())
+            ->get(route('alertas-empresa.reporte-vistas', $this->createPublishedAlert()));
+
+        $response->assertOk()->assertHeader('content-type', 'application/pdf');
+        $text = (new Parser)->parseContent($response->getContent())->getText();
+        $this->assertStringContainsString('Ningún usuario marcó esta alerta como vista', $text);
+    }
+
+    public function test_reader_permission_alone_does_not_allow_printing_the_report(): void
+    {
+        $user = User::factory()->create();
+        $user->givePermissionTo(Permission::findOrCreate('feature.alertas-empresa.readers', 'web'));
+
+        $this->actingAs($user)
+            ->get(route('alertas-empresa.reporte-vistas', $this->createPublishedAlert()))
+            ->assertForbidden();
+    }
+
+    public function test_report_permission_appears_in_roles_under_the_alerts_window(): void
+    {
+        AclPermissionRegistry::syncPermissions();
+        $groups = AclPermissionRegistry::groupedPermissionsForMatrix();
+        $group = collect($groups)->firstWhere('module_key', 'alertas-empresa');
+        $permission = collect($group['permissions'])->firstWhere('name', 'feature.alertas-empresa.print-readers');
+
+        $this->assertSame('Boton: Imprimir reporte de vistas (PDF)', $permission['action_label']);
+
+        $findWindow = function (array $nodes) use (&$findWindow): ?array {
+            foreach ($nodes as $node) {
+                if (($node['route_name'] ?? null) === 'alertas-empresa.index') {
+                    return $node;
+                }
+                if ($window = $findWindow($node['children'] ?? [])) {
+                    return $window;
+                }
+            }
+
+            return null;
+        };
+        $window = $findWindow(AclPermissionRegistry::menuPermissionSummary($groups));
+        $this->assertNotNull($window);
+        $this->assertContains('feature.alertas-empresa.print-readers', array_column($window['actions'], 'name'));
+    }
+
+    public function test_report_permission_can_be_granted_and_revoked_through_roles(): void
+    {
+        $admin = User::factory()->create();
+        $user = User::factory()->create();
+        $role = Role::create(['name' => 'Responsable de alertas', 'guard_name' => 'web']);
+        $user->assignRole($role);
+        $alerta = $this->createPublishedAlert();
+
+        $this->actingAs($admin)->put(route('roles.update', $role), [
+            'name' => $role->name,
+            'permissions' => ['feature.alertas-empresa.readers', 'feature.alertas-empresa.print-readers'],
+        ])->assertRedirect(route('roles.index'));
+
+        $this->actingAs($user->fresh())->get(route('alertas-empresa.reporte-vistas', $alerta))->assertOk();
+
+        $this->actingAs($admin)->put(route('roles.update', $role), [
+            'name' => $role->name,
+            'permissions' => ['feature.alertas-empresa.readers'],
+        ])->assertRedirect(route('roles.index'));
+
+        $user = $user->fresh();
+        $this->assertTrue($user->can('feature.alertas-empresa.readers'));
+        $this->actingAs($user)->get(route('alertas-empresa.reporte-vistas', $alerta))->assertForbidden();
+    }
+
+    public function test_report_permission_migration_only_grants_it_to_the_administrator(): void
+    {
+        $adminRole = Role::create(['name' => 'administrador', 'guard_name' => 'web']);
+        $companyRole = Role::create(['name' => 'empresa', 'guard_name' => 'web']);
+        $companyRole->givePermissionTo(Permission::findOrCreate('feature.alertas-empresa.readers', 'web'));
+        $migration = require database_path('migrations/2026_11_13_120000_add_alertas_empresa_print_readers_permission.php');
+
+        $migration->up();
+        $migration->up();
+
+        $this->assertTrue($adminRole->fresh()->hasPermissionTo('feature.alertas-empresa.print-readers'));
+        $this->assertFalse($companyRole->fresh()->hasPermissionTo('feature.alertas-empresa.print-readers'));
+
+        $migration->down();
+        $this->assertFalse(Permission::where('name', 'feature.alertas-empresa.print-readers')->exists());
+        $this->assertTrue($companyRole->fresh()->hasPermissionTo('feature.alertas-empresa.readers'));
+    }
+
+    public function test_views_report_repeats_company_headers_across_pages(): void
+    {
+        $empresa = $this->createEmpresa();
+        $lectores = User::factory()->count(70)->sequence(fn ($sequence) => [
+            'name' => sprintf('Lector %03d', $sequence->index + 1),
+            'empresa_id' => $empresa->id,
+        ])->create();
+        $alerta = $this->createPublishedAlert();
+        $alerta->empresas()->attach($empresa);
+        $alerta->lectores()->attach($lectores->modelKeys(), ['leida_at' => now()]);
+
+        $response = $this->actingAs($this->createReportUser())
+            ->get(route('alertas-empresa.reporte-vistas', $alerta));
+
+        $response->assertOk();
+        $document = (new Parser)->parseContent($response->getContent());
+        $this->assertGreaterThan(1, count($document->getPages()));
+        foreach ($document->getPages() as $page) {
+            $this->assertStringContainsString('EMPRESA DEMO (ED)', $page->getText());
+        }
+        $this->assertStringContainsString('Lector 070', $document->getText());
+    }
+
+    public function test_views_report_is_not_available_for_pending_alerts(): void
+    {
+        $alerta = $this->createPublishedAlert();
+        $alerta->update(['aprobada_at' => null]);
+
+        $this->actingAs($this->createReportUser())
+            ->get(route('alertas-empresa.reporte-vistas', $alerta))
+            ->assertNotFound();
+    }
+
+    public function test_company_views_report_only_includes_its_own_readers(): void
+    {
+        $ownEmpresa = $this->createEmpresa();
+        $otherEmpresa = Empresa::query()->create([
+            'nombre' => 'OTRA EMPRESA', 'sigla' => 'OE', 'codigo_cliente' => 'OE001',
+        ]);
+        $user = $this->createReportUser(['name' => 'Lector propio', 'empresa_id' => $ownEmpresa->id]);
+        $user->setRelation('roles', collect([new Role(['name' => 'empresa', 'guard_name' => 'web'])]));
+        $otherUser = User::factory()->create(['name' => 'Lector ajeno', 'empresa_id' => $otherEmpresa->id]);
+        $alerta = $this->createPublishedAlert();
+        $alerta->empresas()->attach([$ownEmpresa->id, $otherEmpresa->id]);
+        $alerta->lectores()->attach([$user->id, $otherUser->id], ['leida_at' => now()]);
+
+        $response = $this->actingAs($user)->get(route('alertas-empresa.reporte-vistas', $alerta));
+
+        $response->assertOk();
+        $text = (new Parser)->parseContent($response->getContent())->getText();
+        $this->assertStringContainsString($user->name, $text);
+        $this->assertStringNotContainsString($otherUser->name, $text);
+        $this->assertStringNotContainsString($otherEmpresa->nombre, $text);
+
+        $otherAlert = $this->createPublishedAlert();
+        $otherAlert->empresas()->attach($otherEmpresa);
+        $this->get(route('alertas-empresa.reporte-vistas', $otherAlert))->assertForbidden();
+    }
+
+    private function createReportUser(array $attributes = []): User
+    {
+        $user = User::factory()->create($attributes);
+        $user->givePermissionTo(Permission::findOrCreate('feature.alertas-empresa.print-readers', 'web'));
+
+        return $user;
+    }
+
+    private function createPublishedAlert(): AlertaEmpresa
+    {
+        return AlertaEmpresa::query()->create([
+            'titulo' => 'Comunicado publicado',
+            'mensaje' => 'Información de la alerta enviada.',
+            'portada_path' => 'alertas-empresa/portadas/demo.png',
+            'publicada_at' => now(),
+            'aprobada_at' => now(),
+        ]);
     }
 
     private function createEmpresa(): Empresa

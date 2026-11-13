@@ -73,8 +73,14 @@ class SitraIpsClient
 
     public function package(string $codigo, ?int $office = null): array
     {
-        return $this->client()->get($this->url('/api/v1/ips/paquetes/'.rawurlencode(strtoupper($codigo))), array_filter(['office_cd' => $office]))
+        $detail = $this->client()->get($this->url('/api/v1/ips/paquetes/'.rawurlencode(strtoupper($codigo))), array_filter(['office_cd' => $office]))
             ->throw()->json('data');
+        if ($office !== null && isset($detail['package'])) {
+            $detail['package']['destination_receipt_confirmed'] = \App\Support\IpsDeliveryReceipt::fromHistory($detail['events'] ?? [], $office);
+            $detail['package'] = \App\Support\IpsDeliveryReceipt::restrict($detail['package'], $office);
+        }
+
+        return $detail;
     }
 
     /**
