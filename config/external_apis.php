@@ -209,6 +209,42 @@ return [
                 ],
             ],
         ],
+        'facturas-transporte:create' => [
+            'name' => 'FACTURAS DE TRANSPORTE - CHASQUIAPP',
+            'description' => 'Permite registrar una factura de transporte en la vista de Bitacoras desde una aplicacion autorizada.',
+            'access' => 'Escritura con comprobante',
+            'icon' => 'fas fa-file-invoice-dollar',
+            'color' => 'primary',
+            'endpoints' => [
+                [
+                    'method' => 'POST',
+                    'path' => '/api/integraciones/facturas-transporte',
+                    'example' => '',
+                    'body_type' => 'form-data',
+                    'body' => [
+                        'user_id' => 1,
+                        'cod_especial' => 'CN33-123456',
+                        'tipo_transporte' => 'terrestre',
+                        'transportadora' => 'TRANSPORTADORA EJEMPLO',
+                        'provincia' => 'LA PAZ',
+                        'factura' => 'F-12345',
+                        'precio_total' => 125.50,
+                        'peso' => 2.350,
+                        'imagen_factura' => '@factura.jpg (tipo File)',
+                    ],
+                    'response' => [
+                        'message' => 'Factura de transporte registrada correctamente.',
+                        'data' => [
+                            'id' => 1,
+                            'cod_especial' => 'CN33-123456',
+                            'factura' => 'F-12345',
+                            'precio_total' => '125.50',
+                            'peso' => '2.350',
+                        ],
+                    ],
+                ],
+            ],
+        ],
         'bitacoras:read' => [
             'name' => 'VER BITACORAS',
             'description' => 'Consulta las bitacoras vehiculares activas, con filtros por vehiculo, conductor, fechas y texto.',

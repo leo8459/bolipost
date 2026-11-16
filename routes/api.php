@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\ExternalClienteSolicitudApiController;
 use App\Http\Controllers\Api\FuelLogApiController;
 use App\Http\Controllers\Api\FuelScrapeApiController;
 use App\Http\Controllers\Api\MaintenanceRequestApiController;
+use App\Http\Controllers\Api\TransportInvoiceApiController;
 use App\Http\Controllers\Api\MobileCrudApiController;
 use App\Http\Controllers\Api\MobileDbSnapshotController;
 use App\Http\Controllers\Api\MobileSnapshotController;
@@ -145,6 +146,10 @@ Route::middleware(['force.json', 'external.api.jwt', 'throttle:120,1'])->group(f
     Route::post('/bitacoras', [VehicleLogApiController::class, 'externalStore'])
         ->middleware('external.api.ability:bitacoras:create')
         ->name('api.bitacoras.store');
+
+    Route::post('/integraciones/facturas-transporte', [TransportInvoiceApiController::class, 'store'])
+        ->middleware(['external.api.ability:facturas-transporte:create', 'throttle:30,1'])
+        ->name('api.integraciones.facturas-transporte.store');
 
     Route::get('/gasolinas', [FuelLogApiController::class, 'externalIndex'])
         ->middleware('external.api.ability:gasolinas:read')
