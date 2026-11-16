@@ -1506,7 +1506,11 @@ class PaquetesEms extends Component
         DB::transaction(function () use ($user, &$paquete) {
             $paquete = PaqueteEms::create($this->payload((int) $user->id));
             $this->syncFormularioData($paquete);
-            $this->registerAdmisionEvento($paquete, (int) $user->id);
+            $this->registerEventosEms(
+                [$paquete],
+                (int) $user->id,
+                self::EVENTO_ID_PAQUETE_RECIBIDO_CLIENTE
+            );
         });
 
         $this->oficialOrigen = '';
