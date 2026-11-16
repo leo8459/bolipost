@@ -48,7 +48,7 @@
                     <div class="card-body">
                         <div class="mb-3">
                             @aclcan('export', null, 'tarifa-contrato')
-                            <a href="{{ route('tarifa-contrato.template-excel') }}" class="btn btn-outline-primary btn-sm">
+                            <a href="{{ route('tarifa-contrato.template-excel') }}" data-template-link class="btn btn-outline-primary btn-sm">
                                 Descargar Plantilla Excel
                             </a>
                             @endaclcan
@@ -56,6 +56,7 @@
 
                         <form id="tarifaImportForm" method="POST" action="{{ route('tarifa-contrato.import') }}" enctype="multipart/form-data">
                             @csrf
+                            @include('tarifa_contrato.tarifario-select')
                             <div class="form-group mb-3">
                                 <label for="archivo">Archivo Excel</label>
                                 <input
@@ -75,17 +76,17 @@
                                 <p class="mb-2"><strong>Columnas requeridas en el Excel (fila 1):</strong></p>
                                 <code>{{ implode(', ', $columnas) }}</code>
                                 <p class="mt-2 mb-2">
-                                    Usa <strong>empresa_nombre</strong> para identificar la empresa por su nombre.
-                                    En la plantilla tienes la hoja <strong>Empresas</strong> con la lista registrada.
+                                    Selecciona el tarifario y su año antes de importar. Cada archivo carga precios de un solo tarifario.
+                                    Las empresas se asignan en <a href="{{ route('tarifa-contrato.tarifarios') }}">Tarifarios por año</a>.
                                 </p>
                                 <p class="mt-2 mb-2">
-                                    <strong>Obligatorios:</strong> empresa_nombre, origen, destino, servicio, kilo, kilo_extra, retencion, horas_entrega.
+                                    <strong>Obligatorios:</strong> Origen, Destino, Servicio, Peso (kg), Primer kilogramo: precio (Bs), Kilogramo extra: precio (Bs), Entrega (horas).
                                 </p>
                                 <p class="mt-2 mb-2">
-                                    <strong>Opcionales:</strong> direccion, zona, kilo_de_1_a_2 (peso), provincia_origen, provincia_destino.
+                                    <strong>Opcionales:</strong> Dirección, Zona, Provincia origen, Provincia destino y Retención (%) (si se omite se guarda 0).
                                 </p>
                                 <p class="mt-2 mb-2">
-                                    En la plantilla, <strong>provincia_origen</strong> y <strong>provincia_destino</strong>
+                                    En la plantilla, <strong>Provincia origen</strong> y <strong>Provincia destino</strong>
                                     son campos libres. Puedes escribir cualquier provincia directamente.
                                 </p>
                                 <p class="mt-2 mb-2">
@@ -93,11 +94,7 @@
                                 </p>
                                 <hr>
                                 <p class="mb-1"><strong>Servicios permitidos:</strong></p>
-                                <ul class="mb-2">
-                                    @foreach($servicios as $servicio)
-                                        <li>{{ $servicio }}</li>
-                                    @endforeach
-                                </ul>
+                                <ul class="mb-2" id="year-services-list"></ul>
                                 <p class="mb-1"><strong>Origen/Destino permitidos:</strong></p>
                                 <p class="mb-0">{{ implode(', ', $departamentos) }}</p>
                             </div>

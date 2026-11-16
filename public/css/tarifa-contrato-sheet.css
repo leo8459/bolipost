@@ -1,0 +1,37 @@
+.tarifa-sheet-card { border-top: 3px solid #217346; }
+.sheet-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.sheet-formula-bar { display: flex; border: 1px solid #c8d1cc; background: #fff; font-size: 13px; min-height: 34px; align-items: center; }
+#sheet-cell-name { min-width: 65px; text-align: center; font-weight: 600; border-right: 1px solid #c8d1cc; padding: 6px; color: #217346; }
+#sheet-cell-value { padding: 5px 12px; white-space: pre; }
+.sheet-viewport { max-height: 65vh; min-height: 340px; overflow: auto; border: 1px solid #c8d1cc; border-top: 0; background: #f7f9f8; position: relative; }
+.sheet-table { table-layout: fixed; border-collapse: separate; border-spacing: 0; width: max-content; color: #24332b; font-size: 13px; }
+.sheet-table th, .sheet-table td { border-right: 1px solid #d8dfda; border-bottom: 1px solid #d8dfda; padding: 0; position: relative; }
+.sheet-table thead th { position: sticky; text-align: left; z-index: 3; }
+.sheet-table .sheet-letter { top: 0; height: 27px; background: #e9eeeb; color: #53655a; text-align: center; font-weight: 400; }
+.sheet-table .sheet-heading { top: 27px; height: 46px; background: #217346; color: #fff; padding: 6px 12px; font-weight: 600; line-height: 1.2; }
+.sheet-table .sheet-row-number { width: 46px; min-width: 46px; position: sticky; left: 0; z-index: 2; text-align: center; background: #e9eeeb; color: #53655a; font-weight: 400; cursor: pointer; }
+.sheet-table thead .sheet-row-number { z-index: 5; }
+.sheet-table tbody td { background: #fff; height: 39px; }
+.sheet-table tbody tr:nth-child(even) td { background: #fcfdfc; }
+.sheet-table .sheet-control { width: 100%; height: 38px; min-width: 0; display: block; border: 0; outline: none; border-radius: 0; background: transparent; color: inherit; padding: 6px 10px; font: inherit; }
+.sheet-table select.sheet-control { cursor: pointer; }
+.sheet-table .sheet-numeric { text-align: right; font-variant-numeric: tabular-nums; }
+.sheet-table td.sheet-selected { background: #e7f3eb !important; box-shadow: inset 0 0 0 1px #a5c9b2; }
+.sheet-table td.sheet-active { box-shadow: inset 0 0 0 2px #217346; z-index: 1; }
+.sheet-table .sheet-row-number.sheet-current-row { background: #cbe5d4; color: #145c32; font-weight: 600; }
+.sheet-table td.sheet-invalid { background: #fff0f0 !important; box-shadow: inset 0 0 0 1px #c93040; }
+.sheet-error { display: block; color: #b51e2c; padding: 0 8px 5px; font-size: 11px; }
+.sheet-fill-handle { position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px; padding: 0; background: #217346; border: 1px solid #fff; cursor: crosshair; z-index: 2; }
+.sheet-column-resizer { position: absolute; top: 0; right: -3px; width: 9px; height: 100%; cursor: col-resize; z-index: 6; touch-action: none; }
+.sheet-column-resizer:hover { background: #ffffff55; }
+.sheet-status { padding: 7px 10px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: #edf4ef; border: 1px solid #c8d1cc; border-top: 0; font-size: 12px; color: #41604c; }
+.sheet-dragging, .sheet-dragging * { user-select: none !important; cursor: crosshair !important; }
+.sheet-table .sheet-control:focus-visible { outline: 2px solid #217346; outline-offset: -2px; }
+.sheet-fullscreen-title { display: none; }
+body.tarifa-sheet-expanded { overflow: hidden; }
+#tarifas-sheet.sheet-is-fullscreen { position: fixed; inset: 0; z-index: 1060; width: 100%; height: 100%; height: 100dvh; box-sizing: border-box; padding: 16px; background: #fff; display: flex; flex-direction: column; overflow: auto; font-family: "Segoe UI", Arial, sans-serif; }
+#tarifas-sheet.sheet-is-fullscreen > * { flex-shrink: 0; }
+#tarifas-sheet.sheet-is-fullscreen .sheet-fullscreen-title { display: block; font-size: 18px; font-weight: 600; margin: 0 0 12px; }
+#tarifas-sheet.sheet-is-fullscreen .sheet-viewport { flex: 1 1 auto; min-height: 120px; max-height: none; }
+#tarifas-sheet::backdrop { background: #fff; }
+@media (max-width: 767px) { .tarifa-sheet-card > .card-body { padding: 12px; } .sheet-viewport { max-height: 60vh; } }

@@ -633,6 +633,15 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::get('/tarifario/plantilla-excel', [TarifarioController::class, 'downloadTemplateExcel'])->name('tarifario.template-excel');
     Route::get('/tarifario/plantilla-masiva-excel', [TarifarioController::class, 'downloadMassTemplateExcel'])->name('tarifario.template-mass-excel');
     Route::get('/tarifa-contrato', [TarifaContratoController::class, 'index'])->name('tarifa-contrato.index');
+    Route::get('/tarifa-contrato/tarifarios', [TarifaContratoController::class, 'tarifarios'])->name('tarifa-contrato.tarifarios');
+    Route::get('/tarifa-contrato/servicios', [TarifaContratoController::class, 'servicios'])->name('tarifa-contrato.servicios');
+    Route::post('/tarifa-contrato/servicios', [TarifaContratoController::class, 'guardarServicio'])->name('tarifa-contrato.servicios-store');
+    Route::post('/tarifa-contrato/servicios/copiar', [TarifaContratoController::class, 'copiarServicios'])->name('tarifa-contrato.servicios-copy');
+    Route::put('/tarifa-contrato/servicios/{servicio}', [TarifaContratoController::class, 'actualizarServicio'])->name('tarifa-contrato.servicios-update');
+    Route::delete('/tarifa-contrato/servicios/{servicio}', [TarifaContratoController::class, 'eliminarServicio'])->name('tarifa-contrato.servicios-destroy');
+    Route::post('/tarifa-contrato/tarifarios', [TarifaContratoController::class, 'guardarTarifario'])->name('tarifa-contrato.tarifarios-store');
+    Route::put('/tarifa-contrato/tarifarios/{tarifario}', [TarifaContratoController::class, 'actualizarTarifario'])->name('tarifa-contrato.tarifarios-update');
+    Route::post('/tarifa-contrato/tarifarios/{tarifario}/asignar', [TarifaContratoController::class, 'asignarTarifario'])->name('tarifa-contrato.tarifarios-asignar');
     Route::get('/tarifa-contrato/create', [TarifaContratoController::class, 'create'])->name('tarifa-contrato.create');
     Route::get('/tarifa-contrato/import', [TarifaContratoController::class, 'importForm'])->name('tarifa-contrato.import-form');
     Route::post('/tarifa-contrato/import', [TarifaContratoController::class, 'import'])->name('tarifa-contrato.import');

@@ -47,7 +47,7 @@ class TarifaContratoDetallePdf extends \FPDF
         $this->AliasNbPages();
         $this->SetTitle('Detalle de Tarifario de Contratos');
         $this->SetAuthor('BOLIPOST');
-        $this->SetSubject('Tarifas de contrato agrupadas por empresa y servicio');
+        $this->SetSubject('Tarifas de contrato agrupadas por tarifario, año y servicio');
     }
 
     public function beginCompany(string $name, string $code): void
@@ -186,12 +186,12 @@ class TarifaContratoDetallePdf extends \FPDF
         $this->SetTextColor(23, 54, 93);
         $this->SetFont('Arial', 'B', 12);
         $this->SetXY($left + 4, $top + 1.5);
-        $this->Cell($tableWidth - 100, 5, $this->toPdfText('EMPRESA: ' . $this->companyName), 0, 0, 'L');
+        $this->Cell($tableWidth - 100, 5, $this->toPdfText('TARIFARIO: ' . $this->companyName), 0, 0, 'L');
 
         $this->SetTextColor(41, 73, 105);
         $this->SetFont('Arial', 'B', 11.5);
         $this->SetXY($left + $tableWidth - 96, $top + 1.5);
-        $this->Cell(92, 5, $this->toPdfText('CÓDIGO: ' . $this->companyCode), 0, 0, 'R');
+        $this->Cell(92, 5, $this->toPdfText('AÑO: ' . $this->companyCode), 0, 0, 'R');
 
         $this->SetY($top + 9);
     }

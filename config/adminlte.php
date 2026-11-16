@@ -1312,19 +1312,62 @@ $config = [
                     'icon' => 'fas fa-tags',
                     'submenu' => [
                         [
-                            'text' => 'Tarifarios padre',
-                            'url' => 'tarifario-padre',
-                            'icon' => 'fas fa-layer-group',
+                            'text' => 'Tarifario contratos',
+                            'icon' => 'fas fa-file-contract',
+                            'submenu' => [
+                                [
+                                    'text' => 'Tarifarios por año',
+                                    'url' => 'tarifa-contrato/tarifarios',
+                                    'icon' => 'fas fa-calendar-alt',
+                                ],
+                                [
+                                    'text' => 'Servicios por año',
+                                    'url' => 'tarifa-contrato/servicios',
+                                    'icon' => 'fas fa-list-alt',
+                                ],
+                                [
+                                    'text' => 'Tarifas',
+                                    'url' => 'tarifa-contrato',
+                                    'icon' => 'fas fa-file-invoice-dollar',
+                                ],
+                            ],
                         ],
                         [
-                            'text' => 'Servicios',
-                            'url' => 'servicios',
-                            'icon' => 'fas fa-concierge-bell',
+                            'text' => 'EMS',
+                            'icon' => 'fas fa-shipping-fast',
+                            'submenu' => [
+                                [
+                                    'text' => 'Tarifarios padre',
+                                    'url' => 'tarifario-padre',
+                                    'icon' => 'fas fa-layer-group',
+                                ],
+                                [
+                                    'text' => 'Servicios',
+                                    'url' => 'servicios',
+                                    'icon' => 'fas fa-concierge-bell',
+                                ],
+                                [
+                                    'text' => 'Tarifas',
+                                    'url' => 'tarifario',
+                                    'icon' => 'fas fa-tags',
+                                ],
+                            ],
                         ],
                         [
-                            'text' => 'Servicios Extras',
-                            'url' => 'servicio-extras',
-                            'icon' => 'fas fa-plus-square',
+                            'text' => 'Delivery Express',
+                            'icon' => 'fas fa-motorcycle',
+                            'submenu' => [
+                                [
+                                    'text' => 'Servicios extras',
+                                    'url' => 'servicio-extras',
+                                    'icon' => 'fas fa-plus-square',
+                                ],
+                                [
+                                    'text' => 'Tarifas',
+                                    'url' => 'tarifario-tiktoker',
+                                    'icon' => 'fas fa-hashtag',
+                                ],
+                            ],
                         ],
                         [
                             'text' => 'Conceptos Facturables',
@@ -1345,21 +1388,6 @@ $config = [
                             'text' => 'Pesos',
                             'url' => 'pesos',
                             'icon' => 'fas fa-weight-hanging',
-                        ],
-                        [
-                            'text' => 'Tarifario',
-                            'url' => 'tarifario',
-                            'icon' => 'fas fa-tags',
-                        ],
-                        [
-                            'text' => 'Tarifa Contrato',
-                            'url' => 'tarifa-contrato',
-                            'icon' => 'fas fa-file-invoice-dollar',
-                        ],
-                        [
-                            'text' => 'Tarifario Delivery Express',
-                            'url' => 'tarifario-tiktoker',
-                            'icon' => 'fas fa-hashtag',
                         ],
                     ],
                 ],

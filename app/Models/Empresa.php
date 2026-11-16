@@ -36,6 +36,17 @@ class Empresa extends Model
         return $this->hasMany(CodigoEmpresa::class, 'empresa_id');
     }
 
+    public function tarifariosContrato(): BelongsToMany
+    {
+        return $this->belongsToMany(TarifarioContrato::class, 'tarifario_contrato_empresa')
+            ->withPivot(['activo', 'asignado_en', 'finalizado_en']);
+    }
+
+    public function tarifarioContratoActivo(): BelongsToMany
+    {
+        return $this->tarifariosContrato()->wherePivot('activo', true);
+    }
+
     public function alertas(): BelongsToMany
     {
         return $this->belongsToMany(AlertaEmpresa::class, 'alerta_empresa_destinatarios', 'empresa_id', 'alerta_empresa_id');

@@ -2,7 +2,6 @@
     $defaults = $defaults ?? [];
     $isCreate = $isCreate ?? false;
 
-    $selectedEmpresa = (string) old('empresa_id', $tarifaContrato->empresa_id ?? ($defaults['empresa_id'] ?? ''));
     $selectedServicio = old('servicio', $tarifaContrato->servicio ?? ($defaults['servicio'] ?? ''));
     $selectedOrigen = old('origen', $tarifaContrato->origen ?? ($defaults['origen'] ?? ''));
     $selectedDestino = old('destino', $tarifaContrato->destino ?? ($defaults['destino'] ?? ''));
@@ -17,20 +16,7 @@
     <div class="box-body">
         <div class="row">
             <div class="col-md-6">
-                <div class="form-group mb-3">
-                    <label for="empresa_id">Empresa</label>
-                    <select id="empresa_id" name="empresa_id" class="form-control @error('empresa_id') is-invalid @enderror" required>
-                        <option value="">Seleccione...</option>
-                        @foreach($empresas as $empresa)
-                            <option value="{{ $empresa->id }}" {{ $selectedEmpresa === (string) $empresa->id ? 'selected' : '' }}>
-                                {{ $empresa->codigo_cliente }} - {{ $empresa->nombre }} ({{ $empresa->sigla }})
-                            </option>
-                        @endforeach
-                    </select>
-                    @error('empresa_id')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
-                </div>
+                @include('tarifa_contrato.tarifario-select')
             </div>
 
             <div class="col-md-6">
@@ -122,7 +108,7 @@
 
             <div class="col-md-3">
                 <div class="form-group mb-3">
-                    <label for="peso">Peso (Opcional)</label>
+                    <label for="peso">Peso (kg) *</label>
                     <input
                         type="number"
                         step="0.01"
@@ -131,6 +117,7 @@
                         name="peso"
                         value="{{ old('peso', $tarifaContrato->peso ?? ($defaults['peso'] ?? '')) }}"
                         class="form-control @error('peso') is-invalid @enderror"
+                        required
                     >
                     @error('peso')
                         <div class="invalid-feedback">{{ $message }}</div>
@@ -142,7 +129,7 @@
         <div class="row">
             <div class="col-md-4">
                 <div class="form-group mb-3">
-                    <label for="kilo">Kilo</label>
+                    <label for="kilo">Primer kilogramo: precio (Bs)</label>
                     <input
                         type="number"
                         step="0.01"
@@ -161,7 +148,7 @@
 
             <div class="col-md-4">
                 <div class="form-group mb-3">
-                    <label for="kilo_extra">Kilo Extra</label>
+                    <label for="kilo_extra">Kilogramo extra: precio (Bs)</label>
                     <input
                         type="number"
                         step="0.01"
@@ -180,7 +167,7 @@
 
             <div class="col-md-4">
                 <div class="form-group mb-3">
-                    <label for="retencion">Retencion (%)</label>
+                    <label for="retencion">Retención (%) (Opcional)</label>
                     <div class="input-group">
                         <input
                             type="number"
@@ -191,7 +178,6 @@
                             name="retencion"
                             value="{{ old('retencion', $tarifaContrato->retencion ?? ($defaults['retencion'] ?? '')) }}"
                             class="form-control @error('retencion') is-invalid @enderror"
-                            required
                         >
                         <div class="input-group-append">
                             <span class="input-group-text">%</span>

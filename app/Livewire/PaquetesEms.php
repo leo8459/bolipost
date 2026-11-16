@@ -2009,7 +2009,7 @@ class PaquetesEms extends Component
         if ($tarifaIdActual > 0) {
             $tarifa = TarifaContrato::query()
                 ->where('id', $tarifaIdActual)
-                ->where('empresa_id', $empresaId)
+                ->paraEmpresa($empresaId, false)
                 ->first();
         }
 
@@ -2255,7 +2255,7 @@ class PaquetesEms extends Component
         }
 
         $baseQuery = TarifaContrato::query()
-            ->where('empresa_id', $empresaId)
+            ->paraEmpresa($empresaId)
             ->whereRaw('trim(upper(origen)) = ?', [$origen])
             ->whereRaw('trim(upper(destino)) = ?', [$destino]);
 

@@ -10,6 +10,7 @@ use App\Models\Estado;
 use App\Models\PaqueteEms;
 use App\Models\Recojo;
 use App\Models\SolicitudCliente;
+use App\Models\ServicioContrato;
 use App\Models\TarifaContrato;
 use App\Models\User;
 use App\Services\ContratoCodigoService;
@@ -668,14 +669,14 @@ class RecojoController extends Controller
 
         if ($empresaId > 0) {
             $serviciosTarifa = TarifaContrato::query()
-                ->where('empresa_id', $empresaId)
+                ->paraEmpresa($empresaId)
                 ->select('servicio')
                 ->distinct()
                 ->orderBy('servicio')
                 ->pluck('servicio');
 
             $rowsProvincias = TarifaContrato::query()
-                ->where('empresa_id', $empresaId)
+                ->paraEmpresa($empresaId)
                 ->whereRaw("trim(upper(servicio)) like '%INTERPROVINCIAL%'")
                 ->whereNotNull('provincia')
                 ->select('destino', 'provincia')
@@ -1539,12 +1540,7 @@ class RecojoController extends Controller
 
     protected function normalizeServicioTarifa(string $servicio): string
     {
-        $servicio = strtoupper(trim($servicio));
-        $servicio = preg_replace('/\s+/', ' ', $servicio) ?? $servicio;
-        $servicio = str_replace('LOCAL (REGULAR)', 'LOCAL(REGULAR)', $servicio);
-        $servicio = str_replace('LOCAL (EXPRESS)', 'LOCAL(EXPRESS)', $servicio);
-
-        return $servicio;
+        return ServicioContrato::normalizarNombre($servicio);
     }
 
     protected function resolveTarifaContrato(
@@ -1555,7 +1551,7 @@ class RecojoController extends Controller
         ?string $provincia
     ): ?TarifaContrato {
         $baseQuery = TarifaContrato::query()
-            ->where('empresa_id', $empresaId)
+            ->paraEmpresa($empresaId)
             ->whereRaw('trim(upper(origen)) = ?', [$origen])
             ->whereRaw('trim(upper(destino)) = ?', [$destino])
             ->whereRaw('trim(upper(servicio)) = ?', [$servicio]);

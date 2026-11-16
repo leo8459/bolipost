@@ -1,5 +1,5 @@
 @extends('adminlte::page')
-@section('title', 'Crear Tarifa Contrato')
+@section('title', 'Crear tarifas de contrato')
 @section('template_title')
     Tarifa Contrato
 @endsection
@@ -18,14 +18,14 @@
                     </div>
                 @endif
 
-                <div class="card card-default">
+                <div class="card card-default tarifa-sheet-card">
                     <div class="card-header">
-                        <span class="card-title">Crear Tarifa de Contrato</span>
+                        <h1 class="card-title font-weight-bold"><i class="fas fa-table mr-2" aria-hidden="true"></i>Crear tarifas de contrato</h1>
                     </div>
                     <div class="card-body">
                         @if (!empty($defaults))
                             <div class="alert alert-info">
-                                Modo rapido activo: se precargaron datos del ultimo registro.
+                                La primera fila contiene los datos del último registro.
                                 @aclcan('create', null, 'tarifa-contrato')
                                 <a href="{{ route('tarifa-contrato.create', ['reset' => 1]) }}" class="btn btn-sm btn-outline-secondary ml-2">
                                     Limpiar precarga
@@ -38,9 +38,9 @@
                                 Copiando base desde tarifa #{{ $copySource->id }}.
                             </div>
                         @endif
-                        <form method="POST" action="{{ route('tarifa-contrato.store') }}" role="form">
+                        <form method="POST" action="{{ route('tarifa-contrato.store') }}" id="tarifas-sheet-form">
                             @csrf
-                            @include('tarifa_contrato.form', ['isCreate' => true])
+                            @include('tarifa_contrato.spreadsheet')
                         </form>
                     </div>
                 </div>

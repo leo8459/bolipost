@@ -13,6 +13,8 @@
                         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
                             <span id="card_title">Administracion de Tarifas de Contrato</span>
                             <div class="d-flex" style="gap:8px;">
+                                <a href="{{ route('tarifa-contrato.tarifarios') }}" class="btn btn-success btn-sm">Tarifarios por año / Asignar empresas</a>
+                                <a href="{{ route('tarifa-contrato.servicios') }}" class="btn btn-outline-success btn-sm">Servicios por año</a>
                                 @php
                                     $tarifaReportUser = auth()->user();
                                     $tarifaReportSuperRole = (string) config('acl.super_admin_role', 'administrador');
@@ -27,17 +29,17 @@
                                 <a href="{{ route('tarifa-contrato.reporte') }}" target="_blank" class="btn btn-outline-dark btn-sm">
                                     Generar reporte
                                 </a>
-                                <a href="{{ route('tarifa-contrato.reporte-detalle') }}" target="_blank" class="btn btn-primary btn-sm">
+                                <a href="{{ route('tarifa-contrato.reporte-detalle', ['tarifario_id' => $tarifarioId ?: null]) }}" target="_blank" class="btn btn-primary btn-sm">
                                     Detalle tarifario PDF
                                 </a>
                                 @endif
                                 @aclcan('import', null, 'tarifa-contrato')
-                                <a href="{{ route('tarifa-contrato.import-form') }}" class="btn btn-info btn-sm">
+                                <a href="{{ route('tarifa-contrato.import-form', ['tarifario_id' => $tarifarioId ?: null]) }}" class="btn btn-info btn-sm">
                                     Importar Excel
                                 </a>
                                 @endaclcan
                                 @aclcan('create', null, 'tarifa-contrato')
-                                <a href="{{ route('tarifa-contrato.create') }}" class="btn btn-primary btn-sm">
+                                <a href="{{ route('tarifa-contrato.create', ['tarifario_id' => $tarifarioId ?: null]) }}" class="btn btn-primary btn-sm">
                                     Crear Nuevo
                                 </a>
                                 @endaclcan
@@ -67,15 +69,30 @@
                     @endif
 
                     <div class="card-body">
+                        @if($errors->any())<div class="alert alert-danger"><ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
+                        @php $tarifarioSeleccionado = $tarifarios->firstWhere('id', $tarifarioId); @endphp
+                        @if($tarifarioSeleccionado)
+                            <div class="alert alert-{{ $tarifarioSeleccionado->publicado_en ? 'info' : 'light border' }}">
+                                <strong>{{ $tarifarioSeleccionado->etiqueta }}</strong>.
+                                {{ $tarifarioSeleccionado->publicado_en ? 'Precios protegidos. Para renovar, copia este tarifario a un nuevo año.' : 'Borrador: carga o edita los precios y luego asígnalo a las empresas.' }}
+                            </div>
+                        @endif
                         @php
                             $empresaSeleccionada = ($empresasFiltro ?? collect())->firstWhere('id', (int) $empresaId);
                         @endphp
 
                         <form method="GET" action="{{ route('tarifa-contrato.index') }}" class="mb-3" id="tarifaFiltersForm">
+                            <div class="form-group">
+                                <label for="filterTarifario">Tarifario y año</label>
+                                <select name="tarifario_id" id="filterTarifario" class="form-control">
+                                    <option value="">Todos los tarifarios</option>
+                                    @foreach($tarifarios as $item)<option value="{{ $item->id }}" @selected($tarifarioId === $item->id)>{{ $item->etiqueta }}</option>@endforeach
+                                </select>
+                            </div>
                             <div class="alert alert-light border d-flex flex-column flex-md-row justify-content-between align-items-md-center py-2">
                                 <div>
                                     <strong>Filtro dinamico activado:</strong>
-                                    cambia empresa, servicio, origen, destino o busqueda y se actualiza solo.
+                                    cambia tarifario, empresa, servicio, origen, destino o búsqueda y se actualiza solo.
                                 </div>
                                 <span class="badge badge-success mt-2 mt-md-0" id="tarifaAutoStatus">Listo</span>
                             </div>
@@ -83,7 +100,7 @@
                             <div class="row">
                                 <div class="col-md-3">
                                     <div class="form-group">
-                                        <label>Empresa</label>
+                                        <label>Empresa (tarifario actual)</label>
                                         <select name="empresa_id" id="filterEmpresa" class="form-control">
                                             <option value="">Todas</option>
                                             @foreach($empresasFiltro as $empresa)
@@ -162,6 +179,7 @@
 
                             <div class="small text-muted mt-2">
                                 Filtros activos:
+                                @if($tarifarioSeleccionado)<span class="badge badge-success mr-1">{{ $tarifarioSeleccionado->etiqueta }}</span>@endif
                                 @if($empresaSeleccionada)
                                     <span class="badge badge-info mr-1">Empresa: {{ $empresaSeleccionada->nombre }}</span>
                                 @endif
@@ -177,7 +195,7 @@
                                 @if(trim((string) $q) !== '')
                                     <span class="badge badge-warning mr-1">Busqueda: {{ $q }}</span>
                                 @endif
-                                @if(!$empresaSeleccionada && trim((string) $servicio) === '' && trim((string) $origen) === '' && trim((string) $destino) === '' && trim((string) $q) === '')
+                                @if(!$tarifarioSeleccionado && !$empresaSeleccionada && trim((string) $servicio) === '' && trim((string) $origen) === '' && trim((string) $destino) === '' && trim((string) $q) === '')
                                     <span class="badge badge-light border">Ninguno</span>
                                 @endif
                             </div>
@@ -188,15 +206,15 @@
                                 <thead class="thead">
                                     <tr>
                                         <th>ID</th>
-                                        <th>Empresa</th>
+                                        <th>Tarifario / Año / Empresas actuales</th>
                                         <th>Servicio</th>
                                         <th>Origen</th>
                                         <th>Destino</th>
                                         <th>Direccion</th>
                                         <th>Zona</th>
-                                        <th>Peso</th>
-                                        <th>Kilo</th>
-                                        <th>Kilo Extra</th>
+                                        <th>Peso (kg)</th>
+                                        <th>Primer kilogramo: precio (Bs)</th>
+                                        <th>Kilogramo extra: precio (Bs)</th>
                                         <th>Provincia</th>
                                         <th>Provincia Origen</th>
                                         <th>Retencion</th>
@@ -208,7 +226,7 @@
                                     @forelse ($tarifas as $tarifa)
                                         <tr>
                                             <td>{{ $tarifa->id }}</td>
-                                            <td>{{ $tarifa->empresa->nombre ?? '' }}</td>
+                                            <td><strong>{{ $tarifa->tarifario?->etiqueta }}</strong><small class="d-block text-muted">{{ $tarifa->tarifario?->empresasActivas->pluck('nombre')->join(', ') ?: 'Sin empresas activas' }}</small></td>
                                             <td>{{ $tarifa->servicio }}</td>
                                             <td>{{ $tarifa->origen }}</td>
                                             <td>{{ $tarifa->destino }}</td>
@@ -233,11 +251,14 @@
                                                     </a>
                                                     @endaclcan
                                                     @aclcan('edit', null, 'tarifa-contrato')
+                                                    @if(!$tarifa->tarifario?->publicado_en)
                                                     <a class="btn btn-sm btn-success" href="{{ route('tarifa-contrato.edit', $tarifa->id) }}" title="Editar">
                                                         <i class="fa fa-fw fa-edit"></i>
                                                     </a>
+                                                    @endif
                                                     @endaclcan
                                                     @aclcan('delete', null, 'tarifa-contrato')
+                                                    @if(!$tarifa->tarifario?->publicado_en)
                                                     @csrf
                                                     @method('DELETE')
                                                     <button
@@ -248,6 +269,7 @@
                                                     >
                                                         <i class="fa fa-fw fa-trash"></i>
                                                     </button>
+                                                    @endif
                                                     @endaclcan
                                                 </form>
                                             </td>
@@ -281,7 +303,7 @@
         }
 
         const autoFields = form.querySelectorAll(
-            'select[name="empresa_id"], select[name="servicio"], select[name="origen"], select[name="destino"]'
+            'select[name="tarifario_id"], select[name="empresa_id"], select[name="servicio"], select[name="origen"], select[name="destino"]'
         );
         const searchField = document.getElementById('filterSearch');
 
