@@ -88,6 +88,7 @@ class FacturacionCartController extends Controller
             'cart_id' => ['nullable', 'integer', 'min:1'],
             'modalidad_facturacion' => ['nullable', 'in:con_datos,sin_cliente'],
             'canal_emision' => ['nullable', 'in:factura_electronica,qr'],
+            'qr_payment_method' => ['nullable', Rule::in(['QRSIMPLE', 'T2P'])],
             'tipo_documento' => ['nullable', 'string', 'max:20', Rule::in(array_keys(\App\Models\Cliente::tiposDocumentoIdentidad()))],
             'numero_documento' => ['nullable', 'string', 'max:80'],
             'complemento_documento' => ['nullable', 'string', 'max:30'],
@@ -95,12 +96,25 @@ class FacturacionCartController extends Controller
             'correo_facturacion' => ['nullable', 'email', 'max:50'],
         ]);
 
+        $qrPaymentMethod = strtoupper(trim((string) ($validated['qr_payment_method'] ?? 'QRSIMPLE')));
+        unset($validated['qr_payment_method']);
+        if (($validated['canal_emision'] ?? null) !== 'qr') {
+            $qrPaymentMethod = 'QRSIMPLE';
+        }
+
         if (($validated['canal_emision'] ?? null) === 'factura_electronica') {
             $this->authorizeFacturacionMode($user, $modePolicy, 'efectivo');
-        } elseif (($validated['canal_emision'] ?? null) === 'qr' && ! $modePolicy->allowsAnyQr($user)) {
-            throw ValidationException::withMessages([
-                'canal_emision' => 'Tu rol no tiene habilitado ningun modo de cobro por QR.',
-            ]);
+        } elseif (($validated['canal_emision'] ?? null) === 'qr') {
+            $qrModeAllowed = $qrPaymentMethod === 'T2P'
+                ? $modePolicy->allows($user, 'tarjeta_nfc')
+                : $modePolicy->allowsAnyQr($user);
+            if (! $qrModeAllowed) {
+                throw ValidationException::withMessages([
+                    'canal_emision' => $qrPaymentMethod === 'T2P'
+                        ? 'Tarjeta NFC no está habilitada para este usuario.'
+                        : 'Tu rol no tiene habilitado ningun modo de cobro por QR.',
+                ]);
+            }
         }
 
         $cartId = isset($validated['cart_id']) ? (int) $validated['cart_id'] : null;
@@ -670,11 +684,17 @@ class FacturacionCartController extends Controller
         if (!in_array($qrPaymentMethod, ['QRSIMPLE', 'T2P'], true)) {
             $qrPaymentMethod = 'QRSIMPLE';
         }
-        $autoEmitInvoice = $request->has('auto_emit_invoice')
-            ? $request->boolean('auto_emit_invoice')
-            : strtolower((string) ($billingSnapshot['canal_emision'] ?? 'factura_electronica')) !== 'qr';
+        if (($billingSnapshot['canal_emision'] ?? null) !== 'qr') {
+            $qrPaymentMethod = 'QRSIMPLE';
+        }
+        $autoEmitInvoice = $qrPaymentMethod === 'T2P'
+            || (
+                $request->has('auto_emit_invoice')
+                    ? $request->boolean('auto_emit_invoice')
+                    : strtolower((string) ($billingSnapshot['canal_emision'] ?? 'factura_electronica')) !== 'qr'
+            );
         $requestedCartId = isset($billingSnapshot['cart_id']) ? (int) $billingSnapshot['cart_id'] : null;
-        $mode = $modePolicy->modeFor((string) $billingSnapshot['canal_emision'], $autoEmitInvoice);
+        $mode = $modePolicy->modeFor((string) $billingSnapshot['canal_emision'], $autoEmitInvoice, $qrPaymentMethod);
         $this->authorizeFacturacionMode($user, $modePolicy, $mode);
 
         $billingSnapshot = array_filter($billingSnapshot, static fn ($value) => $value !== null);
@@ -877,9 +897,9 @@ class FacturacionCartController extends Controller
             $codigoSeguimiento = trim((string) $request->input('codigo_seguimiento', ''));
             $cartId = $request->integer('cart_id') ?: null;
             // A status poll may trigger the automatic invoice after a QR payment.
-            // Apply both the role permission and the global method switch.
+            // QR uses its role permission; NFC requires the user's individual permission.
             $autoEmitInvoice = $request->boolean('auto_emit_invoice')
-                && $modePolicy->allows($user, 'qr_factura');
+                && ($modePolicy->allows($user, 'qr_factura') || $modePolicy->allows($user, 'tarjeta_nfc'));
             $allowPendingRetry = !$request->expectsJson();
             if ($cartId !== null) {
                 $resultado = $service->consultarEstadoEmision($user, $cartId, $autoEmitInvoice, $allowPendingRetry);
@@ -995,7 +1015,11 @@ class FacturacionCartController extends Controller
                 (float) ($cart->total ?? 0)
             );
             $shouldOpenQrViewer = $this->shouldShowQrSessionData($qrPayload);
-            $autoEmitInvoice = $shouldOpenQrViewer && $modePolicy->allows($user, 'qr_factura');
+            $cartPaymentMethod = strtoupper(trim((string) ($cart->qhantuy_payment_method ?? 'QRSIMPLE')));
+            $canAutoEmitInvoice = $cartPaymentMethod === 'T2P'
+                ? $modePolicy->allows($user, 'tarjeta_nfc')
+                : $modePolicy->allows($user, 'qr_factura');
+            $autoEmitInvoice = $shouldOpenQrViewer && $canAutoEmitInvoice;
 
             $feedback = $this->buildBridgeFeedback($respuesta, 'consultar');
 

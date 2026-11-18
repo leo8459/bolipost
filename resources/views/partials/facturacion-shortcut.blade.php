@@ -26,6 +26,7 @@
     $facturacionModeUser = auth()->user();
     $showFacturaElectronicaButton = $canOpenFacturacionShortcut && $facturacionModeUser && $facturacionModePolicy->allows($facturacionModeUser, 'efectivo');
     $showQrFacturaButton = $canOpenFacturacionShortcut && $facturacionModeUser && $facturacionModePolicy->allows($facturacionModeUser, 'qr_factura');
+    $showTarjetaNfcButton = $canOpenFacturacionShortcut && $facturacionModeUser && $facturacionModePolicy->allows($facturacionModeUser, 'tarjeta_nfc');
     $facturacionMonitorDefaultUrl = \App\Models\AppSetting::getValue('facturacion.monitor_default_url', '');
     $activeFacturacionCart = $facturacionContext['draft'] ?? null;
     $ultimaFacturacionEmitida = $facturacionContext['last'] ?? null;
@@ -158,7 +159,7 @@
     $availableInvoiceModes = collect([
         'factura_electronica' => $showFacturaElectronicaButton,
         'qr_factura' => $showQrFacturaButton,
-        't2p_factura' => $showQrFacturaButton,
+        't2p_factura' => $showTarjetaNfcButton,
     ])->filter()->keys()->values();
     $hasAvailableInvoiceMode = $availableInvoiceModes->isNotEmpty();
     if (!$availableInvoiceModes->contains($activeInvoiceMode) && $availableInvoiceModes->isNotEmpty() && !$activeQrPaymentMethodLocked) {
@@ -238,7 +239,7 @@
     $visibleInvoiceModeCount = collect([
         $showFacturaElectronicaButton,
         $showQrFacturaButton,
-        $showQrFacturaButton,
+        $showTarjetaNfcButton,
     ])->filter()->count();
     $hasLastEmissionData = $ultimaFacturacionEmitida
         && (
@@ -507,7 +508,7 @@
                                 </span>
                             </button>
                             @endif
-                            @if($showQrFacturaButton)
+                            @if($showTarjetaNfcButton)
                             <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceMode === 't2p_factura') is-active @endif" data-invoice-channel-choice="t2p_factura" @disabled(!$isCajaAbierta || $activeQrPaymentMethodLocked)>
                                 <span class="global-shortcut-choice-btn__icon" aria-hidden="true">
                                     <svg viewBox="0 0 24 24" fill="none">

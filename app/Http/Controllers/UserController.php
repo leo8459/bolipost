@@ -23,6 +23,8 @@ use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use RuntimeException;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\PermissionRegistrar;
 use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
@@ -111,7 +113,11 @@ class UserController extends Controller
         $sucursales = Sucursal::query()->orderBy('codigoSucursal')->orderBy('puntoVenta')->get();
         $sucursalesEmpresa = $this->companyBranchOptions();
         $qrCashier = null;
-        if ($this->canManageQrCashierAssignment($request)) {
+        $canManageCashierSettings = $this->canManageQrCashierAssignment($request);
+        $canConfigureCardPayment = $canManageCashierSettings
+            && $user->can('feature.dashboard.facturacion')
+            && app(\App\Support\FacturacionModePolicy::class)->roleAllows($user, 'qr_factura');
+        if ($canManageCashierSettings) {
             $cashier = $qrAssignments->cashierContext($user);
             $qrCashier = [
                 'context' => $cashier,
@@ -129,7 +135,15 @@ class UserController extends Controller
             }
         }
 
-        return view('user.edit', compact('user', 'roles', 'empresas', 'sucursales', 'sucursalesEmpresa', 'qrCashier'));
+        return view('user.edit', compact(
+            'user',
+            'roles',
+            'empresas',
+            'sucursales',
+            'sucursalesEmpresa',
+            'qrCashier',
+            'canConfigureCardPayment'
+        ));
     }
 
     public function updateQrCashierAssignment(
@@ -198,6 +212,10 @@ class UserController extends Controller
     public function update(Request $request, User $user)
     {
         $normalizedAlias = $this->normalizeAlias($request->input('alias'));
+        $canManageCashierSettings = $this->canManageQrCashierAssignment($request);
+        if ($request->exists('facturacionTarjetaNfc')) {
+            abort_unless($canManageCashierSettings, 403);
+        }
 
         $request->validate([
             'name' => 'required|string|max:255',
@@ -212,6 +230,7 @@ class UserController extends Controller
             'roles' => 'nullable|array',
             'roles.*' => 'integer|exists:roles,id',
             'password' => 'nullable|min:8',
+            'facturacionTarjetaNfc' => 'nullable|boolean',
         ], $this->companyBranchMessages());
 
         $this->ensureAliasIsAvailable($normalizedAlias, $user->id);
@@ -239,6 +258,21 @@ class UserController extends Controller
             ? Role::whereIn('id', $request->roles)->pluck('name')->toArray()
             : [];
         $user->syncRoles($roleNames);
+
+        if ($canManageCashierSettings) {
+            $cardPermission = Permission::findOrCreate(\App\Support\FacturacionModePolicy::CARD_NFC_USER_PERMISSION, 'web');
+            if (! $user->can('feature.dashboard.facturacion')
+                || ! app(\App\Support\FacturacionModePolicy::class)->roleAllows($user, 'qr_factura')) {
+                $user->revokePermissionTo($cardPermission);
+            } elseif ($request->exists('facturacionTarjetaNfc')) {
+                if ($request->boolean('facturacionTarjetaNfc')) {
+                    $user->givePermissionTo($cardPermission);
+                } else {
+                    $user->revokePermissionTo($cardPermission);
+                }
+            }
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
+        }
 
         return redirect()->route('users.index')
             ->with('success', 'Usuario actualizado correctamente');

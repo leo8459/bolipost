@@ -9,6 +9,7 @@ use Spatie\Permission\Models\Role;
 class FacturacionModePolicy
 {
     public const CONFIGURED_PERMISSION = 'facturacion.modes.configured';
+    public const CARD_NFC_USER_PERMISSION = 'facturacion.mode.tarjeta_nfc';
 
     public const MODE_PERMISSIONS = [
         'efectivo' => 'facturacion.mode.efectivo',
@@ -22,10 +23,18 @@ class FacturacionModePolicy
         'efectivo' => 'facturacion.show_factura_electronica',
         'qr_factura' => 'facturacion.show_qr_factura',
         'qr_solo' => 'facturacion.show_qr_solo',
+        'tarjeta_nfc' => 'facturacion.show_tarjeta_nfc',
     ];
 
     public function allows(User $user, string $mode): bool
     {
+        if ($mode === 'tarjeta_nfc') {
+            return $this->isGloballyEnabled($mode)
+                && $user->can(self::BILLING_ACCESS_PERMISSION)
+                && $this->roleAllows($user, 'qr_factura')
+                && $user->getDirectPermissions()->pluck('name')->contains(self::CARD_NFC_USER_PERMISSION);
+        }
+
         if (! isset(self::MODE_PERMISSIONS[$mode]) || ! $this->isGloballyEnabled($mode)) {
             return false;
         }
@@ -77,8 +86,9 @@ class FacturacionModePolicy
     public function isGloballyEnabled(string $mode): bool
     {
         $settingKey = self::GLOBAL_SETTING_KEYS[$mode] ?? null;
+        $default = $mode === 'tarjeta_nfc' ? '0' : '1';
 
-        return $settingKey !== null && AppSetting::getValue($settingKey, '1') === '1';
+        return $settingKey !== null && AppSetting::getValue($settingKey, $default) === '1';
     }
 
     public function allowsAnyQr(User $user): bool
@@ -86,12 +96,16 @@ class FacturacionModePolicy
         return $this->allows($user, 'qr_factura') || $this->allows($user, 'qr_solo');
     }
 
-    public function modeFor(string $channel, bool $autoEmitInvoice): string
+    public function modeFor(string $channel, bool $autoEmitInvoice, string $qrPaymentMethod = 'QRSIMPLE'): string
     {
         $channel = strtolower(trim($channel));
 
         if ($channel !== 'qr') {
             return 'efectivo';
+        }
+
+        if (strtoupper(trim($qrPaymentMethod)) === 'T2P') {
+            return 'tarjeta_nfc';
         }
 
         return $autoEmitInvoice ? 'qr_factura' : 'qr_solo';

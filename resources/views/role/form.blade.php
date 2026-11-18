@@ -8,8 +8,8 @@
             'hint' => 'Emite la factura directamente y registra el pago como efectivo, sin QR.',
         ],
         'facturacion.mode.qr_factura' => [
-            'label' => 'QR o tarjeta NFC + factura',
-            'hint' => 'Permite cobrar por QR Qhantuy o tarjeta sin contacto y emitir la factura al confirmarse el pago.',
+            'label' => 'QR + factura',
+            'hint' => 'Permite cobrar por QR Qhantuy y emitir la factura al confirmarse el pago.',
         ],
         'facturacion.mode.qr_solo' => [
             'label' => 'QR solo pago',
