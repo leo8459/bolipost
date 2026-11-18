@@ -655,6 +655,7 @@ class FacturacionCartController extends Controller
             'cart_id' => ['nullable', 'integer', 'min:1'],
             'modalidad_facturacion' => ['nullable', 'in:con_datos,sin_cliente'],
             'canal_emision' => ['required', 'in:factura_electronica,qr'],
+            'qr_payment_method' => ['nullable', Rule::in(['QRSIMPLE', 'T2P'])],
             'tipo_documento' => ['nullable', 'string', 'max:20', Rule::in(array_keys(\App\Models\Cliente::tiposDocumentoIdentidad()))],
             'numero_documento' => ['required', 'string', 'max:80', $requiredBillingText('numero de documento')],
             'complemento_documento' => ['nullable', 'string', 'max:30'],
@@ -664,6 +665,11 @@ class FacturacionCartController extends Controller
             'numero_documento.required' => 'El campo numero de documento es obligatorio.',
             'razon_social.required' => 'El campo razon social es obligatorio.',
         ]);
+        $qrPaymentMethod = strtoupper(trim((string) ($billingSnapshot['qr_payment_method'] ?? 'QRSIMPLE')));
+        unset($billingSnapshot['qr_payment_method']);
+        if (!in_array($qrPaymentMethod, ['QRSIMPLE', 'T2P'], true)) {
+            $qrPaymentMethod = 'QRSIMPLE';
+        }
         $autoEmitInvoice = $request->has('auto_emit_invoice')
             ? $request->boolean('auto_emit_invoice')
             : strtolower((string) ($billingSnapshot['canal_emision'] ?? 'factura_electronica')) !== 'qr';
@@ -782,7 +788,9 @@ class FacturacionCartController extends Controller
         }
 
         try {
-            $resultado = $service->emitirBorrador($user, $billingSnapshot, $targetCartId);
+            $emissionSnapshot = $billingSnapshot;
+            $emissionSnapshot['qr_payment_method'] = $qrPaymentMethod;
+            $resultado = $service->emitirBorrador($user, $emissionSnapshot, $targetCartId);
             $frequentClients->rememberFacturadaCart(data_get($resultado, 'carrito'));
             $respuesta = (array) ($resultado['respuesta'] ?? []);
             $feedback = $this->buildBridgeFeedback($respuesta, 'emitir');
@@ -834,6 +842,7 @@ class FacturacionCartController extends Controller
                         'codigo_orden' => data_get($resultado, 'carrito.codigo_orden'),
                         'qr_transaction_id' => data_get($resultado, 'carrito.qr_transaction_id'),
                         'canal_emision' => data_get($resultado, 'carrito.canal_emision'),
+                        'qhantuy_payment_method' => data_get($resultado, 'carrito.qhantuy_payment_method', 'QRSIMPLE'),
                         'auto_emit_invoice' => $autoEmitInvoice ? '1' : '0',
                     ],
                 ]);
@@ -1115,11 +1124,14 @@ class FacturacionCartController extends Controller
 
     private function buildBridgeFeedback(array $respuesta, string $action): array
     {
+        $isT2P = strtoupper(trim((string) data_get($respuesta, 'payment_method', data_get($respuesta, 'qr_data.payment_method', 'QRSIMPLE')))) === 'T2P';
+        $paymentLabel = $isT2P ? 'tarjeta sin contacto' : 'QR';
+
         if ((string) data_get($respuesta, 'code', '') === 'qr_checkout_failed') {
             return [
                 'type' => 'error',
-                'title' => 'No se pudo generar el QR',
-                'message' => 'La misma venta sigue guardada y la caja queda disponible. Reintenta el QR desde esta venta; no crees otra venta.',
+                'title' => $isT2P ? 'No se pudo iniciar el cobro NFC' : 'No se pudo generar el QR',
+                'message' => 'La misma venta sigue guardada. Reintenta el cobro desde esta venta; no crees otra venta.',
                 'detail' => trim((string) data_get($respuesta, 'provider_message', '')),
                 'action' => $action,
             ];
@@ -1128,9 +1140,19 @@ class FacturacionCartController extends Controller
         if ((string) data_get($respuesta, 'code', '') === 'qr_amount_mismatch') {
             return [
                 'type' => 'warning',
-                'title' => 'QR bloqueado por diferencia de monto',
-                'message' => 'No pagues este QR: Qhantuy informó un importe distinto al carrito.',
+                'title' => 'Cobro bloqueado por diferencia de monto',
+                'message' => 'No completes este cobro: Qhantuy informó un importe distinto al carrito.',
                 'detail' => trim((string) data_get($respuesta, 'message', 'Verifica el estado de la referencia antes de volver a intentar.')),
+                'action' => $action,
+            ];
+        }
+
+        if ((string) data_get($respuesta, 'code', '') === 'qr_payment_method_conflict') {
+            return [
+                'type' => 'warning',
+                'title' => 'Hay otro cobro pendiente',
+                'message' => trim((string) data_get($respuesta, 'message', 'Esta venta ya tiene una orden de cobro activa.')),
+                'detail' => 'Actualiza el estado de esa orden. Cuando termine sin pago, podrás iniciar otro cobro con QR o NFC.',
                 'action' => $action,
             ];
         }
@@ -1177,7 +1199,7 @@ class FacturacionCartController extends Controller
                 ?? data_get($respuesta, 'image_data')
                 ?? ''
             )) !== '';
-        $trackingLabel = $isQrFlow ? 'Referencia QR' : 'Seguimiento';
+        $trackingLabel = $isQrFlow ? ($isT2P ? 'Transacción' : 'Referencia QR') : 'Seguimiento';
         $feedbackMeta = $this->buildFeedbackMeta($estado, $numeroFactura, $codigoOrden, $codigoSeguimiento, $pdfUrl, $trackingLabel);
 
         if ($isQrFlow) {
@@ -1185,7 +1207,7 @@ class FacturacionCartController extends Controller
                 if ((bool) data_get($respuesta, 'auto_factura_pending', false)) {
                     return [
                         'type' => 'info',
-                        'title' => 'Pago QR confirmado',
+                        'title' => 'Pago con ' . $paymentLabel . ' confirmado',
                         'message' => 'El pago fue confirmado y la factura se esta procesando.',
                         'detail' => $mensaje !== '' ? $mensaje : 'Evita reenviar la venta; consulta nuevamente en unos segundos.',
                         'action' => $action,
@@ -1196,8 +1218,8 @@ class FacturacionCartController extends Controller
                 if ($autoFacturaError !== '') {
                     return [
                         'type' => 'warning',
-                        'title' => 'Pago QR confirmado',
-                        'message' => 'El cobro por QR fue confirmado, pero la factura no se emitio automaticamente.',
+                        'title' => 'Pago con ' . $paymentLabel . ' confirmado',
+                        'message' => 'El cobro fue confirmado, pero la factura no se emitió automáticamente.',
                         'detail' => $autoFacturaError,
                         'action' => $action,
                         'meta' => $feedbackMeta,
@@ -1206,9 +1228,9 @@ class FacturacionCartController extends Controller
 
                 return [
                     'type' => 'success',
-                    'title' => 'Pago QR confirmado',
-                    'message' => 'El cobro por QR fue confirmado correctamente.',
-                    'detail' => $mensaje !== '' ? $mensaje : 'La operacion QR ya puede considerarse cobrada.',
+                    'title' => 'Pago con ' . $paymentLabel . ' confirmado',
+                    'message' => 'El cobro fue confirmado correctamente.',
+                    'detail' => $mensaje !== '' ? $mensaje : 'La operación ya puede considerarse cobrada.',
                     'action' => $action,
                     'meta' => $feedbackMeta,
                 ];
@@ -1217,9 +1239,9 @@ class FacturacionCartController extends Controller
             if (in_array($estadoPago, ['cancelado', 'cancelled', 'rejected', 'failed', 'expired'], true)) {
                 return [
                     'type' => 'warning',
-                    'title' => 'Pago QR no concretado',
-                    'message' => 'El cobro QR fue cancelado o rechazado.',
-                    'detail' => $mensaje !== '' ? $mensaje : 'Puedes generar un nuevo QR si el cliente desea reintentar.',
+                    'title' => 'Pago no concretado',
+                    'message' => 'El cobro fue cancelado o rechazado.',
+                    'detail' => $mensaje !== '' ? $mensaje : 'Puedes iniciar un nuevo cobro si el cliente desea reintentar.',
                     'action' => $action,
                     'meta' => $feedbackMeta,
                 ];
@@ -1227,9 +1249,9 @@ class FacturacionCartController extends Controller
 
             return [
                 'type' => 'info',
-                'title' => 'QR generado',
-                'message' => 'El cobro QR esta pendiente de confirmacion.',
-                'detail' => $mensaje !== '' ? $mensaje : 'Espera el callback del proveedor o actualiza el pago en unos segundos.',
+                'title' => $isT2P ? 'Esperando pago con tarjeta' : 'QR generado',
+                'message' => 'El cobro está pendiente de confirmación.',
+                'detail' => $mensaje !== '' ? $mensaje : 'Espera la confirmación del proveedor o actualiza el pago en unos segundos.',
                 'action' => $action,
                 'meta' => $feedbackMeta,
             ];
@@ -1320,6 +1342,15 @@ class FacturacionCartController extends Controller
                 'title' => 'Venta ya finalizada',
                 'message' => 'Este carrito ya fue cerrado o tiene una factura vinculada.',
                 'detail' => 'Actualiza la página e inicia una nueva venta para continuar.',
+                'action' => $action,
+            ];
+        } elseif ($upstreamCode === 'qr_payment_method_conflict') {
+            $status = 409;
+            $feedback = [
+                'type' => 'warning',
+                'title' => 'Hay otro cobro pendiente',
+                'message' => $exception->getMessage(),
+                'detail' => 'Actualiza el estado de esa orden. Cuando termine sin pago, podrás iniciar otro cobro con QR o NFC.',
                 'action' => $action,
             ];
         } elseif ($upstreamStatus === 429) {
@@ -1491,6 +1522,15 @@ class FacturacionCartController extends Controller
             'detail',
             'descripcion',
         ]));
+        $paymentMethod = strtoupper(trim($this->findFirstResponseValue($respuesta, [
+            'payment_method',
+            'qr_data.payment_method',
+            'qhantuy_payment_method',
+            'qr_data.qhantuy_payment_method',
+        ])));
+        if (!in_array($paymentMethod, ['QRSIMPLE', 'T2P'], true)) {
+            $paymentMethod = 'QRSIMPLE';
+        }
         $amount = (float) $this->findFirstResponseValue($respuesta, $amountKeys);
 
         $imageData = $this->normalizeQrImageData($imageData);
@@ -1502,9 +1542,12 @@ class FacturacionCartController extends Controller
         return [
             'image_data' => $imageData,
             'payment_status' => $paymentStatus !== '' ? $paymentStatus : 'HOLDING',
+            'payment_method' => $paymentMethod,
             'transaction_id' => $transactionId,
             'internal_code' => $internalCode !== '' ? $internalCode : $defaultInternalCode,
-            'message' => $message !== '' ? $message : 'QR generado.',
+            'message' => $message !== '' ? $message : ($paymentMethod === 'T2P'
+                ? 'Solicitud enviada a QPOS. Espera la confirmación del pago con tarjeta.'
+                : 'QR generado.'),
             'amount' => $amount > 0 ? $amount : max(0, $defaultAmount),
         ];
     }

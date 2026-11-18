@@ -215,6 +215,8 @@ class MisVentasController extends Controller
             'montoEfectivo' => $paymentMetrics['montoEfectivo'],
             'ventasQrPagadas' => $paymentMetrics['ventasQrPagadas'],
             'montoQr' => $paymentMetrics['montoQr'],
+            'ventasTarjetaPagadas' => $paymentMetrics['ventasTarjetaPagadas'],
+            'montoTarjeta' => $paymentMetrics['montoTarjeta'],
             'totalImporte' => round((float) $visibleRows->sum(fn ($row) => (float) data_get($row, 'importe', 0)), 2),
             'totalPeso' => round((float) $visibleRows->sum(fn ($row) => (float) data_get($row, 'peso', 0)), 3),
             'totalAnuladas' => $visibleRows->filter(fn ($row) => (bool) data_get($row, 'es_anulada'))->count(),
@@ -336,6 +338,8 @@ class MisVentasController extends Controller
             'montoEfectivo' => $paymentMetrics['montoEfectivo'],
             'ventasQrPagadas' => $paymentMetrics['ventasQrPagadas'],
             'montoQr' => $paymentMetrics['montoQr'],
+            'ventasTarjetaPagadas' => $paymentMetrics['ventasTarjetaPagadas'],
+            'montoTarjeta' => $paymentMetrics['montoTarjeta'],
             'totalImporte' => round((float) $visibleRows->sum(fn ($row) => (float) data_get($row, 'importe', 0)), 2),
             'totalPeso' => round((float) $visibleRows->sum(fn ($row) => (float) data_get($row, 'peso', 0)), 3),
             'totalAnuladas' => $visibleRows->filter(fn ($row) => (bool) data_get($row, 'es_anulada'))->count(),
@@ -604,6 +608,15 @@ class MisVentasController extends Controller
             $sale = $details->first();
 
             return $this->isQrPaymentRow($sale)
+                && ! $this->isT2pCardPaymentRow($sale)
+                && strtolower(trim((string) data_get($sale, 'estado_venta', ''))) === 'emitido'
+                && strtolower(trim((string) data_get($sale, 'estado_pago', ''))) === 'pagado'
+                && ! (bool) data_get($sale, 'es_anulada', false);
+        });
+        $cardPaidSales = $sales->filter(function (Collection $details): bool {
+            $sale = $details->first();
+
+            return $this->isT2pCardPaymentRow($sale)
                 && strtolower(trim((string) data_get($sale, 'estado_venta', ''))) === 'emitido'
                 && strtolower(trim((string) data_get($sale, 'estado_pago', ''))) === 'pagado'
                 && ! (bool) data_get($sale, 'es_anulada', false);
@@ -620,6 +633,8 @@ class MisVentasController extends Controller
             'montoEfectivo' => $sumSaleDetails($cashSales),
             'ventasQrPagadas' => $qrPaidSales->count(),
             'montoQr' => $sumSaleDetails($qrPaidSales),
+            'ventasTarjetaPagadas' => $cardPaidSales->count(),
+            'montoTarjeta' => $sumSaleDetails($cardPaidSales),
         ];
     }
 
@@ -873,12 +888,15 @@ class MisVentasController extends Controller
         $sheet->mergeCells('A' . ($totalRow + 3) . ':K' . ($totalRow + 3));
         $sheet->setCellValue('A' . ($totalRow + 3), 'QR CONFIRMADO · ' . number_format((int) $paymentMetrics['ventasQrPagadas']) . ' ventas');
         $sheet->setCellValue('L' . ($totalRow + 3), 'Bs ' . number_format((float) $paymentMetrics['montoQr'], 2, ',', '.'));
-        $sheet->getStyle('A' . $totalRow . ':L' . ($totalRow + 3))->getFont()->setBold(true);
-        $sheet->getStyle('A' . $totalRow . ':L' . ($totalRow + 3))->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
-        $sheet->getStyle('A' . $totalRow . ':A' . ($totalRow + 3))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
-        $sheet->getStyle('L' . $totalRow . ':L' . ($totalRow + 3))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+        $sheet->mergeCells('A' . ($totalRow + 4) . ':K' . ($totalRow + 4));
+        $sheet->setCellValue('A' . ($totalRow + 4), 'TARJETA NFC CONFIRMADA · ' . number_format((int) $paymentMetrics['ventasTarjetaPagadas']) . ' ventas');
+        $sheet->setCellValue('L' . ($totalRow + 4), 'Bs ' . number_format((float) $paymentMetrics['montoTarjeta'], 2, ',', '.'));
+        $sheet->getStyle('A' . $totalRow . ':L' . ($totalRow + 4))->getFont()->setBold(true);
+        $sheet->getStyle('A' . $totalRow . ':L' . ($totalRow + 4))->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle('A' . $totalRow . ':A' . ($totalRow + 4))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+        $sheet->getStyle('L' . $totalRow . ':L' . ($totalRow + 4))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
 
-        $obsRow = $totalRow + 5;
+        $obsRow = $totalRow + 6;
         $sheet->mergeCells('A' . $obsRow . ':E' . ($obsRow + 5));
         $sheet->setCellValue('A' . $obsRow, 'Observaciones');
         $sheet->mergeCells('F' . $obsRow . ':G' . ($obsRow + 5));
@@ -990,7 +1008,10 @@ class MisVentasController extends Controller
                 ->filter(fn ($row) => (bool) data_get($row, 'contabiliza_en_caja', true))
                 ->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
             'qr' => round((float) $rows
-                ->filter(fn ($row) => strtolower((string) data_get($row, 'metodo_pago', '')) === 'qr')
+                ->filter(fn ($row) => $this->isQrPaymentRow($row) && ! $this->isT2pCardPaymentRow($row))
+                ->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
+            'tarjeta' => round((float) $rows
+                ->filter(fn ($row) => $this->isT2pCardPaymentRow($row))
                 ->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
         ];
 
@@ -1550,8 +1571,14 @@ class MisVentasController extends Controller
     private function summaryFromKardex(array $resumen): array
     {
         $pendientes = (int) ($resumen['pendientes'] ?? 0);
-        $qrPendientes = (int) ($resumen['ventasQrPendientes'] ?? 0);
-        $qrNoFacturados = (int) ($resumen['ventasQrNoFacturadas'] ?? 0);
+        $qrPendientes = (int) ($resumen['ventasQrPendientes'] ?? $resumen['qrPendiente'] ?? 0);
+        $qrNoFacturados = (int) ($resumen['ventasQrNoFacturadas'] ?? $resumen['qrPagadoPendienteFactura'] ?? 0);
+        $tarjetaPendientes = (int) ($resumen['tarjetaPendiente'] ?? 0);
+        $tarjetaNoFacturadas = (int) ($resumen['tarjetaPagadoPendienteFactura'] ?? 0);
+        $qrPagados = (int) ($resumen['ventasQr'] ?? (
+            (int) ($resumen['qrFacturadas'] ?? 0) + (int) ($resumen['qrPagadoPendienteFactura'] ?? 0)
+        ));
+        $tarjetaPagadas = (int) ($resumen['tarjetaFacturadas'] ?? 0) + $tarjetaNoFacturadas;
 
         return [
             'totalVentas' => (int) ($resumen['ventas'] ?? 0),
@@ -1561,13 +1588,17 @@ class MisVentasController extends Controller
             'pendientes' => $pendientes,
             'anuladas' => (int) ($resumen['anuladas'] ?? 0),
             'rechazadas' => (int) ($resumen['observadas'] ?? 0),
-            'qrPagados' => (int) ($resumen['ventasQr'] ?? 0),
+            'qrPagados' => $qrPagados,
             'qrPendientes' => $qrPendientes,
             'qrNoFacturados' => $qrNoFacturados,
-            'pendientesOperativas' => $pendientes + $qrPendientes + $qrNoFacturados,
-            'montoQr' => (float) ($resumen['totalQr'] ?? 0),
+            'tarjetaPagados' => $tarjetaPagadas,
+            'tarjetaPendientes' => $tarjetaPendientes,
+            'tarjetaNoFacturados' => $tarjetaNoFacturadas,
+            'pendientesOperativas' => $pendientes + $qrPendientes + $qrNoFacturados + $tarjetaPendientes + $tarjetaNoFacturadas,
+            'montoQr' => (float) ($resumen['totalQr'] ?? ((float) ($resumen['totalQrFacturado'] ?? 0) + (float) ($resumen['totalQrPagadoPendienteFactura'] ?? 0))),
+            'montoTarjeta' => (float) ($resumen['totalTarjeta'] ?? ((float) ($resumen['totalTarjetaFacturada'] ?? 0) + (float) ($resumen['totalTarjetaPagadoPendienteFactura'] ?? 0))),
             'montoAnulado' => (float) ($resumen['totalAnulado'] ?? 0),
-            'montoEfectivo' => (float) ($resumen['totalVendido'] ?? 0),
+            'montoEfectivo' => (float) ($resumen['totalEfectivoFacturado'] ?? $resumen['totalVendido'] ?? 0),
             'montoTotal' => (float) ($resumen['totalVendido'] ?? 0),
         ];
     }
@@ -1581,13 +1612,22 @@ class MisVentasController extends Controller
             && strtoupper((string) data_get($row, 'estado_emision', '')) === 'FACTURADA'
             && $this->hasFiscalInvoiceRecord($row));
         $qrPaidRows = $rows->filter(fn ($row) => $this->isQrPaymentRow($row)
+            && ! $this->isT2pCardPaymentRow($row)
+            && strtolower((string) data_get($row, 'estado', '')) === 'emitido'
+            && strtolower((string) data_get($row, 'estado_pago', 'pendiente')) === 'pagado');
+        $cardPaidRows = $rows->filter(fn ($row) => $this->isT2pCardPaymentRow($row)
             && strtolower((string) data_get($row, 'estado', '')) === 'emitido'
             && strtolower((string) data_get($row, 'estado_pago', 'pendiente')) === 'pagado');
         $pendientes = $rows->filter(fn ($row) => strtoupper((string) data_get($row, 'estado_emision', '')) === 'PENDIENTE')->count();
         $qrPendientes = $rows->filter(fn ($row) => $this->isQrPaymentRow($row)
+            && ! $this->isT2pCardPaymentRow($row)
+            && strtolower((string) data_get($row, 'estado', '')) === 'pendiente_pago'
+            && strtolower((string) data_get($row, 'estado_pago', 'pendiente')) === 'pendiente')->count();
+        $cardPendientes = $rows->filter(fn ($row) => $this->isT2pCardPaymentRow($row)
             && strtolower((string) data_get($row, 'estado', '')) === 'pendiente_pago'
             && strtolower((string) data_get($row, 'estado_pago', 'pendiente')) === 'pendiente')->count();
         $qrNoFacturados = $qrPaidRows->filter(fn ($row) => !$this->hasFiscalInvoiceRecord($row))->count();
+        $cardNoFacturados = $cardPaidRows->filter(fn ($row) => !$this->hasFiscalInvoiceRecord($row))->count();
 
         return [
             'totalVentas' => $rows->filter(fn ($row) => (string) data_get($row, 'estado', '') === 'emitido')->count(),
@@ -1607,11 +1647,16 @@ class MisVentasController extends Controller
                     || ($isQrPayment && $estadoPago === 'cancelado');
             })->count(),
             'qrPagados' => $qrPaidRows->count(),
+            'tarjetaPagados' => $cardPaidRows->count(),
+            'tarjetaPendientes' => $cardPendientes,
+            'tarjetaNoFacturados' => $cardNoFacturados,
             'qrNoFacturados' => $qrNoFacturados,
             'qrFacturados' => $qrPaidRows->filter(fn ($row) => $this->hasFiscalInvoiceRecord($row))->count(),
             'qrPendientes' => $qrPendientes,
-            'pendientesOperativas' => $pendientes + $qrPendientes + $qrNoFacturados,
+            'pendientesOperativas' => $pendientes + $qrPendientes + $qrNoFacturados + $cardPendientes + $cardNoFacturados,
             'montoQr' => round((float) $qrPaidRows
+                ->sum(fn ($row) => (float) data_get($row, 'total', 0)), 2),
+            'montoTarjeta' => round((float) $cardPaidRows
                 ->sum(fn ($row) => (float) data_get($row, 'total', 0)), 2),
             'montoAnulado' => round((float) $rows
                 ->filter(fn ($row) => strtolower((string) data_get($row, 'estado', '')) === 'anulado'
@@ -1698,11 +1743,15 @@ class MisVentasController extends Controller
             'anuladas' => 0,
             'rechazadas' => 0,
             'qrPagados' => 0,
+            'tarjetaPagados' => 0,
+            'tarjetaPendientes' => 0,
+            'tarjetaNoFacturados' => 0,
             'qrNoFacturados' => 0,
             'qrFacturados' => 0,
             'qrPendientes' => 0,
             'pendientesOperativas' => 0,
             'montoQr' => 0.0,
+            'montoTarjeta' => 0.0,
             'montoAnulado' => 0.0,
             'montoEfectivo' => 0.0,
             'montoTotal' => 0.0,
@@ -1852,6 +1901,12 @@ class MisVentasController extends Controller
             $isOficial = $this->isOfficialVentaPayload($row);
             $canalEmision = $this->resolveCanalEmisionVentaPayload($row, null, null, $isOficial);
             $metodoPago = $this->resolveMetodoPagoVentaPayload($row, null, null, $canalEmision);
+            $isQrPaymentFlow = $this->isQrPaymentRow($row);
+            $qhantuyPaymentMethod = strtoupper(trim((string) (
+                data_get($row, 'qhantuy_payment_method')
+                ?? data_get($row, 'qhantuyPaymentMethod')
+                ?? ($this->isT2pCardPaymentRow($row) ? 'T2P' : 'QRSIMPLE')
+            )));
             $estadoCart = '';
             foreach ([
                 data_get($row, 'estado'),
@@ -1894,7 +1949,7 @@ class MisVentasController extends Controller
             }
             $estadoPago = strtolower(trim((string) data_get($row, 'estado_pago', '')));
             if ($estadoPago === '') {
-                $estadoPago = $metodoPago === 'qr' ? 'pendiente' : 'pagado';
+                $estadoPago = $isQrPaymentFlow ? 'pendiente' : 'pagado';
             }
             $codigoSeguimientoFiscal = trim((string) data_get($row, 'codigo_seguimiento_fiscal', $codigoSeguimiento));
             $qrTransactionId = trim((string) data_get($row, 'qr_transaction_id', ''));
@@ -1904,7 +1959,7 @@ class MisVentasController extends Controller
                 ?? data_get($row, 'peso')
                 ?? 0
             ), 3);
-            if ($metodoPago === 'qr') {
+            if ($isQrPaymentFlow) {
                 $qrEstadoEmision = strtoupper(trim((string) data_get($row, 'estado_emision', 'NO_APLICA')));
                 if ($estadoSufe !== '' && $emision['estado'] !== 'SIN ESTADO') {
                     $qrEstadoEmision = $emision['estado'];
@@ -1972,6 +2027,7 @@ class MisVentasController extends Controller
                     : (trim((string) data_get($row, 'codigoCliente', data_get($row, 'codigo_cliente', ''))) !== '' ? 'con_datos' : 'sin_cliente'),
                 'canal_emision' => $canalEmision,
                 'metodo_pago' => $metodoPago,
+                'qhantuy_payment_method' => $qhantuyPaymentMethod,
                 'es_oficial' => $isOficial,
                 'estado' => $estadoCart,
                 'estado_pago' => $estadoPago,
@@ -2208,6 +2264,11 @@ class MisVentasController extends Controller
             'modalidad_facturacion' => $isOficial ? 'registro_interno' : 'con_datos',
             'canal_emision' => $canalEmision,
             'metodo_pago' => $metodoPago,
+            'qhantuy_payment_method' => strtoupper(trim((string) (
+                data_get($venta, 'qhantuy_payment_method')
+                ?? data_get($venta, 'qhantuyPaymentMethod')
+                ?? ($this->isT2pCardPaymentRow($venta) ? 'T2P' : 'QRSIMPLE')
+            ))),
             'canal_operativo' => (string) data_get($venta, 'canal_operativo', 'normal'),
             'contabiliza_en_caja' => (bool) data_get($venta, 'contabiliza_en_caja', true),
             'es_cuenta_por_cobrar' => (bool) data_get($venta, 'es_cuenta_por_cobrar', false),
@@ -2380,6 +2441,25 @@ class MisVentasController extends Controller
         object|array|null $ventaDetalle = null,
         ?string $canalEmision = null
     ): string {
+        foreach ([$venta, $bridgeCart, $ventaDetalle] as $paymentSource) {
+            if ($this->isT2pCardPaymentRow($paymentSource)) {
+                return 'tarjeta';
+            }
+        }
+
+        $qhantuyMethod = strtoupper(trim((string) (
+            data_get($venta, 'qhantuy_payment_method')
+            ?? data_get($venta, 'qhantuyPaymentMethod')
+            ?? data_get($bridgeCart, 'qhantuy_payment_method')
+            ?? data_get($bridgeCart, 'qhantuyPaymentMethod')
+            ?? data_get($ventaDetalle, 'qhantuy_payment_method')
+            ?? data_get($ventaDetalle, 'qhantuyPaymentMethod')
+            ?? ''
+        )));
+        if ($qhantuyMethod === 'T2P') {
+            return 'tarjeta';
+        }
+
         $paymentHints = [
             data_get($venta, 'metodo_pago'),
             data_get($venta, 'metodoPago'),
@@ -2413,10 +2493,47 @@ class MisVentasController extends Controller
     {
         $codigoOrden = strtoupper(trim((string) data_get($row, 'codigo_orden', data_get($row, 'codigoOrden', ''))));
 
-        return strtolower(trim((string) data_get($row, 'metodo_pago', ''))) === 'qr'
+        return $this->isT2pCardPaymentRow($row)
+            || strtolower(trim((string) data_get($row, 'metodo_pago', ''))) === 'qr'
             || trim((string) data_get($row, 'qr_transaction_id', '')) !== ''
             || strtolower(trim((string) data_get($row, 'canal_emision', ''))) === 'qr'
             || $this->hasQrOrderCodePrefix($codigoOrden);
+    }
+
+    private function isT2pCardPaymentRow(object|array|null $row): bool
+    {
+        if ($row === null) {
+            return false;
+        }
+
+        $paymentMethod = strtoupper(trim((string) (
+            data_get($row, 'qhantuy_payment_method')
+            ?? data_get($row, 'qhantuyPaymentMethod')
+            ?? data_get($row, 'payment_method')
+            ?? ''
+        )));
+        $financialMedium = strtoupper(trim((string) (
+            data_get($row, 'medioPago')
+            ?? data_get($row, 'medio_pago')
+            ?? data_get($row, 'financiero.medioPago')
+            ?? data_get($row, 'financiero.medio_pago')
+            ?? data_get($row, 'financial.medioPago')
+            ?? data_get($row, 'financial.medio_pago')
+            ?? ''
+        )));
+
+        return $paymentMethod === 'T2P'
+            || strtolower(trim((string) data_get($row, 'metodo_pago', ''))) === 'tarjeta'
+            || str_contains($financialMedium, 'TARJETA');
+    }
+
+    private function medioPagoLabel(object|array $row): string
+    {
+        if ($this->isT2pCardPaymentRow($row)) {
+            return 'TARJETA NFC';
+        }
+
+        return $this->isQrPaymentRow($row) ? 'QR' : 'EFECTIVO';
     }
 
     private function excludePendingQrRowsFromKardex(Collection $rows): Collection
@@ -2469,29 +2586,37 @@ class MisVentasController extends Controller
         }
 
         if ($this->isQrPaymentRow($cart)) {
+            $prefix = $this->isT2pCardPaymentRow($cart) ? 'tarjeta' : 'qr';
             $estadoPago = strtolower(trim((string) data_get($cart, 'estado_pago', 'pendiente')));
 
             if ($estadoPago === 'cancelado') {
-                return 'qr_cancelado';
+                return $prefix . '_cancelado';
             }
 
             if ($estadoPago !== 'pagado') {
-                return 'qr_pendiente';
+                return $prefix . '_pendiente';
             }
 
             if ($estadoEmision === 'FACTURADA' && $this->hasFiscalInvoiceRecord($cart)) {
-                return 'qr_facturado';
+                return $prefix . '_facturado';
             }
 
-            return 'qr_pagado_pendiente_factura';
+            return $prefix . '_pagado_pendiente_factura';
         }
 
         return strtolower(trim((string) data_get($cart, 'canal_emision', 'factura_electronica')));
     }
 
-    private function resolvePdfEstadoColumn(string $sectionKey, string $estadoEmision, string $estadoPago, string $mensajeEmision): array
+    private function resolvePdfEstadoColumn(string $sectionKey, string $estadoEmision, string $estadoPago, string $mensajeEmision, bool $isT2pCardPayment = false): array
     {
         $normalizedMessage = trim($mensajeEmision);
+        $sectionKey = match ($sectionKey) {
+            'tarjeta_facturado' => 'qr_facturado',
+            'tarjeta_pagado_pendiente_factura' => 'qr_pagado_pendiente_factura',
+            'tarjeta_cancelado' => 'qr_cancelado',
+            'tarjeta_pendiente' => 'qr_pendiente',
+            default => $sectionKey,
+        };
 
         return match ($sectionKey) {
             'factura_anulada' => [
@@ -2499,20 +2624,28 @@ class MisVentasController extends Controller
                 'detalle' => $normalizedMessage !== '' ? $normalizedMessage : 'Venta anulada localmente y excluida de caja.',
             ],
             'qr_facturado' => [
-                'label' => 'FACTURADA',
-                'detalle' => $normalizedMessage !== '' ? $normalizedMessage : 'Cobro QR convertido en factura electronica.',
+                'label' => $isT2pCardPayment ? 'TARJETA PAGADA Y FACTURADA' : 'QR PAGADO Y FACTURADO',
+                'detalle' => $normalizedMessage !== '' ? $normalizedMessage : ($isT2pCardPayment
+                    ? 'Cobro con tarjeta sin contacto convertido en factura electronica.'
+                    : 'Cobro QR convertido en factura electronica.'),
             ],
             'qr_pagado_pendiente_factura' => [
-                'label' => 'QR PAGADO',
-                'detalle' => $normalizedMessage !== '' ? $normalizedMessage : 'Cobro QR confirmado. Factura pendiente o en otro estado.',
+                'label' => $isT2pCardPayment ? 'TARJETA PAGADA' : 'QR PAGADO',
+                'detalle' => $normalizedMessage !== '' ? $normalizedMessage : ($isT2pCardPayment
+                    ? 'Cobro con tarjeta sin contacto confirmado. Factura pendiente o en otro estado.'
+                    : 'Cobro QR confirmado. Factura pendiente o en otro estado.'),
             ],
             'qr_cancelado' => [
-                'label' => 'QR ANULADO',
-                'detalle' => $normalizedMessage !== '' ? $normalizedMessage : 'El intento de cobro QR no se concreto.',
+                'label' => $isT2pCardPayment ? 'TARJETA ANULADA' : 'QR ANULADO',
+                'detalle' => $normalizedMessage !== '' ? $normalizedMessage : ($isT2pCardPayment
+                    ? 'El intento de cobro con tarjeta no se concreto.'
+                    : 'El intento de cobro QR no se concreto.'),
             ],
             'qr_pendiente' => [
-                'label' => 'QR PENDIENTE',
-                'detalle' => $normalizedMessage !== '' ? $normalizedMessage : 'Pendiente de pago QR.',
+                'label' => $isT2pCardPayment ? 'TARJETA PENDIENTE' : 'QR PENDIENTE',
+                'detalle' => $normalizedMessage !== '' ? $normalizedMessage : ($isT2pCardPayment
+                    ? 'Pendiente de confirmacion del cobro con tarjeta.'
+                    : 'Pendiente de pago QR.'),
             ],
             default => match ($estadoEmision) {
                 'FACTURADA' => [
@@ -2587,7 +2720,14 @@ class MisVentasController extends Controller
                     : ($numeroFactura !== '' ? 'factura:' . $numeroFactura : 'cart:' . $cartIndex));
             $fecha = $cart->emitido_en ?? $cart->created_at;
             $canalEmision = strtolower(trim((string) data_get($cart, 'canal_emision', 'factura_electronica')));
-            $metodoPago = strtolower(trim((string) data_get($cart, 'metodo_pago', $canalEmision === 'qr' ? 'qr' : 'efectivo')));
+            $isQrPaymentFlow = $this->isQrPaymentRow($cart);
+            $isT2pCardPayment = $this->isT2pCardPaymentRow($cart);
+            $metodoPago = $this->resolveMetodoPagoVentaPayload($cart, null, null, $canalEmision);
+            $qhantuyPaymentMethod = strtoupper(trim((string) (
+                data_get($cart, 'qhantuy_payment_method')
+                ?? data_get($cart, 'qhantuyPaymentMethod')
+                ?? 'QRSIMPLE'
+            )));
             $estadoPago = strtolower(trim((string) data_get($cart, 'estado_pago', 'pendiente')));
             $estadoEmision = strtoupper(trim((string) data_get($cart, 'estado_emision', '')));
             $estadoSufe = strtoupper(trim((string) (
@@ -2600,9 +2740,9 @@ class MisVentasController extends Controller
             $mensajeEmision = trim((string) data_get($cart, 'mensaje_emision', ''));
             $esCuentaPorCobrar = (bool) data_get($cart, 'es_cuenta_por_cobrar', false);
             $empresaContrato = trim((string) data_get($cart, 'empresa_nombre', ''));
-            $contabilizaEnCaja = (bool) data_get($cart, 'contabiliza_en_caja', $metodoPago !== 'qr');
+            $contabilizaEnCaja = (bool) data_get($cart, 'contabiliza_en_caja', !$isQrPaymentFlow);
             $sectionKey = $this->resolvePdfSectionKey($cart);
-            $estadoColumn = $this->resolvePdfEstadoColumn($sectionKey, $estadoEmision, $estadoPago, $mensajeEmision);
+            $estadoColumn = $this->resolvePdfEstadoColumn($sectionKey, $estadoEmision, $estadoPago, $mensajeEmision, $isT2pCardPayment);
             $isAnnulled = $sectionKey === 'factura_anulada';
             $contabilizaEnCaja = $contabilizaEnCaja && ! $isAnnulled;
             if ($esCuentaPorCobrar) {
@@ -2615,10 +2755,14 @@ class MisVentasController extends Controller
             }
 
             $emisionLabel = match ($sectionKey) {
-                'qr_facturado' => 'QR pagado + facturado',
-                'qr_pagado_pendiente_factura' => 'QR pagado',
-                'qr_cancelado' => 'QR cancelado',
-                'qr_pendiente' => 'QR pendiente',
+                'qr_facturado' => $isT2pCardPayment ? 'Tarjeta NFC pagada + facturada' : 'QR pagado + facturado',
+                'qr_pagado_pendiente_factura' => $isT2pCardPayment ? 'Tarjeta NFC pagada' : 'QR pagado',
+                'qr_cancelado' => $isT2pCardPayment ? 'Tarjeta NFC cancelada' : 'QR cancelado',
+                'qr_pendiente' => $isT2pCardPayment ? 'Tarjeta NFC pendiente' : 'QR pendiente',
+                'tarjeta_facturado' => 'Tarjeta NFC pagada + facturada',
+                'tarjeta_pagado_pendiente_factura' => 'Tarjeta NFC pagada',
+                'tarjeta_cancelado' => 'Tarjeta NFC cancelada',
+                'tarjeta_pendiente' => 'Tarjeta NFC pendiente',
                 default => $this->labelCanalEmision($canalEmision),
             };
 
@@ -2702,6 +2846,7 @@ class MisVentasController extends Controller
                 'cantidad' => $cantidadTotal,
                 'canal_emision' => $canalEmision,
                 'metodo_pago' => $metodoPago,
+                'qhantuy_payment_method' => $qhantuyPaymentMethod,
                 'estado_pago' => $estadoPago,
                 'estado_emision' => $estadoEmision,
                 'estado_sufe' => $estadoSufe,
@@ -2712,7 +2857,10 @@ class MisVentasController extends Controller
                 'contabiliza_en_caja' => $contabilizaEnCaja,
                 'es_cuenta_por_cobrar' => $esCuentaPorCobrar,
                 'empresa_nombre' => $empresaContrato,
-                'cobrada' => ! $isAnnulled && in_array($sectionKey, ['factura_electronica', 'qr_facturado', 'qr_pagado_pendiente_factura', 'oficial'], true),
+                'cobrada' => ! $isAnnulled && in_array($sectionKey, [
+                    'factura_electronica', 'qr_facturado', 'qr_pagado_pendiente_factura',
+                    'tarjeta_facturado', 'tarjeta_pagado_pendiente_factura', 'oficial',
+                ], true),
                 'numero_factura' => $numeroFactura !== '' ? $numeroFactura : '-',
                 'pdf_url' => $pdfUrl,
                 'cuf' => $cuf,
@@ -3807,8 +3955,11 @@ class MisVentasController extends Controller
             || in_array($estadoVenta, ['anulado', 'descartado'], true)
             || ($row['section_key'] ?? '') === 'factura_anulada';
         $metodoPago = strtolower(trim((string) ($row['metodo_pago'] ?? '')));
+        $isT2pCardPayment = $this->isT2pCardPaymentRow($row);
         $saleReference = mb_strtoupper(trim((string) ($row['venta_referencia'] ?? '')));
-        $isQrPayment = $metodoPago === 'qr'
+        $isQrPayment = $this->isQrPaymentRow($row)
+            || $isT2pCardPayment
+            || $metodoPago === 'qr'
             || trim((string) ($row['qr_transaction_id'] ?? '')) !== ''
             || str_starts_with($saleReference, 'VQ-')
             || str_starts_with($saleReference, 'VQC-');
@@ -3819,7 +3970,7 @@ class MisVentasController extends Controller
             ? 'CUENTA POR COBRAR'
             : ($isOfficialSale
                 ? 'REGISTRO OFICIAL'
-                : ($isQrPayment ? 'QR' : 'EFECTIVO'));
+                : ($isT2pCardPayment ? 'TARJETA NFC' : ($isQrPayment ? 'QR' : 'EFECTIVO')));
         $estadoVentaLabel = match ($estadoVenta) {
             'emitido' => 'EMITIDO',
             'pendiente_pago' => 'PENDIENTE DE PAGO',
@@ -5141,6 +5292,9 @@ class MisVentasController extends Controller
     private function buildTicketData(object $cart, $user, array $snapshot = []): array
     {
         $respuesta = (array) ($cart->respuesta_emision ?? []);
+        $qhantuyPaymentMethod = strtoupper(trim((string) ($cart->qhantuy_payment_method ?? 'QRSIMPLE')));
+        $isT2pCardPayment = $qhantuyPaymentMethod === 'T2P';
+        $isQrPayment = strtolower(trim((string) ($cart->metodo_pago ?? 'efectivo'))) === 'qr';
         $numeroFactura = trim((string) (data_get($respuesta, 'factura.nroFactura') ?? data_get($respuesta, 'factura.numeroFactura') ?? data_get($respuesta, 'numeroFactura') ?? ''));
         $cuf = trim((string) (data_get($respuesta, 'factura.cuf') ?? data_get($respuesta, 'cuf') ?? ''));
         $nit = preg_replace('/\D+/', '', (string) (data_get($respuesta, 'factura.nitEmisor') ?? data_get($respuesta, 'nitEmisor') ?? config('services.facturacion_bridge.nit_emisor') ?? '')) ?: 'S/N';
@@ -5168,16 +5322,13 @@ class MisVentasController extends Controller
             'nombre' => trim((string) ($cart->razon_social ?: 'SIN NOMBRE')),
             'documento' => trim((string) ($cart->numero_documento ?: '99003')),
             'numero_factura' => $numeroFactura !== '' ? $numeroFactura : 'S/N',
-            'comprobante_label' => strtolower(trim((string) ($cart->metodo_pago ?? 'efectivo'))) === 'qr' ? 'Referencia QR' : 'Factura N°',
-            'comprobante_valor' => strtolower(trim((string) ($cart->metodo_pago ?? 'efectivo'))) === 'qr'
+            'comprobante_label' => $isT2pCardPayment ? 'Transacción NFC' : ($isQrPayment ? 'Referencia QR' : 'Factura N°'),
+            'comprobante_valor' => $isQrPayment
                 ? trim((string) ($cart->qr_transaction_id ?? $cart->codigo_orden ?? 'S/N'))
                 : ($numeroFactura !== '' ? $numeroFactura : 'S/N'),
             'fecha' => !empty($cart->emitido_en) ? date('d/m/Y H:i:s', strtotime((string) $cart->emitido_en)) : '-',
             'importe' => round((float) $cart->total, 2),
-            'metodo_pago' => match (strtolower(trim((string) ($cart->metodo_pago ?? 'efectivo')))) {
-                'qr' => 'Pago QR',
-                default => 'Pago de contado',
-            },
+            'metodo_pago' => $isT2pCardPayment ? 'Pago con tarjeta NFC' : ($isQrPayment ? 'Pago QR' : 'Pago de contado'),
             'qr_payload' => $qrPayload,
             'qr_image' => $qrImage,
             'cuf' => $cuf,

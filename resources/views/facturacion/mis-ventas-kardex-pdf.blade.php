@@ -238,16 +238,32 @@
             'title' => 'Pagos QR no concretados',
             'total_label' => 'TOTAL QR CANCELADO / NO PAGADO',
         ],
+        'tarjeta_facturado' => [
+            'title' => 'Pagos con tarjeta NFC facturados',
+            'total_label' => 'TOTAL TARJETA NFC FACTURADA REFERENCIAL NO SUMADA A CAJA',
+        ],
+        'tarjeta_pagado_pendiente_factura' => [
+            'title' => 'Pagos con tarjeta NFC confirmados pendientes de factura',
+            'total_label' => 'TOTAL TARJETA NFC PAGADA PENDIENTE DE FACTURA',
+        ],
+        'tarjeta_pendiente' => [
+            'title' => 'Pagos con tarjeta NFC pendientes',
+            'total_label' => 'TOTAL TARJETA NFC PENDIENTE',
+        ],
+        'tarjeta_cancelado' => [
+            'title' => 'Pagos con tarjeta NFC no concretados',
+            'total_label' => 'TOTAL TARJETA NFC CANCELADA / NO PAGADA',
+        ],
         'oficial' => [
             'title' => 'Envios oficiales',
             'total_label' => 'TOTAL ENVIOS OFICIALES',
         ],
     ];
     $rowsByChannel = collect($rows)->groupBy(fn ($row) => (string) data_get($row, 'section_key', strtolower((string) data_get($row, 'canal_emision', 'factura_electronica'))));
-    $paidSectionKeys = ['factura_electronica', 'qr_facturado', 'qr_pagado_pendiente_factura', 'oficial'];
+    $paidSectionKeys = ['factura_electronica', 'qr_facturado', 'qr_pagado_pendiente_factura', 'tarjeta_facturado', 'tarjeta_pagado_pendiente_factura', 'oficial'];
     $annulledSectionKeys = ['factura_anulada'];
     $cashSectionKeys = ['factura_electronica', 'oficial'];
-    $unpaidSectionKeys = ['qr_pendiente', 'qr_cancelado'];
+    $unpaidSectionKeys = ['qr_pendiente', 'qr_cancelado', 'tarjeta_pendiente', 'tarjeta_cancelado'];
     $hasPaidRows = collect($paidSectionKeys)->contains(fn ($key) => $rowsByChannel->get($key, collect())->isNotEmpty());
     $hasAnnulledRows = collect($annulledSectionKeys)->contains(fn ($key) => $rowsByChannel->get($key, collect())->isNotEmpty());
     $hasUnpaidRows = collect($unpaidSectionKeys)->contains(fn ($key) => $rowsByChannel->get($key, collect())->isNotEmpty());
@@ -264,6 +280,10 @@
         ->filter(fn ($row) => strtolower(trim((string) data_get($row, 'metodo_pago', 'efectivo'))) === 'qr')
         ->filter(fn ($row) => strtolower(trim((string) data_get($row, 'estado_pago', 'pendiente'))) === 'pagado')
         ->values();
+    $cardDetailRows = collect($rows)
+        ->filter(fn ($row) => strtolower(trim((string) data_get($row, 'metodo_pago', ''))) === 'tarjeta')
+        ->filter(fn ($row) => strtolower(trim((string) data_get($row, 'estado_pago', 'pendiente'))) === 'pagado')
+        ->values();
     $preSummary = [
         'total_ventas' => collect($rows)
             ->filter(fn ($row) => strtoupper(trim((string) data_get($row, 'estado_emision', ''))) === 'FACTURADA')
@@ -273,6 +293,8 @@
         'efectivo_total' => round((float) $effectiveDetailRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
         'qr_cantidad' => $qrDetailRows->count(),
         'qr_total' => round((float) $qrDetailRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
+        'tarjeta_cantidad' => $cardDetailRows->count(),
+        'tarjeta_total' => round((float) $cardDetailRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
         'anuladas_cantidad' => $annulledRows->count(),
         'anuladas_total' => round((float) $annulledRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2),
     ];
@@ -294,8 +316,13 @@
                 ->filter(fn ($row) => strtolower(trim((string) data_get($row, 'metodo_pago', 'efectivo'))) === 'qr')
                 ->filter(fn ($row) => strtolower(trim((string) data_get($row, 'estado_pago', 'pendiente'))) === 'pagado')
                 ->values();
+            $groupCardRows = $groupRows
+                ->filter(fn ($row) => strtolower(trim((string) data_get($row, 'metodo_pago', ''))) === 'tarjeta')
+                ->filter(fn ($row) => strtolower(trim((string) data_get($row, 'estado_pago', 'pendiente'))) === 'pagado')
+                ->values();
             $groupCashTotal = round((float) $groupEffectiveRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2);
             $groupQrTotal = round((float) $groupQrRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2);
+            $groupCardTotal = round((float) $groupCardRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0)), 2);
 
             return [
                 'usuario_id' => trim((string) data_get($first, 'origen_usuario_id', '')),
@@ -308,9 +335,10 @@
                     ->count(),
                 'cobradas' => $groupRows->filter(fn ($row) => (bool) data_get($row, 'cobrada', false))->count(),
                 'pendientes' => $groupRows->filter(fn ($row) => ! (bool) data_get($row, 'cobrada', false))->count(),
-                'total' => round((float) $groupCashTotal + (float) $groupQrTotal, 2),
+                'total' => round((float) $groupCashTotal + (float) $groupQrTotal + (float) $groupCardTotal, 2),
                 'total_caja' => $groupCashTotal,
                 'total_qr' => $groupQrTotal,
+                'total_tarjeta' => $groupCardTotal,
             ];
         })
         ->sortByDesc('total')
@@ -340,13 +368,14 @@
 
 <table class="summary-grid" style="margin-bottom: 10px;">
     <tr>
-        <td style="width: 25%;"><strong>Total ventas: {{ \App\Support\BolivianNumber::format((int) $preSummary['total_ventas']) }}</strong></td>
-        <td style="width: 25%;"><strong>Efectivo: {{ \App\Support\BolivianNumber::format((int) $preSummary['efectivo_cantidad']) }} &nbsp; Bs {{ \App\Support\BolivianNumber::format((float) $preSummary['efectivo_total'], 2) }}</strong></td>
-        <td style="width: 25%;"><strong>Pago QR: {{ \App\Support\BolivianNumber::format((int) $preSummary['qr_cantidad']) }} &nbsp; Bs {{ \App\Support\BolivianNumber::format((float) $preSummary['qr_total'], 2) }}</strong></td>
-        <td style="width: 25%;"><strong>Anuladas: {{ \App\Support\BolivianNumber::format((int) $preSummary['anuladas_cantidad']) }} &nbsp; Bs {{ \App\Support\BolivianNumber::format((float) $preSummary['anuladas_total'], 2) }}</strong></td>
+        <td style="width: 20%;"><strong>Total ventas: {{ \App\Support\BolivianNumber::format((int) $preSummary['total_ventas']) }}</strong></td>
+        <td style="width: 20%;"><strong>Efectivo: {{ \App\Support\BolivianNumber::format((int) $preSummary['efectivo_cantidad']) }} &nbsp; Bs {{ \App\Support\BolivianNumber::format((float) $preSummary['efectivo_total'], 2) }}</strong></td>
+        <td style="width: 20%;"><strong>Pago QR: {{ \App\Support\BolivianNumber::format((int) $preSummary['qr_cantidad']) }} &nbsp; Bs {{ \App\Support\BolivianNumber::format((float) $preSummary['qr_total'], 2) }}</strong></td>
+        <td style="width: 20%;"><strong>Tarjeta NFC: {{ \App\Support\BolivianNumber::format((int) $preSummary['tarjeta_cantidad']) }} &nbsp; Bs {{ \App\Support\BolivianNumber::format((float) $preSummary['tarjeta_total'], 2) }}</strong></td>
+        <td style="width: 20%;"><strong>Anuladas: {{ \App\Support\BolivianNumber::format((int) $preSummary['anuladas_cantidad']) }} &nbsp; Bs {{ \App\Support\BolivianNumber::format((float) $preSummary['anuladas_total'], 2) }}</strong></td>
     </tr>
     <tr>
-        <td colspan="4"><strong>Total en caja: Bs {{ \App\Support\BolivianNumber::format((float) $preSummary['total_caja'], 2) }}</strong></td>
+        <td colspan="5"><strong>Total en caja: Bs {{ \App\Support\BolivianNumber::format((float) $preSummary['total_caja'], 2) }}</strong></td>
     </tr>
 </table>
 
@@ -355,11 +384,12 @@
     <table class="grid" style="margin-bottom: 10px;">
         <thead>
             <tr>
-                <th style="width: 38%;">Cajero</th>
-                <th style="width: 12%;">Ventas</th>
-                <th style="width: 17%;">Total general</th>
-                <th style="width: 17%;">Total efectivo</th>
-                <th style="width: 16%;">Total QR</th>
+                <th style="width: 34%;">Cajero</th>
+                <th style="width: 10%;">Ventas</th>
+                <th style="width: 14%;">Total general</th>
+                <th style="width: 14%;">Total efectivo</th>
+                <th style="width: 14%;">Total QR</th>
+                <th style="width: 14%;">Total tarjeta NFC</th>
             </tr>
         </thead>
         <tbody>
@@ -370,10 +400,11 @@
                     <td class="right">Bs {{ \App\Support\BolivianNumber::format((float) $group['total'], 2) }}</td>
                     <td class="right">Bs {{ \App\Support\BolivianNumber::format((float) $group['total_caja'], 2) }}</td>
                     <td class="right">Bs {{ \App\Support\BolivianNumber::format((float) $group['total_qr'], 2) }}</td>
+                    <td class="right">Bs {{ \App\Support\BolivianNumber::format((float) $group['total_tarjeta'], 2) }}</td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="5" class="center" style="padding: 12px;">No se encontraron cajeros con ventas en el rango consultado.</td>
+                    <td colspan="6" class="center" style="padding: 12px;">No se encontraron cajeros con ventas en el rango consultado.</td>
                 </tr>
             @endforelse
         </tbody>
@@ -392,6 +423,10 @@
                     ->filter(fn ($row) => strtolower(trim((string) data_get($row, 'metodo_pago', 'efectivo'))) === 'qr')
                     ->filter(fn ($row) => strtolower(trim((string) data_get($row, 'estado_pago', 'pendiente'))) === 'pagado')
                     ->values();
+                $groupCardRows = $groupRows
+                    ->filter(fn ($row) => strtolower(trim((string) data_get($row, 'metodo_pago', ''))) === 'tarjeta')
+                    ->filter(fn ($row) => strtolower(trim((string) data_get($row, 'estado_pago', 'pendiente'))) === 'pagado')
+                    ->values();
                 $groupAnnulledRows = $groupRows
                     ->filter(fn ($row) => strtolower(trim((string) data_get($row, 'section_key', ''))) === 'factura_anulada')
                     ->values();
@@ -400,16 +435,18 @@
             <div class="section-title">Cajero {{ $cashierIndex + 1 }}: {{ strtoupper($group['nombre']) }}</div>
             <table class="summary-grid" style="margin-bottom: 10px;">
                 <tr>
-                    <td style="width: 25%;"><strong>Total ventas: {{ \App\Support\BolivianNumber::format((int) $group['ventas']) }}</strong></td>
-                    <td style="width: 25%;"><strong>Efectivo: {{ \App\Support\BolivianNumber::format((int) $groupEffectiveRows->count()) }} &nbsp; Bs {{ \App\Support\BolivianNumber::format((float) $group['total_caja'], 2) }}</strong></td>
-                    <td style="width: 25%;"><strong>Pago QR: {{ \App\Support\BolivianNumber::format((int) $groupQrRows->count()) }} &nbsp; Bs {{ \App\Support\BolivianNumber::format((float) $group['total_qr'], 2) }}</strong></td>
-                    <td style="width: 25%;"><strong>Total en caja: Bs {{ \App\Support\BolivianNumber::format((float) $group['total_caja'], 2) }}</strong></td>
+                    <td style="width: 20%;"><strong>Total ventas: {{ \App\Support\BolivianNumber::format((int) $group['ventas']) }}</strong></td>
+                    <td style="width: 20%;"><strong>Efectivo: {{ \App\Support\BolivianNumber::format((int) $groupEffectiveRows->count()) }} &nbsp; Bs {{ \App\Support\BolivianNumber::format((float) $group['total_caja'], 2) }}</strong></td>
+                    <td style="width: 20%;"><strong>Pago QR: {{ \App\Support\BolivianNumber::format((int) $groupQrRows->count()) }} &nbsp; Bs {{ \App\Support\BolivianNumber::format((float) $group['total_qr'], 2) }}</strong></td>
+                    <td style="width: 20%;"><strong>Tarjeta NFC: {{ \App\Support\BolivianNumber::format((int) $groupCardRows->count()) }} &nbsp; Bs {{ \App\Support\BolivianNumber::format((float) $group['total_tarjeta'], 2) }}</strong></td>
+                    <td style="width: 20%;"><strong>Total en caja: Bs {{ \App\Support\BolivianNumber::format((float) $group['total_caja'], 2) }}</strong></td>
                 </tr>
             </table>
 
             @foreach([
                 'Ventas efectivo' => [$groupEffectiveRows, (float) $group['total_caja']],
                 'Ventas QR' => [$groupQrRows, (float) $group['total_qr']],
+                'Ventas tarjeta NFC' => [$groupCardRows, (float) $group['total_tarjeta']],
                 'Ventas anuladas' => [$groupAnnulledRows, (float) $groupAnnulledRows->sum(fn ($row) => (float) data_get($row, 'importe_general', 0))],
             ] as $detailTitle => [$detailRows, $detailTotal])
                 @continue($detailRows->isEmpty())
@@ -479,7 +516,7 @@
         </tr>
         <tr>
             <td class="right">TOTAL GENERAL SUCURSAL</td>
-            <td class="right">Bs {{ \App\Support\BolivianNumber::format((float) ($preSummary['total_caja'] + $preSummary['qr_total']), 2) }}</td>
+            <td class="right">Bs {{ \App\Support\BolivianNumber::format((float) ($preSummary['total_caja'] + $preSummary['qr_total'] + $preSummary['tarjeta_total']), 2) }}</td>
         </tr>
     </table>
 @else
@@ -488,6 +525,7 @@
         $detailGroups = [
             'Ventas en efectivo' => $effectiveDetailRows,
             'Ventas QR' => $qrDetailRows,
+            'Ventas tarjeta NFC' => $cardDetailRows,
             'Ventas anuladas' => $annulledRows,
         ];
     @endphp
@@ -560,6 +598,10 @@
         <tr>
             <td class="right">TOTAL QR REFERENCIAL NO SUMADO A CAJA</td>
             <td class="right">Bs {{ \App\Support\BolivianNumber::format((float) $preSummary['qr_total'], 2) }}</td>
+        </tr>
+        <tr>
+            <td class="right">TOTAL TARJETA NFC REFERENCIAL NO SUMADO A CAJA</td>
+            <td class="right">Bs {{ \App\Support\BolivianNumber::format((float) $preSummary['tarjeta_total'], 2) }}</td>
         </tr>
         <tr>
             <td class="right">TOTAL VENTAS ANULADAS</td>

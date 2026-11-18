@@ -150,6 +150,11 @@ class FacturaFirmaPdfService
         }
 
         $height = 68 + $this->deliveryPackagesHeight($delivery, $width);
+        foreach (['oficina', 'generado', 'estado_entrega'] as $manualField) {
+            if (trim((string) ($delivery[$manualField] ?? '')) !== '') {
+                $height += 5;
+            }
+        }
 
         return max($height, $width + 1);
     }
@@ -198,6 +203,13 @@ class FacturaFirmaPdfService
         $y = $this->drawDeliveryValueRow($pdf, $left, $right, $y, 'Usuario', $this->deliveryValue($delivery, 'usuario', '-'), $isManual);
         if (! $isManual) {
             $y = $this->drawDeliveryValueRow($pdf, $left, $right, $y, 'Nro. Factura', $this->deliveryValue($delivery, 'numero_factura', '-'), false);
+        } else {
+            foreach (['oficina' => 'Oficina', 'generado' => 'Generado', 'estado_entrega' => 'Estado'] as $field => $label) {
+                $value = trim($this->deliveryValue($delivery, $field, ''));
+                if ($value !== '') {
+                    $y = $this->drawDeliveryValueRow($pdf, $left, $right, $y, $label, $value, true);
+                }
+            }
         }
 
         $y += 4;

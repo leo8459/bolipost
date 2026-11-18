@@ -121,6 +121,7 @@
             <div class="col-md-4 col-sm-6 mb-3"><div class="kardex-summary-card kardex-summary-card--sales"><span>{{ $isRegionalKardex ? 'Registros de la sucursal' : 'Total ventas' }}</span><strong>{{ number_format($totalVentas) }}</strong><small>Bs {{ number_format($totalImporte, 2, ',', '.') }} · importe del rango</small></div></div>
             <div class="col-md-4 col-sm-6 mb-3"><div class="kardex-summary-card kardex-summary-card--payments"><span>Efectivo</span><strong>{{ number_format($ventasEfectivo) }}</strong><small>Bs {{ number_format($montoEfectivo, 2, ',', '.') }}</small></div></div>
             <div class="col-md-4 col-sm-6 mb-3"><div class="kardex-summary-card kardex-summary-card--payments"><span>Pago QR confirmado</span><strong>{{ number_format($ventasQrPagadas) }}</strong><small>Bs {{ number_format($montoQr, 2, ',', '.') }}</small></div></div>
+            <div class="col-md-4 col-sm-6 mb-3"><div class="kardex-summary-card kardex-summary-card--payments"><span>Tarjeta NFC confirmada</span><strong>{{ number_format($ventasTarjetaPagadas) }}</strong><small>Bs {{ number_format($montoTarjeta, 2, ',', '.') }}</small></div></div>
             <div class="col-md-4 col-sm-6 mb-3"><div class="kardex-summary-card"><span>Filas visibles</span><strong>{{ number_format($visibleRows->count()) }}</strong></div></div>
             <div class="col-md-4 col-sm-6 mb-3"><div class="kardex-summary-card"><span>Peso total</span><strong>{{ number_format($totalPeso, 3, ',', '.') }} kg</strong></div></div>
             <div class="col-md-4 col-sm-6 mb-3"><div class="kardex-summary-card"><span>Anuladas</span><strong class="text-danger">{{ number_format($totalAnuladas) }}</strong></div></div>
@@ -164,7 +165,9 @@
                                     $paymentMethod = strtolower(trim((string) data_get($row, 'metodo_pago', '')));
                                     $paymentStatus = strtolower(trim((string) data_get($row, 'estado_pago', '')));
                                     $saleReference = strtoupper(trim((string) data_get($row, 'venta_referencia', '')));
-                                    $isQrPayment = $paymentMethod === 'qr'
+                                    $qhantuyPaymentMethod = strtoupper(trim((string) data_get($row, 'qhantuy_payment_method', '')));
+                                    $isCardPayment = $qhantuyPaymentMethod === 'T2P' || $paymentMethod === 'tarjeta';
+                                    $isQrPayment = $isCardPayment || $paymentMethod === 'qr'
                                         || trim((string) data_get($row, 'qr_transaction_id', '')) !== ''
                                         || str_starts_with($saleReference, 'VQ-')
                                         || str_starts_with($saleReference, 'VQC-');
@@ -219,7 +222,7 @@
                                             ? 'ENTREGA MANUAL'
                                             : ($isOfficialSale
                                             ? 'REGISTRO OFICIAL'
-                                            : ($isQrPayment ? 'QR' : 'EFECTIVO')));
+                                            : ($isCardPayment ? 'TARJETA NFC' : ($isQrPayment ? 'QR' : 'EFECTIVO'))));
                                     $paymentNote = (bool) data_get($row, 'es_cuenta_por_cobrar')
                                         ? 'No suma a caja'
                                         : ($isManualDelivery
@@ -228,14 +231,18 @@
                                             ? ($paymentStatus === 'cancelado' ? 'Cancelado · fuera de caja' : ($isQrPaid ? 'Confirmado · fuera de caja' : 'Pendiente · fuera de caja'))
                                             : ($isOfficialSale ? 'Registro interno' : 'Cobro en caja')));
                                     $billingLabel = $isFiscalContingency ? 'CONTINGENCIA FISCAL' : match ($invoiceStatus) {
-                                        'FACTURADA' => $isQrPayment ? 'QR PAGADO Y FACTURADO' : 'FACTURADA',
-                                        'PENDIENTE' => $isQrPayment && $isQrPaid ? 'QR PAGADO · FACTURA EN PROCESO' : 'PENDIENTE',
+                                        'FACTURADA' => $isCardPayment ? 'TARJETA PAGADA Y FACTURADA' : ($isQrPayment ? 'QR PAGADO Y FACTURADO' : 'FACTURADA'),
+                                        'PENDIENTE' => $isCardPayment && $isQrPaid
+                                            ? 'TARJETA PAGADA · FACTURA EN PROCESO'
+                                            : ($isQrPayment && $isQrPaid ? 'QR PAGADO · FACTURA EN PROCESO' : 'PENDIENTE'),
                                         'RECHAZADA' => 'RECHAZADA',
                                         'ANULADA', 'ANULADO' => 'ANULADA',
                                         'PENDIENTE_ANULACION' => 'PENDIENTE DE ANULACIÓN',
                                         'ANULACION_OBSERVADA' => 'ANULACIÓN OBSERVADA',
                                         'NO_APLICA' => $isQrPayment
-                                            ? ($paymentStatus === 'cancelado' ? 'QR ANULADO' : ($isQrPaid ? 'QR PAGADO' : 'QR PENDIENTE'))
+                                            ? ($paymentStatus === 'cancelado'
+                                                ? ($isCardPayment ? 'TARJETA ANULADA' : 'QR ANULADO')
+                                                : ($isQrPaid ? ($isCardPayment ? 'TARJETA PAGADA' : 'QR PAGADO') : ($isCardPayment ? 'TARJETA PENDIENTE' : 'QR PENDIENTE')))
                                             : 'NO APLICA',
                                         'ERROR' => 'ERROR',
                                         default => $invoiceStatus !== '' ? str_replace('_', ' ', $invoiceStatus) : 'SIN ESTADO',
@@ -272,7 +279,7 @@
                                                 </div>
                                                 <div class="kardex-sale-summary__statuses">
                                                     <div class="kardex-sale-summary__item">
-                                                        <span title="Método de pago" class="kardex-sale-summary__chip kardex-sale-summary__chip--{{ $isQrPayment ? 'qr' : 'neutral' }}"><i class="fas {{ (bool) data_get($row, 'es_cuenta_por_cobrar') ? 'fa-file-invoice-dollar' : ($isOfficialSale ? 'fa-clipboard-list' : ($isQrPayment ? 'fa-qrcode' : 'fa-money-bill-wave')) }}" aria-hidden="true"></i>{{ $paymentLabel }}</span>
+                                                        <span title="Método de pago" class="kardex-sale-summary__chip kardex-sale-summary__chip--{{ $isCardPayment ? 'card' : ($isQrPayment ? 'qr' : 'neutral') }}"><i class="fas {{ (bool) data_get($row, 'es_cuenta_por_cobrar') ? 'fa-file-invoice-dollar' : ($isOfficialSale ? 'fa-clipboard-list' : ($isCardPayment ? 'fa-credit-card' : ($isQrPayment ? 'fa-qrcode' : 'fa-money-bill-wave'))) }}" aria-hidden="true"></i>{{ $paymentLabel }}</span>
                                                         @if(!in_array($paymentNote, ['Cobro en caja', 'Confirmado · fuera de caja'], true))<small>{{ $paymentNote }}</small>@endif
                                                     </div>
                                                     <div class="kardex-sale-summary__item">
@@ -385,25 +392,28 @@
                 </div>
                 <button type="button" class="kardex-ticket-modal__close" aria-label="Cerrar" data-kardex-ticket-close>&times;</button>
             </div>
-            <p id="kardexManualTicketDescription" class="kardex-ticket-modal__description">Ingresa el código de guía del envío. Este ticket se genera directamente con los datos postales y no necesita factura.</p>
+            <p id="kardexManualTicketDescription" class="kardex-ticket-modal__description">Ingresa el código de guía del envío. El ticket no necesita consulta a IPS ni factura.</p>
             <form id="kardexManualTicketForm" method="POST" action="{{ route($manualDeliveryTicketRoute) }}">
                 @csrf
                 <input type="hidden" id="kardexManualTicketConfirmValue" name="confirmar_entrega" value="0">
+                <input type="hidden" id="kardexManualTicketMode" name="modo" value="pre_entrega">
                 <div id="kardexManualTicketCodeFields">
                     <label class="kardex-ticket-modal__label" for="kardexManualTicketCode">Código de guía</label>
                     <div class="kardex-ticket-modal__input-wrap"><i class="fas fa-barcode" aria-hidden="true"></i><input id="kardexManualTicketCode" name="codigo" type="text" maxlength="35" pattern="[A-Za-z0-9-]+" autocomplete="off" autocapitalize="characters" placeholder="Ej. EE000747552BO" required></div>
                     <small class="kardex-ticket-modal__hint">Puedes generar el comprobante aunque la entrega no esté asociada a una venta o factura.</small>
                 </div>
                 <div id="kardexManualTicketConfirmation" class="kardex-ticket-modal__confirmation" hidden role="alert">
-                    <strong>Confirma que estás entregando este envío:</strong>
+                    <strong>Elige qué necesitas para este envío:</strong>
                     <code id="kardexManualTicketConfirmedCode"></code>
-                    <span>Al confirmar, la entrega se registrará en el Kardex y en los reportes como entrega manual, sin factura ni importe.</span>
+                    <span><strong>Pre-entrega</strong> solo genera el ticket; no consulta IPS ni guarda un registro. <strong>Entregado</strong> registra una sola entrega en el Kardex, sin factura ni importe. Reimprimir no duplica el registro.</span>
                 </div>
                 <div id="kardexManualTicketStatus" class="kardex-ticket-modal__status" hidden role="status" aria-live="polite"></div>
                 <div class="kardex-ticket-modal__actions">
                     <button type="button" class="btn btn-light" data-kardex-ticket-close>Cancelar</button>
                     <button type="button" id="kardexManualTicketBack" class="btn btn-light" hidden>Volver al código</button>
                     <button type="submit" id="kardexManualTicketGenerate" class="btn btn-primary"><i class="fas fa-arrow-right mr-1" aria-hidden="true"></i>Continuar</button>
+                    <button type="submit" id="kardexManualTicketPreDelivery" class="btn btn-outline-primary" data-manual-ticket-mode="pre_entrega" hidden><i class="fas fa-print mr-1" aria-hidden="true"></i>Pre-entrega</button>
+                    <button type="submit" id="kardexManualTicketDelivery" class="btn btn-primary" data-manual-ticket-mode="entrega" hidden><i class="fas fa-check mr-1" aria-hidden="true"></i>Entregado</button>
                 </div>
             </form>
         </div>
@@ -493,6 +503,7 @@
     .kardex-sale-summary__chip--muted,.kardex-sale-summary__chip--neutral{border-color:#dce4eb;background:#f5f7f9;color:#52677b}
     .kardex-sale-summary__chip--primary{border-color:#bfd7eb;background:#eaf3fa;color:#245d87}
     .kardex-sale-summary__chip--qr{border-color:#dce4eb;background:#f5f7f9;color:#52677b}
+    .kardex-sale-summary__chip--card{border-color:#b8d5fb;background:#edf5ff;color:#1d4f91}
     .kardex-sale-summary__actions{display:flex;align-items:center;justify-content:flex-end;min-width:0;min-height:38px;padding-left:.9rem;border-left:1px solid #dce4ec}
     .kardex-sale-summary__buttons{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:.3rem;max-width:100%}
     .kardex-sale-summary__action-form{margin:0}
@@ -611,6 +622,9 @@
             const manualTicketConfirmValue = document.getElementById('kardexManualTicketConfirmValue');
             const manualTicketStatus = document.getElementById('kardexManualTicketStatus');
             const manualTicketGenerateButton = document.getElementById('kardexManualTicketGenerate');
+            const manualTicketPreDeliveryButton = document.getElementById('kardexManualTicketPreDelivery');
+            const manualTicketDeliveryButton = document.getElementById('kardexManualTicketDelivery');
+            const manualTicketMode = document.getElementById('kardexManualTicketMode');
             const manualTicketBackButton = document.getElementById('kardexManualTicketBack');
             const cashierCheckboxes = Array.from(form?.querySelectorAll('input[name="cashier_ids[]"]') || []);
             const cashierSelectedCount = document.getElementById('kardexCashierSelectedCount');
@@ -697,11 +711,14 @@
                 manualTicketCodeFields.hidden = confirming;
                 manualTicketConfirmation.hidden = !confirming;
                 manualTicketBackButton.hidden = !confirming;
+                manualTicketGenerateButton.hidden = confirming;
+                manualTicketPreDeliveryButton.hidden = !confirming;
+                manualTicketDeliveryButton.hidden = !confirming;
                 manualTicketConfirmValue.value = confirming ? '1' : '0';
                 manualTicketConfirmedCode.textContent = confirming ? manualTicketCode.value.trim().toUpperCase() : '';
-                manualTicketGenerateButton.innerHTML = confirming
-                    ? '<i class="fas fa-check mr-1" aria-hidden="true"></i>Confirmar entrega y generar ticket'
-                    : '<i class="fas fa-arrow-right mr-1" aria-hidden="true"></i>Continuar';
+                manualTicketGenerateButton.innerHTML = '<i class="fas fa-arrow-right mr-1" aria-hidden="true"></i>Continuar';
+                manualTicketPreDeliveryButton.innerHTML = '<i class="fas fa-print mr-1" aria-hidden="true"></i>Pre-entrega';
+                manualTicketDeliveryButton.innerHTML = '<i class="fas fa-check mr-1" aria-hidden="true"></i>Entregado';
             };
 
             const showManualTicketModal = () => {
@@ -715,6 +732,8 @@
                 manualTicketStatus.className = 'kardex-ticket-modal__status';
                 manualTicketStatus.textContent = '';
                 manualTicketGenerateButton.disabled = false;
+                manualTicketPreDeliveryButton.disabled = false;
+                manualTicketDeliveryButton.disabled = false;
                 manualTicketGenerateButton.innerHTML = '<i class="fas fa-arrow-right mr-1" aria-hidden="true"></i>Continuar';
                 manualTicketModal.hidden = false;
                 manualTicketModal.setAttribute('aria-hidden', 'false');
@@ -756,14 +775,24 @@
                     return;
                 }
 
+                const mode = event.submitter?.dataset.manualTicketMode || '';
+                if (!['pre_entrega', 'entrega'].includes(mode)) {
+                    return;
+                }
+                manualTicketMode.value = mode;
                 const formData = new FormData(manualTicketForm);
+                formData.set('modo', mode);
                 isGeneratingManualTicket = true;
-                manualTicketGenerateButton.disabled = true;
+                manualTicketPreDeliveryButton.disabled = true;
+                manualTicketDeliveryButton.disabled = true;
                 manualTicketCode.disabled = true;
-                manualTicketGenerateButton.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-1" aria-hidden="true"></i>Registrando entrega…';
+                const activeButton = mode === 'pre_entrega' ? manualTicketPreDeliveryButton : manualTicketDeliveryButton;
+                activeButton.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-1" aria-hidden="true"></i>Procesando…';
                 manualTicketStatus.hidden = false;
                 manualTicketStatus.className = 'kardex-ticket-modal__status';
-                manualTicketStatus.textContent = 'Validando la guía y registrando la entrega…';
+                manualTicketStatus.textContent = mode === 'pre_entrega'
+                    ? 'Generando ticket de pre-entrega…'
+                    : 'Registrando la entrega en el Kardex y generando el ticket…';
 
                 try {
                     const response = await fetch(manualTicketForm.action, {
@@ -790,6 +819,7 @@
                         throw new Error(String(errorMessage));
                     }
 
+                    const alreadyInKardex = response.headers.get('X-Kardex-Record-Exists') === 'true';
                     const blob = await response.blob();
                     await validateFile(blob, 'pdf');
                     const objectUrl = URL.createObjectURL(blob);
@@ -803,15 +833,25 @@
                     window.setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
 
                     manualTicketStatus.className = 'kardex-ticket-modal__status kardex-ticket-modal__status--success';
-                    manualTicketStatus.textContent = 'Entrega registrada y ticket descargado. Si lo reimprimes, se conservará el mismo registro.';
-                    manualTicketGenerateButton.innerHTML = '<i class="fas fa-redo mr-1" aria-hidden="true"></i>Reimprimir ticket';
+                    manualTicketStatus.textContent = mode === 'pre_entrega'
+                        ? 'Ticket de pre-entrega descargado. No se guardó ningún registro; puedes volver a generarlo cuando lo necesites.'
+                        : (alreadyInKardex
+                            ? 'La entrega ya estaba en el Kardex. Se reutilizó el mismo registro y se descargó el ticket.'
+                            : 'Entrega registrada en el Kardex sin factura ni importe. Puedes volver a imprimir el ticket sin duplicarla.');
+                    activeButton.innerHTML = mode === 'pre_entrega'
+                        ? '<i class="fas fa-redo mr-1" aria-hidden="true"></i>Reimprimir pre-entrega'
+                        : '<i class="fas fa-redo mr-1" aria-hidden="true"></i>Reimprimir entrega';
                 } catch (error) {
                     manualTicketStatus.className = 'kardex-ticket-modal__status kardex-ticket-modal__status--error';
                     manualTicketStatus.textContent = error.message || 'No se pudo generar el ticket. Intenta nuevamente.';
-                    manualTicketGenerateButton.innerHTML = '<i class="fas fa-file-pdf mr-1" aria-hidden="true"></i>Reintentar';
+                    activeButton.innerHTML = mode === 'pre_entrega'
+                        ? '<i class="fas fa-redo mr-1" aria-hidden="true"></i>Reintentar pre-entrega'
+                        : '<i class="fas fa-redo mr-1" aria-hidden="true"></i>Reintentar entrega';
                 } finally {
                     isGeneratingManualTicket = false;
                     manualTicketCode.disabled = false;
+                    manualTicketPreDeliveryButton.disabled = false;
+                    manualTicketDeliveryButton.disabled = false;
                     manualTicketGenerateButton.disabled = false;
                 }
             };

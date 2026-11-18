@@ -26,7 +26,6 @@
     $facturacionModeUser = auth()->user();
     $showFacturaElectronicaButton = $canOpenFacturacionShortcut && $facturacionModeUser && $facturacionModePolicy->allows($facturacionModeUser, 'efectivo');
     $showQrFacturaButton = $canOpenFacturacionShortcut && $facturacionModeUser && $facturacionModePolicy->allows($facturacionModeUser, 'qr_factura');
-    $showQrSoloButton = $canOpenFacturacionShortcut && $facturacionModeUser && $facturacionModePolicy->allows($facturacionModeUser, 'qr_solo');
     $facturacionMonitorDefaultUrl = \App\Models\AppSetting::getValue('facturacion.monitor_default_url', '');
     $activeFacturacionCart = $facturacionContext['draft'] ?? null;
     $ultimaFacturacionEmitida = $facturacionContext['last'] ?? null;
@@ -130,6 +129,10 @@
     if (!in_array($activeInvoiceChannel, ['factura_electronica', 'qr'], true)) {
         $activeInvoiceChannel = 'factura_electronica';
     }
+    $activeQrPaymentMethod = strtoupper(trim((string) old('qr_payment_method', $activeFacturacionCart?->qhantuy_payment_method ?? 'QRSIMPLE')));
+    if (!in_array($activeQrPaymentMethod, ['QRSIMPLE', 'T2P'], true)) {
+        $activeQrPaymentMethod = 'QRSIMPLE';
+    }
     $activeAutoEmitInvoice = old('auto_emit_invoice', session('facturacion_qr_auto_emit_invoice'));
     if ($activeAutoEmitInvoice === null || $activeAutoEmitInvoice === '') {
         $activeAutoEmitInvoice = $activeInvoiceChannel === 'qr' ? '1' : '1';
@@ -140,22 +143,31 @@
     }
     $activeInvoiceMode = match (true) {
         $activeInvoiceChannel === 'qr' && $activeAutoEmitInvoice === '0' => 'qr_solo',
+        $activeInvoiceChannel === 'qr' && $activeQrPaymentMethod === 'T2P' => 't2p_factura',
         $activeInvoiceChannel === 'qr' => 'qr_factura',
         default => 'factura_electronica',
     };
+    $draftEstado = strtolower(trim((string) ($activeFacturacionCart?->estado ?? 'borrador')));
+    $draftEstadoPago = strtolower(trim((string) ($activeFacturacionCart?->estado_pago ?? ($activeInvoiceChannel === 'qr' ? 'pendiente' : 'pagado'))));
+    $draftEstadoEmision = strtoupper(trim((string) ($activeFacturacionCart?->estado_emision ?? '')));
+    $activeQrAttemptExists = trim((string) ($activeFacturacionCart?->qr_transaction_id ?? '')) !== ''
+        || ($draftEstado === 'pendiente_pago' && $draftEstadoPago === 'pendiente');
+    $activeQrPaymentMethodLocked = $activeInvoiceChannel === 'qr'
+        && $activeQrAttemptExists
+        && in_array($draftEstadoPago, ['pendiente', 'pagado'], true);
     $availableInvoiceModes = collect([
         'factura_electronica' => $showFacturaElectronicaButton,
         'qr_factura' => $showQrFacturaButton,
-        'qr_solo' => $showQrSoloButton,
+        't2p_factura' => $showQrFacturaButton,
     ])->filter()->keys()->values();
     $hasAvailableInvoiceMode = $availableInvoiceModes->isNotEmpty();
-    if (!$availableInvoiceModes->contains($activeInvoiceMode) && $availableInvoiceModes->isNotEmpty()) {
+    if (!$availableInvoiceModes->contains($activeInvoiceMode) && $availableInvoiceModes->isNotEmpty() && !$activeQrPaymentMethodLocked) {
         $activeInvoiceMode = (string) $availableInvoiceModes->first();
         [$activeInvoiceChannel, $activeAutoEmitInvoice] = match ($activeInvoiceMode) {
-            'qr_factura' => ['qr', '1'],
-            'qr_solo' => ['qr', '0'],
+            'qr_factura', 't2p_factura' => ['qr', '1'],
             default => ['factura_electronica', '1'],
         };
+        $activeQrPaymentMethod = $activeInvoiceMode === 't2p_factura' ? 'T2P' : 'QRSIMPLE';
     }
     $activeDocumentType = (string) ($activeFacturacionCart?->tipo_documento ?? '');
     $defaultBillingEmail = 'safe@correos.gob.bo';
@@ -226,11 +238,8 @@
     $visibleInvoiceModeCount = collect([
         $showFacturaElectronicaButton,
         $showQrFacturaButton,
-        $showQrSoloButton,
+        $showQrFacturaButton,
     ])->filter()->count();
-    $draftEstado = strtolower(trim((string) ($activeFacturacionCart?->estado ?? 'borrador')));
-    $draftEstadoPago = strtolower(trim((string) ($activeFacturacionCart?->estado_pago ?? ($activeInvoiceChannel === 'qr' ? 'pendiente' : 'pagado'))));
-    $draftEstadoEmision = strtoupper(trim((string) ($activeFacturacionCart?->estado_emision ?? '')));
     $hasLastEmissionData = $ultimaFacturacionEmitida
         && (
             trim((string) ($ultimaFacturacionEmitida->estado_emision ?? '')) !== ''
@@ -246,24 +255,42 @@
             : 'Emitir')
         : ($isRejectedDraft ? 'Reintentar emision' : 'Emitir venta');
     $emitConfirmTitle = $isQrFlowShortcut
-        ? ($activeInvoiceMode === 'qr_factura' ? 'Preparar QR + factura' : 'Preparar cobro QR')
+        ? (in_array($activeInvoiceMode, ['qr_factura', 't2p_factura'], true)
+            ? ($activeQrPaymentMethod === 'T2P' ? 'Preparar tarjeta NFC + factura' : 'Preparar QR + factura')
+            : ($activeQrPaymentMethod === 'T2P' ? 'Preparar cobro con tarjeta NFC' : 'Preparar cobro QR'))
         : ($isRejectedDraft ? 'Reintentar emision' : 'Emitir factura');
     $emitConfirmMessage = $isQrFlowShortcut
-        ? ($activeInvoiceMode === 'qr_factura'
-            ? 'Se generara o reutilizara un QR de cobro y, cuando el pago se confirme, se continuara con la factura electronica.'
-            : 'Se generara o reutilizara un QR de cobro para esta venta.')
+        ? (in_array($activeInvoiceMode, ['qr_factura', 't2p_factura'], true)
+            ? ($activeQrPaymentMethod === 'T2P'
+                ? 'Se enviará una solicitud a QPOS. Cuando el cliente acerque su tarjeta y Qhantuy confirme el pago, continuará la factura electrónica.'
+                : 'Se generará o reutilizará un QR de cobro y, cuando el pago se confirme, continuará la factura electrónica.')
+            : ($activeQrPaymentMethod === 'T2P'
+                ? 'Se enviará una solicitud de pago a QPOS para cobrar con tarjeta sin contacto.'
+                : 'Se generará o reutilizará un QR de cobro para esta venta.'))
         : 'La venta se enviara al flujo de facturacion electronica.';
     $emitConfirmNote = $isQrFlowShortcut
-        ? 'El pago QR no sumara a caja. Solo quedara como cobro referencial hasta que el proveedor confirme el pago.'
+        ? ($activeQrPaymentMethod === 'T2P'
+            ? 'El cobro queda pendiente hasta que Qhantuy confirme la operación. No entregues el servicio antes de esa confirmación.'
+            : 'El pago QR no sumará a caja. Quedará como cobro referencial hasta que Qhantuy confirme el pago.')
         : 'La factura electronica sumara a caja si la emision concluye correctamente.';
-    $emitConfirmCta = $isQrFlowShortcut ? 'Si, continuar con QR' : ($isRejectedDraft ? 'Si, reenviar' : 'Si, emitir');
-    $workflowTitle = $isQrFlowShortcut ? 'Cobro QR guiado' : 'Facturacion electronica guiada';
+    $emitConfirmCta = $isQrFlowShortcut
+        ? ($activeQrPaymentMethod === 'T2P' ? 'Sí, continuar con NFC' : 'Sí, continuar con QR')
+        : ($isRejectedDraft ? 'Si, reenviar' : 'Si, emitir');
+    $workflowTitle = $isQrFlowShortcut
+        ? ($activeQrPaymentMethod === 'T2P' ? 'Cobro con tarjeta guiado' : 'Cobro QR guiado')
+        : 'Facturacion electronica guiada';
     $workflowNextStep = $isQrFlowShortcut
         ? match (true) {
-            !$hasActiveFacturacionItems => 'Agrega items al carrito para generar el QR.',
+            !$hasActiveFacturacionItems => $activeQrPaymentMethod === 'T2P'
+                ? 'Agrega items al carrito para preparar el cobro con tarjeta.'
+                : 'Agrega items al carrito para generar el QR.',
             $draftEstadoPago === 'pagado' => 'El pago ya fue confirmado. Puedes revisar la venta en el historial.',
-            $draftEstado === 'pendiente_pago' && !empty($activeFacturacionCart?->qr_transaction_id) => 'Comparte o reabre el QR vigente y luego actualiza el pago.',
-            default => 'Genera el QR y espera la confirmacion del proveedor.',
+            $draftEstado === 'pendiente_pago' && !empty($activeFacturacionCart?->qr_transaction_id) => $activeQrPaymentMethod === 'T2P'
+                ? 'Abre la solicitud en QPOS, pide al cliente acercar su tarjeta y actualiza el pago.'
+                : 'Comparte o reabre el QR vigente y luego actualiza el pago.',
+            default => $activeQrPaymentMethod === 'T2P'
+                ? 'Envía la solicitud a QPOS y espera la confirmación del pago.'
+                : 'Genera el QR y espera la confirmacion del proveedor.',
         }
         : match (true) {
             !$hasActiveFacturacionItems => 'Agrega items al carrito antes de emitir.',
@@ -272,7 +299,9 @@
             default => 'Verifica cliente, documento y correo antes de emitir.',
         };
     $workflowAccountingText = $isQrFlowShortcut
-        ? 'Cobro fuera de caja. Se reporta por separado como QR referencial.'
+        ? ($activeQrPaymentMethod === 'T2P'
+            ? 'Cobro de tarjeta en QPOS. Se registra cuando Qhantuy confirma la transacción.'
+            : 'Cobro fuera de caja. Se reporta por separado como QR referencial.')
         : 'Venta en caja. Se contabiliza economicamente cuando la emision concluye.';
     $workflowStatusLabel = $isQrFlowShortcut
         ? match ($draftEstadoPago) {
@@ -441,15 +470,16 @@
                 <input type="hidden" name="cart_id" value="{{ (string) ($activeFacturacionCart?->id ?? '') }}">
                 <input type="hidden" name="modalidad_facturacion" id="facturacionBillingModeInput" value="con_datos">
                 <input type="hidden" name="canal_emision" id="facturacionInvoiceChannelInput" value="{{ $activeInvoiceChannel }}">
+                <input type="hidden" name="qr_payment_method" id="facturacionQrPaymentMethodInput" value="{{ $activeQrPaymentMethod }}">
                 <input type="hidden" id="facturacionAutoEmitInvoiceInput" value="{{ $activeAutoEmitInvoice }}">
                 <input type="hidden" name="tipo_documento" id="facturacionBillingDocumentTypeHidden" value="{{ (string) ($activeFacturacionCart?->tipo_documento ?? '') }}">
 
                 <div class="global-shortcut-selector-block">
                     <div class="global-shortcut-selector-group">
                         <span class="global-shortcut-selector-label">Emision</span>
-                        <div class="global-shortcut-choice-row global-shortcut-choice-row--invoice-channel {{ $visibleInvoiceModeCount <= 1 ? 'global-shortcut-choice-row--single' : ($visibleInvoiceModeCount === 2 ? 'global-shortcut-choice-row--double' : 'global-shortcut-choice-row--triple') }}" role="tablist" aria-label="Tipo de salida de factura">
+                        <div class="global-shortcut-choice-row global-shortcut-choice-row--invoice-channel {{ $visibleInvoiceModeCount <= 1 ? 'global-shortcut-choice-row--single' : ($visibleInvoiceModeCount === 2 ? 'global-shortcut-choice-row--double' : 'global-shortcut-choice-row--triple') }}" role="tablist" aria-label="Modo de emisión y cobro">
                             @if($showFacturaElectronicaButton)
-                            <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceMode === 'factura_electronica') is-active @endif" data-invoice-channel-choice="factura_electronica" @disabled(!$isCajaAbierta)>
+                            <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceMode === 'factura_electronica') is-active @endif" data-invoice-channel-choice="factura_electronica" @disabled(!$isCajaAbierta || $activeQrPaymentMethodLocked)>
                                 <span class="global-shortcut-choice-btn__icon" aria-hidden="true">
                                     <svg viewBox="0 0 24 24" fill="none">
                                         <path d="M7 3.75h7.5L19.25 8.5V19a1.25 1.25 0 0 1-1.25 1.25H7A1.25 1.25 0 0 1 5.75 19V5A1.25 1.25 0 0 1 7 3.75Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
@@ -464,7 +494,7 @@
                             </button>
                             @endif
                             @if($showQrFacturaButton)
-                            <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceMode === 'qr_factura') is-active @endif" data-invoice-channel-choice="qr_factura" @disabled(!$isCajaAbierta)>
+                            <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceMode === 'qr_factura') is-active @endif" data-invoice-channel-choice="qr_factura" @disabled(!$isCajaAbierta || $activeQrPaymentMethodLocked)>
                                 <span class="global-shortcut-choice-btn__icon" aria-hidden="true">
                                     <svg viewBox="0 0 24 24" fill="none">
                                         <path d="M4.75 4.75h5.5v5.5h-5.5zM13.75 4.75h5.5v5.5h-5.5zM4.75 13.75h5.5v5.5h-5.5z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
@@ -477,21 +507,25 @@
                                 </span>
                             </button>
                             @endif
-                            @if($showQrSoloButton)
-                            <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceMode === 'qr_solo') is-active @endif" data-invoice-channel-choice="qr_solo" @disabled(!$isCajaAbierta)>
+                            @if($showQrFacturaButton)
+                            <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceMode === 't2p_factura') is-active @endif" data-invoice-channel-choice="t2p_factura" @disabled(!$isCajaAbierta || $activeQrPaymentMethodLocked)>
                                 <span class="global-shortcut-choice-btn__icon" aria-hidden="true">
                                     <svg viewBox="0 0 24 24" fill="none">
-                                        <path d="M4.75 4.75h5.5v5.5h-5.5zM13.75 4.75h5.5v5.5h-5.5zM4.75 13.75h5.5v5.5h-5.5z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
-                                        <path d="M15 13.75h1.5v1.5H15zM18 16.25h1.25v3H16.5V18h1.5v-1.75ZM13.75 18h1.75v1.25h-1.75z" fill="currentColor"/>
+                                        <rect x="3.75" y="5.5" width="16.5" height="13" rx="2" stroke="currentColor" stroke-width="1.7"/>
+                                        <path d="M4.5 9h15M7 14.5h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                                        <path d="M14.5 12.5c1.1.7 1.1 2.3 0 3M16.5 11c2.1 1.4 2.1 4.6 0 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                                     </svg>
                                 </span>
                                 <span class="global-shortcut-choice-btn__content">
-                                    <span class="global-shortcut-choice-btn__title">QR solo pago</span>
-                                    <span class="global-shortcut-choice-btn__meta">Cobro sin factura</span>
+                                    <span class="global-shortcut-choice-btn__title">Tarjeta NFC + factura</span>
+                                    <span class="global-shortcut-choice-btn__meta">QPOS activa; factura al confirmar</span>
                                 </span>
                             </button>
                             @endif
                         </div>
+                        @if($activeQrPaymentMethodLocked)
+                            <small class="text-warning">Este carrito ya tiene un cobro Qhantuy {{ $draftEstadoPago === 'pagado' ? 'confirmado' : 'pendiente' }}; el flujo queda bloqueado para conservar el medio asociado.</small>
+                        @endif
                         @unless($hasAvailableInvoiceMode)
                             <div class="alert alert-warning mt-3 mb-0" role="status">
                                 Tu rol no tiene un metodo de cobro habilitado. Solicita al administrador que configure los permisos de Facturacion.
@@ -868,6 +902,7 @@
                                 <input type="hidden" name="cart_id" value="{{ (string) ($activeFacturacionCart?->id ?? '') }}">
                                 <input type="hidden" name="modalidad_facturacion" value="con_datos" data-emit-sync-field="modalidad_facturacion">
                                 <input type="hidden" name="canal_emision" value="{{ $activeInvoiceChannel }}" data-emit-sync-field="canal_emision">
+                                <input type="hidden" name="qr_payment_method" value="{{ $activeQrPaymentMethod }}" data-emit-sync-field="qr_payment_method">
                                 <input type="hidden" name="auto_emit_invoice" value="{{ $activeAutoEmitInvoice }}" data-emit-sync-field="auto_emit_invoice">
                                 <input type="hidden" name="tipo_documento" value="{{ (string) ($activeFacturacionCart?->tipo_documento ?? '') }}" data-emit-sync-field="tipo_documento">
                                 <input type="hidden" name="numero_documento" value="{{ (string) ($activeFacturacionCart?->numero_documento ?? '') }}" data-emit-sync-field="numero_documento">
@@ -901,6 +936,7 @@
                                 <input type="hidden" name="cart_id" value="{{ (string) ($activeFacturacionCart?->id ?? '') }}">
                                 <input type="hidden" name="modalidad_facturacion" value="con_datos" data-emit-sync-field="modalidad_facturacion">
                                 <input type="hidden" name="canal_emision" value="{{ $activeInvoiceChannel }}" data-emit-sync-field="canal_emision">
+                                <input type="hidden" name="qr_payment_method" value="{{ $activeQrPaymentMethod }}" data-emit-sync-field="qr_payment_method">
                                 <input type="hidden" name="auto_emit_invoice" value="{{ $activeAutoEmitInvoice }}" data-emit-sync-field="auto_emit_invoice">
                                 <input type="hidden" name="tipo_documento" value="{{ (string) ($activeFacturacionCart?->tipo_documento ?? '') }}" data-emit-sync-field="tipo_documento">
                                 <input type="hidden" name="numero_documento" value="{{ (string) ($activeFacturacionCart?->numero_documento ?? '') }}" data-emit-sync-field="numero_documento">
@@ -1445,11 +1481,16 @@
         $initialQrImage = '';
         $initialQrStatus = 'HOLDING';
         $initialQrMessage = 'Escanee este QR para completar el pago.';
+        $initialQrPaymentMethod = 'QRSIMPLE';
         $initialQrTransactionId = '';
         $initialQrInternalCode = '';
         $initialQrCartId = '';
 
         if (is_array($facturacionQrData)) {
+            $initialQrPaymentMethod = strtoupper(trim((string) ($facturacionQrData['payment_method'] ?? 'QRSIMPLE')));
+            if (!in_array($initialQrPaymentMethod, ['QRSIMPLE', 'T2P'], true)) {
+                $initialQrPaymentMethod = 'QRSIMPLE';
+            }
             $initialQrImage = trim((string) ($facturacionQrData['image_data'] ?? ''));
             $initialQrStatus = strtoupper((string) ($facturacionQrData['payment_status'] ?? 'holding'));
             $initialQrMessage = (string) ($facturacionQrData['message'] ?? $initialQrMessage);
@@ -1462,7 +1503,7 @@
             <div class="facturacion-qr-viewer__backdrop" data-close-facturacion-qr="true"></div>
             <div class="facturacion-qr-viewer__panel" role="document">
                 <button type="button" class="facturacion-qr-viewer__close" id="facturacionQrViewerClose" aria-label="Cerrar QR">x</button>
-                <h4 class="facturacion-qr-viewer__title">QR de pago</h4>
+                <h4 class="facturacion-qr-viewer__title" id="facturacionQrViewerTitle">{{ $initialQrPaymentMethod === 'T2P' ? 'Pago con tarjeta sin contacto' : 'QR de pago' }}</h4>
                 <p class="facturacion-qr-viewer__subtitle" id="facturacionQrViewerSubtitle">
                     {{ $initialQrMessage }}
                 </p>
@@ -1482,20 +1523,24 @@
                     <img src="{{ $initialQrImage !== '' ? $qrSrc : '' }}" alt="QR de pago" class="facturacion-qr-viewer__image" id="facturacionQrViewerImage">
                 </div>
                 <div class="facturacion-qr-viewer__empty @if ($initialQrImage !== '') is-hidden @endif" id="facturacionQrViewerEmpty">
-                    El proveedor recibio la venta, pero todavia no devolvio una imagen QR. Usa "Consultar estado" para refrescar la respuesta.
+                    @if ($initialQrPaymentMethod === 'T2P')
+                        Revisa la notificación de cobro en QPOS del teléfono asignado a esta caja y pide al cliente acercar su tarjeta.
+                    @else
+                        El proveedor recibió la venta, pero todavía no devolvió una imagen QR. Usa “Actualizar pago/factura” para consultar el estado.
+                    @endif
                 </div>
                 <div class="facturacion-qr-viewer__guide">
                     <div class="facturacion-qr-viewer__guide-step">
                         <span>1</span>
-                        <strong>Comparte el QR con el cliente</strong>
+                        <strong id="facturacionQrViewerStepOne">{{ $initialQrPaymentMethod === 'T2P' ? 'Abre la solicitud en QPOS' : 'Comparte el QR con el cliente' }}</strong>
                     </div>
                     <div class="facturacion-qr-viewer__guide-step">
                         <span>2</span>
-                        <strong>Espera el callback o actualiza el pago</strong>
+                        <strong id="facturacionQrViewerStepTwo">{{ $initialQrPaymentMethod === 'T2P' ? 'Pide al cliente acercar su tarjeta' : 'Espera el callback o actualiza el pago' }}</strong>
                     </div>
                     <div class="facturacion-qr-viewer__guide-step">
                         <span>3</span>
-                        <strong>El monto se reporta fuera de caja</strong>
+                        <strong id="facturacionQrViewerStepThree">{{ $initialQrPaymentMethod === 'T2P' ? 'Espera la confirmación antes de entregar' : 'El monto se reporta fuera de caja' }}</strong>
                     </div>
                 </div>
                 <form method="POST" action="{{ route('facturacion.cart.consultar') }}" class="facturacion-qr-viewer__actions">
@@ -4891,11 +4936,13 @@
 
             const formatFacturacionPreviewCurrency = (value) => 'Bs ' + facturacionPreviewCurrencyFormatter.format(Number(value || 0));
 
-            const resolveFacturacionEmitModeLabel = (channel, autoEmitInvoice) => {
+            const resolveFacturacionEmitModeLabel = (channel, autoEmitInvoice, qrPaymentMethod) => {
                 const normalizedChannel = String(channel || '').trim().toLowerCase();
 
                 if (normalizedChannel === 'qr') {
-                    return 'QR';
+                    return String(qrPaymentMethod || '').trim().toUpperCase() === 'T2P'
+                        ? 'Tarjeta sin contacto (NFC)'
+                        : 'QR bancario';
                 }
 
                 return 'Efectivo';
@@ -4914,6 +4961,7 @@
                 const billingDocumentTypeField = document.getElementById('facturacionBillingDocumentType');
                 const invoiceChannelInput = form.querySelector('input[name="canal_emision"]');
                 const autoEmitInput = form.querySelector('input[name="auto_emit_invoice"]');
+                const qrPaymentMethodInput = form.querySelector('input[name="qr_payment_method"]');
                 const itemNodes = Array.from(document.querySelectorAll('.global-shortcut-cart-item'));
 
                 const documentTypeLabel = billingDocumentTypeField instanceof HTMLSelectElement
@@ -4933,7 +4981,8 @@
                     : '';
                 const modeLabel = resolveFacturacionEmitModeLabel(
                     invoiceChannelInput instanceof HTMLInputElement ? invoiceChannelInput.value : '',
-                    autoEmitInput instanceof HTMLInputElement ? autoEmitInput.value : ''
+                    autoEmitInput instanceof HTMLInputElement ? autoEmitInput.value : '',
+                    qrPaymentMethodInput instanceof HTMLInputElement ? qrPaymentMethodInput.value : ''
                 );
                 const quantityCount = itemNodes.reduce((sum, node) => {
                     const quantityBadge = node.querySelector('.global-shortcut-cart-item__quantity');
@@ -5281,6 +5330,7 @@
             const facturacionFeedbackAlert = document.getElementById('facturacionFeedbackAlert');
             const facturacionQrViewer = document.getElementById('facturacionQrViewer');
             const facturacionQrViewerClose = document.getElementById('facturacionQrViewerClose');
+            const facturacionQrViewerTitle = document.getElementById('facturacionQrViewerTitle');
             const facturacionQrViewerSubtitle = document.getElementById('facturacionQrViewerSubtitle');
             const facturacionQrViewerStatus = document.getElementById('facturacionQrViewerStatus');
             const facturacionQrViewerTransactionMeta = document.getElementById('facturacionQrViewerTransactionMeta');
@@ -5288,6 +5338,9 @@
             const facturacionQrViewerImageWrap = document.getElementById('facturacionQrViewerImageWrap');
             const facturacionQrViewerImage = document.getElementById('facturacionQrViewerImage');
             const facturacionQrViewerEmpty = document.getElementById('facturacionQrViewerEmpty');
+            const facturacionQrViewerStepOne = document.getElementById('facturacionQrViewerStepOne');
+            const facturacionQrViewerStepTwo = document.getElementById('facturacionQrViewerStepTwo');
+            const facturacionQrViewerStepThree = document.getElementById('facturacionQrViewerStepThree');
             const facturacionQrViewerCartId = document.getElementById('facturacionQrViewerCartId');
             const facturacionQrViewerAutoEmitInvoice = document.getElementById('facturacionQrViewerAutoEmitInvoice');
             const facturacionMonitorConfigBtn = document.getElementById('facturacionMonitorConfigBtn');
@@ -5301,6 +5354,7 @@
             const facturacionResultModalMeta = document.getElementById('facturacionResultModalMeta');
             const facturacionResultModalDetail = document.getElementById('facturacionResultModalDetail');
             const invoiceChannelButtons = document.querySelectorAll('[data-invoice-channel-choice]');
+            const facturacionQrPaymentMethodLocked = @json($activeQrPaymentMethodLocked);
             const facturacionFlashFeedback = @json($facturacionFeedback);
             const facturacionDownloadPdf = @json($facturacionDownloadPdf);
             const facturacionQrData = @json($facturacionQrData);
@@ -7420,10 +7474,19 @@
                     payment_status: String(qrData.payment_status || ''),
                 });
 
+                const paymentMethod = String(
+                    qrData.payment_method
+                    || qrData.qhantuy_payment_method
+                    || (cartData && cartData.qhantuy_payment_method)
+                    || 'QRSIMPLE'
+                ).trim().toUpperCase() === 'T2P' ? 'T2P' : 'QRSIMPLE';
+                const isT2P = paymentMethod === 'T2P';
                 const paymentStatus = String(qrData.payment_status || 'holding').trim().toUpperCase();
                 const transactionId = String(qrData.transaction_id || '').trim();
                 const internalCode = String(qrData.internal_code || (cartData && cartData.codigo_orden) || '').trim();
-                const message = String(qrData.message || 'Escanee este QR para completar el pago.').trim();
+                const message = String(qrData.message || (isT2P
+                    ? 'Solicitud enviada a QPOS. Espera la confirmación del pago con tarjeta.'
+                    : 'Escanee este QR para completar el pago.')).trim();
                 const imageSrc = normalizeQrImageSrc(qrData.image_data || '');
                 const monitorAmount = Number(
                     qrData.amount
@@ -7433,9 +7496,10 @@
                     || 0
                 );
                 facturacionCurrentQrState = {
-                    mode: 'qr',
-                    subtitle: 'Cobro QR activo',
-                    title: 'Escanea para pagar',
+                    mode: isT2P ? 't2p' : 'qr',
+                    payment_method: paymentMethod,
+                    subtitle: isT2P ? 'Cobro con tarjeta sin contacto' : 'Cobro QR activo',
+                    title: isT2P ? 'Acerca la tarjeta al teléfono POS' : 'Escanea para pagar',
                     message,
                     image_data: String(qrData.image_data || '').trim(),
                     transaction_id: transactionId,
@@ -7444,6 +7508,9 @@
                     amount: Number.isFinite(monitorAmount) ? monitorAmount : 0,
                 };
 
+                if (facturacionQrViewerTitle instanceof HTMLElement) {
+                    facturacionQrViewerTitle.textContent = isT2P ? 'Pago con tarjeta sin contacto' : 'QR de pago';
+                }
                 if (facturacionQrViewerSubtitle instanceof HTMLElement) {
                     facturacionQrViewerSubtitle.textContent = message;
                 }
@@ -7457,6 +7524,15 @@
                 if (facturacionQrViewerOrderMeta instanceof HTMLElement) {
                     facturacionQrViewerOrderMeta.textContent = '| Orden: ' + internalCode;
                     facturacionQrViewerOrderMeta.classList.toggle('is-hidden', internalCode === '');
+                }
+                if (facturacionQrViewerStepOne instanceof HTMLElement) {
+                    facturacionQrViewerStepOne.textContent = isT2P ? 'Abre la solicitud en QPOS' : 'Comparte el QR con el cliente';
+                }
+                if (facturacionQrViewerStepTwo instanceof HTMLElement) {
+                    facturacionQrViewerStepTwo.textContent = isT2P ? 'Pide al cliente acercar su tarjeta' : 'Espera el callback o actualiza el pago';
+                }
+                if (facturacionQrViewerStepThree instanceof HTMLElement) {
+                    facturacionQrViewerStepThree.textContent = isT2P ? 'Espera la confirmación antes de entregar' : 'El monto se reporta fuera de caja';
                 }
                 if (facturacionQrViewerCartId instanceof HTMLInputElement) {
                     facturacionQrViewerCartId.value = String((cartData && cartData.id) || facturacionQrViewerCartId.value || '');
@@ -7480,6 +7556,9 @@
                         facturacionQrViewerImageWrap.classList.add('is-hidden');
                     }
                     if (facturacionQrViewerEmpty instanceof HTMLElement) {
+                        facturacionQrViewerEmpty.textContent = isT2P
+                            ? 'Revisa la notificación de cobro en QPOS del teléfono asignado a esta caja y pide al cliente acercar su tarjeta.'
+                            : 'El proveedor recibió la venta, pero todavía no devolvió una imagen QR. Usa “Actualizar pago/factura” para consultar el estado.';
                         facturacionQrViewerEmpty.classList.remove('is-hidden');
                     }
                 }
@@ -7907,15 +7986,22 @@
             };
 
             const continueAutomaticQrFacturaFlow = async (data) => {
+                const isT2P = String(
+                    (data && data.qr_data && data.qr_data.payment_method)
+                    || (data && data.cart && data.cart.qhantuy_payment_method)
+                    || ''
+                ).trim().toUpperCase() === 'T2P';
+                const paymentLabel = isT2P ? 'tarjeta sin contacto' : 'QR';
+
                 if (!shouldAutoEmitQrInvoice(data)) {
                     publishFacturacionMonitorTerminalState(data && data.qr_data ? data.qr_data : {}, true);
                     closeFacturacionQrViewer();
 
                     const qrOnlyFeedback = data && data.feedback ? data.feedback : {
                         type: 'success',
-                        title: 'Pago QR confirmado',
-                        message: 'El cobro QR fue confirmado correctamente.',
-                        detail: 'La venta quedo registrada como pago QR sin factura electronica automatica.',
+                        title: 'Pago con ' + paymentLabel + ' confirmado',
+                        message: 'El cobro fue confirmado correctamente.',
+                        detail: 'La venta quedó registrada sin factura electrónica automática.',
                     };
 
                     renderFacturacionShortcutFeedback(qrOnlyFeedback);
@@ -7935,8 +8021,8 @@
 
                 renderFacturacionShortcutFeedback({
                     type: 'success',
-                    title: 'QR pagado',
-                    message: 'El pago QR fue confirmado automaticamente.',
+                    title: 'Pago con ' + paymentLabel + ' confirmado',
+                    message: 'El pago fue confirmado automáticamente.',
                     detail: 'Continuamos con la solicitud de factura electronica.',
                 });
 
@@ -7952,7 +8038,7 @@
                         feedback: {
                             type: 'info',
                             title: 'Solicitando factura',
-                            message: 'El QR fue pagado y la factura electronica se esta procesando automaticamente.',
+                            message: 'El cobro fue confirmado y la factura electronica se esta procesando automaticamente.',
                             detail: 'Puedes seguir trabajando. El sistema consultara la respuesta hasta descargar el PDF o mostrar el estado final.',
                         },
                     });
@@ -8355,6 +8441,7 @@
                 const billingData = {
                     modalidad_facturacion: 'con_datos',
                     canal_emision: 'factura_electronica',
+                    qr_payment_method: 'QRSIMPLE',
                     auto_emit_invoice: '1',
                     tipo_documento: '',
                     numero_documento: '',
@@ -8365,6 +8452,7 @@
 
                 const formFieldMap = {
                     canal_emision: 'input[name="canal_emision"]',
+                    qr_payment_method: 'input[name="qr_payment_method"]',
                     auto_emit_invoice: '#facturacionAutoEmitInvoiceInput',
                     tipo_documento: 'input[name="tipo_documento"]',
                     numero_documento: 'input[name="numero_documento"]',
@@ -8383,6 +8471,9 @@
                 billingData.canal_emision = String(billingData.canal_emision || 'factura_electronica').toLowerCase() === 'qr'
                     ? 'qr'
                     : 'factura_electronica';
+                billingData.qr_payment_method = String(billingData.qr_payment_method || '').trim().toUpperCase() === 'T2P'
+                    ? 'T2P'
+                    : 'QRSIMPLE';
                 billingData.auto_emit_invoice = String(billingData.auto_emit_invoice || '') === '0' ? '0' : '1';
 
                 scopedConfirmForms.forEach((form) => {
@@ -8406,6 +8497,24 @@
 
                 if (facturacionQrViewerAutoEmitInvoice instanceof HTMLInputElement) {
                     facturacionQrViewerAutoEmitInvoice.value = billingData.auto_emit_invoice;
+                }
+            };
+
+            const syncQrPaymentMethodForInvoiceMode = (contextElement = facturacionBillingInlineForm) => {
+                const scopedBillingForm = resolveScopedBillingForm(contextElement);
+                const panel = scopedBillingForm instanceof HTMLFormElement
+                    ? scopedBillingForm.closest('.global-shortcut-modal__panel')
+                    : null;
+                const scopedMethod = scopedBillingForm instanceof HTMLFormElement
+                    ? scopedBillingForm.querySelector('input[name="qr_payment_method"]')
+                    : null;
+                const selectedModeButton = panel instanceof HTMLElement
+                    ? panel.querySelector('[data-invoice-channel-choice].is-active')
+                    : document.querySelector('[data-invoice-channel-choice].is-active');
+                const selectedMode = String(selectedModeButton?.dataset.invoiceChannelChoice || '').toLowerCase();
+
+                if (scopedMethod instanceof HTMLInputElement && !facturacionQrPaymentMethodLocked) {
+                    scopedMethod.value = selectedMode === 't2p_factura' ? 'T2P' : 'QRSIMPLE';
                 }
             };
 
@@ -10357,14 +10466,14 @@
                 }
                 const visibleInvoiceModes = new Set(Array.from(invoiceChannelButtons)
                     .map((button) => String(button.dataset.invoiceChannelChoice || '').toLowerCase())
-                    .filter((mode) => ['factura_electronica', 'qr_factura', 'qr_solo'].includes(mode)));
-                const storedInvoiceMode = readStoredInvoiceMode();
+                    .filter((mode) => ['factura_electronica', 'qr_factura', 't2p_factura'].includes(mode)));
+                const storedInvoiceMode = facturacionQrPaymentMethodLocked ? '' : readStoredInvoiceMode();
                 if (visibleInvoiceModes.has(storedInvoiceMode)) {
                     if (facturacionInvoiceChannelInput instanceof HTMLInputElement) {
                         facturacionInvoiceChannelInput.value = storedInvoiceMode === 'factura_electronica' ? 'factura_electronica' : 'qr';
                     }
                     if (facturacionAutoEmitInvoiceInput instanceof HTMLInputElement) {
-                        facturacionAutoEmitInvoiceInput.value = storedInvoiceMode === 'qr_solo' ? '0' : '1';
+                        facturacionAutoEmitInvoiceInput.value = '1';
                     }
                     invoiceChannelButtons.forEach((candidate) => {
                         if (candidate instanceof HTMLElement) {
@@ -10380,7 +10489,7 @@
                             facturacionInvoiceChannelInput.value = fallbackMode === 'factura_electronica' ? 'factura_electronica' : 'qr';
                         }
                         if (facturacionAutoEmitInvoiceInput instanceof HTMLInputElement) {
-                            facturacionAutoEmitInvoiceInput.value = fallbackMode === 'qr_solo' ? '0' : '1';
+                            facturacionAutoEmitInvoiceInput.value = '1';
                         }
                         invoiceChannelButtons.forEach((candidate) => {
                             if (candidate instanceof HTMLElement) {
@@ -10397,11 +10506,11 @@
                     }
                     button.addEventListener('click', function () {
                         const mode = String(button.dataset.invoiceChannelChoice || '').toLowerCase();
-                        if (!['factura_electronica', 'qr_factura', 'qr_solo'].includes(mode)) {
+                        if (!['factura_electronica', 'qr_factura', 't2p_factura'].includes(mode)) {
                             return;
                         }
                         const channel = mode === 'factura_electronica' ? 'factura_electronica' : 'qr';
-                        const autoEmitInvoice = mode === 'qr_solo' ? '0' : '1';
+                        const autoEmitInvoice = '1';
                         storeInvoiceMode(mode);
 
                         const panel = button.closest('.global-shortcut-modal__panel');
@@ -10417,12 +10526,18 @@
                         const scopedForm = panel instanceof HTMLElement
                             ? panel.querySelector('#facturacionBillingInlineForm')
                             : facturacionBillingInlineForm;
+                        const scopedMethod = scopedForm instanceof HTMLFormElement
+                            ? scopedForm.querySelector('input[name="qr_payment_method"]')
+                            : null;
 
                         if (scopedInput instanceof HTMLInputElement) {
                             scopedInput.value = channel;
                         }
                         if (scopedAutoEmitInput instanceof HTMLInputElement) {
                             scopedAutoEmitInput.value = autoEmitInvoice;
+                        }
+                        if (scopedMethod instanceof HTMLInputElement && !facturacionQrPaymentMethodLocked) {
+                            scopedMethod.value = mode === 't2p_factura' ? 'T2P' : 'QRSIMPLE';
                         }
 
                         scopedButtons.forEach((candidate) => {
@@ -10431,6 +10546,7 @@
                             }
                         });
 
+                        syncQrPaymentMethodForInvoiceMode(scopedForm instanceof HTMLFormElement ? scopedForm : facturacionBillingInlineForm);
                         syncEmitFormsWithBillingState(scopedForm instanceof HTMLFormElement ? scopedForm : facturacionBillingInlineForm);
                         window.clearTimeout(billingAutosaveTimeout);
                         submitBillingInlineForm(scopedForm instanceof HTMLFormElement ? scopedForm : facturacionBillingInlineForm);
@@ -10441,6 +10557,7 @@
                 syncComplementVisibility();
                 syncBillingEmailMode(false);
                 const controlTributarioAdjustedOnLoad = syncControlTributarioRule();
+                syncQrPaymentMethodForInvoiceMode();
                 syncEmitFormsWithBillingState();
                 if (controlTributarioAdjustedOnLoad) {
                     window.clearTimeout(billingAutosaveTimeout);

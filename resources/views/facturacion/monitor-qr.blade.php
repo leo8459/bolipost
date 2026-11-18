@@ -1190,16 +1190,17 @@
             };
 
             const renderQr = (state = {}) => {
+                const isT2P = String(state.payment_method || '').trim().toUpperCase() === 'T2P';
                 const imageSrc = normalizeImageSrc(state.image_data || '');
                 stateRoot.innerHTML = `
                     <div class="flow">
                         <div class="flow__hero">
                             <div class="flow__visual">
-                                ${imageSrc !== '' ? `<img src="${escapeHtml(imageSrc)}" alt="QR de cobro">` : '<div class="qr__empty">QR no disponible</div>'}
+                                ${imageSrc !== '' ? `<img src="${escapeHtml(imageSrc)}" alt="QR de cobro">` : `<div class="qr__empty">${isT2P ? 'Pago con tarjeta sin contacto' : 'QR no disponible'}</div>`}
                             </div>
                             <div class="flow__headline">
-                                <h2 class="flow__title">${escapeHtml(state.title || 'Escanea para pagar')}</h2>
-                                <p class="flow__text">${escapeHtml(state.message || 'Escanea este codigo con tu app bancaria para completar el pago.')}</p>
+                                <h2 class="flow__title">${escapeHtml(state.title || (isT2P ? 'Acerca la tarjeta al teléfono POS' : 'Escanea para pagar'))}</h2>
+                                <p class="flow__text">${escapeHtml(state.message || (isT2P ? 'Revisa la solicitud en QPOS y espera la confirmación.' : 'Escanea este codigo con tu app bancaria para completar el pago.'))}</p>
                             </div>
                         </div>
                         <div class="flow__grid">
@@ -1212,7 +1213,7 @@
                                 <strong>${escapeHtml(state.internal_code || '-')}</strong>
                             </div>
                             <div class="flow__card">
-                                <small>Referencia QR</small>
+                                <small>${isT2P ? 'Transacción' : 'Referencia QR'}</small>
                                 <strong>${escapeHtml(state.transaction_id || '-')}</strong>
                             </div>
                         </div>
@@ -1371,7 +1372,7 @@
                     resetTimer = null;
                 }
 
-                if (state.mode === 'qr') {
+                if (state.mode === 'qr' || state.mode === 't2p') {
                     renderQr(state);
                 } else if (state.mode === 'preview') {
                     renderPreview(state);

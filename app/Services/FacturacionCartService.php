@@ -2731,11 +2731,17 @@ class FacturacionCartService
     public function registerManualDelivery(User $user, string $code, ?float $weightKg = null): array
     {
         $this->assertFacturacionPermission($user);
-        $user->loadMissing('sucursal');
 
+        return $this->request('POST', '/registrar-entrega-manual', $this->manualDeliveryPayload($user, $code, $weightKg));
+    }
+
+    private function manualDeliveryPayload(User $user, string $code, ?float $weightKg): array
+    {
+        $user->loadMissing('sucursal');
         $identity = $this->originUserPayload($user);
         $branch = $this->originSucursalPayload($user);
-        $payload = [
+
+        return [
             'codigoPaquete' => strtoupper(trim($code)),
             'origenUsuario' => [
                 'id' => $identity['origen_usuario_id'],
@@ -2756,8 +2762,6 @@ class FacturacionCartService
             'telefono' => trim((string) ($user->sucursal?->telefono ?? '')),
             'pesoKg' => $weightKg !== null && $weightKg >= 0 ? round($weightKg, 3) : null,
         ];
-
-        return $this->request('POST', '/registrar-entrega-manual', $payload);
     }
 
     public function findDeliveryTicketCharge(User $user, string $code, bool $regional): ?array

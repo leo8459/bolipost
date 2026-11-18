@@ -96,10 +96,20 @@
                 'accent' => false,
             ],
             [
+                'label' => 'Tarjeta NFC',
+                'value' => \App\Support\BolivianNumber::format($summary['tarjetaPagados'] ?? 0),
+                'meta' => 'Bs ' . \App\Support\BolivianNumber::format((float) ($summary['montoTarjeta'] ?? 0), 2),
+                'params' => $baseFilterParams,
+                'active' => false,
+                'accent' => false,
+            ],
+            [
                 'label' => 'Pendientes',
                 'value' => \App\Support\BolivianNumber::format($summary['pendientesOperativas'] ?? 0),
                 'meta' => 'QR pendientes: ' . \App\Support\BolivianNumber::format($summary['qrPendientes'] ?? 0)
                     . ' | QR no facturados: ' . \App\Support\BolivianNumber::format($summary['qrNoFacturados'] ?? 0)
+                    . ' | Tarjeta pendiente: ' . \App\Support\BolivianNumber::format($summary['tarjetaPendientes'] ?? 0)
+                    . ' | Tarjeta no facturada: ' . \App\Support\BolivianNumber::format($summary['tarjetaNoFacturados'] ?? 0)
                     . ' | Ventas pendientes: ' . \App\Support\BolivianNumber::format($summary['pendientes'] ?? 0),
                 'params' => $baseFilterParams,
                 'active' => false,
@@ -216,7 +226,7 @@
                         <select class="form-control ventas-control" name="estado" data-auto-submit="change">
                             <option value="all" {{ $filters['estado'] === 'all' ? 'selected' : '' }}>Todos</option>
                             <option value="emitido" {{ $filters['estado'] === 'emitido' ? 'selected' : '' }}>Emitido</option>
-                            <option value="pendiente_pago" {{ $filters['estado'] === 'pendiente_pago' ? 'selected' : '' }}>Pendiente QR</option>
+                            <option value="pendiente_pago" {{ $filters['estado'] === 'pendiente_pago' ? 'selected' : '' }}>Pendiente de cobro</option>
                         </select>
                     </div>
                     <div class="col-xl-2 col-lg-3 col-md-4 mb-3">
@@ -229,7 +239,7 @@
                             <option value="ANULADA" {{ $filters['estado_emision'] === 'ANULADA' ? 'selected' : '' }}>Anulada</option>
                             <option value="PENDIENTE_ANULACION" {{ $filters['estado_emision'] === 'PENDIENTE_ANULACION' ? 'selected' : '' }}>Pendiente anulacion</option>
                             <option value="ANULACION_OBSERVADA" {{ $filters['estado_emision'] === 'ANULACION_OBSERVADA' ? 'selected' : '' }}>Anulacion observada</option>
-                            <option value="NO_APLICA" {{ $filters['estado_emision'] === 'NO_APLICA' ? 'selected' : '' }}>No aplica QR</option>
+                            <option value="NO_APLICA" {{ $filters['estado_emision'] === 'NO_APLICA' ? 'selected' : '' }}>No aplica</option>
                             <option value="ERROR" {{ $filters['estado_emision'] === 'ERROR' ? 'selected' : '' }}>Error</option>
                         </select>
                     </div>
@@ -430,6 +440,9 @@
                                 )));
                                 $canalEmision = strtolower(trim((string) data_get($cart, 'canal_emision', '')));
                                 $metodoPago = strtolower(trim((string) data_get($cart, 'metodo_pago', $canalEmision === 'qr' ? 'qr' : 'efectivo')));
+                                $qhantuyPaymentMethod = strtoupper(trim((string) data_get($cart, 'qhantuy_payment_method', '')));
+                                $isCardPayment = $qhantuyPaymentMethod === 'T2P' || $metodoPago === 'tarjeta';
+                                $paymentMethodLabel = $isCardPayment ? 'TARJETA NFC' : 'QR';
                                 $isOficial = $esOficialMeta
                                     || str_starts_with($codigoOrden, 'OFI-')
                                     || strtoupper($razonSocial ?? '') === 'ENVIO OFICIAL'
@@ -443,7 +456,11 @@
                                         $canalEmision = 'factura_electronica';
                                     }
                                 }
-                                $isQrPayment = $metodoPago === 'qr' || trim((string) data_get($cart, 'qr_transaction_id', '')) !== '';
+                                $isQrPayment = $isCardPayment || $metodoPago === 'qr'
+                                    || trim((string) data_get($cart, 'qr_transaction_id', '')) !== ''
+                                    || $canalEmision === 'qr'
+                                    || str_starts_with($codigoOrden, 'VQ-')
+                                    || str_starts_with($codigoOrden, 'VQC-');
                                 $hasFiscalInvoiceReference = $numeroFactura !== ''
                                     || $cufFactura !== ''
                                     || $pdfUrl !== ''
@@ -454,7 +471,7 @@
                                 $empresaContrato = trim((string) data_get($cart, 'empresa_nombre', ''));
 
                                 $canalBadgeLabel = $isQrPayment
-                                    ? 'QR'
+                                    ? $paymentMethodLabel
                                     : ($canalEmision === 'oficial'
                                         ? 'Registro oficial'
                                         : ($esCuentaPorCobrar ? 'Cuenta por cobrar' : 'Efectivo'));
@@ -471,7 +488,7 @@
                                 $referenciaConsulta = $canalEmision === 'qr'
                                     ? ($qrTransactionId !== '' ? $qrTransactionId : $codigoSeguimiento)
                                     : ($codigoSeguimientoFiscal !== '' ? $codigoSeguimientoFiscal : $codigoSeguimiento);
-                                $referenciaLabel = $canalEmision === 'qr' ? 'QR ref' : 'Fiscal';
+                                $referenciaLabel = $canalEmision === 'qr' ? ($isCardPayment ? 'Transacción NFC' : 'QR ref') : 'Fiscal';
                                 $totalCart = (float) data_get($cart, 'total', 0);
                                 $itemsCountApi = (int) data_get($cart, 'items_count', 0);
                                 $fechaRaw = data_get($cart, 'emitido_en') ?: data_get($cart, 'created_at');
@@ -510,7 +527,7 @@
                                 } elseif ($isQrPayment) {
                                     if (!$isAnnulledSale && $estadoPago === 'pendiente') {
                                         $showQrAction = true;
-                                        $consultActionLabel = 'Ver QR';
+                                        $consultActionLabel = $isCardPayment ? 'Ver estado NFC' : 'Ver QR';
                                         $actionRoute = route('facturacion.cart.ver-qr');
                                     } elseif (
                                         !$isAnnulledSale
@@ -559,20 +576,20 @@
                                     @endif
                                     @if($isQrFacturado)
                                         <div class="ventas-table__secondary ventas-table__secondary--hint">
-                                            Cobrado por QR y transformado a factura. No suma a caja.
+                                            Cobrado por {{ $paymentMethodLabel }} y transformado a factura. No suma a caja.
                                         </div>
                                     @endif
                                 </td>
                                 <td>
                                     <span class="ventas-channel-chip {{ $canalBadgeClass }}">{{ $canalBadgeLabel }}</span>
                                     @if($isQrPayment && $estadoPago === 'pendiente')
-                                        <div class="ventas-table__secondary mt-1">Pendiente de pago.</div>
+                                        <div class="ventas-table__secondary mt-1">Pendiente de pago {{ $isCardPayment ? 'con tarjeta' : 'QR' }}.</div>
                                     @elseif($isQrPayment && $estadoPago === 'cancelado')
-                                        <div class="ventas-table__secondary mt-1">Pago QR cancelado.</div>
+                                        <div class="ventas-table__secondary mt-1">Pago {{ $isCardPayment ? 'con tarjeta' : 'QR' }} cancelado.</div>
                                     @elseif($isQrPayment && in_array($estadoPago, ['pagado', 'success', 'paid', 'completed', 'approved', 'confirmed'], true) && $qrTransactionId === '')
-                                        <div class="ventas-table__secondary mt-1">Marcado pagado; falta referencia de transacción QR.</div>
+                                        <div class="ventas-table__secondary mt-1">Marcado pagado; falta referencia de transacción {{ $isCardPayment ? 'NFC' : 'QR' }}.</div>
                                     @elseif($isQrPayment)
-                                        <div class="ventas-table__secondary mt-1">Pago QR confirmado.</div>
+                                        <div class="ventas-table__secondary mt-1">Pago {{ $isCardPayment ? 'con tarjeta' : 'QR' }} confirmado.</div>
                                     @elseif($esCuentaPorCobrar)
                                         <div class="ventas-table__secondary mt-1">No suma a caja.</div>
                                     @else
@@ -583,19 +600,19 @@
                                     @if($facturadaSinDatosFiscales)
                                         <span class="ventas-status-chip ventas-status-chip--warning">SIN FACTURA VINCULADA</span>
                                     @elseif($isQrPayment && $facturaEstado === 'FACTURADA' && $hasFiscalInvoiceReference)
-                                        <span class="ventas-status-chip ventas-status-chip--success">QR PAGADO Y FACTURADO</span>
+                                        <span class="ventas-status-chip ventas-status-chip--success">{{ $isCardPayment ? 'TARJETA PAGADA Y FACTURADA' : 'QR PAGADO Y FACTURADO' }}</span>
                                     @elseif($isQrPayment && $facturaEstado === 'PENDIENTE')
-                                        <span class="ventas-status-chip ventas-status-chip--warning">QR PAGADO - FACTURA EN PROCESO</span>
+                                        <span class="ventas-status-chip ventas-status-chip--warning">{{ $isCardPayment ? 'TARJETA PAGADA - FACTURA EN PROCESO' : 'QR PAGADO - FACTURA EN PROCESO' }}</span>
                                     @elseif($isQrPayment && $facturaEstado === 'RECHAZADA')
                                         <span class="ventas-status-chip ventas-status-chip--danger">FACTURA RECHAZADA</span>
                                     @elseif($isQrPayment && $facturaEstado === 'ERROR')
                                         <span class="ventas-status-chip ventas-status-chip--dark">ERROR DE FACTURA</span>
                                     @elseif($isQrPayment && $facturaEstado === 'NO_APLICA' && $estadoPago === 'pagado')
-                                        <span class="ventas-status-chip ventas-status-chip--success">QR PAGADO</span>
+                                        <span class="ventas-status-chip ventas-status-chip--success">{{ $isCardPayment ? 'TARJETA PAGADA' : 'QR PAGADO' }}</span>
                                     @elseif($isQrPayment && $facturaEstado === 'NO_APLICA' && $estadoPago === 'cancelado')
-                                        <span class="ventas-status-chip ventas-status-chip--danger">QR ANULADO</span>
+                                        <span class="ventas-status-chip ventas-status-chip--danger">{{ $isCardPayment ? 'TARJETA ANULADA' : 'QR ANULADO' }}</span>
                                     @elseif($isQrPayment && $facturaEstado === 'NO_APLICA')
-                                        <span class="ventas-status-chip ventas-status-chip--warning">QR PENDIENTE DE PAGO</span>
+                                        <span class="ventas-status-chip ventas-status-chip--warning">{{ $isCardPayment ? 'TARJETA PENDIENTE DE PAGO' : 'QR PENDIENTE DE PAGO' }}</span>
                                     @elseif($facturaEstado === 'FACTURADA' && $hasFiscalInvoiceReference)
                                         <span class="ventas-status-chip ventas-status-chip--success">FACTURADA</span>
                                     @elseif($esOrdenProcesadaSinFactura)
@@ -631,11 +648,11 @@
                                         </div>
                                     @elseif($isQrPayment && $facturaEstado === 'NO_APLICA' && $estadoPago === 'pendiente')
                                         <div class="ventas-table__secondary ventas-table__secondary--hint">
-                                            Si el cliente cerró la ventana o no completó el pago, la venta seguirá pendiente hasta volver a consultar.
+                                            {{ $isCardPayment ? 'El cobro con tarjeta aún no se confirmó. Consulta su estado antes de reintentar.' : 'Si el cliente cerró la ventana o no completó el pago, la venta seguirá pendiente hasta volver a consultar.' }}
                                         </div>
                                     @elseif($isQrPayment && $facturaEstado === 'PENDIENTE')
                                         <div class="ventas-table__secondary ventas-table__secondary--hint">
-                                            El pago QR ya fue confirmado y la factura se encuentra en proceso ante SEFE.
+                                            El pago {{ $isCardPayment ? 'con tarjeta' : 'QR' }} ya fue confirmado y la factura se encuentra en proceso ante SEFE.
                                         </div>
                                     @endif
                                 </td>
@@ -644,7 +661,7 @@
                                         {{ $estadoCart === 'pendiente_pago' && $isQrPayment && $estadoPago === 'cancelado' ? 'ANULADO' : strtoupper($estadoCart !== '' ? $estadoCart : 'sin estado') }}
                                     </span>
                                     @if($estadoCart === 'pendiente_pago' && $isQrPayment && $estadoPago === 'pendiente')
-                                        <div class="ventas-table__secondary mt-1">Pago QR pendiente de confirmacion.</div>
+                                        <div class="ventas-table__secondary mt-1">Pago {{ $isCardPayment ? 'con tarjeta' : 'QR' }} pendiente de confirmación.</div>
                                     @elseif($esCuentaPorCobrar)
                                         <div class="ventas-table__secondary mt-1">Facturada y registrada como cuenta por cobrar. No se contabiliza en caja.</div>
                                     @endif
@@ -677,11 +694,11 @@
                                     <div class="ventas-table__amount">Bs {{ \App\Support\BolivianNumber::format($totalCart, 2) }}</div>
                                     @if($isQrPayment)
                                         <div class="ventas-table__secondary ventas-table__secondary--hint">
-                                            Origen de cobro: QR
+                                            Origen de cobro: {{ $paymentMethodLabel }}
                                         </div>
                                     @endif
                                     @if($isQrFacturado)
-                                        <div class="ventas-table__secondary ventas-table__secondary--hint">QR facturado fuera de caja</div>
+                                        <div class="ventas-table__secondary ventas-table__secondary--hint">{{ $paymentMethodLabel }} facturado fuera de caja</div>
                                     @elseif($esCuentaPorCobrar)
                                         <div class="ventas-table__secondary ventas-table__secondary--hint">Cuenta por cobrar fuera de caja</div>
                                     @endif

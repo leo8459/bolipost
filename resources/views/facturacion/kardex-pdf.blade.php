@@ -154,6 +154,7 @@
             <tr><td colspan="11" class="right">TOTAL GENERAL</td><td class="right">Bs {{ number_format((float) data_get($section, 'total_importe', $totalImporte), 2, ',', '.') }}</td></tr>
             <tr><td colspan="11" class="right">EFECTIVO · {{ number_format((int) data_get($sectionPaymentMetrics, 'ventasEfectivo', 0)) }} ventas</td><td class="right">Bs {{ number_format((float) data_get($sectionPaymentMetrics, 'montoEfectivo', 0), 2, ',', '.') }}</td></tr>
             <tr><td colspan="11" class="right">QR CONFIRMADO · {{ number_format((int) data_get($sectionPaymentMetrics, 'ventasQrPagadas', 0)) }} ventas</td><td class="right">Bs {{ number_format((float) data_get($sectionPaymentMetrics, 'montoQr', 0), 2, ',', '.') }}</td></tr>
+            <tr><td colspan="11" class="right">TARJETA NFC CONFIRMADA · {{ number_format((int) data_get($sectionPaymentMetrics, 'ventasTarjetaPagadas', 0)) }} ventas</td><td class="right">Bs {{ number_format((float) data_get($sectionPaymentMetrics, 'montoTarjeta', 0), 2, ',', '.') }}</td></tr>
         </tfoot>
     </table>
 
