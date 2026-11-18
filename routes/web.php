@@ -485,6 +485,10 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::post('/usuarios/finalizar-ingreso', [UserImpersonationController::class, 'destroy'])->name('users.impersonate.destroy');
     Route::get('/users/{user}', [UserController::class, 'show'])->name('users.show');
     Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
+    Route::put('/users/{user}/caja-qr', [UserController::class, 'updateQrCashierAssignment'])
+        ->middleware('can:admin-only-menu')->name('users.qr-cashier.update');
+    Route::delete('/users/{user}/caja-qr', [UserController::class, 'destroyQrCashierAssignment'])
+        ->middleware('can:admin-only-menu')->name('users.qr-cashier.destroy');
     Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
     Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
     Route::get('users/{id}/delete', [UserController::class, 'delete'])->name('users.delete');

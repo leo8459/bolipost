@@ -81,7 +81,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        $exceptions->dontFlash(['token']);
+        $exceptions->dontFlash(['token', 'qhantuy_qr_appkey']);
 
         $exceptions->render(function (HttpExceptionInterface $e, Request $request) {
             if (

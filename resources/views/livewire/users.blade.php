@@ -1305,6 +1305,11 @@
                         </div>
                     </div>
                     <div class="modal-footer users-modal-footer">
+                        @if($editingId && !$empresaMode && auth()->user()?->can('admin-only-menu') && !session()->has('impersonator_id') && !session()->has('impersonator_cliente_admin_id'))
+                            <a href="{{ route('users.edit', $editingId) }}#caja-qr" target="_blank" rel="noopener" class="btn btn-outline-primary mr-auto">
+                                Configurar caja QR
+                            </a>
+                        @endif
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
                         <button type="submit" class="btn btn-primary">{{ $editingId ? 'Guardar cambios' : 'Crear usuario' }}</button>
                     </div>

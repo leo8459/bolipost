@@ -14,6 +14,9 @@
                 <div class="card card-default">
                     <div class="card-header">
                         <span class="card-title">{{ __('Actualizar') }} Usuarios</span>
+                        @if($qrCashier !== null)
+                            <a href="#caja-qr" class="float-right">Caja QR de Qhantuy</a>
+                        @endif
                     </div>
                     <div class="card-body">
                         <form method="POST" action="{{ route('users.update', $user->id) }}"  role="form" enctype="multipart/form-data">
@@ -25,6 +28,10 @@
                         </form>
                     </div>
                 </div>
+
+                @if($qrCashier !== null)
+                    @include('user.qr-cashier')
+                @endif
             </div>
         </div>
         @include('footer')

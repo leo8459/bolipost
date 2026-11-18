@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Empresa;
 use App\Models\Sucursal;
 use App\Models\User;
+use App\Services\QhantuyQrCashierAssignmentService;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -19,6 +21,7 @@ use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use RuntimeException;
 use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
@@ -95,14 +98,96 @@ class UserController extends Controller
         return view('user.show', compact('user'));
     }
 
-    public function edit($id)
+    public function edit(Request $request, QhantuyQrCashierAssignmentService $qrAssignments, $id)
     {
-        $user = User::find($id);
+        $user = User::findOrFail($id);
         $roles = Role::all();
         $empresas = Empresa::query()->orderBy('codigo_cliente')->get();
         $sucursales = Sucursal::query()->orderBy('codigoSucursal')->orderBy('puntoVenta')->get();
 
-        return view('user.edit', compact('user', 'roles', 'empresas', 'sucursales'));
+        $qrCashier = null;
+        if ($this->canManageQrCashierAssignment($request)) {
+            $cashier = $qrAssignments->cashierContext($user);
+            $qrCashier = [
+                'context' => $cashier,
+                'context_hash' => $cashier === null ? null : $this->qrCashierContextHash($cashier),
+                'configured' => null,
+                'error' => null,
+            ];
+
+            if ($cashier !== null) {
+                try {
+                    $qrCashier['configured'] = $qrAssignments->configured($cashier);
+                } catch (RuntimeException $e) {
+                    $qrCashier['error'] = $e->getMessage();
+                }
+            }
+        }
+
+        return view('user.edit', compact('user', 'roles', 'empresas', 'sucursales', 'qrCashier'));
+    }
+
+    public function updateQrCashierAssignment(
+        Request $request,
+        User $user,
+        QhantuyQrCashierAssignmentService $qrAssignments,
+    ): RedirectResponse {
+        return $this->saveQrCashierAssignment($request, $user, $qrAssignments, false);
+    }
+
+    public function destroyQrCashierAssignment(
+        Request $request,
+        User $user,
+        QhantuyQrCashierAssignmentService $qrAssignments,
+    ): RedirectResponse {
+        return $this->saveQrCashierAssignment($request, $user, $qrAssignments, true);
+    }
+
+    private function saveQrCashierAssignment(
+        Request $request,
+        User $user,
+        QhantuyQrCashierAssignmentService $qrAssignments,
+        bool $useGeneralCashier,
+    ): RedirectResponse {
+        abort_unless($this->canManageQrCashierAssignment($request), 403);
+
+        $rules = ['qr_cashier_context' => ['required', 'string', 'size:64']];
+        if (! $useGeneralCashier) {
+            $rules['qhantuy_qr_appkey'] = ['required', 'string', 'max:500'];
+        }
+        $validated = $request->validate($rules, [], ['qhantuy_qr_appkey' => 'appkey de Qhantuy']);
+        $cashier = $qrAssignments->cashierContext($user);
+        $redirect = redirect()->route('users.edit', $user)->withFragment('caja-qr');
+
+        if ($cashier === null || ! hash_equals($this->qrCashierContextHash($cashier), $validated['qr_cashier_context'])) {
+            return $redirect->with('qr_cashier_error', 'La sucursal o el punto de venta cambió. Revisa la asignación y vuelve a intentar.');
+        }
+
+        try {
+            if ($useGeneralCashier) {
+                $qrAssignments->clear($cashier);
+                $message = 'Los próximos cobros QR usarán la caja general.';
+            } else {
+                $qrAssignments->save($cashier, trim($validated['qhantuy_qr_appkey']));
+                $message = 'Caja QR asignada correctamente.';
+            }
+        } catch (RuntimeException $e) {
+            return $redirect->with('qr_cashier_error', $e->getMessage());
+        }
+
+        return $redirect->with('qr_cashier_success', $message);
+    }
+
+    private function canManageQrCashierAssignment(Request $request): bool
+    {
+        return $request->user()?->can('admin-only-menu') === true
+            && ! $request->session()->has('impersonator_id')
+            && ! $request->session()->has('impersonator_cliente_admin_id');
+    }
+
+    private function qrCashierContextHash(array $cashier): string
+    {
+        return hash('sha256', implode("\0", $cashier));
     }
 
     public function update(Request $request, User $user)
