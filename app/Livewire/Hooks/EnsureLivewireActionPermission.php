@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Hooks;
 
+use App\Livewire\Users;
 use App\Support\AclPermissionRegistry;
 use Livewire\ComponentHook;
 
@@ -22,6 +23,11 @@ class EnsureLivewireActionPermission extends ComponentHook
         $methodName = (string) $method;
 
         if ($methodName === '' || str_starts_with($methodName, '__')) {
+            return;
+        }
+
+        // Users authorizes these actions using the active window and the edit/create state.
+        if ($this->component instanceof Users && in_array($methodName, ['openCreateModal', 'openEditModal', 'saveUser'], true)) {
             return;
         }
 

@@ -3,9 +3,15 @@
 namespace App\Livewire;
 
 use App\Models\Empresa as EmpresaModel;
+use App\Models\EmpresaSucursal;
 use App\Services\EmpresaContractUserSyncService;
 use App\Services\EmpresaHistoryService;
+use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
@@ -38,6 +44,14 @@ class Empresa extends Component
     public $archivingToHistory = false;
     public $originalInicioContrato = '';
     public $originalFinContrato = '';
+
+    #[Locked]
+    public ?int $sucursalesEmpresaId = null;
+
+    #[Locked]
+    public ?int $sucursalEditingId = null;
+
+    public array $sucursalFilas = [['nombre' => '', 'ciudad' => '']];
 
     protected $paginationTheme = 'bootstrap';
 
@@ -186,12 +200,144 @@ class Empresa extends Component
     public function delete($id)
     {
         $empresa = EmpresaModel::findOrFail($id);
+
+        try {
+            $empresa->delete();
+        } catch (QueryException $exception) {
+            if (! $empresa->sucursales()->exists()) {
+                throw $exception;
+            }
+
+            session()->flash('error', 'La empresa tiene sucursales registradas. Elimínalas antes de eliminar la empresa.');
+
+            return;
+        }
+
         if (!empty($empresa->documento_pdf_path)) {
             Storage::disk('public')->delete($empresa->documento_pdf_path);
         }
 
-        $empresa->delete();
         session()->flash('success', 'Empresa eliminada correctamente.');
+    }
+
+    public function openSucursalesModal(int $empresaId): void
+    {
+        Gate::authorize('feature.empresas.edit');
+        $this->sucursalesEmpresaId = EmpresaModel::query()->findOrFail($empresaId)->id;
+        $this->resetSucursalForm();
+        $this->dispatch('openSucursalesModal');
+    }
+
+    public function editSucursal(int $id): void
+    {
+        $sucursal = $this->empresaParaSucursales()->sucursales()->findOrFail($id);
+        $this->resetSucursalForm();
+        $this->sucursalEditingId = $sucursal->id;
+        $this->sucursalFilas = [['nombre' => $sucursal->nombre, 'ciudad' => $sucursal->ciudad ?? '']];
+    }
+
+    public function addSucursalFila(): void
+    {
+        if ($this->sucursalEditingId === null) {
+            $this->sucursalFilas[] = ['nombre' => '', 'ciudad' => ''];
+        }
+    }
+
+    public function removeSucursalFila(int $index): void
+    {
+        if ($this->sucursalEditingId === null && count($this->sucursalFilas) > 1) {
+            unset($this->sucursalFilas[$index]);
+            $this->resetValidation(['sucursalFilas', 'sucursalFilas.*']);
+        }
+    }
+
+    public function saveSucursal(): void
+    {
+        $empresa = $this->empresaParaSucursales();
+        $sucursales = $empresa->sucursales();
+        $sucursal = $this->sucursalEditingId ? $sucursales->findOrFail($this->sucursalEditingId) : null;
+        $ciudades = array_keys(EmpresaSucursal::CIUDADES);
+        if (filled($sucursal?->ciudad)) {
+            $ciudades[] = $sucursal->ciudad;
+        }
+
+        foreach ($this->sucursalFilas as $index => $fila) {
+            if (is_string($fila['nombre'] ?? null)) {
+                $this->sucursalFilas[$index]['nombre'] = trim($fila['nombre']);
+            }
+        }
+
+        $rows = $this->validate([
+            'sucursalFilas' => ['required', 'array', $sucursal ? 'size:1' : 'min:1'],
+            'sucursalFilas.*' => ['required', 'array:nombre,ciudad'],
+            'sucursalFilas.*.nombre' => [
+                'bail', 'required', 'string', 'max:255', 'distinct:strict',
+                Rule::unique('empresa_sucursales', 'nombre')->where('empresa_id', $empresa->id)->ignore($sucursal?->id),
+            ],
+            'sucursalFilas.*.ciudad' => ['nullable', 'string', Rule::in($ciudades)],
+        ], [
+            'sucursalFilas.*.nombre.required' => 'Escribe el nombre de la sucursal.',
+            'sucursalFilas.*.nombre.distinct' => 'El nombre de la sucursal se repite en el formulario.',
+            'sucursalFilas.*.nombre.unique' => 'Esta empresa ya tiene una sucursal con ese nombre.',
+            'sucursalFilas.*.ciudad.in' => 'Selecciona una ciudad de la lista.',
+        ])['sucursalFilas'];
+
+        $rows = array_map(fn (array $fila) => [
+            'nombre' => $fila['nombre'],
+            'ciudad' => filled($fila['ciudad'] ?? null) ? $fila['ciudad'] : null,
+        ], $rows);
+        try {
+            if ($sucursal) {
+                $sucursal->update(reset($rows));
+            } else {
+                $empresa->getConnection()->transaction(fn () => $sucursales->createMany($rows));
+            }
+        } catch (UniqueConstraintViolationException) {
+            $this->addError('sucursalFilas', 'Esta empresa ya tiene una sucursal con uno de los nombres ingresados.');
+
+            return;
+        }
+
+        $this->resetSucursalForm();
+        $count = count($rows);
+        session()->flash('sucursales_success', $count === 1 ? 'Sucursal guardada correctamente.' : "Se guardaron {$count} sucursales.");
+    }
+
+    public function deleteSucursal(int $id): void
+    {
+        $sucursal = $this->empresaParaSucursales()->sucursales()->findOrFail($id);
+        $this->resetValidation('sucursalEliminar');
+
+        try {
+            $sucursal->delete();
+        } catch (QueryException $exception) {
+            if (! $sucursal->users()->withTrashed()->exists()) {
+                throw $exception;
+            }
+
+            $this->addError('sucursalEliminar', 'La sucursal tiene usuarios asignados. Reasígnalos antes de eliminarla.');
+
+            return;
+        }
+
+        if ($this->sucursalEditingId === $id) {
+            $this->resetSucursalForm();
+        }
+
+        session()->flash('sucursales_success', 'Sucursal eliminada correctamente.');
+    }
+
+    public function resetSucursalForm(): void
+    {
+        $this->reset(['sucursalEditingId', 'sucursalFilas']);
+        $this->resetValidation(['sucursalFilas', 'sucursalFilas.*', 'sucursalEliminar']);
+    }
+
+    private function empresaParaSucursales(): EmpresaModel
+    {
+        Gate::authorize('feature.empresas.edit');
+
+        return EmpresaModel::query()->findOrFail($this->sucursalesEmpresaId);
     }
 
     public function resetForm()
@@ -295,6 +441,10 @@ class Empresa extends Component
 
         return view('livewire.empresa', [
             'empresas' => $empresas,
+            'ciudadesSucursal' => EmpresaSucursal::CIUDADES,
+            'empresaSucursales' => $this->sucursalesEmpresaId && Gate::allows('feature.empresas.edit')
+                ? EmpresaModel::query()->with(['sucursales' => fn ($query) => $query->orderBy('nombre')])->find($this->sucursalesEmpresaId)
+                : null,
         ]);
     }
 

@@ -63,6 +63,7 @@ class User extends Authenticatable
         'ci',
         'empresa_id',
         'sucursal_id',
+        'empresa_sucursal_id',
     ];
 
     /**
@@ -212,6 +213,11 @@ class User extends Authenticatable
     public function sucursal(): BelongsTo
     {
         return $this->belongsTo(Sucursal::class, 'sucursal_id');
+    }
+
+    public function empresaSucursal(): BelongsTo
+    {
+        return $this->belongsTo(EmpresaSucursal::class, 'empresa_sucursal_id');
     }
 
     public function loginLogs(): HasMany

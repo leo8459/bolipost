@@ -117,18 +117,24 @@
         </div>
 
         {{-- Empresa --}}
+        @php
+            $empresaSeleccionada = filter_var(old('empresa_id', $user->empresa_id ?? ''), FILTER_VALIDATE_INT);
+            $sucursalSeleccionada = filter_var(old('empresa_sucursal_id', $user->empresa_sucursal_id ?? ''), FILTER_VALIDATE_INT);
+            $opcionesSucursal = $sucursalesEmpresa[$empresaSeleccionada] ?? [];
+        @endphp
         <div class="form-group mb-3">
-            <label for="empresa_id">Empresa (opcional)</label>
+            <label for="empresa_id">Empresa *</label>
             <select
                 id="empresa_id"
                 name="empresa_id"
                 class="form-control @error('empresa_id') is-invalid @enderror"
+                required
             >
-                <option value="">Sin empresa</option>
+                <option value="">Selecciona una empresa</option>
                 @foreach(($empresas ?? collect()) as $empresa)
                     <option
                         value="{{ $empresa->id }}"
-                        {{ (string) old('empresa_id', $user->empresa_id ?? '') === (string) $empresa->id ? 'selected' : '' }}
+                        @selected($empresaSeleccionada === (int) $empresa->id)
                     >
                         {{ $empresa->codigo_cliente }} - {{ $empresa->nombre }} ({{ $empresa->sigla }})
                     </option>
@@ -139,9 +145,26 @@
             @enderror
         </div>
 
-        {{-- Sucursal --}}
         <div class="form-group mb-3">
-            <label for="sucursal_id">Sucursal de facturacion (opcional)</label>
+            <label for="empresa_sucursal_id">Sucursal de empresa *</label>
+            <select id="empresa_sucursal_id" name="empresa_sucursal_id"
+                class="form-control @error('empresa_sucursal_id') is-invalid @enderror" required
+                @disabled(! $empresaSeleccionada)>
+                <option value="">{{ $empresaSeleccionada ? 'Selecciona una sucursal' : 'Selecciona una empresa primero' }}</option>
+                @foreach($opcionesSucursal as $opcion)
+                    <option value="{{ $opcion['id'] }}" @selected($sucursalSeleccionada === (int) $opcion['id'])>{{ $opcion['label'] }}</option>
+                @endforeach
+            </select>
+            <small id="empresa_sucursal_ayuda" class="text-muted" @if(! $empresaSeleccionada || $opcionesSucursal) hidden @endif>
+                Esta empresa aún no tiene sucursales registradas.
+            </small>
+            @error('empresa_sucursal_id')
+                <div class="invalid-feedback">{{ $message }}</div>
+            @enderror
+        </div>
+
+        <div class="form-group mb-3">
+            <label for="sucursal_id">Sucursal de Facturación (opcional)</label>
             <select
                 id="sucursal_id"
                 name="sucursal_id"
@@ -211,3 +234,26 @@
         <button type="submit" class="btn btn-primary">{{ __('Listo') }}</button>
     </div>
 </div>
+
+@push('js')
+    <script>
+        const empresaSelect = document.getElementById('empresa_id');
+        const sucursalEmpresaSelect = document.getElementById('empresa_sucursal_id');
+        const sucursalesPorEmpresa = @js($sucursalesEmpresa);
+        const sucursalAyuda = document.getElementById('empresa_sucursal_ayuda');
+
+        empresaSelect.addEventListener('change', () => {
+            const empresaId = empresaSelect.value;
+            const sucursales = sucursalesPorEmpresa[empresaId] || [];
+            sucursalEmpresaSelect.replaceChildren(new Option(
+                empresaId ? 'Selecciona una sucursal' : 'Selecciona una empresa primero',
+                '',
+            ));
+            for (const sucursal of sucursales) {
+                sucursalEmpresaSelect.add(new Option(sucursal.label, sucursal.id));
+            }
+            sucursalEmpresaSelect.disabled = !empresaId;
+            sucursalAyuda.hidden = !empresaId || sucursales.length > 0;
+        });
+    </script>
+@endpush

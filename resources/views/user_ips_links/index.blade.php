@@ -149,6 +149,25 @@
                                                 @method('DELETE')
                                                 <button class="btn btn-sm btn-outline-danger" type="submit">Quitar</button>
                                             </form>
+                                            @if(!empty($assignedOffices))
+                                                <form method="POST" action="{{ route('users.ips-links.office.update', $user) }}" class="mt-2 text-left">
+                                                    @csrf
+                                                    @method('PUT')
+                                                    <label for="ips-office-{{ $user->id }}" class="small font-weight-bold mb-1">Oficina operativa predeterminada</label>
+                                                    <select id="ips-office-{{ $user->id }}" name="office_cd" class="form-control form-control-sm" required>
+                                                        @if($link->ips_office_cd !== null && !collect($assignedOffices)->contains(fn ($office) => (int) $office['office_cd'] === (int) $link->ips_office_cd))
+                                                            <option value="{{ $link->ips_office_cd }}" selected disabled>Oficina actual fuera de la lista; verifica el vínculo</option>
+                                                        @endif
+                                                        @foreach($assignedOffices as $office)
+                                                            <option value="{{ $office['office_cd'] }}" @selected((int) $link->ips_office_cd === (int) $office['office_cd'])>{{ $office['office_name'] ?: 'Oficina '.$office['office_cd'] }}{{ $office['office_fcd'] !== '' ? ' · '.$office['office_fcd'] : '' }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                    <button class="btn btn-sm btn-outline-primary mt-1" type="submit">Asignar oficina</button>
+                                                    <div class="text-muted small mt-1">Solo puedes elegir oficinas que SITRA ya tenga asignadas a esta cuenta.</div>
+                                                </form>
+                                            @else
+                                                <div class="text-warning small mt-2">Verifica la cuenta en SITRA para cargar sus oficinas y poder asignar una.</div>
+                                            @endif
                                         @else
                                             <form method="POST" action="{{ route('users.ips-links.store', $user) }}" class="d-inline-flex align-items-center">
                                                 @csrf

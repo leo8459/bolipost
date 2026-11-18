@@ -135,7 +135,6 @@ class TarifaContratoController extends Controller
         'origen',
         'destino',
         'servicio',
-        'kilo_de_1_a_2',
         'kilo',
         'kilo_extra',
         'horas_entrega',
@@ -150,7 +149,6 @@ class TarifaContratoController extends Controller
         'origen' => 'Origen *',
         'destino' => 'Destino *',
         'servicio' => 'Servicio *',
-        'kilo_de_1_a_2' => 'Peso (kg) *',
         'kilo' => 'Primer kilogramo: precio (Bs) *',
         'kilo_extra' => 'Kilogramo extra: precio (Bs) *',
         'horas_entrega' => 'Entrega (horas) *',
@@ -165,7 +163,6 @@ class TarifaContratoController extends Controller
         'origen',
         'destino',
         'servicio',
-        'kilo_de_1_a_2',
         'kilo',
         'kilo_extra',
         'horas_entrega',
@@ -685,14 +682,16 @@ class TarifaContratoController extends Controller
                     'origen',
                     'destino',
                     'servicio',
-                    'peso',
                     'provincia',
                     'provincia_origen',
                 ]);
 
                 $values = Arr::only($validated, ['direccion', 'zona', 'kilo', 'kilo_extra', 'retencion', 'horas_entrega']);
+                if (in_array('kilo_de_1_a_2', $header, true) || in_array('peso', $header, true)) {
+                    $unique['peso'] = $validated['peso'] ?? null;
+                }
 
-                $tarifa = TarifaContrato::query()->where($unique)->first();
+                $tarifa = TarifaContrato::query()->where($unique)->orderByDesc('id')->first();
                 if ($tarifa) {
                     $tarifa->update($values);
                     $updated++;
@@ -828,22 +827,22 @@ class TarifaContratoController extends Controller
             $sheet->setTitle('TarifaContrato');
             $sheet->fromArray($columns, null, 'A1');
             $sheet->freezePane('A2');
-            $sheet->setAutoFilter('A1:L1');
-            $sheet->getStyle('A1:L1')->applyFromArray([
+            $sheet->setAutoFilter('A1:K1');
+            $sheet->getStyle('A1:K1')->applyFromArray([
                 'font' => ['bold' => true, 'color' => ['argb' => 'FFFFFFFF']],
                 'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FF217346']],
                 'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
             ]);
             $sheet->getRowDimension(1)->setRowHeight(44);
-            foreach (range('A', 'L') as $column) {
+            foreach (range('A', 'K') as $column) {
                 $sheet->getColumnDimension($column)->setWidth(24);
             }
             $sheet->getColumnDimension('C')->setWidth(42);
+            $sheet->getColumnDimension('D')->setWidth(32);
             $sheet->getColumnDimension('E')->setWidth(32);
-            $sheet->getColumnDimension('F')->setWidth(32);
-            $sheet->getStyle('D2:F5000')->getNumberFormat()->setFormatCode('#,##0.00');
-            $sheet->getStyle('G2:G5000')->getNumberFormat()->setFormatCode('0');
-            $sheet->getStyle('L2:L5000')->getNumberFormat()->setFormatCode('#,##0.00');
+            $sheet->getStyle('D2:E5000')->getNumberFormat()->setFormatCode('#,##0.00');
+            $sheet->getStyle('F2:F5000')->getNumberFormat()->setFormatCode('0');
+            $sheet->getStyle('K2:K5000')->getNumberFormat()->setFormatCode('#,##0.00');
 
             $catalogos = $spreadsheet->createSheet();
             $catalogos->setTitle('Catalogos');
@@ -870,9 +869,9 @@ class TarifaContratoController extends Controller
                 ['Cada archivo carga las tarifas de un solo tarifario; las empresas se asignan después.'],
                 ['No cambies los encabezados. Empieza a llenar datos desde la fila 2.'],
                 ['Los títulos son los mismos que en la plataforma. Los campos con * son obligatorios.'],
-                ['Peso (kg) indica el peso; Primer kilogramo: precio (Bs) y Kilogramo extra: precio (Bs) indican los precios.'],
+                ['Primer kilogramo: precio (Bs) y Kilogramo extra: precio (Bs) indican los precios. No es necesario llenar un peso.'],
                 ['Opcionales: dirección, zona, provincias y retención. Retención vacía equivale a 0 %.'],
-                ['Para pegar en la página: copia solo las celdas de datos de A a L (sin la cabecera, máximo 50 filas por vez).'],
+                ['Para pegar en la página: copia solo las celdas de datos de A a K (sin la cabecera, máximo 50 filas por vez).'],
                 ['Los tarifarios publicados conservan sus precios. Crea o copia otro tarifario para renovar.'],
                 ['Haz clic en la primera celda de Origen, pega con Ctrl+V, revisa los datos y pulsa Guardar tarifas.'],
             ], null, 'A1');
@@ -1145,7 +1144,7 @@ class TarifaContratoController extends Controller
             'servicio' => ['required', 'string', 'max:255', Rule::exists('servicios_contrato', 'nombre')->where(fn ($query) => $anio === null ? $query->whereNull('anio') : $query->where('anio', $anio))],
             'direccion' => ['nullable', 'string', 'max:255'],
             'zona' => ['nullable', 'string', 'max:255'],
-            'peso' => ['required', 'numeric', 'min:0'],
+            'peso' => ['nullable', 'numeric', 'min:0'],
             'kilo' => 'required|numeric|min:0',
             'kilo_extra' => 'required|numeric|min:0',
             'provincia' => ['nullable', 'string', 'max:255'],
@@ -1166,6 +1165,7 @@ class TarifaContratoController extends Controller
         }
 
         return match ($value) {
+            'peso', 'peso (kg)', 'peso (kg) (opcional)' => 'kilo_de_1_a_2',
             'kilo de 1 a 2', 'kilo 1 a 2', 'kilo_de_1_a_2' => 'kilo_de_1_a_2',
             'provincia origen', 'provincia_origen' => 'provincia_origen',
             'provincia destino', 'provincia_destino', 'provincia' => 'provincia_destino',

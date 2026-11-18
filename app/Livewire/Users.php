@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\Empresa;
+use App\Models\EmpresaSucursal;
 use App\Models\Sucursal;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -27,12 +28,14 @@ class Users extends Component
     public $filterEmpresaId = '';
     public $appliedFilterCodigoCliente = '';
     public $appliedFilterEmpresaId = '';
+    #[\Livewire\Attributes\Locked]
     public $empresaMode = false;
 
     #[\Livewire\Attributes\Locked]
     public $provinciaEditingId = null;
     public $provinciaInline = '';
 
+    #[\Livewire\Attributes\Locked]
     public $editingId = null;
     public $name = '';
     public $alias = '';
@@ -43,6 +46,7 @@ class Users extends Component
     public $provincia_origen = '';
     public $ci = '';
     public $empresa_id = '';
+    public $empresa_sucursal_id = '';
     public $sucursal_id = '';
     public $roleIds = [];
 
@@ -84,6 +88,12 @@ class Users extends Component
         $this->dispatch('openUserModal');
     }
 
+    public function updatedEmpresaId(): void
+    {
+        $this->empresa_sucursal_id = '';
+        $this->resetValidation(['empresa_id', 'empresa_sucursal_id']);
+    }
+
     public function editProvincia(int $userId): void
     {
         abort_unless($this->empresaMode, 404);
@@ -123,7 +133,9 @@ class Users extends Component
     {
         $this->authorizePermission($this->permissionFor('edit'));
 
-        $user = User::query()->findOrFail($userId);
+        $user = User::query()
+            ->when($this->empresaMode, fn ($query) => $query->whereNotNull('empresa_id'))
+            ->findOrFail($userId);
 
         $this->editingId = $user->id;
         $this->name = (string) $user->name;
@@ -135,6 +147,7 @@ class Users extends Component
         $this->provincia_origen = (string) ($user->provincia_origen ?? '');
         $this->ci = (string) $user->ci;
         $this->empresa_id = $user->empresa_id ? (string) $user->empresa_id : '';
+        $this->empresa_sucursal_id = (string) ($user->empresa_sucursal_id ?? '');
         $this->sucursal_id = $user->sucursal_id ? (string) $user->sucursal_id : '';
         $this->roleIds = $user->roles()->pluck('roles.id')->map(fn ($id) => (string) $id)->all();
         $this->applyEmpresaRoleMode();
@@ -151,7 +164,9 @@ class Users extends Component
             $this->validate($this->updateRules());
             $this->ensureAliasIsAvailable($this->alias, (int) $this->editingId);
 
-            $user = User::query()->findOrFail((int) $this->editingId);
+            $user = User::query()
+                ->when($this->empresaMode, fn ($query) => $query->whereNotNull('empresa_id'))
+                ->findOrFail((int) $this->editingId);
             $ciValue = trim((string) $this->ci);
             $regionales = $this->normalizeRegionalesSeleccionadas();
             $user->name = trim($this->name);
@@ -162,8 +177,11 @@ class Users extends Component
             $user->provincia_origen = $this->normalizeProvinciaOrigen();
             // If CI is left empty on edit, keep existing value.
             $user->ci = $ciValue !== '' ? $ciValue : $user->ci;
-            $user->empresa_id = $this->empresa_id !== '' ? (int) $this->empresa_id : null;
-            $user->sucursal_id = $this->empresaMode ? null : ($this->sucursal_id !== '' ? (int) $this->sucursal_id : null);
+            $user->empresa_id = (int) $this->empresa_id;
+            $user->empresa_sucursal_id = (int) $this->empresa_sucursal_id;
+            if (! $this->empresaMode) {
+                $user->sucursal_id = filled($this->sucursal_id) ? (int) $this->sucursal_id : null;
+            }
 
             if (trim($this->password) !== '') {
                 $user->password = Hash::make($this->password);
@@ -190,8 +208,9 @@ class Users extends Component
             $user->regionales = $regionales;
             $user->provincia_origen = $this->normalizeProvinciaOrigen();
             $user->ci = $ciValue !== '' ? $ciValue : null;
-            $user->empresa_id = $this->empresa_id !== '' ? (int) $this->empresa_id : null;
-            $user->sucursal_id = $this->empresaMode ? null : ($this->sucursal_id !== '' ? (int) $this->sucursal_id : null);
+            $user->empresa_id = (int) $this->empresa_id;
+            $user->empresa_sucursal_id = (int) $this->empresa_sucursal_id;
+            $user->sucursal_id = ! $this->empresaMode && filled($this->sucursal_id) ? (int) $this->sucursal_id : null;
             $user->save();
             $user->syncRoles($this->resolveRoleNames());
 
@@ -517,7 +536,8 @@ class Users extends Component
             'regionalesSeleccionadas.*' => ['required', 'string', Rule::in($regionales)],
             'ci' => ['nullable', 'string', 'max:255'],
             'provincia_origen' => ['nullable', 'string', 'max:255'],
-            'empresa_id' => [$this->empresaMode ? 'required' : 'nullable', 'integer', 'exists:empresa,id'],
+            'empresa_id' => ['bail', 'required', 'integer', 'exists:empresa,id'],
+            'empresa_sucursal_id' => EmpresaSucursal::assignmentRules($this->empresa_id),
             'sucursal_id' => ['nullable', 'integer', 'exists:sucursales,id'],
             'roleIds' => ['nullable', 'array'],
             'roleIds.*' => ['integer', 'exists:roles,id'],
@@ -537,7 +557,8 @@ class Users extends Component
             'regionalesSeleccionadas.*' => ['required', 'string', Rule::in($regionales)],
             'ci' => ['nullable', 'string', 'max:255'],
             'provincia_origen' => ['nullable', 'string', 'max:255'],
-            'empresa_id' => [$this->empresaMode ? 'required' : 'nullable', 'integer', 'exists:empresa,id'],
+            'empresa_id' => ['bail', 'required', 'integer', 'exists:empresa,id'],
+            'empresa_sucursal_id' => EmpresaSucursal::assignmentRules($this->empresa_id),
             'sucursal_id' => ['nullable', 'integer', 'exists:sucursales,id'],
             'roleIds' => ['nullable', 'array'],
             'roleIds.*' => ['integer', 'exists:roles,id'],
@@ -564,6 +585,15 @@ class Users extends Component
         return Role::query()->whereIn('id', $roleIds)->pluck('name')->toArray();
     }
 
+    protected function messages(): array
+    {
+        return [
+            'empresa_id.required' => 'Selecciona una empresa.',
+            'empresa_sucursal_id.required' => 'Selecciona una sucursal de la empresa.',
+            'empresa_sucursal_id.exists' => 'La sucursal seleccionada debe pertenecer a la empresa elegida.',
+        ];
+    }
+
     protected function resetUserForm(): void
     {
         $this->editingId = null;
@@ -576,6 +606,7 @@ class Users extends Component
         $this->provincia_origen = '';
         $this->ci = '';
         $this->empresa_id = '';
+        $this->empresa_sucursal_id = '';
         $this->sucursal_id = '';
         $this->roleIds = [];
         $this->resetValidation();
@@ -593,7 +624,6 @@ class Users extends Component
         }
 
         $this->roleIds = $empresaRoleId ? [(string) $empresaRoleId] : [];
-        $this->sucursal_id = '';
         $this->showOnlyWithEmpresa = true;
         $this->groupByBillingSucursal = false;
     }
@@ -743,9 +773,10 @@ class Users extends Component
     public function render()
     {
         $q = trim((string) $this->searchQuery);
+        $selectedEmpresaId = filter_var($this->empresa_id, FILTER_VALIDATE_INT);
 
         $baseQuery = User::withTrashed()
-            ->with(['empresa', 'sucursal', 'roles'])
+            ->with(['empresa', 'empresaSucursal', 'sucursal', 'roles'])
             ->when($this->showOnlyWithEmpresa, fn ($query) => $query->whereNotNull('empresa_id'))
             ->when($this->appliedFilterCodigoCliente !== '', function ($query) {
                 $query->whereHas('empresa', function ($empresaQuery) {
@@ -871,7 +902,11 @@ class Users extends Component
             'bulkTotalAffectedUsers' => $bulkEmpresas
                 ->whereIn('id', $selectedBulkEmpresaIds)
                 ->sum($this->bulkStatusAction === 'restore' ? 'usuarios_inactivos' : 'usuarios_activos'),
-            'sucursales' => Sucursal::query()->orderBy('codigoSucursal')->orderBy('puntoVenta')->get(),
+            'selectedEmpresaId' => $selectedEmpresaId,
+            'sucursalesEmpresa' => $selectedEmpresaId
+                ? EmpresaSucursal::query()->where('empresa_id', $selectedEmpresaId)->orderBy('nombre')->get()
+                : collect(),
+            'sucursales' => $this->empresaMode ? collect() : Sucursal::query()->orderBy('codigoSucursal')->orderBy('puntoVenta')->get(),
             'regionales' => $this->regionalesDisponibles(),
         ]);
     }

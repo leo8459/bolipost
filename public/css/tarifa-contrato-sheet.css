@@ -1,5 +1,25 @@
 .tarifa-sheet-card { border-top: 3px solid #217346; }
-.sheet-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.sheet-setup { padding: 16px 18px 4px; margin-bottom: 22px; background: #f5f9f6; border: 1px solid #dce9e0; border-radius: 8px; }
+.sheet-step-heading { display: flex; align-items: flex-start; gap: 10px; }
+.sheet-step-heading h2 { font-size: 16px; font-weight: 600; margin: 0 0 3px; color: #263f30; }
+.sheet-step-heading p { font-size: 13px; color: #64756b; margin: 0; }
+.sheet-step-number { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 28px; width: 28px; height: 28px; border-radius: 50%; background: #e2eee6; color: #217346; font-size: 14px; font-weight: 700; }
+.sheet-setup > .sheet-step-heading { margin-bottom: 16px; }
+.sheet-entry-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.sheet-counter { background: #f1f5f2; border-radius: 6px; padding: 7px 10px; color: #53655a; font-size: 12px; }
+.sheet-counter strong { color: #217346; }
+.sheet-counter > span[aria-hidden] { margin: 0 6px; }
+.sheet-toolbar { display: flex; flex-direction: column; gap: 10px; }
+.sheet-toolbar-main, .sheet-save-area { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.sheet-toolbar-actions, .sheet-edit-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.sheet-edit-tools { gap: 6px; }
+.sheet-edit-tools .btn { font-size: 12px; }
+.sheet-guide { margin-bottom: 12px; font-size: 13px; color: #53655a; }
+.sheet-guide > summary, .sheet-service-options > summary { cursor: pointer; color: #217346; }
+.sheet-guide > summary { padding: 3px 0; }
+.sheet-guide ol { margin: 10px 0; padding-left: 22px; }
+.sheet-guide p { margin: 0 0 8px; }
+.sheet-save-area { border-top: 1px solid #e3e9e5; padding-top: 18px; margin-top: 18px; }
 .sheet-formula-bar { display: flex; border: 1px solid #c8d1cc; background: #fff; font-size: 13px; min-height: 34px; align-items: center; }
 #sheet-cell-name { min-width: 65px; text-align: center; font-weight: 600; border-right: 1px solid #c8d1cc; padding: 6px; color: #217346; }
 #sheet-cell-value { padding: 5px 12px; white-space: pre; }
@@ -35,3 +55,8 @@ body.tarifa-sheet-expanded { overflow: hidden; }
 #tarifas-sheet.sheet-is-fullscreen .sheet-viewport { flex: 1 1 auto; min-height: 120px; max-height: none; }
 #tarifas-sheet::backdrop { background: #fff; }
 @media (max-width: 767px) { .tarifa-sheet-card > .card-body { padding: 12px; } .sheet-viewport { max-height: 60vh; } }
+@media (max-width: 767px) {
+    .sheet-setup { padding: 12px 12px 0; margin-bottom: 18px; }
+    .sheet-step-heading h2 { font-size: 15px; }
+    .sheet-save-area > .sheet-toolbar-actions { width: 100%; justify-content: space-between; }
+}

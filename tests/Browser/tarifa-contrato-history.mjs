@@ -63,6 +63,27 @@ async function run(name, test) {
 }
 
 try {
+    await run('the sheet has no weight column and accepts the 11-column Excel layout', async page => {
+        assert.equal(await page.$('[name="tarifas[0][peso]"]'), null);
+        const titles = await page.$$eval('.sheet-heading', headings => headings.slice(1).map(heading => heading.textContent));
+        assert.equal(titles.length, 11);
+        assert.equal(titles[3], 'Primer kilogramo: precio (Bs) *');
+        assert.equal(await rowCount(page), 9);
+        assert.equal(await page.$eval('[data-add-rows-label]', label => label.textContent), 'Agregar 9 filas');
+        await paste(page, 0, 'origen', 'LA PAZ\tORURO\tENVIO NACIONAL (REGULAR)\t25,50\t5\t24\tCalle 1\tCENTRO\tMURILLO\tCERCADO\t0');
+        assert.equal(await value(page, 0, 'kilo'), '25,50');
+        assert.equal(await value(page, 0, 'kilo_extra'), '5');
+        assert.equal(await value(page, 0, 'horas_entrega'), '24');
+        assert.equal(await value(page, 0, 'direccion'), 'Calle 1');
+        assert.equal(await value(page, 0, 'retencion'), '0');
+        await page.evaluate(() => {
+            const form = document.getElementById('tarifas-sheet-form');
+            form.addEventListener('submit', event => { window.sheetBlocked = event.defaultPrevented; event.preventDefault(); });
+            form.requestSubmit();
+        });
+        assert.equal(await page.evaluate(() => window.sheetBlocked), false);
+    });
+
     await run('service catalogs and template downloads follow the selected year', async page => {
         const options = () => page.$$eval('[name="tarifas[0][servicio]"] option', options => options.map(option => option.value));
         assert.ok((await options()).includes('SERVICIO SOLO 2026'));
@@ -86,6 +107,7 @@ try {
                 return { ok: true, json: async () => ({ anio: 2027, servicios: ['SERVICIO SOLO 2027', 'SERVICIO NUEVO 2027'] }) };
             };
         });
+        await page.click('[data-services-help-toggle]');
         await page.click('[data-refresh-services]');
         await page.waitForFunction(() => document.querySelector('[data-services-status]').textContent === 'Lista de servicios actualizada.');
         assert.ok((await options()).includes('SERVICIO NUEVO 2027'));
@@ -134,7 +156,7 @@ try {
         assert.equal(await rowCount(page), 12);
         assert.equal(await value(page, 11, 'zona'), 'CENTRO');
         await shortcut(page, 'z');
-        assert.equal(await rowCount(page), 8);
+        assert.equal(await rowCount(page), 9);
         assert.equal(await value(page, 0, 'direccion'), '');
         await shortcut(page, 'y');
         assert.equal(await rowCount(page), 12);
@@ -144,20 +166,20 @@ try {
     await run('duplicate, delete and add rows restore their contents', async page => {
         await type(page, 0, 'direccion', 'Conservar');
         await page.click('[data-sheet-action="duplicate"]');
-        assert.equal(await rowCount(page), 9);
+        assert.equal(await rowCount(page), 10);
         await page.click('[data-sheet-action="undo"]');
-        assert.equal(await rowCount(page), 8);
+        assert.equal(await rowCount(page), 9);
         await page.click('[data-sheet-action="redo"]');
         assert.equal(await value(page, 1, 'direccion'), 'Conservar');
         await page.click('[data-sheet-action="remove"]');
-        assert.equal(await rowCount(page), 8);
-        await shortcut(page, 'z');
         assert.equal(await rowCount(page), 9);
+        await shortcut(page, 'z');
+        assert.equal(await rowCount(page), 10);
         assert.equal(await value(page, 1, 'direccion'), 'Conservar');
         await page.click('[data-sheet-action="add"]');
-        assert.equal(await rowCount(page), 14);
+        assert.equal(await rowCount(page), 19);
         await shortcut(page, 'z');
-        assert.equal(await rowCount(page), 9);
+        assert.equal(await rowCount(page), 10);
     });
 
     await run('dependent provinces are restored with department changes', async page => {
@@ -229,16 +251,31 @@ try {
     await run('keyboard-created rows and rejected paste preserve history correctly', async page => {
         await paste(page, 0, 'origen', Array(51).fill('LA PAZ').join('\n'));
         assert.equal(await page.$eval('[data-sheet-action="undo"]', button => button.disabled), true);
-        await focus(page, 7, 'retencion');
+        await focus(page, 8, 'retencion');
         await page.keyboard.press('Tab');
-        assert.equal(await rowCount(page), 9);
-        await shortcut(page, 'z');
-        assert.equal(await rowCount(page), 8);
-        await shortcut(page, 'y');
-        assert.equal(await rowCount(page), 9);
-        await page.keyboard.press('Enter');
         assert.equal(await rowCount(page), 10);
         await shortcut(page, 'z');
         assert.equal(await rowCount(page), 9);
+        await shortcut(page, 'y');
+        assert.equal(await rowCount(page), 10);
+        await page.keyboard.press('Enter');
+        assert.equal(await rowCount(page), 11);
+        await shortcut(page, 'z');
+        assert.equal(await rowCount(page), 10);
+    });
+
+    await run('adding nine rows respects the 50-row limit and can be undone', async page => {
+        assert.equal(await rowCount(page), 9);
+        for (const expected of [18, 27, 36, 45, 50]) {
+            await page.click('[data-sheet-action="add"]');
+            assert.equal(await rowCount(page), expected);
+            assert.equal(await page.$eval('#sheet-row-count', counter => Number(counter.textContent)), expected);
+        }
+        assert.equal(await page.$eval('[data-sheet-action="add"]', button => button.disabled), true);
+        await shortcut(page, 'z');
+        assert.equal(await rowCount(page), 45);
+        assert.equal(await page.$eval('[data-add-rows-label]', label => label.textContent), 'Agregar 5 filas');
+        await shortcut(page, 'y');
+        assert.equal(await rowCount(page), 50);
     });
 } finally { await browser.close(); }

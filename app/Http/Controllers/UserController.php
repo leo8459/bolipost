@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Empresa;
+use App\Models\EmpresaSucursal;
 use App\Models\Sucursal;
 use App\Models\User;
 use App\Services\QhantuyQrCashierAssignmentService;
@@ -46,7 +47,9 @@ class UserController extends Controller
         $empresas = Empresa::query()->orderBy('codigo_cliente')->get();
         $sucursales = Sucursal::query()->orderBy('codigoSucursal')->orderBy('puntoVenta')->get();
 
-        return view('user.create', compact('user', 'roles', 'empresas', 'sucursales'));
+        $sucursalesEmpresa = $this->companyBranchOptions();
+
+        return view('user.create', compact('user', 'roles', 'empresas', 'sucursales', 'sucursalesEmpresa'));
     }
 
     public function store(Request $request)
@@ -61,11 +64,12 @@ class UserController extends Controller
             'ciudad' => 'required|string|max:255',
             'ci' => 'nullable|string|max:255',
             'provincia_origen' => 'nullable|string|max:255',
-            'empresa_id' => 'nullable|integer|exists:empresa,id',
+            'empresa_id' => ['bail', 'required', 'integer', 'exists:empresa,id'],
+            'empresa_sucursal_id' => EmpresaSucursal::assignmentRules($request->input('empresa_id')),
             'sucursal_id' => 'nullable|integer|exists:sucursales,id',
             'roles' => 'nullable|array',
             'roles.*' => 'integer|exists:roles,id',
-        ]);
+        ], $this->companyBranchMessages());
 
         $this->ensureAliasIsAvailable($normalizedAlias);
 
@@ -78,7 +82,8 @@ class UserController extends Controller
         $user->regionales = [$user->ciudad];
         $user->provincia_origen = $this->normalizeNullableUppercase($request->input('provincia_origen'));
         $user->ci = $request->filled('ci') ? trim((string) $request->ci) : null;
-        $user->empresa_id = $request->filled('empresa_id') ? (int) $request->empresa_id : null;
+        $user->empresa_id = (int) $request->input('empresa_id');
+        $user->empresa_sucursal_id = (int) $request->input('empresa_sucursal_id');
         $user->sucursal_id = $request->filled('sucursal_id') ? (int) $request->sucursal_id : null;
         $user->save();
 
@@ -104,7 +109,7 @@ class UserController extends Controller
         $roles = Role::all();
         $empresas = Empresa::query()->orderBy('codigo_cliente')->get();
         $sucursales = Sucursal::query()->orderBy('codigoSucursal')->orderBy('puntoVenta')->get();
-
+        $sucursalesEmpresa = $this->companyBranchOptions();
         $qrCashier = null;
         if ($this->canManageQrCashierAssignment($request)) {
             $cashier = $qrAssignments->cashierContext($user);
@@ -124,7 +129,7 @@ class UserController extends Controller
             }
         }
 
-        return view('user.edit', compact('user', 'roles', 'empresas', 'sucursales', 'qrCashier'));
+        return view('user.edit', compact('user', 'roles', 'empresas', 'sucursales', 'sucursalesEmpresa', 'qrCashier'));
     }
 
     public function updateQrCashierAssignment(
@@ -201,12 +206,13 @@ class UserController extends Controller
             'ciudad' => 'required|string|max:255',
             'ci' => 'nullable|string|max:255',
             'provincia_origen' => 'nullable|string|max:255',
-            'empresa_id' => 'nullable|integer|exists:empresa,id',
+            'empresa_id' => ['bail', 'required', 'integer', 'exists:empresa,id'],
+            'empresa_sucursal_id' => EmpresaSucursal::assignmentRules($request->input('empresa_id')),
             'sucursal_id' => 'nullable|integer|exists:sucursales,id',
             'roles' => 'nullable|array',
             'roles.*' => 'integer|exists:roles,id',
             'password' => 'nullable|min:8',
-        ]);
+        ], $this->companyBranchMessages());
 
         $this->ensureAliasIsAvailable($normalizedAlias, $user->id);
 
@@ -219,7 +225,8 @@ class UserController extends Controller
         if ($request->filled('ci')) {
             $user->ci = trim((string) $request->ci);
         }
-        $user->empresa_id = $request->filled('empresa_id') ? (int) $request->empresa_id : null;
+        $user->empresa_id = (int) $request->input('empresa_id');
+        $user->empresa_sucursal_id = (int) $request->input('empresa_sucursal_id');
         $user->sucursal_id = $request->filled('sucursal_id') ? (int) $request->sucursal_id : null;
 
         if ($request->filled('password')) {
@@ -265,7 +272,7 @@ class UserController extends Controller
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Usuarios');
 
-        $headers = ['#', 'Nombre', 'Alias', 'Email', 'Regional', 'Provincia origen', 'CI', 'Empresa', 'Sucursal', 'Roles', 'Estado'];
+        $headers = ['#', 'Nombre', 'Alias', 'Email', 'Regional', 'Provincia origen', 'CI', 'Empresa', 'Sucursal de Facturación', 'Roles', 'Estado', 'Sucursal de empresa'];
         $sheet->fromArray($headers, null, 'A1');
 
         $users = $this->usersReportQuery($onlyWithEmpresa, $empresaId, $codigoCliente)->get();
@@ -284,11 +291,12 @@ class UserController extends Controller
                 $user->sucursal ? 'Suc. ' . $user->sucursal->codigoSucursal . ' / PV ' . $user->sucursal->puntoVenta . ' - ' . $user->sucursal->municipio : '',
                 $user->roles->pluck('name')->implode(', '),
                 $user->trashed() ? 'Inactivo' : 'Activo',
+                $user->empresaSucursal?->etiqueta ?? '',
             ], null, 'A' . $row);
             $row++;
         }
 
-        $this->styleWorksheet($sheet, 'A1:K' . max(1, $row - 1));
+        $this->styleWorksheet($sheet, 'A1:L' . max(1, $row - 1));
 
         $prefix = $onlyWithEmpresa ? 'usuarios-empresas-' : 'usuarios-';
 
@@ -330,7 +338,7 @@ class UserController extends Controller
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Usuarios');
 
-        $headers = ['name *', 'alias *', 'email *', 'password *', 'ciudad *', 'ci', 'rol *', 'empresa_codigo', 'sucursal_id'];
+        $headers = ['name *', 'alias *', 'email *', 'password *', 'ciudad *', 'ci', 'rol *', 'empresa_codigo *', 'sucursal_id', 'empresa_sucursal_id *'];
         $sheet->fromArray($headers, null, 'A1');
         $sheet->fromArray([
             'Juan Perez',
@@ -366,6 +374,20 @@ class UserController extends Controller
         $empresasSheet->getColumnDimension('A')->setWidth(24);
         $empresasSheet->getColumnDimension('B')->setWidth(56);
 
+        $sucursalesSheet = $spreadsheet->createSheet();
+        $sucursalesSheet->setTitle('Sucursales de empresa');
+        $sucursalesSheet->fromArray(['empresa_sucursal_id', 'empresa_codigo', 'Empresa', 'Sucursal'], null, 'A1');
+        $sucursales = EmpresaSucursal::query()->with('empresa')->orderBy('empresa_id')->orderBy('nombre')->get();
+        foreach ($sucursales as $index => $sucursal) {
+            $sucursalesSheet->fromArray([
+                $sucursal->id,
+                $sucursal->empresa->codigo_cliente,
+                $sucursal->empresa->nombre,
+                $sucursal->etiqueta,
+            ], null, 'A' . ($index + 2));
+        }
+        $this->styleWorksheet($sucursalesSheet, 'A1:D' . ($sucursales->count() + 1));
+
         $roleCount = max(1, $roles->count());
         $roleRange = "'Roles'!\$A\$2:\$A\$" . ($roleCount + 1);
         for ($row = 2; $row <= 501; $row++) {
@@ -396,11 +418,11 @@ class UserController extends Controller
                 $validation = $sheet->getCell('H' . $row)->getDataValidation();
                 $validation->setType(DataValidation::TYPE_LIST);
                 $validation->setErrorStyle(DataValidation::STYLE_STOP);
-                $validation->setAllowBlank(true);
+                $validation->setAllowBlank(false);
                 $validation->setShowDropDown(true);
                 $validation->setShowErrorMessage(true);
                 $validation->setErrorTitle('Empresa invalida');
-                $validation->setError('Selecciona un codigo de empresa de la lista o deja el campo vacio.');
+                $validation->setError('Selecciona un código de empresa de la lista.');
                 $validation->setFormula1($empresaRange);
             }
         }
@@ -410,17 +432,17 @@ class UserController extends Controller
         $instructions->fromArray([
             ['Instrucciones'],
             ['1) Completa una fila por usuario en la hoja Usuarios.'],
-            ['2) Los campos con * son obligatorios: name, alias, email, password, ciudad y rol.'],
+            ['2) Completa todos los campos marcados con *.'],
             ['3) Los campos rol, ciudad y empresa_codigo tienen combo box.'],
             ['4) password debe tener al menos 8 caracteres.'],
             ['5) alias y email no deben repetirse. Si ya existen, la fila no se importa.'],
-            ['6) empresa_codigo es opcional y usa el codigo_cliente de empresa.'],
-            ['7) sucursal_id es opcional y usa el ID de la tabla sucursales.'],
+            ['6) Usa la hoja Sucursales de empresa para elegir empresa_codigo y empresa_sucursal_id de la misma fila.'],
+            ['7) sucursal_id es opcional y corresponde a la sucursal de Facturación.'],
         ], null, 'A1');
         $instructions->getColumnDimension('A')->setWidth(96);
 
         $spreadsheet->setActiveSheetIndex(0);
-        $this->styleWorksheet($sheet, 'A1:I2');
+        $this->styleWorksheet($sheet, 'A1:J2');
 
         return $this->downloadSpreadsheet($spreadsheet, 'plantilla-importacion-usuarios.xlsx');
     }
@@ -456,6 +478,7 @@ class UserController extends Controller
                     'rol' => trim((string) ($row['G'] ?? '')),
                     'empresa_codigo' => trim((string) ($row['H'] ?? '')),
                     'sucursal_id' => trim((string) ($row['I'] ?? '')),
+                    'empresa_sucursal_id' => trim((string) ($row['J'] ?? '')),
                 ];
 
                 if (collect($payload)->filter(fn ($value) => $value !== '')->isEmpty()) {
@@ -490,20 +513,22 @@ class UserController extends Controller
                     'ciudad' => ['required', 'string', 'max:255'],
                     'ci' => ['nullable', 'string', 'max:255'],
                     'rol' => ['required', 'string', 'exists:roles,name'],
-                    'empresa_codigo' => ['nullable', 'string', 'exists:empresa,codigo_cliente'],
+                    'empresa_codigo' => ['bail', 'required', 'string', 'exists:empresa,codigo_cliente'],
                     'sucursal_id' => ['nullable', 'integer', 'exists:sucursales,id'],
-                ]);
+                    'empresa_sucursal_id' => ['bail', 'required', 'integer', 'exists:empresa_sucursales,id'],
+                ], $this->companyBranchMessages());
 
                 if ($validator->fails()) {
                     $errors[] = 'Fila ' . $rowNumber . ': ' . $validator->errors()->first();
                     continue;
                 }
 
-                $empresaId = null;
-                if ($payload['empresa_codigo'] !== '') {
-                    $empresaId = Empresa::query()
-                        ->where('codigo_cliente', $payload['empresa_codigo'])
-                        ->value('id');
+                $sucursalEmpresa = EmpresaSucursal::query()
+                    ->whereHas('empresa', fn ($query) => $query->where('codigo_cliente', $payload['empresa_codigo']))
+                    ->find((int) $payload['empresa_sucursal_id']);
+                if (! $sucursalEmpresa) {
+                    $errors[] = 'Fila ' . $rowNumber . ': la sucursal debe pertenecer a la empresa indicada.';
+                    continue;
                 }
 
                 $user = new User();
@@ -513,7 +538,8 @@ class UserController extends Controller
                 $user->ciudad = strtoupper($payload['ciudad']);
                 $user->regionales = [$user->ciudad];
                 $user->ci = $payload['ci'] !== '' ? $payload['ci'] : null;
-                $user->empresa_id = $empresaId;
+                $user->empresa_id = $sucursalEmpresa->empresa_id;
+                $user->empresa_sucursal_id = $sucursalEmpresa->id;
                 $user->sucursal_id = $payload['sucursal_id'] !== '' ? (int) $payload['sucursal_id'] : null;
                 if ($payload['password'] !== '') {
                     $user->password = Hash::make($payload['password']);
@@ -549,7 +575,7 @@ class UserController extends Controller
     private function usersReportQuery(bool $onlyWithEmpresa = false, ?int $empresaId = null, string $codigoCliente = '')
     {
         return User::withTrashed()
-            ->with(['empresa', 'sucursal', 'roles'])
+            ->with(['empresa', 'empresaSucursal', 'sucursal', 'roles'])
             ->when($onlyWithEmpresa, fn ($query) => $query->whereNotNull('empresa_id'))
             ->when($codigoCliente !== '', function ($query) use ($codigoCliente) {
                 $query->whereHas('empresa', function ($empresaQuery) use ($codigoCliente) {
@@ -561,6 +587,27 @@ class UserController extends Controller
             })
             ->when($empresaId, fn ($query) => $query->where('empresa_id', $empresaId))
             ->orderBy('name');
+    }
+
+    private function companyBranchOptions(): array
+    {
+        return EmpresaSucursal::query()->orderBy('nombre')->get()
+            ->groupBy('empresa_id')
+            ->map(fn ($sucursales) => $sucursales->map(fn (EmpresaSucursal $sucursal) => [
+                'id' => $sucursal->id,
+                'label' => $sucursal->etiqueta,
+            ])->values())
+            ->toArray();
+    }
+
+    private function companyBranchMessages(): array
+    {
+        return [
+            'empresa_id.required' => 'Selecciona una empresa.',
+            'empresa_codigo.required' => 'Indica el código de la empresa.',
+            'empresa_sucursal_id.required' => 'Selecciona una sucursal de la empresa.',
+            'empresa_sucursal_id.exists' => 'La sucursal seleccionada debe pertenecer a la empresa elegida.',
+        ];
     }
 
     private function styleWorksheet($sheet, string $range): void

@@ -9,6 +9,7 @@
     const viewport = root.querySelector('.sheet-viewport');
     const status = document.getElementById('sheet-status');
     const maxRows = Number(root.dataset.maxRows);
+    const rowsPerBatch = 9;
     const servicesByYear = JSON.parse(document.getElementById('servicios-contrato-config')?.textContent || '{}');
     const selectedTarifario = document.getElementById('tarifario_contrato_id');
     const initialServiceYear = selectedTarifario?.value ? selectedTarifario.selectedOptions[0].dataset.anio : document.getElementById('tarifario_anio')?.value;
@@ -17,7 +18,6 @@
         { key: 'origen', label: 'Origen *', width: 180, options: config.departments, required: true },
         { key: 'destino', label: 'Destino *', width: 180, options: config.departments, required: true },
         { key: 'servicio', label: 'Servicio *', width: 310, options: initialServices, required: true },
-        { key: 'peso', label: 'Peso (kg) *', width: 140, numeric: true, required: true },
         { key: 'kilo', label: 'Primer kilogramo: precio (Bs) *', width: 215, numeric: true, required: true },
         { key: 'kilo_extra', label: 'Kilogramo extra: precio (Bs) *', width: 215, numeric: true, required: true },
         { key: 'horas_entrega', label: 'Entrega (horas) *', width: 150, numeric: true, required: true },
@@ -32,7 +32,7 @@
     const entries = Object.entries(config.rows || {}).slice(0, maxRows);
     const rows = entries.map(([, row]) => Object.fromEntries(columns.map(column => [column.key, String(row?.[column.key] ?? '')])));
     const rowErrors = entries.map(([key]) => Object.fromEntries(columns.map(column => [column.key, config.errors?.[`tarifas.${key}.${column.key}`]?.[0] || ''])));
-    while (rows.length < 8) { rows.push(blankRow()); rowErrors.push({}); }
+    while (rows.length < rowsPerBatch) { rows.push(blankRow()); rowErrors.push({}); }
     let active = { row: 0, col: 0 };
     let selection = { start: { ...active }, end: { ...active } };
     let drag = null;
@@ -185,6 +185,10 @@
     }
     function updateCount() {
         document.getElementById('sheet-filled-count').textContent = rows.filter(hasValues).length;
+        const rowCount = document.getElementById('sheet-row-count');
+        if (rowCount) rowCount.textContent = rows.length;
+        const addLabel = root.querySelector('[data-add-rows-label]');
+        if (addLabel) addLabel.textContent = `Agregar ${Math.min(rowsPerBatch, maxRows - rows.length) || rowsPerBatch} filas`;
         root.querySelector('[data-sheet-action="add"]').disabled = rows.length >= maxRows;
         root.querySelector('[data-sheet-action="duplicate"]').disabled = rows.length >= maxRows;
         updateHistoryButtons();
@@ -386,6 +390,7 @@
     function tableWidth() { root.querySelector('table').style.width = `${46 + columns.reduce((total, column) => total + column.width, 0)}px`; }
     tableWidth();
     render();
+    announce(`Tienes ${rows.length} filas disponibles. Selecciona una celda para escribir.`);
 
     root.addEventListener('tarifario-services-change', event => {
         const col = columns.findIndex(column => column.key === 'servicio');
@@ -511,7 +516,7 @@
                 active.row = rowIndex + 1;
             } else {
                 const start = rows.length;
-                for (let n = 0, count = Math.min(5, maxRows - start); n < count; n++) { rows.push(blankRow()); rowErrors.push({}); }
+                for (let n = 0, count = Math.min(rowsPerBatch, maxRows - start); n < count; n++) { rows.push(blankRow()); rowErrors.push({}); }
                 active.row = start;
             }
         }
@@ -549,7 +554,7 @@
         const data = parseClipboard(text);
         const start = { ...active };
         if (start.row + data.length > maxRows || data.some(line => start.col + line.length > columns.length)) {
-            announce('No se pegó: el bloque excede las 50 filas o las 12 columnas. Reduce el rango y vuelve a pegar.');
+            announce(`No se pegó: el bloque excede las 50 filas o las ${columns.length} columnas. Reduce el rango y vuelve a pegar.`);
             return;
         }
         const count = Math.max(rows.length, start.row + data.length);

@@ -66,7 +66,8 @@
                 <th>Provincia origen</th>
                 <th>CI</th>
                 <th>Empresa</th>
-                <th>Sucursal</th>
+                <th>Sucursal de empresa</th>
+                <th>Sucursal de Facturación</th>
                 <th>Roles</th>
                 <th>Estado</th>
             </tr>
@@ -88,6 +89,7 @@
                             -
                         @endif
                     </td>
+                    <td>{{ $user->empresaSucursal?->etiqueta ?? '-' }}</td>
                     <td>
                         @if ($user->sucursal)
                             Suc. {{ $user->sucursal->codigoSucursal }} / PV {{ $user->sucursal->puntoVenta }} - {{ $user->sucursal->municipio }}
@@ -100,7 +102,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="11" class="center">No existen usuarios registrados.</td>
+                    <td colspan="12" class="center">No existen usuarios registrados.</td>
                 </tr>
             @endforelse
         </tbody>

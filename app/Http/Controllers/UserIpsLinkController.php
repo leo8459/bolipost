@@ -188,6 +188,39 @@ class UserIpsLinkController extends Controller
             ]);
     }
 
+    public function updateOffice(Request $request, int $user, SitraIpsClient $ips)
+    {
+        $user = User::withTrashed()->findOrFail($user);
+        $link = $user->ipsLink;
+        abort_unless($link && $link->active, 409, 'Vincula primero un usuario IPS activo.');
+
+        $data = $request->validate([
+            'office_cd' => ['required', 'integer', 'min:0', 'max:32767'],
+        ]);
+
+        $ipsUser = $ips->user((int) $link->ips_user_pid);
+        abort_unless((int) ($ipsUser['user_pid'] ?? 0) === (int) $link->ips_user_pid, 403, 'SITRA no confirmo la identidad del usuario IPS vinculado.');
+
+        $office = collect(UserIpsLink::officesFromSnapshot($ipsUser))
+            ->firstWhere('office_cd', (int) $data['office_cd']);
+        abort_unless($office, 422, 'Selecciona una oficina que SITRA tenga asignada a esta cuenta.');
+
+        $previousOfficeCd = $link->ips_office_cd;
+        $link = $this->saveLink($user, $ipsUser);
+        $link->ips_office_cd = $office['office_cd'];
+        $link->ips_office_fcd = $office['office_fcd'];
+        $link->ips_office_name = $office['office_name'];
+
+        if ($previousOfficeCd === null || (int) $previousOfficeCd !== (int) $office['office_cd']) {
+            $link->delivery_agent_cd = null;
+            $link->delivery_agent_full_cd = null;
+        }
+
+        $link->save();
+
+        return back()->with('success', 'Oficina operativa asignada a la cuenta de Bolipost.');
+    }
+
     public function updateDeliveryAgent(Request $request, User $user, SitraIpsClient $ips)
     {
         $link = $user->ipsLink;

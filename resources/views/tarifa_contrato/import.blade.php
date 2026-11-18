@@ -80,7 +80,7 @@
                                     Las empresas se asignan en <a href="{{ route('tarifa-contrato.tarifarios') }}">Tarifarios por año</a>.
                                 </p>
                                 <p class="mt-2 mb-2">
-                                    <strong>Obligatorios:</strong> Origen, Destino, Servicio, Peso (kg), Primer kilogramo: precio (Bs), Kilogramo extra: precio (Bs), Entrega (horas).
+                                    <strong>Obligatorios:</strong> Origen, Destino, Servicio, Primer kilogramo: precio (Bs), Kilogramo extra: precio (Bs), Entrega (horas).
                                 </p>
                                 <p class="mt-2 mb-2">
                                     <strong>Opcionales:</strong> Dirección, Zona, Provincia origen, Provincia destino y Retención (%) (si se omite se guarda 0).

@@ -84,7 +84,7 @@ class TarifaContratoBulkTest extends TestCase
     {
         return array_replace([
             'tarifario_contrato_id' => $this->tarifario->id, 'origen' => 'LA PAZ', 'destino' => 'COCHABAMBA',
-            'servicio' => 'ENVIO NACIONAL (REGULAR)', 'peso' => '1', 'kilo' => '20.50', 'kilo_extra' => '5',
+            'servicio' => 'ENVIO NACIONAL (REGULAR)', 'kilo' => '20.50', 'kilo_extra' => '5',
             'retencion' => '0', 'horas_entrega' => '24',
         ], $overrides);
     }
@@ -131,12 +131,13 @@ class TarifaContratoBulkTest extends TestCase
         $this->assertDatabaseCount('tarifa_contrato', 0);
     }
 
-    public function test_weight_is_required_and_prevents_writing_the_batch_when_missing(): void
+    public function test_weight_is_optional_when_missing_blank_or_null(): void
     {
         $this->post(route('tarifa-contrato.store'), ['tarifario_contrato_id' => $this->tarifario->id, 'tarifas' => [
-            $this->row(), $this->row(['peso' => '']),
-        ]])->assertSessionHasErrors('tarifas.1.peso');
-        $this->assertDatabaseCount('tarifa_contrato', 0);
+            $this->row(), $this->row(['peso' => '']), $this->row(['peso' => null]),
+        ]])->assertSessionHasNoErrors()->assertRedirect(route('tarifa-contrato.index'));
+        $this->assertDatabaseCount('tarifa_contrato', 3);
+        $this->assertSame(3, TarifaContrato::whereNull('peso')->count());
     }
 
     public function test_optional_retention_defaults_to_zero_for_blank_and_missing_values(): void
@@ -150,7 +151,7 @@ class TarifaContratoBulkTest extends TestCase
         $this->assertSame(3, TarifaContrato::query()->where('retencion', 0)->count());
     }
 
-    public function test_excel_import_accepts_required_weight_without_a_retention_column(): void
+    public function test_legacy_excel_import_still_accepts_an_optional_weight_column(): void
     {
         $existing = TarifaContrato::create($this->row(['destino' => 'ORURO', 'peso' => 1.5, 'kilo' => 99]));
         $path = tempnam(sys_get_temp_dir(), 'tarifa-test-');
@@ -177,6 +178,7 @@ class TarifaContratoBulkTest extends TestCase
 
     public function test_excel_template_matches_platform_titles_and_can_be_imported_with_those_titles(): void
     {
+        $existing = TarifaContrato::create($this->row(['destino' => 'ORURO', 'peso' => 1.5, 'kilo' => 99, 'provincia_origen' => 'MURILLO', 'provincia' => 'CERCADO']));
         $response = $this->get(route('tarifa-contrato.template-excel'))->assertOk();
         $path = tempnam(sys_get_temp_dir(), 'tarifa-labels-');
         $book = null;
@@ -185,24 +187,33 @@ class TarifaContratoBulkTest extends TestCase
             $book = IOFactory::load($path);
             $sheet = $book->getSheetByName('TarifaContrato');
             preg_match_all("/label: '([^']+)'/u", file_get_contents(public_path('js/tarifa-contrato-sheet.js')), $titles);
-            $this->assertCount(12, $titles[1]);
-            $this->assertSame($titles[1], $sheet->rangeToArray('A1:L1')[0]);
-            $this->assertTrue($sheet->getStyle('A1:L1')->getAlignment()->getWrapText());
+            $this->assertCount(11, $titles[1]);
+            $this->assertSame('K', $sheet->getHighestColumn());
+            $this->assertSame($titles[1], $sheet->rangeToArray('A1:K1')[0]);
+            $this->assertTrue($sheet->getStyle('A1:K1')->getAlignment()->getWrapText());
+            $this->assertSame('0', $sheet->getStyle('F2')->getNumberFormat()->getFormatCode());
 
             $sheet->fromArray([
-                'LA PAZ', 'ORURO', 'ENVIO NACIONAL (REGULAR)', 1.5, 25.5, 5, 24,
+                'LA PAZ', 'ORURO', 'ENVIO NACIONAL (REGULAR)', 25.5, 5, 24,
                 'Calle 1', 'CENTRO', 'MURILLO', 'CERCADO', 0,
             ], null, 'A2');
+            $sheet->fromArray([
+                'LA PAZ', 'SANTA CRUZ', 'ENVIO NACIONAL (REGULAR)', 30, 6, 48,
+                'Calle 2', 'SUR', 'MURILLO', 'ANDRES IBANEZ', 0,
+            ], null, 'A3');
             (new Xlsx($book))->save($path);
             $this->post(route('tarifa-contrato.import'), [
                 'tarifario_contrato_id' => $this->tarifario->id,
                 'archivo' => new UploadedFile($path, 'tarifas.xlsx', null, null, true),
             ])->assertSessionHasNoErrors()->assertSessionMissing('import_errors');
             $this->assertDatabaseHas('tarifa_contrato', [
+                'id' => $existing->id,
                 'tarifario_contrato_id' => $this->tarifario->id,
                 'peso' => 1.5, 'kilo' => 25.5, 'kilo_extra' => 5, 'horas_entrega' => 24,
                 'direccion' => 'CALLE 1', 'zona' => 'CENTRO', 'provincia_origen' => 'MURILLO', 'provincia' => 'CERCADO',
             ]);
+            $this->assertDatabaseCount('tarifa_contrato', 2);
+            $this->assertDatabaseHas('tarifa_contrato', ['destino' => 'SANTA CRUZ', 'kilo' => 30, 'kilo_extra' => 6, 'horas_entrega' => 48, 'peso' => null]);
         } finally {
             $book?->disconnectWorksheets();
             unlink($path);

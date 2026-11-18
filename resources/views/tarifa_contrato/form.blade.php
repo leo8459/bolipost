@@ -108,7 +108,7 @@
 
             <div class="col-md-3">
                 <div class="form-group mb-3">
-                    <label for="peso">Peso (kg) *</label>
+                    <label for="peso">Peso (kg) (opcional)</label>
                     <input
                         type="number"
                         step="0.01"
@@ -117,7 +117,6 @@
                         name="peso"
                         value="{{ old('peso', $tarifaContrato->peso ?? ($defaults['peso'] ?? '')) }}"
                         class="form-control @error('peso') is-invalid @enderror"
-                        required
                     >
                     @error('peso')
                         <div class="invalid-feedback">{{ $message }}</div>

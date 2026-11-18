@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Exports\AreaContratosEntregadosExport;
 use App\Http\Controllers\AreaContratosController;
 use App\Models\Recojo;
 use Illuminate\Database\Events\QueryExecuted;
@@ -11,9 +10,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
-use Maatwebsite\Excel\Excel as ExcelWriter;
-use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Validation\ValidationException;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use Tests\TestCase;
 
 class AreaContratosReportesTest extends TestCase
@@ -28,6 +27,21 @@ class AreaContratosReportesTest extends TestCase
             $table->string('sigla')->nullable();
             $table->string('codigo_cliente')->nullable();
             $table->timestamps();
+        });
+
+        Schema::create('empresa_sucursales', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('empresa_id');
+            $table->string('nombre');
+            $table->string('ciudad')->nullable();
+        });
+
+        Schema::create('users', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->foreignId('empresa_id')->nullable();
+            $table->foreignId('empresa_sucursal_id')->nullable();
+            $table->softDeletes();
         });
 
         Schema::create('estados', function (Blueprint $table) {
@@ -51,8 +65,14 @@ class AreaContratosReportesTest extends TestCase
             $table->string('codigo')->nullable();
             $table->string('codigo_madre')->nullable();
             $table->string('origen')->nullable();
+            $table->string('provincia_origen')->nullable();
             $table->string('destino')->nullable();
             $table->string('destino_registrado')->nullable();
+            $table->string('provincia')->nullable();
+            $table->decimal('peso')->nullable();
+            $table->decimal('precio')->nullable();
+            $table->string('nombre_d')->nullable();
+            $table->text('observacion')->nullable();
             $table->text('imagen')->nullable();
             $table->dateTime('fecha_recojo')->nullable();
             $table->timestamps();
@@ -84,6 +104,8 @@ class AreaContratosReportesTest extends TestCase
         Schema::dropIfExists('paquetes_contrato');
         Schema::dropIfExists('cartero');
         Schema::dropIfExists('estados');
+        Schema::dropIfExists('users');
+        Schema::dropIfExists('empresa_sucursales');
         Schema::dropIfExists('empresa');
 
         parent::tearDown();
@@ -113,18 +135,11 @@ class AreaContratosReportesTest extends TestCase
         $this->assertSame('entrega.png', $rows[1]->imagenParaReporte());
         $this->assertNull($rows[2]->imagenParaReporte());
 
-        $contents = Excel::raw(new AreaContratosEntregadosExport($rows), ExcelWriter::XLSX);
-        $path = tempnam(sys_get_temp_dir(), 'contratos-fotos-');
-        try {
-            file_put_contents($path, $contents);
-            $sheet = IOFactory::load($path)->getSheet(0);
-            $this->assertSame('DESCARGAR IMAGEN', $sheet->getCell('U13')->getValue());
-            $this->assertSame('DESCARGAR IMAGEN', $sheet->getCell('U14')->getValue());
-            $this->assertEmpty($sheet->getCell('U15')->getValue());
-            $this->assertFalse($sheet->getCell('U15')->hasHyperlink());
-        } finally {
-            unlink($path);
-        }
+        $sheet = $this->exportWorkbook()->getSheetByName('LA PAZ');
+        $this->assertSame('DESCARGAR IMAGEN', $sheet->getCell('U13')->getValue());
+        $this->assertSame('DESCARGAR IMAGEN', $sheet->getCell('U14')->getValue());
+        $this->assertEmpty($sheet->getCell('U15')->getValue());
+        $this->assertFalse($sheet->getCell('U15')->hasHyperlink());
 
         $response = $this->get(route('area-contratos.imagen-entrega.download', ['contrato' => 1]));
         $response->assertOk();
@@ -230,31 +245,17 @@ class AreaContratosReportesTest extends TestCase
             'fecha_recojo' => '2026-08-10 08:00:00',
         ]);
 
-        $rows = Recojo::query()->where('id', 1)->get();
-        $contents = Excel::raw(new AreaContratosEntregadosExport($rows), ExcelWriter::XLSX);
-        $path = tempnam(sys_get_temp_dir(), 'contratos-excel-');
-        $this->assertNotFalse($path);
+        $sheet = $this->exportWorkbook(['from' => '2026-08-10', 'to' => '2026-08-10'])->getSheetByName('LA PAZ');
+        $deliveryDrawing = collect($sheet->getDrawingCollection())
+            ->first(fn ($drawing) => $drawing->getCoordinates() === 'U13');
 
-        try {
-            file_put_contents($path, $contents);
-            $spreadsheet = IOFactory::load($path);
-            $sheet = $spreadsheet->getSheet(0);
-
-            $deliveryDrawing = collect($sheet->getDrawingCollection())
-                ->first(fn ($drawing) => $drawing->getCoordinates() === 'U13');
-
-            $this->assertNull($deliveryDrawing);
-            $this->assertSame('10-08-26', $sheet->getCell('B13')->getValue());
-            $this->assertSame('DESCARGAR IMAGEN', $sheet->getCell('U13')->getValue());
-            $this->assertStringContainsString(
-                '/area-contratos/imagen-entrega/1/descargar',
-                $sheet->getCell('U13')->getHyperlink()->getUrl()
-            );
-        } finally {
-            if (is_string($path) && is_file($path)) {
-                unlink($path);
-            }
-        }
+        $this->assertNull($deliveryDrawing);
+        $this->assertSame('10-08-26', $sheet->getCell('B13')->getValue());
+        $this->assertSame('DESCARGAR IMAGEN', $sheet->getCell('U13')->getValue());
+        $this->assertStringContainsString(
+            '/area-contratos/imagen-entrega/1/descargar',
+            $sheet->getCell('U13')->getHyperlink()->getUrl()
+        );
     }
 
     public function test_excel_usa_destino_como_respaldo_si_no_hay_destino_registrado(): void
@@ -272,23 +273,10 @@ class AreaContratosReportesTest extends TestCase
             'destino_registrado' => 'POTOSI',
         ]);
 
-        $rows = Recojo::query()->whereIn('id', [1, 2, 3])->orderBy('id')->get();
-        $contents = Excel::raw(new AreaContratosEntregadosExport($rows), ExcelWriter::XLSX);
-        $path = tempnam(sys_get_temp_dir(), 'contratos-destino-excel-');
-        $this->assertNotFalse($path);
-
-        try {
-            file_put_contents($path, $contents);
-            $sheet = IOFactory::load($path)->getSheet(0);
-
-            $this->assertSame('COCHABAMBA', $sheet->getCell('G13')->getValue());
-            $this->assertSame('SANTA CRUZ', $sheet->getCell('G14')->getValue());
-            $this->assertSame('POTOSI', $sheet->getCell('G15')->getValue());
-        } finally {
-            if (is_string($path) && is_file($path)) {
-                unlink($path);
-            }
-        }
+        $sheet = $this->exportWorkbook()->getSheetByName('LA PAZ');
+        $this->assertSame('COCHABAMBA', $sheet->getCell('G13')->getValue());
+        $this->assertSame('SANTA CRUZ', $sheet->getCell('G14')->getValue());
+        $this->assertSame('POTOSI', $sheet->getCell('G15')->getValue());
     }
 
     public function test_descarga_una_imagen_guardada_en_base64(): void
@@ -328,5 +316,120 @@ class AreaContratosReportesTest extends TestCase
         $this->assertSame([1, 2], $data['contratos']->pluck('empresa_id')->all());
         $this->assertCount(2, $data['empresas']);
         $this->assertSame([1, 2], $data['empresas']->firstWhere('codigo_cliente', 'CLI001')['ids']);
+    }
+
+    public function test_filtra_y_exporta_las_empresas_elegidas_aunque_compartan_codigo(): void
+    {
+        DB::table('empresa')->insert([
+            ['id' => 1, 'nombre' => 'AJ La Paz', 'sigla' => null, 'codigo_cliente' => 'AJ'],
+            ['id' => 2, 'nombre' => 'AJ Santa Cruz', 'sigla' => null, 'codigo_cliente' => ' aj '],
+            ['id' => 3, 'nombre' => 'Otra empresa', 'sigla' => null, 'codigo_cliente' => 'OTRA'],
+        ]);
+        DB::table('paquetes_contrato')->whereIn('id', [1, 4])->update(['empresa_id' => 1]);
+        DB::table('paquetes_contrato')->where('id', 2)->update(['empresa_id' => 2]);
+        DB::table('paquetes_contrato')->where('id', 3)->update(['empresa_id' => 3]);
+        DB::table('paquetes_contrato')->where('id', 4)->update(['origen' => 'COCHABAMBA']);
+
+        foreach ([[1], [1, 2], [1, 3]] as $empresaIds) {
+            $filters = ['empresa_ids' => $empresaIds];
+            $data = app(AreaContratosController::class)->reportes(
+                Request::create('/area-contratos/reportes', 'GET', $filters)
+            )->getData();
+
+            $this->assertSame($empresaIds, $data['empresaIds']);
+            $this->assertSame([1, 2], $data['empresas']->firstWhere('codigo_cliente', 'AJ')['ids']);
+            $this->assertSame([...$empresaIds, 4], $data['contratos']->pluck('id')->all());
+            $this->assertSame([
+                ['origen' => 'COCHABAMBA', 'total' => 1],
+                ['origen' => 'LA PAZ', 'total' => count($empresaIds)],
+            ], $data['groupedSummary']->all());
+
+            $workbook = $this->exportWorkbook($filters);
+            $this->assertSame(['COCHABAMBA', 'LA PAZ', 'RESUMEN'], $workbook->getSheetNames());
+            $this->assertSame('CONTRATO-4', $workbook->getSheetByName('COCHABAMBA')->getCell('C13')->getValue());
+            $laPaz = $workbook->getSheetByName('LA PAZ');
+            $this->assertSame('CONTRATO-1', $laPaz->getCell('C13')->getValue());
+            $this->assertSame(isset($empresaIds[1]) ? 'CONTRATO-'.$empresaIds[1] : null, $laPaz->getCell('C14')->getValue());
+            $this->assertNull($laPaz->getCell('C15')->getValue());
+        }
+    }
+
+    public function test_filtra_y_exporta_una_sucursal_de_las_empresas_seleccionadas(): void
+    {
+        DB::table('empresa')->insert([
+            ['id' => 1, 'nombre' => 'Empresa Centro', 'codigo_cliente' => 'CLI 001'],
+            ['id' => 2, 'nombre' => 'Empresa Norte', 'codigo_cliente' => 'cli001'],
+            ['id' => 3, 'nombre' => 'Otra empresa', 'codigo_cliente' => 'CLI002'],
+        ]);
+        DB::table('empresa_sucursales')->insert([
+            ['id' => 10, 'empresa_id' => 1, 'nombre' => 'Centro', 'ciudad' => 'LA PAZ'],
+            ['id' => 20, 'empresa_id' => 2, 'nombre' => 'Norte', 'ciudad' => 'ORURO'],
+        ]);
+        DB::table('users')->insert([
+            ['id' => 1, 'name' => 'Luis', 'empresa_id' => 1, 'empresa_sucursal_id' => 10, 'deleted_at' => null],
+            ['id' => 2, 'name' => 'Ana', 'empresa_id' => 2, 'empresa_sucursal_id' => 20, 'deleted_at' => null],
+            ['id' => 3, 'name' => 'Mario', 'empresa_id' => 2, 'empresa_sucursal_id' => null, 'deleted_at' => null],
+            ['id' => 4, 'name' => 'Camila', 'empresa_id' => 2, 'empresa_sucursal_id' => 20, 'deleted_at' => now()],
+        ]);
+        foreach ([1 => [1, 1], 2 => [2, 2], 3 => [1, 2], 4 => [2, 3], 5 => [3, 2], 6 => [2, 4]] as $id => [$empresaId, $userId]) {
+            DB::table('paquetes_contrato')->where('id', $id)->update(['empresa_id' => $empresaId, 'user_id' => $userId]);
+        }
+
+        $controller = app(AreaContratosController::class);
+        $general = $controller->reportes(Request::create('/area-contratos/reportes', 'GET', [
+            'empresa_ids' => [1, 2],
+            'empresa_sucursal_id' => '',
+        ]))->getData();
+        $this->assertSame([1, 2, 3, 4, 6], $general['contratos']->pluck('id')->all());
+        $this->assertSame('Norte - ORURO', $general['sucursalesPorEmpresa'][2]['sucursales'][0]['nombre']);
+
+        $filters = ['empresa_ids' => [2], 'empresa_sucursal_id' => 20];
+        $filtered = $controller->reportes(Request::create('/area-contratos/reportes', 'GET', $filters))->getData();
+        $this->assertSame([2, 3, 6], $filtered['contratos']->pluck('id')->all());
+        $this->assertSame(3, $filtered['totalReportes']);
+        $this->assertSame([['origen' => 'LA PAZ', 'total' => 3]], $filtered['groupedSummary']->all());
+
+        $workbook = $this->exportWorkbook($filters);
+        $sheet = $workbook->getSheetByName('LA PAZ');
+        $this->assertSame('Norte - ORURO', $sheet->getCell('C9')->getValue());
+        $this->assertSame(['CONTRATO-2', 'CONTRATO-3', 'CONTRATO-6'], array_column($sheet->rangeToArray('C13:C15'), 0));
+        $this->assertNull($sheet->getCell('C16')->getValue());
+        $this->assertSame('SUCURSAL: Norte - ORURO', $workbook->getSheetByName('RESUMEN')->getCell('C4')->getValue());
+    }
+
+    public function test_rechaza_una_sucursal_ajena_a_las_empresas_seleccionadas(): void
+    {
+        DB::table('empresa')->insert([
+            ['id' => 1, 'nombre' => 'Empresa Centro', 'codigo_cliente' => 'CLI001'],
+            ['id' => 2, 'nombre' => 'Empresa Norte', 'codigo_cliente' => 'CLI001'],
+        ]);
+        DB::table('empresa_sucursales')->insert(['id' => 20, 'empresa_id' => 2, 'nombre' => 'Norte']);
+
+        $controller = app(AreaContratosController::class);
+        foreach (['reportes', 'exportReportesExcel'] as $action) {
+            try {
+                $controller->{$action}(Request::create('/area-contratos/reportes', 'GET', [
+                    'empresa_ids' => [1],
+                    'empresa_sucursal_id' => 20,
+                ]));
+                $this->fail('Se aceptó una sucursal de una empresa sin seleccionar.');
+            } catch (ValidationException $exception) {
+                $this->assertArrayHasKey('empresa_sucursal_id', $exception->errors());
+            }
+        }
+    }
+
+    private function exportWorkbook(array $filters = []): Spreadsheet
+    {
+        $response = app(AreaContratosController::class)->exportReportesExcel(
+            Request::create('/area-contratos/reportes/excel', 'GET', $filters)
+        );
+        $path = $response->getFile()->getPathname();
+
+        try {
+            return IOFactory::load($path);
+        } finally {
+            unlink($path);
+        }
     }
 }

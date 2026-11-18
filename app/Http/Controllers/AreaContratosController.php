@@ -5,10 +5,13 @@ namespace App\Http\Controllers;
 use App\Exports\AreaContratosEntregadosExport;
 use App\Exports\EmpresaGuiasExport;
 use App\Models\Empresa;
+use App\Models\EmpresaSucursal;
 use App\Models\Estado;
 use App\Models\Recojo;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Facades\Excel;
 
 class AreaContratosController extends Controller
@@ -293,14 +296,12 @@ class AreaContratosController extends Controller
     public function reportes(Request $request)
     {
         $search = trim((string) $request->query('q', ''));
-        $empresaId = (int) $request->query('empresa_id', 0);
         $from = trim((string) $request->query('from', ''));
         $to = trim((string) $request->query('to', ''));
         $empresas = $this->buildEmpresaGroups();
-        $empresaGroup = $this->resolveEmpresaGroup($empresas, $empresaId);
-        $empresaIds = $empresaGroup['ids'] ?? ($empresaId > 0 ? [$empresaId] : []);
+        [$empresaIds, $sucursal, $empresaIdsConsulta] = $this->resolveReportScope($request, $empresas);
 
-        $query = $this->buildContratosReportQuery($search, $empresaIds, $from, $to);
+        $query = $this->buildContratosReportQuery($search, $empresaIdsConsulta, $from, $to, $sucursal);
 
         $contratos = (clone $query)
             ->orderBy('fecha_recojo')
@@ -327,7 +328,9 @@ class AreaContratosController extends Controller
         return view('area_contratos.reportes', [
             'contratos' => $contratos,
             'empresas' => $empresas,
-            'empresaId' => $empresaId,
+            'empresaIds' => $empresaIds,
+            'sucursal' => $sucursal,
+            'sucursalesPorEmpresa' => $this->reportBranchOptions($empresas),
             'search' => $search,
             'from' => $from,
             'to' => $to,
@@ -339,21 +342,22 @@ class AreaContratosController extends Controller
     public function exportReportesExcel(Request $request)
     {
         $search = trim((string) $request->query('q', ''));
-        $empresaId = (int) $request->query('empresa_id', 0);
         $from = trim((string) $request->query('from', ''));
         $to = trim((string) $request->query('to', ''));
 
-        $empresaGroup = $this->resolveEmpresaGroup($this->buildEmpresaGroups(), $empresaId);
-        $empresaIds = $empresaGroup['ids'] ?? ($empresaId > 0 ? [$empresaId] : []);
-        $empresa = $empresaGroup
+        $empresas = $this->buildEmpresaGroups();
+        [$empresaIds, $sucursal, $empresaIdsConsulta] = $this->resolveReportScope($request, $empresas);
+        $seleccionadas = $empresas->flatMap(fn (array $group) => $group['empresas'])
+            ->whereInStrict('id', $sucursal ? [(int) $sucursal->empresa_id] : $empresaIds);
+        $codigos = $seleccionadas->pluck('codigo_cliente')->unique();
+        $empresa = $seleccionadas->isNotEmpty()
             ? (object) [
-                'nombre' => $empresaGroup['nombres'],
-                'sigla' => null,
-                'codigo_cliente' => $empresaGroup['codigo_cliente'],
+                'nombre' => $seleccionadas->pluck('nombre')->unique()->implode(' / '),
+                'codigo_cliente' => $codigos->count() === 1 ? $codigos->first() : '',
             ]
             : null;
 
-        $rowsQuery = $this->buildContratosReportQuery($search, $empresaIds, $from, $to, false)
+        $rowsQuery = $this->buildContratosReportQuery($search, $empresaIdsConsulta, $from, $to, $sucursal, false)
             ->select([
                 'paquetes_contrato.id',
                 'paquetes_contrato.user_id',
@@ -420,7 +424,10 @@ class AreaContratosController extends Controller
         $empresaCodigo = trim((string) ($empresa->codigo_cliente ?? ''));
         $empresaNombre = $empresaCodigo !== ''
             ? $empresaCodigo
-            : trim((string) ($empresa->nombre ?? 'GENERAL'));
+            : ($seleccionadas->count() > 1 ? 'EMPRESAS' : ($empresa->nombre ?? 'GENERAL'));
+        if ($sucursal) {
+            $empresaNombre .= '-'.$sucursal->nombre;
+        }
         $empresaSlug = preg_replace('/[^A-Za-z0-9]+/', '-', $empresaNombre) ?? 'GENERAL';
         $empresaSlug = trim($empresaSlug, '-');
         if ($empresaSlug === '') {
@@ -431,6 +438,7 @@ class AreaContratosController extends Controller
 
         $export = new AreaContratosEntregadosExport($rowsQuery, $summaryRows, $totals, [
             'empresa' => $empresa,
+            'sucursal' => $sucursal?->etiqueta,
             'from' => $from,
             'to' => $to,
             'search' => $search,
@@ -543,6 +551,7 @@ class AreaContratosController extends Controller
         array $empresaIds,
         string $from,
         string $to,
+        ?EmpresaSucursal $sucursal,
         bool $withRelations = true
     ) {
         return Recojo::query()
@@ -559,6 +568,11 @@ class AreaContratosController extends Controller
             })
             ->when(! empty($empresaIds), function ($query) use ($empresaIds) {
                 $query->whereIn('empresa_id', $empresaIds);
+            })
+            ->when($sucursal, function ($query) use ($sucursal) {
+                $query->whereHas('user', fn ($userQuery) => $userQuery->withTrashed()
+                    ->where('users.empresa_id', $sucursal->empresa_id)
+                    ->where('users.empresa_sucursal_id', $sucursal->id));
             })
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($sub) use ($search) {
@@ -590,7 +604,7 @@ class AreaContratosController extends Controller
             });
     }
 
-    private function buildEmpresaGroups()
+    private function buildEmpresaGroups(): Collection
     {
         return Empresa::query()
             ->orderBy('nombre')
@@ -600,41 +614,93 @@ class AreaContratosController extends Controller
 
                 return $codigo !== '' ? 'codigo:'.$codigo : 'empresa:'.$empresa->id;
             })
-            ->map(function ($items) {
+            ->map(function (Collection $items) {
                 $codigo = $this->normalizeCodigoCliente($items->first()->codigo_cliente);
-                $ids = $items->pluck('id')->map(fn ($id) => (int) $id)->sort()->values();
-                $nombres = $items
-                    ->map(function (Empresa $empresa) {
-                        $nombre = trim((string) $empresa->nombre);
-                        $sigla = trim((string) $empresa->sigla);
+                $empresas = $items->map(function (Empresa $empresa) use ($codigo) {
+                    $nombre = trim((string) $empresa->nombre);
+                    $sigla = trim((string) $empresa->sigla);
 
-                        return $sigla !== '' ? "{$nombre} ({$sigla})" : $nombre;
-                    })
-                    ->filter()
-                    ->unique()
-                    ->implode(' / ');
+                    return [
+                        'id' => (int) $empresa->id,
+                        'nombre' => $sigla !== '' ? "{$nombre} ({$sigla})" : $nombre,
+                        'codigo_cliente' => $codigo,
+                    ];
+                });
 
                 return [
-                    'id' => (int) $ids->first(),
-                    'ids' => $ids->all(),
+                    'ids' => $empresas->pluck('id')->sort()->values()->all(),
                     'codigo_cliente' => $codigo,
-                    'nombres' => $nombres,
-                    'label' => $codigo !== '' ? "{$codigo} - {$nombres}" : $nombres,
+                    'empresas' => $empresas,
                 ];
             })
-            ->sortBy(fn (array $group) => $group['label'], SORT_NATURAL | SORT_FLAG_CASE)
+            ->sortBy(fn (array $group) => $group['codigo_cliente'] ?: $group['empresas']->first()['nombre'], SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
     }
 
-    private function resolveEmpresaGroup($groups, int $empresaId): ?array
+    private function resolveReportEmpresaIds(Request $request, Collection $groups): array
     {
-        if ($empresaId <= 0) {
-            return null;
+        if ($request->query->has('empresa_ids')) {
+            $validated = $request->validate([
+                'empresa_ids' => ['array'],
+                'empresa_ids.*' => ['required', 'integer', 'min:1'],
+            ]);
+
+            return array_values(array_unique(array_map('intval', $validated['empresa_ids'])));
         }
 
-        return $groups->first(
+        // Los enlaces anteriores seleccionan el código de cliente completo.
+        $empresaId = $request->integer('empresa_id');
+        if ($empresaId <= 0) {
+            return [];
+        }
+
+        $group = $groups->first(
             fn (array $group) => in_array($empresaId, $group['ids'], true)
         );
+
+        return $group['ids'] ?? [$empresaId];
+    }
+
+    private function resolveReportScope(Request $request, Collection $groups): array
+    {
+        $empresaIds = $this->resolveReportEmpresaIds($request, $groups);
+        $validated = $request->validate([
+            'empresa_sucursal_id' => ['nullable', 'integer', 'min:1'],
+        ]);
+        if (empty($validated['empresa_sucursal_id'])) {
+            return [$empresaIds, null, $empresaIds];
+        }
+
+        $sucursal = EmpresaSucursal::query()
+            ->whereIn('empresa_id', $empresaIds)
+            ->find((int) $validated['empresa_sucursal_id']);
+
+        if (! $sucursal) {
+            throw ValidationException::withMessages([
+                'empresa_sucursal_id' => 'Selecciona una sucursal de una de las empresas elegidas.',
+            ]);
+        }
+
+        // Una guía puede tener el ID de otra empresa del mismo código de cliente.
+        $group = $groups->first(fn (array $group) => in_array((int) $sucursal->empresa_id, $group['ids'], true));
+
+        return [$empresaIds, $sucursal, $group['ids'] ?? [(int) $sucursal->empresa_id]];
+    }
+
+    private function reportBranchOptions(Collection $groups): Collection
+    {
+        $sucursales = EmpresaSucursal::query()->orderBy('nombre')->get(['id', 'empresa_id', 'nombre', 'ciudad'])
+            ->groupBy('empresa_id');
+
+        return $groups->flatMap(fn (array $group) => $group['empresas'])
+            ->whereInStrict('id', $sucursales->keys())
+            ->mapWithKeys(fn (array $empresa) => [$empresa['id'] => [
+                'nombre' => $empresa['nombre'],
+                'sucursales' => $sucursales->get($empresa['id'])->map(fn (EmpresaSucursal $sucursal) => [
+                    'id' => (int) $sucursal->id,
+                    'nombre' => $sucursal->etiqueta,
+                ]),
+            ]]);
     }
 
     private function normalizeCodigoCliente(?string $codigo): string

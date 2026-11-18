@@ -459,6 +459,7 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
         ->name('personal-ips.index');
     Route::get('/users/ips-links', [UserIpsLinkController::class, 'index'])->name('users.ips-links.index');
     Route::post('/users/{user}/ips-link', [UserIpsLinkController::class, 'store'])->name('users.ips-links.store');
+    Route::put('/users/{user}/ips-link/office', [UserIpsLinkController::class, 'updateOffice'])->name('users.ips-links.office.update');
     Route::put('/users/{user}/ips-link/delivery-agent', [UserIpsLinkController::class, 'updateDeliveryAgent'])->name('users.ips-links.delivery-agent.update');
     Route::post('/users/{user}/ips-user', [UserIpsLinkController::class, 'createIpsUser'])->name('users.ips-links.create-user');
     Route::post('/users/{user}/ips-link/verify', [UserIpsLinkController::class, 'verify'])->name('users.ips-links.verify');

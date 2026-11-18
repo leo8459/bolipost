@@ -37,7 +37,15 @@
                             {{ $user->regionalesTexto() ?: '-' }}
                         </div>
                         <div class="form-group">
-                            <strong>Sucursal:</strong>
+                            <strong>Empresa:</strong>
+                            {{ $user->empresa?->nombre ?? 'Sin asignar' }}
+                        </div>
+                        <div class="form-group">
+                            <strong>Sucursal de empresa:</strong>
+                            {{ $user->empresaSucursal?->etiqueta ?? 'Sin asignar' }}
+                        </div>
+                        <div class="form-group">
+                            <strong>Sucursal de Facturación:</strong>
                             @if ($user->sucursal)
                                 Sucursal {{ $user->sucursal->codigoSucursal }} - Punto {{ $user->sucursal->puntoVenta }} - {{ $user->sucursal->municipio }}
                             @else

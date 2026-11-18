@@ -72,6 +72,11 @@ class AreaContratosEntregadosResumenSheetExport implements FromArray, ShouldAuto
 
                 $sheet->setCellValue('C5', $this->resolveHeaderTitle());
                 $sheet->setCellValue('C6', $this->resolvePeriodLabel());
+                if ($sucursal = $this->filters['sucursal'] ?? null) {
+                    $sheet->mergeCells('C4:F4');
+                    $sheet->setCellValue('C4', 'SUCURSAL: '.$sucursal);
+                    $sheet->getStyle('C4')->getFont()->setBold(true);
+                }
                 $sheet->setCellValue('C7', 'RESUMEN POR REGIONAL');
                 $sheet->setCellValue('E7', 'TOTALES');
                 $sheet->setCellValue('C8', 'REGIONALES');

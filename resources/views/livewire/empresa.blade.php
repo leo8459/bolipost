@@ -413,6 +413,10 @@
                 </div>
             @endif
 
+            @if (session()->has('error'))
+                <div class="alert alert-danger m-3" role="alert">{{ session('error') }}</div>
+            @endif
+
             @if (session()->has('import_errors'))
                 <div class="alert alert-warning m-3">
                     <p class="mb-2"><strong>Errores de importacion (primeros 20):</strong></p>
@@ -509,6 +513,10 @@
                                     <td>
                                         <div class="empresa-actions">
                                         @aclcan('edit', $this)
+                                        <button type="button" wire:click="openSucursalesModal({{ $empresa->id }})"
+                                            class="btn btn-sm btn-outline-azul">
+                                            <i class="fas fa-store mr-1" aria-hidden="true"></i> Sucursales
+                                        </button>
                                         <button wire:click="openEditModal({{ $empresa->id }})"
                                             class="btn btn-sm btn-azul action-icon"
                                             title="Editar">
@@ -666,6 +674,7 @@
             </div>
         </div>
     </div>
+    @include('empresa.sucursales-modal')
 </div>
 
 <script>
@@ -687,6 +696,10 @@
 
     window.addEventListener('closeEmpresaModal', () => {
         $('#empresaModal').modal('hide');
+    });
+
+    window.addEventListener('openSucursalesModal', () => {
+        $('#empresaSucursalesModal').modal('show');
     });
 </script>
 

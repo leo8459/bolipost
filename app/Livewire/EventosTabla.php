@@ -469,7 +469,6 @@ class EventosTabla extends Component
                     'p.nombre_d',
                     'p.origen',
                     'p.provincia_origen',
-                    'p.destino',
                     'p.provincia',
                     'p.telefono_d',
                     'p.imagen',
@@ -478,6 +477,7 @@ class EventosTabla extends Component
                     'emp.sigla as empresa_sigla',
                     'emp.codigo_cliente as empresa_codigo_cliente',
                 ])
+                ->selectRaw($this->contratoDestinoExpression('paquetes_contrato', 'p.') . ' as destino')
                 ->where(function ($query) use ($q) {
                     $codigoClienteBuscado = $this->normalizeCodigoCliente($q);
 
@@ -735,7 +735,7 @@ class EventosTabla extends Component
                 ->selectRaw('UPPER(TRIM(codigo)) as codigo_normalizado')
                 ->selectRaw("MAX(NULLIF(TRIM(origen), '')) as origen")
                 ->selectRaw("MAX(NULLIF(TRIM(provincia_origen), '')) as provincia_origen")
-                ->selectRaw("MAX(NULLIF(TRIM(destino), '')) as destino")
+                ->selectRaw($this->contratoDestinoExpression($table, aggregate: true) . ' as destino')
                 ->selectRaw("MAX(NULLIF(TRIM(provincia), '')) as provincia_destino")
                 ->selectRaw($hasJustificacion
                     ? "MAX(NULLIF(TRIM(justificacion), '')) as justificacion"
@@ -796,6 +796,24 @@ class EventosTabla extends Component
             $registro->imagen_devolucion = $imagenes['devolucion'];
             $registro->imagen = $imagenes['principal'];
         }
+    }
+
+    private function contratoDestinoExpression(string $table, string $prefix = '', bool $aggregate = false): string
+    {
+        $format = "NULLIF(TRIM({$prefix}%s), '')";
+        if ($aggregate) {
+            $format = "MAX($format)";
+        }
+
+        $destino = sprintf($format, 'destino');
+
+        if (Schema::hasColumn($table, 'destino_registrado')) {
+            $destinoRegistrado = sprintf($format, 'destino_registrado');
+
+            return "COALESCE($destinoRegistrado, $destino)";
+        }
+
+        return $destino;
     }
 
     private function resolveImagesForCodigo(string $codigo): array

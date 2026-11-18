@@ -36,6 +36,11 @@ class Empresa extends Model
         return $this->hasMany(CodigoEmpresa::class, 'empresa_id');
     }
 
+    public function sucursales(): HasMany
+    {
+        return $this->hasMany(EmpresaSucursal::class);
+    }
+
     public function tarifariosContrato(): BelongsToMany
     {
         return $this->belongsToMany(TarifarioContrato::class, 'tarifario_contrato_empresa')

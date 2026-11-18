@@ -13,6 +13,7 @@ use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use Maatwebsite\Excel\Events\AfterSheet;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
@@ -195,6 +196,11 @@ class AreaContratosEntregadosSheetExport implements FromQuery, WithCustomChunkSi
                 $sheet->setCellValue('C7', $this->resolveEmpresaLabel());
                 $sheet->setCellValue('A8', 'PERIODO:');
                 $sheet->setCellValue('C8', $this->resolveDateRangeLabel());
+                if ($sucursal = $this->filters['sucursal'] ?? null) {
+                    $sheet->setCellValue('A9', 'SUCURSAL:');
+                    $sheet->setCellValueExplicit('C9', $sucursal, DataType::TYPE_STRING);
+                    $sheet->getStyle('A9')->getFont()->setBold(true);
+                }
 
                 $headerTopRow = 11;
                 $headerBottomRow = 12;

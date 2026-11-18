@@ -961,9 +961,10 @@
                                 <th>Regional</th>
                                 <th>Provincia origen</th>
                                 @unless($empresaMode)
-                                    <th>Sucursal</th>
+                                    <th>Sucursal de Facturación</th>
                                 @endunless
                                 <th>Empresa</th>
+                                <th>Sucursal de empresa</th>
                                 <th>CI</th>
                                 <th>Estado</th>
                                 <th>Roles</th>
@@ -1045,6 +1046,7 @@
                                             <span class="users-muted">Sin empresa</span>
                                         @endif
                                     </td>
+                                    <td>{{ $user->empresaSucursal?->etiqueta ?? 'Sin asignar' }}</td>
                                     <td>{{ $user->ci }}</td>
                                     <td>
                                         <span class="badge {{ $user->trashed() ? 'badge-danger' : 'badge-success' }} {{ $empresaMode ? 'users-status--empresas' : '' }}">
@@ -1128,7 +1130,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="12" class="text-center py-4 users-muted {{ $empresaMode ? 'users-empty--empresas' : '' }}">
+                                    <td colspan="13" class="text-center py-4 users-muted {{ $empresaMode ? 'users-empty--empresas' : '' }}">
                                         @if($empresaMode)<i class="fas fa-user-friends" aria-hidden="true"></i>@endif
                                         No se encontraron usuarios.
                                     </td>
@@ -1244,9 +1246,9 @@
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label>Empresa{{ $empresaMode ? '' : ' (opcional)' }}@if($empresaMode)<span class="required-star">*</span>@endif</label>
-                                    <select wire:model.defer="empresa_id" class="form-control" {{ $empresaMode ? 'required' : '' }}>
-                                        <option value="">{{ $empresaMode ? 'Selecciona una empresa' : 'Sin empresa' }}</option>
+                                    <label for="userEmpresaId">Empresa <span class="required-star">*</span></label>
+                                    <select id="userEmpresaId" wire:model.change="empresa_id" class="form-control" required>
+                                        <option value="">Selecciona una empresa</option>
                                         @foreach($empresas as $empresa)
                                             <option value="{{ $empresa->id }}">
                                                 {{ $empresa->codigo_cliente }} - {{ $empresa->nombre }} ({{ $empresa->sigla }})
@@ -1256,10 +1258,27 @@
                                     @error('empresa_id') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="userEmpresaSucursalId">Sucursal de empresa <span class="required-star">*</span></label>
+                                    <select id="userEmpresaSucursalId" wire:key="user-empresa-sucursal-{{ $selectedEmpresaId }}"
+                                        wire:model="empresa_sucursal_id" class="form-control" required
+                                        @disabled(! $selectedEmpresaId) wire:loading.attr="disabled" wire:target="empresa_id">
+                                        <option value="">{{ $selectedEmpresaId ? 'Selecciona una sucursal' : 'Selecciona una empresa primero' }}</option>
+                                        @foreach($sucursalesEmpresa as $sucursalEmpresa)
+                                            <option value="{{ $sucursalEmpresa->id }}">{{ $sucursalEmpresa->etiqueta }}</option>
+                                        @endforeach
+                                    </select>
+                                    @if($selectedEmpresaId && $sucursalesEmpresa->isEmpty())
+                                        <small class="text-muted">Esta empresa aún no tiene sucursales registradas.</small>
+                                    @endif
+                                    @error('empresa_sucursal_id') <small class="text-danger d-block">{{ $message }}</small> @enderror
+                                </div>
+                            </div>
                             @unless($empresaMode)
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label>Sucursal de facturacion (opcional)</label>
+                                    <label>Sucursal de Facturación (opcional)</label>
                                     <select wire:model.defer="sucursal_id" class="form-control">
                                         <option value="">Sin sucursal</option>
                                         @foreach($sucursales as $sucursal)
@@ -1311,7 +1330,9 @@
                             </a>
                         @endif
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary">{{ $editingId ? 'Guardar cambios' : 'Crear usuario' }}</button>
+                        <button type="submit" class="btn btn-primary" wire:loading.attr="disabled" wire:target="empresa_id,saveUser">
+                            {{ $editingId ? 'Guardar cambios' : 'Crear usuario' }}
+                        </button>
                     </div>
                 </form>
             </div>

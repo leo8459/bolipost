@@ -23,11 +23,11 @@
                         <h1 class="card-title font-weight-bold"><i class="fas fa-table mr-2" aria-hidden="true"></i>Crear tarifas de contrato</h1>
                     </div>
                     <div class="card-body">
-                        @if (!empty($defaults))
+                        @if (collect($defaults ?? [])->except('tarifario_contrato_id')->contains(fn ($value) => $value !== null && $value !== ''))
                             <div class="alert alert-info">
-                                La primera fila contiene los datos del último registro.
+                                La primera fila está precargada. Revisa sus datos antes de guardar.
                                 @aclcan('create', null, 'tarifa-contrato')
-                                <a href="{{ route('tarifa-contrato.create', ['reset' => 1]) }}" class="btn btn-sm btn-outline-secondary ml-2">
+                                <a href="{{ route('tarifa-contrato.create', ['reset' => 1, 'tarifario_id' => $defaults['tarifario_contrato_id'] ?? request('tarifario_id')]) }}" class="btn btn-sm btn-outline-secondary ml-2">
                                     Limpiar precarga
                                 </a>
                                 @endaclcan
@@ -35,7 +35,7 @@
                         @endif
                         @if (!empty($copySource))
                             <div class="alert alert-warning">
-                                Copiando base desde tarifa #{{ $copySource->id }}.
+                                Usamos la tarifa #{{ $copySource->id }} como base para completar la primera fila.
                             </div>
                         @endif
                         <form method="POST" action="{{ route('tarifa-contrato.store') }}" id="tarifas-sheet-form">

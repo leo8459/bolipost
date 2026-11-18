@@ -17,19 +17,22 @@
         </select>
     </div>
     <div class="col-md-9 form-group mb-3">
-        <label for="tarifario_contrato_id">Tarifario y año *</label>
+        <label for="tarifario_contrato_id">Tarifario *</label>
         <select class="form-control @error('tarifario_contrato_id') is-invalid @enderror" id="tarifario_contrato_id" name="tarifario_contrato_id" aria-describedby="tarifario-year-empty tarifario-select-help" required>
-            <option value="">Selecciona un tarifario en borrador…</option>
+            <option value="">Elige un tarifario…</option>
             @foreach($tarifarios as $item)
                 <option value="{{ $item->id }}" data-anio="{{ $item->anio ?? 'sin-anio' }}" @selected($selectedTarifarioId === (string) $item->id)>{{ $item->etiqueta }}</option>
             @endforeach
         </select>
         @error('tarifario_contrato_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
         <div class="small text-warning mt-1" id="tarifario-year-empty" role="status" hidden>No hay tarifarios disponibles para el año seleccionado. Puedes crear uno desde el enlace de abajo.</div>
-        <small class="text-muted" id="tarifario-select-help">Todas las filas se guardan en este tarifario. <a href="{{ route('tarifa-contrato.tarifarios') }}">Crear tarifario o asignar empresas</a>.</small>
-        <small class="d-block text-muted">Los servicios corresponden al año seleccionado. <a href="{{ route('tarifa-contrato.servicios', ['anio' => $selectedYear]) }}" data-services-link target="_blank" rel="noopener">Gestionar servicios por año</a>.</small>
-        <button type="button" class="btn btn-sm btn-outline-secondary mt-1" data-refresh-services>Actualizar lista de servicios</button>
-        <small class="text-muted" data-services-status role="status">Después de añadir un servicio, actualiza la lista para usarlo aquí.</small>
+        <small class="text-muted" id="tarifario-select-help">Las filas se guardarán en el tarifario que elijas. <a href="{{ route('tarifa-contrato.tarifarios') }}">Administrar tarifarios</a>.</small>
+        <details class="small mt-2 sheet-service-options">
+            <summary data-services-help-toggle>¿No encuentras un servicio?</summary>
+            <p class="mb-1 mt-2">Solo aparecen los servicios del año seleccionado. Puedes <a href="{{ route('tarifa-contrato.servicios', ['anio' => $selectedYear]) }}" data-services-link target="_blank" rel="noopener">ver o añadir servicios</a>.</p>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-refresh-services>Actualizar lista de servicios</button>
+            <small class="text-muted" data-services-status role="status">Si añadiste uno, actualiza esta lista para usarlo.</small>
+        </details>
     </div>
 </div>
 @once
