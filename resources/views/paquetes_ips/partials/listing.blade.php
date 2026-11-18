@@ -1,5 +1,6 @@
 @if($error)<div class="alert alert-warning" role="alert">{{ $error }}</div>@endif
 @php
+    $pendingDelivery = ($warehouseView ?? null) === 'por-entregar';
     $searchPurpose = ($deliveryOnly ?? false) ? 'entregar' : (in_array($workflowAction ?? '', ['EMR', 'EMG', 'CUSTOMS_RETURN'], true) ? 'recibir' : '');
 @endphp
 <section class="ips-panel">
@@ -7,7 +8,7 @@
                 <form method="GET" action="{{ $listingUrl ?? route('ips.index', \App\Support\IpsOfficeContext::parameters(request(), [])) }}" class="ips-search {{ $searchPurpose ? 'ips-search--operation' : '' }}">
                     @if(empty($combinedOffices) && $link?->ips_office_cd !== null)<input type="hidden" name="office_cd" value="{{ $link->ips_office_cd }}">@endif
                     <label for="ips-code" class="{{ $searchPurpose ? 'ips-search-label' : 'sr-only' }}">{{ $searchPurpose ? 'Escanea o escribe el código del paquete para '.$searchPurpose : 'Código de seguimiento o identificador local exacto' }}</label>
-                    <input id="ips-code" type="search" name="q" maxlength="35" value="{{ $search }}" placeholder="Escanea o escribe un código…" class="form-control" autocomplete="off">
+                    <input id="ips-code" type="search" name="q" maxlength="35" value="{{ $search }}" placeholder="{{ $pendingDelivery ? 'Pega, escanea o escribe un código…' : 'Escanea o escribe un código…' }}" class="form-control" autocomplete="off" @if($pendingDelivery) data-search-on-paste @endif>
                     @if($preferredReceptaclePid ?? null)<input type="hidden" name="receptacle_pid" value="{{ $preferredReceptaclePid }}">@endif
                     <button type="submit" class="btn btn-primary ips-search-submit"><i class="fas fa-search mr-2" aria-hidden="true"></i><span>{{ $searchPurpose ? 'Buscar para '.$searchPurpose : 'Buscar' }}</span></button>
                     @if($search)<a href="{{ $listingClearUrl ?? $listingUrl ?? route('ips.index', \App\Support\IpsOfficeContext::parameters(request(), [])) }}" class="btn btn-light">Limpiar</a>@endif
@@ -21,11 +22,29 @@
                 </nav>
                 @endunless
                 <div class="table-responsive">
-                    <table class="table ips-table">
-                        <thead><tr><th>Código / ID local</th><th>Destinatario</th><th>Teléfono</th><th>Ciudad / dirección</th><th>{{ ($workflowAction ?? '') === 'EMG' ? 'Oficina de origen → entrega' : 'Oficina actual → destino' }}</th><th>Peso / clase</th><th>Tributable</th><th>Etapa / último movimiento</th><th>Acción</th></tr></thead>
+                    <table @class(['table ips-table', 'ips-table--pending-delivery' => $pendingDelivery])>
+                        <thead>
+                            <tr>
+                                <th scope="col">Código / ID local</th>
+                                <th scope="col">Destinatario</th>
+                                <th scope="col">Teléfono</th>
+                                @if($pendingDelivery)
+                                    <th scope="col">Ciudad</th>
+                                    <th scope="col" class="ips-address-column">Dirección</th>
+                                @else
+                                    <th scope="col">Ciudad / dirección</th>
+                                @endif
+                                <th scope="col">{{ ($workflowAction ?? '') === 'EMG' ? 'Oficina de origen → entrega' : 'Oficina actual → destino' }}</th>
+                                <th scope="col">Peso / clase</th>
+                                <th scope="col">Tributable</th>
+                                <th scope="col">Etapa / último movimiento</th>
+                                <th scope="col">Acción</th>
+                            </tr>
+                        </thead>
                         <tbody>
                         @forelse($packages as $package)
                             @php
+                                $address = $package['address'] ?? null;
                                 $packageEvent = (int) ($package['operational_event_cd'] ?? $package['event_cd'] ?? 0);
                                 $displayStageLabel = ($workflowAction ?? '') === 'EMG'
                                     ? match ($packageEvent) {
@@ -39,7 +58,21 @@
                                 <td><strong class="ips-code">{{ $package['codigo'] }}</strong><small>{{ $package['local_id'] ?: 'Sin ID local' }}</small></td>
                                 <td>{{ $package['recipient'] ?: 'No registrado' }}</td>
                                 <td>{{ $package['phone'] ?: 'No registrado' }}</td>
-                                <td>{{ $package['city'] ?: 'No registrada' }}<small>{{ $package['address'] ?: 'Sin dirección registrada' }}</small></td>
+                                @if($pendingDelivery)
+                                    <td>{{ $package['city'] ?: 'No registrada' }}</td>
+                                    <td class="ips-address-column">
+                                        @if(filled($address))
+                                            <div class="ips-address">
+                                                <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
+                                                <span>{{ $address }}</span>
+                                            </div>
+                                        @else
+                                            <span class="text-muted">Sin dirección registrada</span>
+                                        @endif
+                                    </td>
+                                @else
+                                    <td>{{ $package['city'] ?: 'No registrada' }}<small>{{ filled($address) ? $address : 'Sin dirección registrada' }}</small></td>
+                                @endif
                                 <td>{{ $package['office_name'] ?: 'Sin oficina' }}@if($package['next_office_name'])<small>→ {{ $package['next_office_name'] }}</small>@endif @if(!empty($package['workbench_office_name']))<small class="font-weight-bold">{{ $package['workbench_office_name'] }} · {{ $package['workbench_office_fcd'] ?? '' }}</small>@endif</td>
                                 <td>{{ $package['weight_kg'] !== null ? number_format($package['weight_kg'], 3, ',', '.') . ' kg' : 'Sin peso' }}<small>Clase {{ $package['mail_class'] ?: 'no registrada' }}</small></td>
                                 <td>{{ match((string)($package['dutiable_ind'] ?? '')) {'Y','1'=>'Sí','N','0'=>'No',default=>'No registrado'} }}</td>
@@ -63,7 +96,7 @@
                                     @else<form class="ips-selection-add" method="POST" action="{{ $selectionAddUrl ?? route('ips.selection.add', \App\Support\IpsOfficeContext::parameters(request(), [])) }}">@csrf<input type="hidden" name="codigo" value="{{ $package['codigo'] }}">@if(($workflowAction ?? '') === 'CUSTOMS_RETURN' && $preferredReceptaclePid)<input type="hidden" name="receptacle_pid" value="{{ $preferredReceptaclePid }}">@endif @if($deliveryOnly ?? false)<input type="hidden" name="workflow" value="delivery">@endif<button class="btn btn-sm btn-outline-primary"><i class="fas fa-plus"></i> {{ ($workflowAction ?? null) ? 'Agregar al paso' : (($deliveryOnly ?? false) ? 'Agregar a entrega' : (empty($package['allowed_actions']) ? 'Agregar consulta' : 'Agregar')) }}</button></form>@endif
                                 </td>
                             </tr>
-                        @empty<tr><td colspan="9" class="ips-empty"><i class="fas fa-search"></i><p>{{ $error ? 'Listado no disponible.' : ($emptyMessage ?? 'No hay paquetes que coincidan con esta búsqueda y oficina.') }}</p></td></tr>@endforelse
+                        @empty<tr><td colspan="{{ $pendingDelivery ? 10 : 9 }}" class="ips-empty"><i class="fas fa-search"></i><p>{{ $error ? 'Listado no disponible.' : ($emptyMessage ?? 'No hay paquetes que coincidan con esta búsqueda y oficina.') }}</p></td></tr>@endforelse
                         </tbody>
                     </table>
                 </div>

@@ -837,24 +837,27 @@ class PaquetesIpsController extends Controller
 
     private function withUpuRecipientData(array $packages): array
     {
-        $fields = ['recipient' => 'destinatario', 'phone' => 'telefono', 'address' => 'zona'];
-        $codes = collect($packages)
-            ->filter(fn (array $package) => collect(array_keys($fields))->contains(fn ($field) => blank($package[$field] ?? null)))
-            ->pluck('codigo')->filter()->unique()->values();
+        $codes = collect($packages)->pluck('codigo')->filter()->unique()->values();
         if ($codes->isEmpty()) {
             return $packages;
         }
         $localPackages = PaqueteUpu::query()->whereIn('codigo', $codes)
-            ->get(['codigo', ...array_values($fields)])->keyBy('codigo');
+            ->get(['codigo', 'destinatario', 'telefono', 'zona'])->keyBy('codigo');
 
-        return array_map(function (array $package) use ($fields, $localPackages): array {
+        return array_map(function (array $package) use ($localPackages): array {
             $local = $localPackages->get($package['codigo']);
-            if ($local) {
-                foreach ($fields as $remoteField => $localField) {
-                    if (blank($package[$remoteField] ?? null) && filled($local->{$localField})) {
-                        $package[$remoteField] = $local->{$localField};
-                    }
-                }
+            if (! $local) {
+                return $package;
+            }
+
+            if (blank($package['recipient'] ?? null) && filled($local->destinatario)) {
+                $package['recipient'] = $local->destinatario;
+            }
+            if (blank($package['phone'] ?? null) && filled($local->telefono)) {
+                $package['phone'] = $local->telefono;
+            }
+            if (filled($local->zona)) {
+                $package['address'] = $local->zona;
             }
 
             return $package;

@@ -85,7 +85,7 @@ class IpsUpuRecipientFallbackTest extends TestCase
         $this->assertSame(32, $package['event_cd']);
     }
 
-    public function test_each_populated_sitra_field_takes_priority_over_upu(): void
+    public function test_local_address_takes_priority_when_sitra_has_all_recipient_fields(): void
     {
         $this->localPackage();
         $package = $this->listing([$this->package([
@@ -94,7 +94,7 @@ class IpsUpuRecipientFallbackTest extends TestCase
 
         $this->assertSame('Destinatario SITRA', $package['recipient']);
         $this->assertSame('70099988', $package['phone']);
-        $this->assertSame('Calle SITRA', $package['address']);
+        $this->assertSame('Zona UPU', $package['address']);
         $this->assertDatabaseHas('paquetes_upu', ['codigo' => 'RE052612365ES', 'destinatario' => 'Destinatario UPU']);
     }
 
@@ -109,10 +109,13 @@ class IpsUpuRecipientFallbackTest extends TestCase
         $this->assertSame('Zona UPU', $package['address']);
     }
 
-    public function test_missing_local_records_and_empty_local_fields_leave_sitra_data_unchanged(): void
+    public function test_blank_or_missing_local_address_keeps_sitra_address(): void
     {
         $this->localPackage(['destinatario' => null, 'telefono' => '', 'zona' => '   ']);
-        $packages = [$this->package(), $this->package(['codigo' => 'RR123456789DE'])];
+        $packages = [
+            $this->package(['address' => 'Calle IPS']),
+            $this->package(['codigo' => 'RR123456789DE', 'address' => 'Avenida IPS']),
+        ];
         $result = $this->listing($packages)->getData()['packages']->items();
 
         $this->assertSame($packages, $result);
@@ -120,19 +123,29 @@ class IpsUpuRecipientFallbackTest extends TestCase
 
     public function test_search_fragments_render_the_upu_recipient_and_escape_local_text(): void
     {
-        $this->localPackage(['destinatario' => 'MARCO <UPU>']);
-        $response = $this->listing([$this->package()], true, 'RE052612365ES');
+        $this->localPackage(['destinatario' => 'MARCO <UPU>', 'zona' => 'Zona <UPU>']);
+        $response = $this->listing([$this->package(['address' => 'Calle IPS'])], true, 'RE052612365ES');
 
         $this->assertSame(200, $response->getStatusCode());
         $html = $response->getData(true)['html'];
+        $this->assertStringContainsString('data-search-on-paste', $html);
         $this->assertStringContainsString('RE052612365ES', $html);
         $this->assertStringContainsString('MARCO &lt;UPU&gt;', $html);
         $this->assertStringContainsString('70011122', $html);
-        $this->assertStringContainsString('Zona UPU', $html);
+        $this->assertStringContainsString('Zona &lt;UPU&gt;', $html);
         $this->assertStringNotContainsString('MARCO <UPU>', $html);
+        $this->assertStringNotContainsString('Calle IPS', $html);
     }
 
-    public function test_a_page_looks_up_all_missing_recipients_in_one_query(): void
+    public function test_search_fragments_show_when_neither_source_has_an_address(): void
+    {
+        $this->localPackage(['zona' => '   ']);
+        $response = $this->listing([$this->package(['address' => '   '])], true, 'RE052612365ES');
+
+        $this->assertStringContainsString('Sin dirección registrada', $response->getData(true)['html']);
+    }
+
+    public function test_a_page_looks_up_local_recipient_data_in_one_query(): void
     {
         $this->localPackage();
         $this->localPackage(['codigo' => 'RR123456789DE', 'destinatario' => 'Otro destinatario UPU']);

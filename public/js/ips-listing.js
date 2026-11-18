@@ -23,6 +23,12 @@
         if (!dialog.open) dialog.showModal();
     }
 
+    function searchUrl(form) {
+        const url = new URL(form.action, location.href);
+        url.search = new URLSearchParams(new FormData(form)).toString();
+        return url;
+    }
+
     async function load(url, push = true) {
         if (url.origin !== location.origin || url.pathname !== location.pathname) {
             location.assign(url.href);
@@ -47,10 +53,12 @@
                 throw new Error(result.message || 'No se pudo consultar IPS.');
             }
             if (request !== activeRequest) return;
+            const restoreSearchFocus = document.activeElement === listing.querySelector('#ips-code');
             // Server-rendered, escaped Blade markup from this authenticated same-origin route.
             listing.classList.remove('is-stale');
             listing.innerHTML = result.html;
             setScanPlaceholder();
+            if (restoreSearchFocus) listing.querySelector('#ips-code')?.focus();
             if (push) history.pushState(null, '', url.href);
             status.hidden = true;
             return true;
@@ -215,9 +223,7 @@
             processScanQueue();
             return;
         }
-        const url = new URL(form.action, location.href);
-        url.search = new URLSearchParams(new FormData(form)).toString();
-        load(url).then(loaded => {
+        load(searchUrl(form)).then(loaded => {
             const legacyBarcode = scanEnabled && /^[A-Z]{2}\d{9}[A-Z]{2}$/.test(code);
             if (!loaded || !legacyBarcode) return;
             const exactRow = [...listing.querySelectorAll('.ips-code')]
@@ -225,6 +231,16 @@
             const addForm = exactRow?.querySelector('.ips-selection-add');
             if (addForm) addSelectionForm(addForm);
         });
+    });
+    listing.addEventListener('paste', event => {
+        const input = event.target.closest('#ips-code[data-search-on-paste]');
+        if (!input?.form) return;
+        const code = event.clipboardData?.getData('text/plain').trim().toUpperCase();
+        if (!/^[A-Z0-9-]{1,35}$/.test(code ?? '')) return;
+
+        event.preventDefault();
+        input.value = code;
+        load(searchUrl(input.form));
     });
     listing.addEventListener('click', event => {
         const receivedButton = event.target.closest('.ips-already-received');

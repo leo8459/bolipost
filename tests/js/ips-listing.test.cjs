@@ -95,6 +95,43 @@ test('selection and delivery forms are not intercepted by list navigation', () =
     assert.equal(app.pending.length, 0);
 });
 
+test('pasting a code in the pending delivery search refreshes the list by GET', async () => {
+    const app = setup();
+    const input = {value: 'PREVIOUS'};
+    input.form = {
+        action: 'http://localhost/ips',
+        get fields() { return {office_cd: '17', q: input.value}; },
+    };
+    let prevented = false;
+    app.events.paste({
+        target: {closest: selector => selector === '#ips-code[data-search-on-paste]' ? input : null},
+        clipboardData: {getData: () => '  re052612365es\r\n'},
+        preventDefault() { prevented = true; },
+    });
+
+    assert.equal(prevented, true);
+    assert.equal(input.value, 'RE052612365ES');
+    assert.equal(app.pending[0].url, 'http://localhost/ips?office_cd=17&q=RE052612365ES');
+    assert.equal(app.pending[0].options.method, undefined);
+    app.respond(0, {html: 'RE052612365ES · Zona UPU'});
+    await tick();
+    assert.equal(app.listing.innerHTML, 'RE052612365ES · Zona UPU');
+    assert.equal(app.pending.length, 1);
+    assert.equal(app.dispatched.length, 0);
+});
+
+test('pasting outside the pending delivery search or pasting multiple codes keeps native behavior', () => {
+    const app = setup('EMG');
+    const preventDefault = () => assert.fail('intercepted paste');
+    app.events.paste({target: {closest: () => null}, preventDefault});
+    app.events.paste({
+        target: {closest: () => ({form: {}})},
+        clipboardData: {getData: () => 'RE052612365ES\nRR123456789DE'},
+        preventDefault,
+    });
+    assert.equal(app.pending.length, 0);
+});
+
 test('scanning an already received package opens the modal without adding it', async () => {
     const app = setup('EMG');
     const form = {fields: {q: 'PACKAGE01'}, querySelector: () => null};
