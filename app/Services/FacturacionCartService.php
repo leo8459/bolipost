@@ -2728,6 +2728,118 @@ class FacturacionCartService
         ];
     }
 
+    public function registerManualDelivery(User $user, string $code, ?float $weightKg = null): array
+    {
+        $this->assertFacturacionPermission($user);
+        $user->loadMissing('sucursal');
+
+        $identity = $this->originUserPayload($user);
+        $branch = $this->originSucursalPayload($user);
+        $payload = [
+            'codigoPaquete' => strtoupper(trim($code)),
+            'origenUsuario' => [
+                'id' => $identity['origen_usuario_id'],
+                'nombre' => $identity['origen_usuario_nombre'],
+                'email' => $identity['origen_usuario_email'],
+                'alias' => $identity['origen_usuario_alias'],
+                'carnet' => $identity['origen_usuario_carnet'],
+            ],
+            'origenSucursal' => [
+                'id' => $branch['origen_sucursal_id'],
+                'codigo' => $branch['origen_sucursal_codigo'],
+                'nombre' => $branch['origen_sucursal_nombre'],
+            ],
+            'codigoSucursal' => (int) $branch['codigoSucursal'],
+            'puntoVenta' => (int) $branch['puntoVenta'],
+            'municipio' => $branch['municipio'],
+            'departamento' => trim((string) ($user->sucursal?->departamento ?? $branch['municipio'] ?? '')),
+            'telefono' => trim((string) ($user->sucursal?->telefono ?? '')),
+            'pesoKg' => $weightKg !== null && $weightKg >= 0 ? round($weightKg, 3) : null,
+        ];
+
+        return $this->request('POST', '/registrar-entrega-manual', $payload);
+    }
+
+    public function findDeliveryTicketCharge(User $user, string $code, bool $regional): ?array
+    {
+        $code = strtoupper(trim($code));
+        // For UPU guides, Kardex treats a foreign origin as delivery and BO as admission.
+        if (!preg_match('/^[A-Z]{2}\d{9}([A-Z]{2})$/D', $code, $matches) || $matches[1] === 'BO') {
+            return null;
+        }
+
+        $scope = ['origen_usuario_id' => (string) $user->id];
+        if ($regional) {
+            $branch = $user->sucursal;
+            if (!$branch || $branch->codigoSucursal === null || $branch->puntoVenta === null) {
+                return null;
+            }
+
+            $scope = ['codigoSucursal' => (int) $branch->codigoSucursal, 'puntoVenta' => (int) $branch->puntoVenta];
+        }
+
+        try {
+            $result = data_get($this->request('GET', '/paquetes/' . rawurlencode($code) . '/facturas'), 'resultados.0');
+            if (data_get($result, 'codigo_paquete') !== $code) {
+                return null;
+            }
+
+            $candidates = collect(data_get($result, 'coincidencias', []))->filter(fn ($invoice) =>
+                data_get($invoice, 'es_factura_vigente') === true
+                && data_get($invoice, 'es_retour') === false
+                && data_get($invoice, 'anulada') === false
+                && collect(data_get($invoice, 'detalle', []))->contains(fn ($line) =>
+                    preg_match('/\bENTREGA\b/iu', (string) data_get($line, 'descripcion', '')) === 1)
+            );
+            $candidate = $candidates->count() === 1 ? $candidates->first() : null;
+            $saleId = (int) data_get($candidate, 'venta_id');
+            if ($saleId <= 0) {
+                return null;
+            }
+
+            $sale = $this->request('GET', '/ventas/' . $saleId, $scope);
+        } catch (\RuntimeException) {
+            return null;
+        }
+
+        $ownerId = (int) data_get($sale, 'usuario.id');
+        if (!$regional && $ownerId !== (int) $user->id) {
+            return null;
+        }
+        if ($regional && (
+            (string) data_get($sale, 'sucursal.codigoSucursal') !== (string) $scope['codigoSucursal']
+            || (string) data_get($sale, 'sucursal.puntoVenta') !== (string) $scope['puntoVenta']
+            || !User::query()->whereKey($ownerId)->where('sucursal_id', $user->sucursal_id)
+                ->permission('feature.dashboard.facturacion')->exists()
+        )) {
+            return null;
+        }
+
+        if (!in_array(strtoupper(trim((string) data_get($sale, 'estado_sufe'))), ['PROCESADA', 'PROCESADO', 'FACTURADA'], true)
+            || !empty($sale['anulada_at'])) {
+            return null;
+        }
+
+        $lines = collect(data_get($sale, 'detalle', []))->filter(fn ($line) => collect([
+            data_get($line, 'codigo'),
+            data_get($line, 'codigo_paquete'),
+            data_get($line, 'codigo_detalle_enviado'),
+            data_get($line, 'resumen_origen.codigo_paquete'),
+            data_get($line, 'resumen_origen.codigo_detalle_enviado'),
+            data_get($line, 'resumen_origen.codigo'),
+        ])->contains(fn ($value) => preg_replace('/^SRVE-\d+-/', '', strtoupper(trim((string) $value))) === $code));
+        $line = $lines->count() === 1 ? $lines->first() : null;
+        $amount = data_get($line, 'monto_base') ?? data_get($line, 'precio') ?? data_get($candidate, 'importe_paquete');
+        $weight = data_get($line, 'resumen_origen.peso') ?? data_get($line, 'peso') ?? data_get($line, 'resumen_origen.peso_kg');
+        $weight = str_replace(',', '.', trim((string) $weight));
+
+        return is_numeric($amount) && (float) $amount > 0 ? [
+            'amount' => (float) $amount,
+            'weight' => is_numeric($weight) && (float) $weight > 0 ? (float) $weight : null,
+            'cashier_name' => trim((string) data_get($sale, 'usuario.nombre')) ?: null,
+        ] : null;
+    }
+
     public function fetchVentaById(User $user, int $cartId): ?object
     {
         try {

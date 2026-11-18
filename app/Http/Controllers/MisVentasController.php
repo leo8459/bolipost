@@ -1826,6 +1826,12 @@ class MisVentasController extends Controller
                 data_get($row, 'cuf')
                 ?? data_get($row, 'respuesta_emision.factura.cuf')
             ));
+            $origenVentaTipo = strtoupper(trim((string) data_get(
+                $row,
+                'origenVentaTipo',
+                data_get($row, 'origen_venta_tipo', '')
+            )));
+            $esEntregaManual = $origenVentaTipo === 'ENTREGA_MANUAL';
 
             $pdfUrl = trim((string) (
                 data_get($row, 'pdfUrl')
@@ -1939,6 +1945,8 @@ class MisVentasController extends Controller
             return (object) [
                 'id' => $resolvedCartId,
                 'origen_venta_id' => $origenVentaId > 0 ? $origenVentaId : null,
+                'origen_venta_tipo' => $origenVentaTipo,
+                'es_entrega_manual' => $esEntregaManual,
                 'venta_id' => $ventaId,
                 'origen_usuario_id' => trim((string) data_get($row, 'origenUsuarioId', data_get($row, 'origen_usuario_id', ''))),
                 'origen_usuario_nombre' => trim((string) data_get($row, 'origenUsuarioNombre', data_get($row, 'origen_usuario_nombre', ''))),
@@ -1954,7 +1962,11 @@ class MisVentasController extends Controller
                 'numero_factura' => $numeroFactura,
                 'numero_factura_fuente' => $numeroFacturaFuente,
                 'numero_documento' => $isOficial ? '' : trim((string) data_get($row, 'documentoIdentidad', data_get($row, 'numero_documento', ''))),
-                'razon_social' => trim((string) data_get($row, 'razonSocial', data_get($row, 'razon_social', ''))),
+                'razon_social' => trim((string) data_get(
+                    $row,
+                    'razonSocial',
+                    data_get($row, 'razon_social', data_get($row, 'cliente.razonSocial', ''))
+                )),
                 'modalidad_facturacion' => $isOficial
                     ? 'registro_interno'
                     : (trim((string) data_get($row, 'codigoCliente', data_get($row, 'codigo_cliente', ''))) !== '' ? 'con_datos' : 'sin_cliente'),
@@ -2174,6 +2186,11 @@ class MisVentasController extends Controller
         }
 
         $isOficial = $this->isOfficialVentaPayload($venta);
+        $origenVentaTipo = strtoupper(trim((string) data_get(
+            $venta,
+            'origenVentaTipo',
+            data_get($venta, 'origen_venta_tipo', '')
+        )));
         $canalEmision = $this->resolveCanalEmisionVentaPayload($venta, null, $venta, $isOficial);
         $metodoPago = $this->resolveMetodoPagoVentaPayload($venta, null, $venta, $canalEmision);
 
@@ -2184,6 +2201,8 @@ class MisVentasController extends Controller
                 ? ''
                 : trim((string) data_get($venta, 'cliente.documentoIdentidad', data_get($venta, 'documentoIdentidad', ''))),
             'razon_social' => trim((string) data_get($venta, 'cliente.razonSocial', data_get($venta, 'razonSocial', ''))),
+            'origen_venta_tipo' => $origenVentaTipo,
+            'es_entrega_manual' => $origenVentaTipo === 'ENTREGA_MANUAL',
             'emitido_en' => (string) data_get($venta, 'created_at', data_get($venta, 'fecha', '')),
             'total' => (float) data_get($venta, 'montoTotal', data_get($venta, 'total', 0)),
             'modalidad_facturacion' => $isOficial ? 'registro_interno' : 'con_datos',

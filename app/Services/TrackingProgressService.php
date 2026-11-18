@@ -95,8 +95,12 @@ class TrackingProgressService
             && $this->isCustomsReadyAtDestination((object) $latestEvent, $events);
         $pickupAtNonDestinationOffice = $latestEvent !== null
             && $this->isPickupAtNonDestinationOffice((object) $latestEvent, $events);
+        $pickupAtDestinationOffice = $latestEvent !== null
+            && $this->isPickupAtDestinationOffice((object) $latestEvent, $events);
         $pickupAvailable = $latestEvent !== null
-            && (($this->isPickupAvailable((object) $latestEvent) && !$pickupAtNonDestinationOffice)
+            && (($this->isPickupAvailable((object) $latestEvent)
+                    && !$pickupAtNonDestinationOffice
+                    && (!$hasCustomsCounterFlow || $pickupAtDestinationOffice))
                 || $pickupReadyAtDestination);
         if ($pickupReadyAtDestination && !$isHeldByCustoms && !$customsActionRequired) {
             $isInCustoms = false;
@@ -448,6 +452,32 @@ class TrackingProgressService
         $office = trim(preg_replace('/\\s+/u', ' ', preg_replace('/[^a-z0-9]+/u', ' ', $office) ?? $office) ?? $office);
 
         return $destination !== '' && $office !== '' && !str_contains($office, $destination);
+    }
+
+    private function isPickupAtDestinationOffice(object $event, iterable $events): bool
+    {
+        if (!$this->isPickupAvailable($event)) {
+            return false;
+        }
+
+        $destination = '';
+        foreach ($events as $candidate) {
+            $value = trim((string) (((object) $candidate)->ciudad_destino ?? ''));
+            if ($value !== '' && !in_array($this->normalize($value), ['bo', 'bolivia', 'plurinational state of bolivia'], true)) {
+                $destination = $this->normalize($value);
+                break;
+            }
+        }
+
+        $office = $this->normalize((string) ($event->office ?? ''));
+        if ($destination === '' || $office === '') {
+            return false;
+        }
+
+        $destination = trim(preg_replace('/\s+/u', ' ', preg_replace('/[^a-z0-9]+/u', ' ', $destination) ?? $destination) ?? $destination);
+        $office = trim(preg_replace('/\s+/u', ' ', preg_replace('/[^a-z0-9]+/u', ' ', $office) ?? $office) ?? $office);
+
+        return $destination !== '' && $office !== '' && str_contains($office, $destination);
     }
 
     private function isCustomsReadyAtDestination(object $event, iterable $events): bool

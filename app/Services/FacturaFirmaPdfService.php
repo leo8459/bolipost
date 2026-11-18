@@ -126,6 +126,23 @@ class FacturaFirmaPdfService
         return $pdf->Output('S');
     }
 
+    public function manualDeliveryTicket(array $delivery): string
+    {
+        $width = 85.0;
+        $characterWidth = 8 * 0.6 * 25.4 / 72;
+        $charactersPerLine = (int) floor(($width - 10 - 34 - 2) / $characterWidth);
+        $user = $this->pdfText($this->deliveryValue($delivery, 'usuario', '-'), 'Windows-1252');
+        $extraUserLines = substr_count(wordwrap($user, $charactersPerLine, "\n", true), "\n");
+        $height = $this->deliveryBlockHeight($delivery, $width) + $extraUserLines * 5;
+
+        $pdf = new Fpdi();
+        $pdf->SetAutoPageBreak(false);
+        $pdf->AddPage('P', [$width, $height]);
+        $this->drawDeliveryVoucher($pdf, $delivery, 0, $width, isManual: true);
+
+        return $pdf->Output('S');
+    }
+
     private function deliveryBlockHeight(array $delivery, float $width): float
     {
         if ($this->deliveryPackages($delivery) === []) {
@@ -137,8 +154,15 @@ class FacturaFirmaPdfService
         return max($height, $width + 1);
     }
 
-    private function drawDeliveryVoucher(Fpdi $pdf, array $delivery, float $top, float $width, int $copy = 1, int $totalCopies = 1): void
-    {
+    private function drawDeliveryVoucher(
+        Fpdi $pdf,
+        array $delivery,
+        float $top,
+        float $width,
+        int $copy = 1,
+        int $totalCopies = 1,
+        bool $isManual = false,
+    ): void {
         $packages = $this->deliveryPackages($delivery);
         if ($packages === []) {
             return;
@@ -146,7 +170,6 @@ class FacturaFirmaPdfService
 
         $left = 5.0;
         $right = max($left + 45, $width - 5);
-        $contentWidth = $right - $left;
         $y = $top + 0.8;
 
         $pdf->SetTextColor(0, 0, 0);
@@ -172,31 +195,16 @@ class FacturaFirmaPdfService
         }
         $y += 3;
 
-        $y = $this->drawDeliveryValueRow(
-            $pdf,
-            $left,
-            $right,
-            $y,
-            'Usuario',
-            $this->deliveryValue($delivery, 'usuario', '-')
-        );
-        $y = $this->drawDeliveryValueRow(
-            $pdf,
-            $left,
-            $right,
-            $y,
-            'Nro. Factura',
-            $this->deliveryValue($delivery, 'numero_factura', '-')
-        );
+        $y = $this->drawDeliveryValueRow($pdf, $left, $right, $y, 'Usuario', $this->deliveryValue($delivery, 'usuario', '-'), $isManual);
+        if (! $isManual) {
+            $y = $this->drawDeliveryValueRow($pdf, $left, $right, $y, 'Nro. Factura', $this->deliveryValue($delivery, 'numero_factura', '-'), false);
+        }
 
         $y += 4;
-        $y = $this->drawDeliveryDateRow(
-            $pdf,
-            $left,
-            $right,
-            $y,
-            $this->deliveryValue($delivery, 'fecha_entrega', '-')
-        );
+        $date = $this->deliveryValue($delivery, 'fecha_entrega', $isManual ? '' : '-');
+        $y = $date === ''
+            ? $this->drawDeliveryBlankRow($pdf, $left, $right, $y, 'Fecha Entrega')
+            : $this->drawDeliveryDateRow($pdf, $left, $right, $y, $date);
         $y = $this->drawDeliveryBlankRow($pdf, $left, $right, $y + 3, 'RECIBIDO POR');
         $y = $this->drawDeliveryBlankRow($pdf, $left, $right, $y + 2, 'FIRMA');
 
@@ -315,10 +323,17 @@ class FacturaFirmaPdfService
         }
     }
 
-    private function drawDeliveryValueRow(Fpdi $pdf, float $left, float $right, float $y, string $label, string $value): float
-    {
+    private function drawDeliveryValueRow(
+        Fpdi $pdf,
+        float $left,
+        float $right,
+        float $y,
+        string $label,
+        string $value,
+        bool $preserveAccents,
+    ): float {
         $label = $this->pdfText($label . ':');
-        $value = $this->pdfText($value);
+        $value = $this->pdfText($value, $preserveAccents ? 'Windows-1252' : 'ASCII');
         $labelWidth = 34;
         $valueWidth = max(20, $right - $left - $labelWidth);
 
@@ -380,10 +395,10 @@ class FacturaFirmaPdfService
         return $value !== '' ? $value : $fallback;
     }
 
-    private function pdfText(string $value): string
+    private function pdfText(string $value, string $encoding = 'ASCII'): string
     {
         $value = preg_replace('/\s+/', ' ', trim($value)) ?? '';
-        $converted = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
+        $converted = iconv('UTF-8', $encoding . '//TRANSLIT//IGNORE', $value);
 
         return $converted !== false ? $converted : $value;
     }

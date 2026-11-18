@@ -42,18 +42,27 @@
         $disponibleParaRecojo = $trackingProgress['is_pickup_available'] ?? false;
         $aduanaDevueltaAlFlujoPostal = $trackingProgress['customs_returned_to_postal_flow'] ?? false;
         $ventanillaEnOtraOficina = $trackingProgress['pickup_at_non_destination_office'] ?? false;
+        $envioEnGestionAduanera = $envioEnAduana && !$envioCancelado && !$envioEnDevolucion;
+        $envioEnExpedicionHaciaDestino = $tramoAduanaVentanilla
+            && $pasoActualOriginal === 3
+            && !$disponibleParaRecojo
+            && !$envioCancelado
+            && !$envioEnDevolucion;
 
-        // La lógica conserva los eventos y el estado real de Aduana. En la
-        // vista pública, esa etapa se presenta como Ventanilla y usa su icono.
+        // Aduana y disponibilidad en Ventanilla son estados distintos. Solo
+        // los eventos de disponibilidad deben presentarse como retiro en oficina.
         $pasos = [];
         $indicesPasosVista = [];
         foreach ($pasosOriginales as $indiceOriginal => $pasoOriginal) {
             $pasoVista = in_array($pasoOriginal, ['Aduana', 'Ventanilla = Aduana'], true)
-                ? 'Ventanilla'
+                ? (($indiceOriginal === $pasoActualOriginal && !$disponibleParaRecojo)
+                    ? 'Expedicion'
+                    : 'Ventanilla')
                 : $pasoOriginal;
             $ultimoPasoVista = $pasos !== [] ? $pasos[array_key_last($pasos)] : null;
 
-            if ($pasoVista === 'Ventanilla' && $ultimoPasoVista === 'Ventanilla') {
+            if (($pasoVista === 'Ventanilla' && $ultimoPasoVista === 'Ventanilla')
+                || ($pasoVista === 'Expedicion' && $ultimoPasoVista === 'Expedicion')) {
                 $indicesPasosVista[$indiceOriginal] = count($pasos) - 1;
                 continue;
             }
@@ -61,25 +70,47 @@
             $indicesPasosVista[$indiceOriginal] = count($pasos);
             $pasos[] = $pasoVista;
         }
+
+        $agregarVentanillaPendiente = $tramoAduanaVentanilla
+            && $pasoActualOriginal === 3
+            && !$disponibleParaRecojo
+            && !$envioCancelado
+            && !$envioEnDevolucion
+            && !in_array('Ventanilla', $pasos, true);
+        if ($agregarVentanillaPendiente) {
+            $indiceInsertarVentanilla = array_search('Cartero', $pasos, true);
+            if ($indiceInsertarVentanilla === false) {
+                $indiceInsertarVentanilla = array_search('Entregado', $pasos, true);
+            }
+            if ($indiceInsertarVentanilla === false) {
+                $indiceInsertarVentanilla = count($pasos);
+            }
+
+            array_splice($pasos, $indiceInsertarVentanilla, 0, ['Ventanilla']);
+            foreach ($indicesPasosVista as $indiceOriginal => $indiceVista) {
+                if ($indiceVista >= $indiceInsertarVentanilla) {
+                    $indicesPasosVista[$indiceOriginal]++;
+                }
+            }
+        }
+
         $pasoActual = $indicesPasosVista[$pasoActualOriginal] ?? 0;
         $idxEntregado = count($pasos) - 1;
 
-        if ($envioEnAduana && !$envioCancelado && !$envioEnDevolucion) {
-            $estadoGlobal = 'En Ventanilla';
+        if ($envioEnGestionAduanera || $envioEnExpedicionHaciaDestino) {
+            $estadoGlobal = 'En Expedición';
         }
 
         $ultimoNombre = $envioEnDevolucion
             ? 'El paquete está regresando al remitente.'
-            : (($envioEnAduana && !$envioCancelado)
-                ? 'Tu envío está en Ventanilla.'
+            : (($envioEnGestionAduanera || $envioEnExpedicionHaciaDestino)
+                ? 'Tu envío continúa su ruta hacia la oficina de destino.'
                 : ($ultimoEvento->nombre_evento ?? ('Evento #' . ($ultimoEvento->evento_id ?? '-'))));
         $imagenesPasos = [
             'Admision' => 'admision',
             'Clasificacion' => 'admision',
             'Despacho' => 'despacho',
             'Expedicion' => 'expedision',
-            'Aduana' => 'ventanilla',
-            'Ventanilla = Aduana' => 'ventanilla',
             'Ventanilla' => 'ventanilla',
             'Cartero' => 'cartero',
             'Entregado' => 'entregado',
@@ -106,14 +137,17 @@
             $ayudasPasos['Ventanilla'] = 'Tu envío está disponible para recoger en Ventanilla.';
         } elseif ($ventanillaEnOtraOficina) {
             $ayudasPasos['Ventanilla'] = 'El envío está en una oficina de tránsito. Espera su llegada a la oficina de destino antes de recogerlo.';
-        } elseif ($envioEnAduana && !$envioCancelado && !$envioEnDevolucion) {
-            $ayudasPasos['Ventanilla'] = $respaldoCompraRequerido
-                ? 'Presenta el respaldo de compra o valor solicitado para completar la gestión en Ventanilla.'
+        } elseif ($envioEnGestionAduanera || $envioEnExpedicionHaciaDestino) {
+            $ayudasPasos['Expedicion'] = $respaldoCompraRequerido
+                ? 'Se requiere el respaldo de compra o valor solicitado para que el envío continúe su ruta.'
                 : ($gestionAduanaRequerida
-                    ? 'Completa la gestión indicada en Ventanilla.'
-                    : 'Tu envío está en Ventanilla.');
+                    ? 'El envío requiere completar una gestión antes de continuar hacia la oficina de destino.'
+                    : 'El envío continúa su ruta y todavía no está disponible para recoger.');
         } elseif ($aduanaDevueltaAlFlujoPostal) {
             $ayudasPasos['Ventanilla'] = 'Tu envío continúa en la red postal hacia Ventanilla.';
+        }
+        if ($agregarVentanillaPendiente) {
+            $ayudasPasos['Ventanilla'] = 'Paso pendiente: el retiro se habilitará cuando el envío llegue a la oficina de destino.';
         }
         $entregaConfirmada = $estadoGlobal === 'Entregado';
 
@@ -736,7 +770,7 @@
             $departamentoAviso = $detectarDepartamentoBolivia($oficinaAviso);
             $destinoAviso = trim($ciudadDestinoLocal);
             $mensajeAvisoRecojo = $departamentoAviso && $destinoAviso !== ''
-                ? 'El paquete figura en Ventanilla de ' . $departamentoAviso . ', pero su destino es ' . ucwords(mb_strtolower($destinoAviso)) . '. Espera la llegada a destino antes de recogerlo.'
+                ? 'El último registro ubica tu envío en una oficina de tránsito en ' . $departamentoAviso . ', pero su destino es ' . ucwords(mb_strtolower($destinoAviso)) . '. Todavía no está disponible para recoger; espera la llegada a la oficina de destino.'
                 : 'El paquete figura en una oficina de tránsito. Espera la confirmación de llegada a tu destino antes de recogerlo.';
             $mostrarAvisoRecojo = true;
         } elseif ($tramoAduanaVentanilla && $aduanaDevueltaAlFlujoPostal && $disponibleParaRecojo) {
@@ -762,21 +796,20 @@
                     ? 'Tu paquete continúa su recorrido desde ' . $departamentoAviso . '. Espera la confirmación de llegada a Ventanilla antes de recogerlo.'
                     : 'Tu paquete continúa en tránsito. Espera la actualización de llegada a Ventanilla antes de recogerlo.');
             $mostrarAvisoRecojo = true;
-        } elseif ($tramoAduanaVentanilla && $envioEnAduana && !$disponibleParaRecojo) {
+        } elseif ($tramoAduanaVentanilla && $envioEnGestionAduanera && !$disponibleParaRecojo) {
             $oficinaAviso = trim((string) ($ultimoEventoTracking->office ?? $ultimoEventoTracking->nextOffice ?? ''));
             $departamento = $detectarDepartamentoBolivia($oficinaAviso);
 
             if ($respaldoCompraRequerido) {
-                $mensajeAvisoRecojo = 'Tu envío requiere el respaldo de compra o valor. Consulta en Ventanilla cómo completar la gestión.';
+                $mensajeAvisoRecojo = 'Tu envío requiere el respaldo de compra o valor solicitado para continuar su ruta.';
             } elseif ($gestionAduanaRequerida) {
-                $mensajeAvisoRecojo = 'Tu envío requiere completar una gestión en Ventanilla. Consulta las indicaciones de la oficina.';
+                $mensajeAvisoRecojo = 'Tu envío requiere completar una gestión antes de continuar hacia la oficina de destino. Consulta las indicaciones registradas.';
             } else {
-                $mensajeAvisoRecojo = $departamento
-                    ? 'Tu envío está en Ventanilla, en el departamento de ' . $departamento . '. Consulta en la oficina cómo completar el trámite.'
-                    : 'Tu envío está en Ventanilla. Consulta en la oficina cómo completar el trámite.';
+                $mensajeAvisoRecojo = '';
             }
 
-            if ($departamento && isset($contactosRegional[$departamento])) {
+            if (($respaldoCompraRequerido || $gestionAduanaRequerida)
+                && $departamento && isset($contactosRegional[$departamento])) {
                 $detalleRegionalRecojo = $contactosRegional[$departamento];
             }
 
@@ -787,7 +820,7 @@
                 }
                 $mapUrlRegionalRecojo = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($mapQuery);
             }
-            $mostrarAvisoRecojo = true;
+            $mostrarAvisoRecojo = $respaldoCompraRequerido || $gestionAduanaRequerida;
         } elseif ($eventoListoParaEntregar) {
             $oficinaAviso = trim((string) ($eventoListoParaEntregar->office ?? $eventoListoParaEntregar->nextOffice ?? ''));
             $isoOficinaAviso = $iso2DesdeOficina($oficinaAviso);
@@ -1031,16 +1064,9 @@
         </section>
     </main>
 
-    @if (!empty($avisoPagoQr) || $eventoListoParaEntregar || ($tramoAduanaVentanilla && $envioEnAduana && !$envioCancelado && !$envioEnDevolucion))
+    @if ($eventoListoParaEntregar || (!empty($avisoPagoQr) && ($avisoPagoQr['etapa'] ?? '') === 'Ventanilla'))
         @php
-            $avisoPagoEnExpedicion = ($avisoPagoQr['etapa'] ?? '') === 'Expedicion';
-            $avisoPagoEnVentanilla = ($avisoPagoQr['etapa'] ?? '') === 'Ventanilla';
             $modalPaqueteListo = (bool) $eventoListoParaEntregar;
-            $modalVentanillaEnCurso = !$modalPaqueteListo
-                && $tramoAduanaVentanilla
-                && $envioEnAduana
-                && !$envioCancelado
-                && !$envioEnDevolucion;
         @endphp
         <div
             class="tracking-payment-modal"
@@ -1048,83 +1074,56 @@
             role="dialog"
             aria-modal="true"
             aria-labelledby="trackingPaymentTitle"
-            @unless ($modalVentanillaEnCurso) aria-describedby="trackingPaymentDescription" @endunless
+            aria-describedby="trackingPaymentDescription"
             aria-hidden="true"
             hidden
         >
-            <section class="tracking-payment-modal__panel {{ $modalPaqueteListo ? 'tracking-payment-modal__panel--ready' : '' }} {{ $modalVentanillaEnCurso ? 'tracking-payment-modal__panel--progress' : '' }}" tabindex="-1">
+            <section class="tracking-payment-modal__panel {{ $modalPaqueteListo ? 'tracking-payment-modal__panel--ready' : '' }}" tabindex="-1">
                 <button class="tracking-payment-modal__close" type="button" data-close-tracking-payment aria-label="Cerrar aviso">&times;</button>
-                @if ($modalVentanillaEnCurso)
-                    <div class="tracking-modal-progress-layout">
-                        <img class="tracking-modal-progress-layout__illustration" src="{{ asset('images/tracking/ventanilla-proceso.png') }}" alt="" width="480" height="480" loading="eager">
-                        <div class="tracking-modal-progress-layout__info">
-                @endif
-                @unless ($modalVentanillaEnCurso)
-                    <div class="tracking-modal-heading">
-                        <div class="tracking-payment-modal__icon {{ $modalPaqueteListo ? 'tracking-payment-modal__icon--ready' : '' }}" aria-hidden="true">
-                            @if ($modalPaqueteListo)
-                                <svg viewBox="0 0 64 64" fill="none">
-                                    <path d="m12 22 20-10 20 10v23L32 56 12 45V22Z" fill="currentColor" opacity=".12" />
-                                    <path d="m12 22 20-10 20 10v23L32 56 12 45V22Z" stroke="currentColor" stroke-width="3" stroke-linejoin="round" />
-                                    <path d="m12 22 20 11 20-11M32 33v23M23 17l20 11" stroke="currentColor" stroke-width="3" stroke-linejoin="round" />
-                                    <path d="m39 10 2.2 4.4 4.8.7-3.5 3.4.8 4.8-4.3-2.3-4.3 2.3.8-4.8-3.5-3.4 4.8-.7L39 10Z" fill="#fecb34" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" />
-                                </svg>
-                            @else
-                                <svg viewBox="0 0 48 48" fill="none">
-                                    <path d="M8 8h12v12H8zM28 8h12v12H28zM8 28h12v12H8z" stroke="currentColor" stroke-width="3" stroke-linejoin="round" />
-                                    <path d="M12 12h4v4h-4zM32 12h4v4h-4zM12 32h4v4h-4zM28 28h5v5h-5zM36 28h4v4h-4zM36 36h4v4h-4zM28 37h4" fill="currentColor" />
-                                </svg>
-                            @endif
-                        </div>
-                        <div class="tracking-modal-heading__copy">
-                            <span class="tracking-payment-modal__eyebrow {{ $modalPaqueteListo ? 'tracking-payment-modal__eyebrow--ready' : '' }}">
-                                {{ $modalPaqueteListo ? 'BUENAS NOTICIAS' : 'INFORMACIÓN DEL ENVÍO' }}
-                            </span>
-                            <span class="tracking-modal-state {{ $modalPaqueteListo ? 'tracking-modal-state--ready' : '' }}">
-                                @if ($modalPaqueteListo)
-                                    Listo para recoger
-                                @elseif ($avisoPagoEnExpedicion)
-                                    En camino
-                                @elseif ($avisoPagoEnVentanilla)
-                                    Ventanilla
-                                @else
-                                    En reparto
-                                @endif
-                            </span>
-                        </div>
+                <div class="tracking-modal-heading">
+                    <div class="tracking-payment-modal__icon {{ $modalPaqueteListo ? 'tracking-payment-modal__icon--ready' : '' }}" aria-hidden="true">
+                        @if ($modalPaqueteListo)
+                            <svg viewBox="0 0 64 64" fill="none">
+                                <path d="m12 22 20-10 20 10v23L32 56 12 45V22Z" fill="currentColor" opacity=".12" />
+                                <path d="m12 22 20-10 20 10v23L32 56 12 45V22Z" stroke="currentColor" stroke-width="3" stroke-linejoin="round" />
+                                <path d="m12 22 20 11 20-11M32 33v23M23 17l20 11" stroke="currentColor" stroke-width="3" stroke-linejoin="round" />
+                                <path d="m39 10 2.2 4.4 4.8.7-3.5 3.4.8 4.8-4.3-2.3-4.3 2.3.8-4.8-3.5-3.4 4.8-.7L39 10Z" fill="#fecb34" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" />
+                            </svg>
+                        @else
+                            <svg viewBox="0 0 48 48" fill="none">
+                                <path d="M8 8h12v12H8zM28 8h12v12H28zM8 28h12v12H8z" stroke="currentColor" stroke-width="3" stroke-linejoin="round" />
+                                <path d="M12 12h4v4h-4zM32 12h4v4h-4zM12 32h4v4h-4zM28 28h5v5h-5zM36 28h4v4h-4zM36 36h4v4h-4zM28 37h4" fill="currentColor" />
+                            </svg>
+                        @endif
                     </div>
-                @endunless
+                    <div class="tracking-modal-heading__copy">
+                        <span class="tracking-payment-modal__eyebrow {{ $modalPaqueteListo ? 'tracking-payment-modal__eyebrow--ready' : '' }}">
+                            {{ $modalPaqueteListo ? 'BUENAS NOTICIAS' : 'INFORMACIÓN DEL ENVÍO' }}
+                        </span>
+                        <span class="tracking-modal-state {{ $modalPaqueteListo ? 'tracking-modal-state--ready' : '' }}">
+                            {{ $modalPaqueteListo ? 'Listo para recoger' : 'Ventanilla' }}
+                        </span>
+                    </div>
+                </div>
                 <h2 id="trackingPaymentTitle">
                     @if ($modalPaqueteListo)
                         ¡Ya puedes recoger tu paquete!
-                    @elseif ($modalVentanillaEnCurso)
-                        Tu envío está en Ventanilla
-                    @elseif ($avisoPagoEnExpedicion)
-                        Tu paquete sigue en camino
-                    @elseif ($avisoPagoEnVentanilla)
-                        Tu envío continúa en Ventanilla
                     @else
-                        Tu paquete va camino a ti
+                        Tu envío continúa en Ventanilla
                     @endif
                 </h2>
-                @if (!$modalVentanillaEnCurso)
-                    <p class="tracking-payment-modal__description" id="trackingPaymentDescription">
-                        @if ($modalPaqueteListo)
-                            Tu paquete ya llegó a la oficina de destino. Presenta tu código de seguimiento al recogerlo.
-                        @elseif ($avisoPagoEnExpedicion)
-                            Tu envío está avanzando por la red postal. Tiene un pago pendiente de <strong>Bs {{ $avisoPagoQr['importe'] }}</strong>. Cuando llegue a ventanilla o salga a reparto, podrás pagar con QR para completar la entrega.
-                        @elseif ($avisoPagoEnVentanilla)
-                            Tu envío tiene un pago pendiente. Cuando esté listo para recoger, podrás completar el pago con QR en Ventanilla.
-                        @else
-                            Tu paquete está con el cartero. Para completar la entrega, por favor realiza el pago con QR al recibirlo.
-                        @endif
-                    </p>
-                @endif
+                <p class="tracking-payment-modal__description" id="trackingPaymentDescription">
+                    @if ($modalPaqueteListo)
+                        Tu paquete ya llegó a la oficina de destino. Presenta tu código de seguimiento al recogerlo.
+                    @else
+                        Tu envío está en Ventanilla y tiene un pago pendiente. Puedes completar el pago con QR al recogerlo.
+                    @endif
+                </p>
 
-                @if (($modalPaqueteListo || $modalVentanillaEnCurso) && $detalleRegionalRecojo)
+                @if ($modalPaqueteListo && $detalleRegionalRecojo)
                     <div class="tracking-ready-location">
                         <div class="tracking-ready-location__details">
-                            <span class="tracking-ready-location__eyebrow">{{ $modalPaqueteListo ? 'Oficina de destino' : 'Punto de atención' }}</span>
+                            <span class="tracking-ready-location__eyebrow">Oficina de destino</span>
                             <strong>{{ $detalleRegionalRecojo['regional'] }}</strong>
                             <p>{{ $detalleRegionalRecojo['direccion'] }}</p>
                         </div>
@@ -1136,11 +1135,6 @@
                         @endif
                     </div>
                 @endif
-                @if ($modalVentanillaEnCurso)
-                        </div>
-                    </div>
-                @endif
-
                 @if (!empty($avisoPagoQr))
                     <div class="tracking-payment-modal__amount">
                         <span>{{ $modalPaqueteListo ? 'Pago pendiente al recoger' : 'Importe final de tu envío' }}</span>
@@ -1151,13 +1145,7 @@
                     <div class="tracking-payment-modal__tip">
                         <span class="tracking-payment-modal__tip-icon" aria-hidden="true">i</span>
                         <p>
-                            @if ($modalPaqueteListo || $avisoPagoEnVentanilla)
-                                Puedes completar el pago con QR en Ventanilla al momento de recogerlo.
-                            @elseif ($avisoPagoEnExpedicion)
-                                Al llegar el paquete, solicita el QR en ventanilla o al cartero. Ten a mano tu código de seguimiento.
-                            @else
-                                Solicita el QR al cartero cuando recibas tu paquete.
-                            @endif
+                            Puedes completar el pago con QR en Ventanilla al momento de recogerlo.
                         </p>
                     </div>
                 @endif
