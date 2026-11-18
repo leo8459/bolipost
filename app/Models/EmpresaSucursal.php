@@ -40,11 +40,11 @@ class EmpresaSucursal extends Model
         return $this->ciudad ? "{$this->nombre} - {$this->ciudad}" : $this->nombre;
     }
 
-    public static function assignmentRules(mixed $empresaId): array
+    public static function assignmentRules(mixed $empresaId, bool $required = true): array
     {
         return [
             'bail',
-            'required',
+            $required ? 'required' : 'nullable',
             'integer',
             Rule::exists('empresa_sucursales', 'id')->where('empresa_id', filter_var($empresaId, FILTER_VALIDATE_INT) ?: null),
         ];

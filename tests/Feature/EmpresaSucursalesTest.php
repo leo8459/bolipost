@@ -108,7 +108,32 @@ class EmpresaSucursalesTest extends TestCase
         $this->assertSame(['Centro' => 'SUCRE', 'Sur' => 'TARIJA'], $company->sucursales()->orderBy('nombre')->pluck('ciudad', 'nombre')->all());
     }
 
-    public function test_user_form_requires_matching_company_and_branch_and_preserves_billing_assignment(): void
+    public function test_company_user_can_be_created_without_a_branch(): void
+    {
+        $admin = User::factory()->create();
+        $admin->givePermissionTo(Permission::create(['name' => 'feature.users.empresas.create']));
+        $company = $this->createEmpresa('Andina');
+
+        Livewire::actingAs($admin)->test(Users::class, ['empresaMode' => true])
+            ->call('openCreateModal')
+            ->set('name', 'Usuario de empresa')
+            ->set('alias', 'usuario-empresa')
+            ->set('email', 'empresa@example.com')
+            ->set('password', 'password')
+            ->set('regionalesSeleccionadas', ['LA PAZ'])
+            ->call('saveUser')->assertHasErrors(['empresa_id' => 'required'])
+            ->set('empresa_id', (string) $company->id)
+            ->assertSee('Sin sucursal')
+            ->call('saveUser')->assertHasNoErrors();
+
+        $this->assertDatabaseHas('users', [
+            'alias' => 'usuario-empresa',
+            'empresa_id' => $company->id,
+            'empresa_sucursal_id' => null,
+        ]);
+    }
+
+    public function test_company_user_edit_validates_optional_branch_and_preserves_billing_assignment(): void
     {
         $admin = User::factory()->create();
         $admin->givePermissionTo(Permission::create(['name' => 'feature.users.empresas.edit']));
@@ -123,10 +148,9 @@ class EmpresaSucursalesTest extends TestCase
             'sucursal_id' => $billingBranch->id,
         ]);
 
-        Livewire::actingAs($admin)->test(Users::class, ['empresaMode' => true])
+        $component = Livewire::actingAs($admin)->test(Users::class, ['empresaMode' => true])
             ->call('openEditModal', $user->id)->assertStatus(200)
             ->assertSee('Sucursal Centro')->assertDontSee('Sucursal Norte')
-            ->call('saveUser')->assertHasErrors(['empresa_sucursal_id' => 'required'])
             ->set('empresa_sucursal_id', (string) $branch->id)
             ->set('empresa_id', (string) $otherCompany->id)->assertSet('empresa_sucursal_id', '')
             ->assertSee('Sucursal Norte')->assertDontSee('Sucursal Centro')
@@ -136,6 +160,14 @@ class EmpresaSucursalesTest extends TestCase
             ->call('saveUser')->assertHasNoErrors();
 
         $this->assertTrue($user->refresh()->empresaSucursal->is($otherBranch));
+        $this->assertTrue($user->empresa->is($otherCompany));
+        $this->assertTrue($user->sucursal->is($billingBranch));
+
+        $component->call('openEditModal', $user->id)
+            ->set('empresa_sucursal_id', '')
+            ->call('saveUser')->assertHasNoErrors();
+
+        $this->assertNull($user->refresh()->empresa_sucursal_id);
         $this->assertTrue($user->empresa->is($otherCompany));
         $this->assertTrue($user->sucursal->is($billingBranch));
     }

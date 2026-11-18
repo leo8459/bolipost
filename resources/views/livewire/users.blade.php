@@ -1260,11 +1260,18 @@
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label for="userEmpresaSucursalId">Sucursal de empresa <span class="required-star">*</span></label>
+                                    <label for="userEmpresaSucursalId">
+                                        Sucursal de empresa
+                                        @if($empresaMode)
+                                            (opcional)
+                                        @else
+                                            <span class="required-star">*</span>
+                                        @endif
+                                    </label>
                                     <select id="userEmpresaSucursalId" wire:key="user-empresa-sucursal-{{ $selectedEmpresaId }}"
-                                        wire:model="empresa_sucursal_id" class="form-control" required
+                                        wire:model="empresa_sucursal_id" class="form-control" @required(! $empresaMode)
                                         @disabled(! $selectedEmpresaId) wire:loading.attr="disabled" wire:target="empresa_id">
-                                        <option value="">{{ $selectedEmpresaId ? 'Selecciona una sucursal' : 'Selecciona una empresa primero' }}</option>
+                                        <option value="">{{ $selectedEmpresaId ? ($empresaMode ? 'Sin sucursal' : 'Selecciona una sucursal') : 'Selecciona una empresa primero' }}</option>
                                         @foreach($sucursalesEmpresa as $sucursalEmpresa)
                                             <option value="{{ $sucursalEmpresa->id }}">{{ $sucursalEmpresa->etiqueta }}</option>
                                         @endforeach
