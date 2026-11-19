@@ -218,6 +218,14 @@
                                     <small id="provinciaHelp" class="text-muted">Selecciona una provincia del combo.</small>
                                 </div>
                             </div>
+                            <div class="col-md-4" id="zonaLocalWrap" hidden>
+                                <div class="form-group">
+                                    <label for="zonaLocalSelect">Zona del servicio local<span class="required-star">*</span></label>
+                                    <select id="zonaLocalSelect" name="zona" class="form-control @error('zona') is-invalid @enderror" disabled>
+                                        <option value="">Selecciona una zona…</option>
+                                    </select>
+                                </div>
+                            </div>
                             <div class="col-md-4">
                                 <div class="form-group">
                                     <label>Direccion<span class="required-star">*</span></label>
@@ -262,6 +270,7 @@
 <script>
     (function () {
         const provinciasPorDestino = @json($provinciasPorDestino ?? []);
+        const zonasLocales = @js($zonasLocales);
         const servicio = document.getElementById('servicioSelect');
         const destino = document.getElementById('destinoSelect');
         const provinciaSelect = document.getElementById('provinciaSelect');
@@ -270,8 +279,11 @@
         const provinciaOtroInput = document.getElementById('provinciaOtroInput');
         const provinciaLabel = document.getElementById('provinciaLabel');
         const provinciaHelp = document.getElementById('provinciaHelp');
-        const form = servicio.closest('form');
+        const zonaWrap = document.getElementById('zonaLocalWrap');
+        const zonaSelect = document.getElementById('zonaLocalSelect');
+        const form = servicio?.closest('form');
         const oldProvincia = String(@json(old('provincia', '')) || '').toUpperCase().trim();
+        const oldZona = @js(is_string(old('zona')) ? \App\Models\TarifaContrato::normalizarZona(old('zona')) : null);
         const OTRO_VALUE = '__OTRO__';
 
         if (!servicio || !destino || !provinciaSelect || !provinciaHidden || !provinciaOtroWrap || !provinciaOtroInput || !provinciaLabel || !provinciaHelp || !form) return;
@@ -342,33 +354,45 @@
                 : 'Opcional.';
         };
 
-        const syncProvinciaHidden = () => {
-            if (provinciaSelect.value === OTRO_VALUE) {
-                provinciaHidden.value = String(provinciaOtroInput.value || '').trim().toUpperCase();
-                return;
-            }
-            provinciaHidden.value = String(provinciaSelect.value || '').trim().toUpperCase();
+        const renderZonas = (selected = zonaSelect.value) => {
+            const zonasPorProvincia = zonasLocales[servicio.value]?.[destino.value] ?? {};
+            const zonas = [...new Set([
+                ...(zonasPorProvincia[''] ?? []),
+                ...(zonasPorProvincia[provinciaHidden.value] ?? []),
+            ])].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
+
+            zonaSelect.replaceChildren(new Option('Selecciona una zona…', ''), ...zonas.map(zona => new Option(zona, zona)));
+            zonaSelect.value = zonas.includes(selected) ? selected : '';
+            zonaWrap.hidden = zonas.length === 0;
+            zonaSelect.disabled = zonas.length === 0;
+            zonaSelect.required = zonas.length > 0;
+        };
+
+        const syncProvinciaHidden = (selectedZona = zonaSelect.value) => {
+            const provincia = provinciaSelect.value === OTRO_VALUE ? provinciaOtroInput.value : provinciaSelect.value;
+            provinciaHidden.value = provincia.trim().toUpperCase();
+            renderZonas(selectedZona);
         };
 
         servicio.addEventListener('change', () => {
             updateProvinciaUi();
-            syncProvinciaHidden();
+            syncProvinciaHidden('');
         });
         destino.addEventListener('change', () => {
             renderProvinciaOptions('');
             updateProvinciaUi();
-            syncProvinciaHidden();
+            syncProvinciaHidden('');
         });
         provinciaSelect.addEventListener('change', () => {
             updateProvinciaUi();
             syncProvinciaHidden();
         });
-        provinciaOtroInput.addEventListener('input', syncProvinciaHidden);
-        form.addEventListener('submit', syncProvinciaHidden);
+        provinciaOtroInput.addEventListener('input', () => syncProvinciaHidden());
+        form.addEventListener('submit', () => syncProvinciaHidden());
 
         renderProvinciaOptions(oldProvincia);
         updateProvinciaUi();
-        syncProvinciaHidden();
+        syncProvinciaHidden(oldZona);
     })();
 </script>
 @endsection

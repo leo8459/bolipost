@@ -537,6 +537,9 @@ class AclPermissionRegistry
      * @var array<string, array<int, string>>
      */
     private const ROUTE_ACCESS_PERMISSION_OVERRIDES = [
+        'tarifa-contrato.import' => ['tarifa-contrato.import', 'feature.tarifa-contrato.import'],
+        'tarifa-contrato.template-excel' => ['tarifa-contrato.template-excel', 'feature.tarifa-contrato.export'],
+        'tarifa-contrato.export' => ['tarifa-contrato.export', 'feature.tarifa-contrato.export'],
         'tarifa-contrato.servicios' => ['tarifa-contrato.index', 'feature.tarifa-contrato.save', 'feature.tarifa-contrato.create', 'feature.tarifa-contrato.edit', 'feature.tarifa-contrato.import', 'feature.tarifa-contrato.export'],
         'tarifa-contrato.servicios-store' => ['feature.tarifa-contrato.save'],
         'tarifa-contrato.servicios-copy' => ['feature.tarifa-contrato.save'],
@@ -545,6 +548,7 @@ class AclPermissionRegistry
         'tarifa-contrato.tarifarios' => ['tarifa-contrato.index', 'feature.tarifa-contrato.save', 'feature.tarifa-contrato.create', 'feature.tarifa-contrato.edit', 'feature.tarifa-contrato.import', 'feature.tarifa-contrato.report', 'feature.tarifa-contrato.export'],
         'tarifa-contrato.tarifarios-store' => ['feature.tarifa-contrato.save'],
         'tarifa-contrato.tarifarios-update' => ['feature.tarifa-contrato.save'],
+        'tarifa-contrato.tarifarios-aprobar' => ['feature.tarifa-contrato.save'],
         'tarifa-contrato.tarifarios-asignar' => ['feature.tarifa-contrato.save'],
         'internacional.section' => ['internacional.menu'],
         'internacional.warehouse' => ['internacional.menu'],

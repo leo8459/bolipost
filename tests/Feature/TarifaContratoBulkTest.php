@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Http\Controllers\RecojoController;
 use App\Http\Controllers\TarifaContratoController;
+use App\Http\Middleware\EnsureRoutePermission;
 use App\Livewire\PaquetesEms;
 use App\Models\Recojo;
 use App\Models\ServicioContrato;
@@ -25,8 +26,11 @@ use Mockery;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use RuntimeException;
 use Smalot\PdfParser\Parser;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
@@ -72,6 +76,7 @@ class TarifaContratoBulkTest extends TestCase
         ]);
         (require database_path('migrations/2026_11_16_120000_create_tarifarios_contrato.php'))->up();
         (require database_path('migrations/2026_11_16_130000_create_servicios_contrato.php'))->up();
+        (require database_path('migrations/2026_11_19_120000_add_empresa_titular_to_tarifarios_contrato.php'))->up();
         foreach ([2026, 2027] as $year) {
             foreach (ServicioContrato::PREDEFINIDOS as $name) {
                 ServicioContrato::asegurar($name, $year);
@@ -92,9 +97,9 @@ class TarifaContratoBulkTest extends TestCase
     public function test_saves_multiple_routes_skips_blank_rows_and_normalizes_excel_values(): void
     {
         $this->post(route('tarifa-contrato.store'), ['tarifario_contrato_id' => $this->tarifario->id, 'tarifas' => [
-            $this->row(['origen' => 'chuquisaca', 'servicio' => 'envio local (regular)', 'direccion' => ' calle 1 ', 'kilo' => '1.250,50', 'peso' => '2,5']),
+            $this->row(['origen' => 'sucre', 'servicio' => 'envio local (regular)', 'direccion' => ' calle 1 ', 'kilo' => '1.250,50', 'peso' => '2,5']),
             array_fill_keys(['empresa_id', 'origen', 'destino', 'servicio', 'kilo', 'kilo_extra', 'retencion', 'horas_entrega'], ''),
-            $this->row(['destino' => 'beni']),
+            $this->row(['destino' => 'trinidad']),
         ]])->assertSessionHasNoErrors()->assertRedirect(route('tarifa-contrato.index'));
 
         $this->assertDatabaseCount('tarifa_contrato', 2);
@@ -128,6 +133,19 @@ class TarifaContratoBulkTest extends TestCase
         $this->post(route('tarifa-contrato.store'), ['tarifario_contrato_id' => $this->tarifario->id, 'tarifas' => [
             $this->row(['peso' => 'texto', 'origen' => ['LA PAZ']]),
         ]])->assertSessionHasErrors(['tarifas.0.peso', 'tarifas.0.origen']);
+        $this->assertDatabaseCount('tarifa_contrato', 0);
+    }
+
+    public function test_routes_outside_the_department_catalog_are_rejected_for_single_and_multiple_rates(): void
+    {
+        $invalid = $this->row(['origen' => 'PANDO', 'destino' => 'BENI']);
+
+        $this->postJson(route('tarifa-contrato.store'), $invalid)
+            ->assertUnprocessable()->assertJsonValidationErrors(['origen', 'destino']);
+        $this->postJson(route('tarifa-contrato.store'), ['tarifario_contrato_id' => $this->tarifario->id, 'tarifas' => [$invalid]])
+            ->assertUnprocessable()->assertJsonValidationErrors(['tarifas.0.origen', 'tarifas.0.destino']);
+        $this->postJson(route('tarifa-contrato.store'), $this->row(['origen' => ['LA PAZ']]))
+            ->assertUnprocessable()->assertJsonValidationErrors('origen');
         $this->assertDatabaseCount('tarifa_contrato', 0);
     }
 
@@ -185,6 +203,7 @@ class TarifaContratoBulkTest extends TestCase
         try {
             file_put_contents($path, $response->streamedContent());
             $book = IOFactory::load($path);
+            $this->assertSame(['TarifaContrato', 'Catalogos', 'Instrucciones'], $book->getSheetNames());
             $sheet = $book->getSheetByName('TarifaContrato');
             preg_match_all("/label: '([^']+)'/u", file_get_contents(public_path('js/tarifa-contrato-sheet.js')), $titles);
             $this->assertCount(11, $titles[1]);
@@ -192,6 +211,18 @@ class TarifaContratoBulkTest extends TestCase
             $this->assertSame($titles[1], $sheet->rangeToArray('A1:K1')[0]);
             $this->assertTrue($sheet->getStyle('A1:K1')->getAlignment()->getWrapText());
             $this->assertSame('0', $sheet->getStyle('F2')->getNumberFormat()->getFormatCode());
+            $this->assertSame('=Catalogos!$C$2:$C$4', $sheet->getCell('H2')->getDataValidation()->getFormula1());
+            $this->assertSame(['Zona 1', 'Zona 2', 'Zona 3'], array_column($book->getSheetByName('Catalogos')->rangeToArray('C2:C4'), 0));
+            $this->assertSame(
+                ['LA PAZ', 'COCHABAMBA', 'SANTA CRUZ', 'ORURO', 'POTOSI', 'TARIJA', 'SUCRE', 'TRINIDAD', 'COBIJA'],
+                array_column($book->getSheetByName('Catalogos')->rangeToArray('B2:B10'), 0),
+            );
+            foreach (['A2', 'B2'] as $cell) {
+                $validation = $sheet->getCell($cell)->getDataValidation();
+                $this->assertSame('=Catalogos!$B$2:$B$10', $validation->getFormula1());
+                $this->assertTrue($validation->getShowErrorMessage());
+                $this->assertFalse($validation->getAllowBlank());
+            }
 
             $sheet->fromArray([
                 'LA PAZ', 'ORURO', 'ENVIO NACIONAL (REGULAR)', 25.5, 5, 24,
@@ -205,7 +236,11 @@ class TarifaContratoBulkTest extends TestCase
             $this->post(route('tarifa-contrato.import'), [
                 'tarifario_contrato_id' => $this->tarifario->id,
                 'archivo' => new UploadedFile($path, 'tarifas.xlsx', null, null, true),
-            ])->assertSessionHasNoErrors()->assertSessionMissing('import_errors');
+                'volver_a_crear' => '1',
+            ])->assertSessionHasNoErrors()
+                ->assertSessionMissing('import_errors')
+                ->assertSessionHas('success', 'Importación completada. Creadas: 1, actualizadas: 1.')
+                ->assertRedirect(route('tarifa-contrato.create', ['tarifario_id' => $this->tarifario->id]));
             $this->assertDatabaseHas('tarifa_contrato', [
                 'id' => $existing->id,
                 'tarifario_contrato_id' => $this->tarifario->id,
@@ -218,6 +253,183 @@ class TarifaContratoBulkTest extends TestCase
             $book?->disconnectWorksheets();
             unlink($path);
         }
+    }
+
+    public function test_excel_import_rejects_non_catalog_departments_and_saves_valid_values_in_uppercase(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'tarifa-departamentos-');
+        $book = new Spreadsheet;
+        $book->getActiveSheet()->fromArray([
+            ['origen', 'destino', 'servicio', 'kilo', 'kilo_extra', 'horas_entrega'],
+            ['PANDO', 'LA PAZ', 'ENVIO NACIONAL (REGULAR)', 20, 5, 24],
+            ['LA PAZ', 'BENI', 'ENVIO NACIONAL (REGULAR)', 20, 5, 24],
+            [' la paz ', 'sucre', 'ENVIO NACIONAL (REGULAR)', 20, 5, 24],
+        ]);
+
+        try {
+            (new Xlsx($book))->save($path);
+            $this->post(route('tarifa-contrato.import'), [
+                'tarifario_contrato_id' => $this->tarifario->id,
+                'archivo' => new UploadedFile($path, 'tarifas.xlsx', null, null, true),
+            ])->assertSessionHasNoErrors()->assertSessionHas('import_errors', function (array $errors): bool {
+                return count($errors) === 2 && str_contains($errors[0], 'plantilla para origen')
+                    && str_contains($errors[1], 'plantilla para destino');
+            });
+            $this->assertDatabaseCount('tarifa_contrato', 1);
+            $this->assertDatabaseHas('tarifa_contrato', ['origen' => 'LA PAZ', 'destino' => 'SUCRE']);
+        } finally {
+            $book->disconnectWorksheets();
+            unlink($path);
+        }
+    }
+
+    public function test_excel_keeps_local_zones_separate_and_recognizes_legacy_zone_values(): void
+    {
+        $row = $this->row(['destino' => 'LA PAZ', 'servicio' => 'ENVIO LOCAL(REGULAR)']);
+        $general = TarifaContrato::create($row);
+        $zonaUno = TarifaContrato::create([...$row, 'zona' => 'ZONA 1']);
+        DB::table('tarifa_contrato')->where('id', $zonaUno->id)->update(['zona' => 'zona1']);
+
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->fromArray([
+            ['origen', 'destino', 'servicio', 'kilo', 'kilo_extra', 'horas_entrega', 'Zona (opcional)'],
+            ['LA PAZ', 'LA PAZ', 'ENVIO LOCAL (REGULAR)', 14, 6, 24, '1'],
+            ['LA PAZ', 'LA PAZ', 'ENVIO LOCAL (REGULAR)', 17, 6, 24, 'Zona 2'],
+            ['LA PAZ', 'LA PAZ', 'ENVIO LOCAL (REGULAR)', 22, 6, 24, 'ZONA3'],
+        ]);
+        $path = tempnam(sys_get_temp_dir(), 'tarifa-zonas-');
+        try {
+            (new Xlsx($spreadsheet))->save($path);
+            $this->post(route('tarifa-contrato.import'), [
+                'tarifario_contrato_id' => $this->tarifario->id,
+                'archivo' => new UploadedFile($path, 'tarifas.xlsx', null, null, true),
+            ])->assertSessionHasNoErrors()->assertSessionMissing('import_errors');
+
+            $this->assertDatabaseCount('tarifa_contrato', 4);
+            $this->assertSame('20.50', $general->fresh()->kilo);
+            $this->assertDatabaseHas('tarifa_contrato', ['id' => $zonaUno->id, 'zona' => 'Zona 1', 'kilo' => 14]);
+            $this->assertDatabaseHas('tarifa_contrato', ['zona' => 'Zona 2', 'kilo' => 17]);
+            $this->assertDatabaseHas('tarifa_contrato', ['zona' => 'Zona 3', 'kilo' => 22]);
+        } finally {
+            $spreadsheet->disconnectWorksheets();
+            unlink($path);
+        }
+    }
+
+    public function test_company_excel_exports_the_complete_active_tarifario_and_can_be_imported(): void
+    {
+        $historico = TarifarioContrato::create(['nombre' => 'Tarifario anterior', 'anio' => 2026]);
+        TarifaContrato::create($this->row(['tarifario_contrato_id' => $historico->id, 'provincia' => 'HISTORICO']));
+        app(TarifarioContratoService::class)->asignar($historico->id, [1, 2]);
+
+        for ($number = 1; $number <= 16; $number++) {
+            $destino = match ($number) {
+                1 => 'COBIJA',
+                2 => 'TRINIDAD',
+                3 => 'SUCRE',
+                default => 'COCHABAMBA',
+            };
+            TarifaContrato::create($this->row(['destino' => $destino, 'provincia' => 'PROVINCIA '.$number]));
+        }
+        $rate = $this->row([
+            'destino' => 'LA PAZ', 'servicio' => 'ENVIO LOCAL(REGULAR)', 'zona' => 'Zona 2',
+            'provincia_origen' => 'MURILLO', 'provincia' => 'MURILLO', 'direccion' => '=ZONA 2', 'retencion' => 1.25,
+        ]);
+        TarifaContrato::create([...$rate, 'peso' => 1.5, 'kilo' => 1234.56]);
+        TarifaContrato::create([...$rate, 'peso' => 2, 'kilo' => 2345.67]);
+        app(TarifarioContratoService::class)->asignar($this->tarifario->id, [1]);
+
+        $response = $this->get(route('tarifa-contrato.export', ['empresa_id' => 1, 'page' => 2, 'destino' => 'SUCRE']))
+            ->assertDownload('tarifario-tarifario-a-2026.xlsx');
+
+        $path = tempnam(sys_get_temp_dir(), 'tarifario-exportado-');
+        $book = null;
+        try {
+            file_put_contents($path, $response->streamedContent());
+            $book = IOFactory::load($path);
+            $sheet = $book->getSheetByName('TarifaContrato');
+            $this->assertSame('A1:L19', $sheet->getAutoFilter()->getRange());
+            $this->assertSame('PROVINCIA 16', $sheet->getCell('J17')->getValue());
+            $this->assertSame('Peso (kg) (opcional)', $sheet->getCell('L1')->getValue());
+            $this->assertSame('=ZONA 2', $sheet->getCell('G2')->getValue());
+            $this->assertSame('s', $sheet->getCell('G2')->getDataType());
+            $this->assertSame('Zona 2', $sheet->getCell('H2')->getValue());
+            $this->assertSame(1234.56, $sheet->getCell('D2')->getValue());
+            $destinos = ['COBIJA', ...array_fill(0, 13, 'COCHABAMBA'), 'SUCRE', 'TRINIDAD'];
+            $this->assertSame($destinos, array_column($sheet->rangeToArray('B4:B19'), 0));
+
+            $summary = $book->getActiveSheet();
+            $this->assertSame('Resumen', $summary->getTitle());
+            $this->assertSame([['ENVIO LOCAL(REGULAR)', 2], ['ENVIO NACIONAL (REGULAR)', 16]], $summary->rangeToArray('A6:B7', null, true, false));
+            $this->assertSame("sheet://'TarifaContrato'!A1", $summary->getCell('A3')->getHyperlink()->getUrl());
+            $national = $book->getSheet(3);
+            $this->assertSame("sheet://'".$national->getTitle()."'!A1", $summary->getCell('C7')->getHyperlink()->getUrl());
+            $this->assertSame('ENVIO NACIONAL (REGULAR)', $national->getCell('A1')->getValue());
+            $this->assertSame('Departamento de destino', $national->getCell('A3')->getValue());
+            $this->assertSame($destinos, array_column($national->rangeToArray('A4:A19'), 0));
+            $this->assertSame(array_fill(0, 16, 'LA PAZ'), array_column($national->rangeToArray('B4:B19'), 0));
+            $this->assertSame('=Catalogos!$B$2:$B$10', $national->getCell('A4')->getDataValidation()->getFormula1());
+            $this->assertSame('=Catalogos!$B$2:$B$10', $national->getCell('B4')->getDataValidation()->getFormula1());
+
+            $importTarget = TarifarioContrato::create(['nombre' => 'Copia para importar', 'anio' => 2026]);
+            $this->post(route('tarifa-contrato.import'), [
+                'tarifario_contrato_id' => $importTarget->id,
+                'archivo' => new UploadedFile($path, 'tarifario.xlsx', null, null, true),
+            ])->assertSessionHasNoErrors()->assertSessionMissing('import_errors');
+            $this->assertSame(18, $importTarget->tarifas()->count());
+            $this->assertDatabaseHas('tarifa_contrato', [
+                ...$rate, 'tarifario_contrato_id' => $importTarget->id, 'peso' => 1.5, 'kilo' => 1234.56,
+            ]);
+            $this->assertDatabaseHas('tarifa_contrato', [
+                ...$rate, 'tarifario_contrato_id' => $importTarget->id, 'peso' => 2, 'kilo' => 2345.67,
+            ]);
+        } finally {
+            $book?->disconnectWorksheets();
+            unlink($path);
+        }
+    }
+
+    public function test_excel_can_download_a_draft_and_rejects_an_unassigned_company(): void
+    {
+        TarifaContrato::create($this->row());
+        $this->get(route('tarifa-contrato.export', ['tarifario_id' => $this->tarifario->id]))
+            ->assertDownload('tarifario-tarifario-a-2026.xlsx');
+
+        $this->getJson(route('tarifa-contrato.export', ['tarifario_id' => $this->tarifario->id, 'empresa_id' => 1]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('empresa_id');
+
+        app(TarifarioContratoService::class)->asignar($this->tarifario->id, [1]);
+        $request = Request::create(route('tarifa-contrato.index'), 'GET', ['empresa_id' => 1]);
+        $view = app(TarifaContratoController::class)->index($request);
+        $template = preg_replace('/@extends\([^\n]+\)/', '', file_get_contents($view->getPath()));
+        $template = str_replace("@include('footer')", '', $template);
+        $html = Blade::render($template." @yield('content')", $view->getData() + ['errors' => new ViewErrorBag]);
+        $this->assertStringContainsString(route('tarifa-contrato.export', ['empresa_id' => 1]), $html);
+        $this->assertStringContainsString('Descargar Excel', $html);
+        $this->assertStringContainsString('Bs 20,50', $html);
+        $this->assertStringContainsString('Ver detalles', $html);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_import_permission_allows_an_upload_and_invalid_files_return_to_the_create_page(): void
+    {
+        $this->withMiddleware(EnsureRoutePermission::class);
+        (require database_path('migrations/2025_06_11_195557_create_permission_tables.php'))->up();
+        Permission::findOrCreate('tarifa-contrato.import', 'web');
+        $permission = Permission::findOrCreate('feature.tarifa-contrato.import', 'web');
+        $user = (new User)->forceFill(['id' => 2]);
+        $user->permissions()->attach($permission);
+
+        $createUrl = route('tarifa-contrato.create', ['tarifario_id' => $this->tarifario->id]);
+        $this->actingAs($user)->from($createUrl)->post(route('tarifa-contrato.import'), [
+            'tarifario_contrato_id' => $this->tarifario->id,
+            'archivo' => UploadedFile::fake()->create('tarifas.pdf', 1, 'application/pdf'),
+            'volver_a_crear' => '1',
+        ])->assertRedirect($createUrl)->assertSessionHasErrors('archivo');
+        $this->assertDatabaseCount('tarifa_contrato', 0);
     }
 
     public function test_database_failure_rolls_back_the_whole_batch(): void
@@ -244,9 +456,10 @@ class TarifaContratoBulkTest extends TestCase
 
     public function test_legacy_single_tariff_creation_still_works(): void
     {
-        $this->post(route('tarifa-contrato.store'), $this->row(['action' => 'save_and_new']))
+        $this->post(route('tarifa-contrato.store'), $this->row(['action' => 'save_and_new', 'origen' => ' potosi ', 'destino' => 'cobija']))
             ->assertSessionHasNoErrors()->assertRedirect(route('tarifa-contrato.create'));
         $this->assertDatabaseCount('tarifa_contrato', 1);
+        $this->assertDatabaseHas('tarifa_contrato', ['origen' => 'POTOSI', 'destino' => 'COBIJA']);
     }
 
     public function test_batch_keeps_the_existing_save_authorization(): void
@@ -278,10 +491,12 @@ class TarifaContratoBulkTest extends TestCase
     {
         $original = TarifaContrato::create($this->row());
         $this->post(route('tarifa-contrato.tarifarios-store'), [
-            'nombre' => 'Tarifario A', 'anio' => 2027, 'copiar_de_id' => $this->tarifario->id,
+            'empresa_titular_id' => 2, 'anio' => 2027, 'copiar_de_id' => $this->tarifario->id,
         ])->assertSessionHasNoErrors();
         $nuevo = TarifarioContrato::where('anio', 2027)->firstOrFail();
         $copy = $nuevo->tarifas()->firstOrFail();
+        $this->assertSame(2, $nuevo->empresaTitular->id);
+        $this->assertSame('Empresa dos', $nuevo->nombre);
         $this->assertNotSame($original->id, $copy->id);
         $this->assertNull($nuevo->publicado_en);
         $this->put(route('tarifa-contrato.update', $copy), $this->row(['tarifario_contrato_id' => $nuevo->id, 'kilo' => 50]))->assertSessionHasNoErrors();
@@ -311,6 +526,44 @@ class TarifaContratoBulkTest extends TestCase
         $this->post(route('tarifa-contrato.tarifarios-asignar', $this->tarifario), ['empresas' => [999]])->assertSessionHasErrors('empresas.0');
     }
 
+    public function test_approval_protects_prices_and_keeps_the_current_company_assignment_until_replaced(): void
+    {
+        $tarifaActiva = TarifaContrato::create($this->row());
+        app(TarifarioContratoService::class)->asignar($this->tarifario->id, [1]);
+        $nuevo = TarifarioContrato::create(['nombre' => 'Tarifario nuevo', 'anio' => 2027]);
+        $urlAprobacion = route('tarifa-contrato.tarifarios-aprobar', $nuevo);
+
+        $this->postJson($urlAprobacion)->assertUnprocessable()->assertJsonValidationErrors('tarifario_contrato_id');
+        $this->assertNull($nuevo->fresh()->publicado_en);
+
+        $tarifaNueva = TarifaContrato::create($this->row(['tarifario_contrato_id' => $nuevo->id, 'kilo' => 40]));
+        $this->post($urlAprobacion)->assertSessionHasNoErrors()->assertRedirect(route('tarifa-contrato.tarifarios'));
+        $aprobadoEn = $nuevo->fresh()->publicado_en;
+        $this->assertNotNull($aprobadoEn);
+        $this->assertSame([$tarifaActiva->id], TarifaContrato::paraEmpresa(1)->pluck('id')->all());
+        $this->assertFalse($nuevo->empresasActivas()->exists());
+
+        $view = app(TarifaContratoController::class)->tarifarios();
+        $template = preg_replace('/@extends\([^\n]+\)/', '', file_get_contents($view->getPath()));
+        $template = str_replace("@include('footer')", '', $template);
+        $html = Blade::render($template." @yield('content')", $view->getData() + ['errors' => new ViewErrorBag]);
+        $this->assertStringContainsString('tarifario-estado--aprobado">Aprobado</span>', $html);
+        $this->assertStringContainsString('tarifario-estado--uso">En uso</span>', $html);
+        $this->assertStringNotContainsString($urlAprobacion, $html);
+
+        $this->travel(1)->minute();
+        $this->post($urlAprobacion)->assertSessionHasNoErrors();
+        $this->assertTrue($aprobadoEn->equalTo($nuevo->fresh()->publicado_en));
+        $this->put(route('tarifa-contrato.update', $tarifaNueva), $this->row(['tarifario_contrato_id' => $nuevo->id, 'kilo' => 99]))
+            ->assertSessionHasErrors('tarifario_contrato_id');
+        $this->assertSame('40.00', $tarifaNueva->fresh()->kilo);
+        $this->travelBack();
+
+        session()->forget('errors');
+        $this->post(route('tarifa-contrato.tarifarios-asignar', $nuevo), ['empresas' => [1]])->assertSessionHasNoErrors();
+        $this->assertSame([$tarifaNueva->id], TarifaContrato::paraEmpresa(1)->pluck('id')->all());
+    }
+
     public function test_published_rates_cannot_be_edited_deleted_or_extended(): void
     {
         $tarifa = TarifaContrato::create($this->row());
@@ -320,6 +573,40 @@ class TarifaContratoBulkTest extends TestCase
         $this->post(route('tarifa-contrato.store'), ['tarifario_contrato_id' => $this->tarifario->id, 'tarifas' => [$this->row()]])->assertSessionHasErrors('tarifario_contrato_id');
         $this->assertDatabaseCount('tarifa_contrato', 1);
         $this->assertSame('20.50', $tarifa->fresh()->kilo);
+    }
+
+    public function test_company_draft_stays_editable_until_approval_replaces_only_its_owners_active_rates(): void
+    {
+        $tarifaAnterior = TarifaContrato::create($this->row());
+        app(TarifarioContratoService::class)->asignar($this->tarifario->id, [1, 2]);
+        $this->post(route('tarifa-contrato.tarifarios-store'), [
+            'empresa_titular_id' => 1, 'nombre' => 'Nombre que se ignora', 'anio' => 2027,
+        ])->assertSessionHasNoErrors();
+        $nuevo = TarifarioContrato::where('anio', 2027)->sole();
+        $this->assertSame('Empresa uno', $nuevo->nombre);
+        $this->assertSame(1, $nuevo->empresaTitular->id);
+        $this->assertFalse($nuevo->empresasActivas()->exists());
+        $this->assertSame([$tarifaAnterior->id], TarifaContrato::paraEmpresa(1)->pluck('id')->all());
+
+        $this->postJson(route('tarifa-contrato.tarifarios-aprobar', $nuevo))
+            ->assertUnprocessable()->assertJsonValidationErrors('tarifario_contrato_id');
+        $this->post(route('tarifa-contrato.store'), $this->row(['tarifario_contrato_id' => $nuevo->id, 'kilo' => 45]))
+            ->assertSessionHasNoErrors();
+        $tarifaNueva = $nuevo->tarifas()->sole();
+        $this->assertSame([$tarifaAnterior->id], TarifaContrato::paraEmpresa(1)->pluck('id')->all());
+
+        $this->post(route('tarifa-contrato.tarifarios-aprobar', $nuevo))->assertSessionHasNoErrors();
+        $this->assertSame([$tarifaNueva->id], TarifaContrato::paraEmpresa(1)->pluck('id')->all());
+        $this->assertSame([$tarifaAnterior->id], TarifaContrato::paraEmpresa(2)->pluck('id')->all());
+        $this->assertDatabaseHas('tarifario_contrato_empresa', [
+            'empresa_id' => 1, 'tarifario_contrato_id' => $this->tarifario->id, 'activo' => false,
+        ]);
+        $this->putJson(route('tarifa-contrato.tarifarios-update', $nuevo), ['empresa_titular_id' => 2, 'anio' => 2027])
+            ->assertUnprocessable()->assertJsonValidationErrors('empresa_titular_id');
+
+        app(TarifarioContratoService::class)->asignar($this->tarifario->id, [1]);
+        $this->post(route('tarifa-contrato.tarifarios-aprobar', $nuevo))->assertSessionHasNoErrors();
+        $this->assertSame([$tarifaAnterior->id], TarifaContrato::paraEmpresa(1)->pluck('id')->all());
     }
 
     public function test_new_shipments_use_current_schedule_and_existing_shipments_keep_the_original_price(): void
@@ -359,15 +646,96 @@ class TarifaContratoBulkTest extends TestCase
         $this->assertSame(0, TarifaContrato::paraEmpresa(2)->count());
     }
 
+    public function test_local_contract_uses_the_selected_zone_when_the_shipment_is_weighed(): void
+    {
+        Schema::create('users', fn (Blueprint $table) => $table->id());
+        DB::table('users')->insert(['id' => 1]);
+        Schema::create('paquetes_contrato', function (Blueprint $table) {
+            $table->id();
+            foreach (['user_id', 'empresa_id', 'estados_id'] as $field) {
+                $table->unsignedBigInteger($field);
+            }
+            $table->unsignedBigInteger('tarifa_contrato_id')->nullable();
+            foreach (['codigo', 'cod_especial', 'origen', 'provincia_origen', 'destino', 'destino_registrado', 'nombre_r', 'telefono_r', 'contenido', 'cantidad', 'direccion_r', 'nombre_d', 'telefono_d', 'direccion_d', 'mapa', 'provincia', 'observacion', 'justificacion', 'imagen'] as $field) {
+                $table->string($field)->nullable();
+            }
+            $table->decimal('peso', 10, 3);
+            $table->decimal('precio', 10, 2)->nullable();
+            $table->timestamp('fecha_recojo')->nullable();
+            $table->timestamps();
+        });
+        foreach ([
+            '2026_02_03_000002_create_estados_table.php',
+            '2026_02_22_000009_create_eventos_table.php',
+            '2026_02_26_212137_create_codigo_empresa_table.php',
+            '2026_03_02_150000_create_eventos_contrato_table.php',
+            '2026_07_31_120000_create_correlativos_contrato_and_unique_codigo.php',
+        ] as $migration) {
+            (require database_path('migrations/'.$migration))->up();
+        }
+        DB::table('estados')->insert(['id' => 1, 'nombre_estado' => 'SOLICITUD']);
+        DB::table('eventos')->insert(['id' => 318, 'nombre_evento' => 'SOLICITUD']);
+
+        $servicio = 'ENVIO LOCAL(REGULAR)';
+        $rate = $this->row(['destino' => 'LA PAZ', 'servicio' => $servicio, 'kilo_extra' => 6]);
+        $zonaUno = TarifaContrato::create([...$rate, 'zona' => '1', 'kilo' => 14]);
+        DB::table('tarifa_contrato')->where('id', $zonaUno->id)->update(['zona' => 'ZONA 1']);
+        $zonaDos = TarifaContrato::create([...$rate, 'zona' => '2', 'kilo' => 17]);
+        TarifaContrato::create([...$rate, 'zona' => '3', 'provincia' => 'MURILLO', 'kilo' => 22]);
+        app(TarifarioContratoService::class)->asignar($this->tarifario->id, [1]);
+
+        $user = auth()->user();
+        $user->forceFill(['empresa_id' => 1, 'ciudad' => 'LA PAZ']);
+        $user->shouldReceive('can')->with('feature.paquetes-contrato.create-con-tarifa.create')->andReturnTrue();
+        $view = app(RecojoController::class)->createConTarifa();
+        $zonas = $view->getData()['zonasLocales'][$servicio]['LA PAZ'];
+        $this->assertEqualsCanonicalizing(['Zona 1', 'Zona 2'], $zonas['']);
+        $this->assertSame(['Zona 3'], $zonas['MURILLO']);
+
+        $payload = [
+            'servicio' => $servicio, 'destino' => 'LA PAZ',
+            'nombre_r' => 'Remitente', 'telefono_r' => '70000001', 'contenido' => 'Documentos', 'direccion_r' => 'Calle A',
+            'nombre_d' => 'Destinatario', 'telefono_d' => '70000002', 'direccion' => 'Calle B',
+        ];
+        $url = route('paquetes-contrato.store-con-tarifa');
+        $this->post($url, $payload)->assertSessionHasErrors('zona');
+        $this->post($url, [...$payload, 'zona' => 'ZONA 3'])->assertSessionHasErrors('zona');
+        $this->assertDatabaseCount('paquetes_contrato', 0);
+        session()->forget('errors');
+        $this->post($url, [...$payload, 'zona' => 'zona2'])->assertSessionHasNoErrors()
+            ->assertRedirect(route('paquetes-contrato.index'));
+
+        $shipment = Recojo::firstOrFail();
+        $this->assertSame($zonaDos->id, $shipment->tarifa_contrato_id);
+        $this->assertNull($shipment->precio);
+        $component = new class extends PaquetesEms
+        {
+            public function price(Recojo $shipment): bool
+            {
+                return $this->applyTarifaContratoPricing($shipment, allowAutoResolve: true);
+            }
+        };
+        $shipment->peso = 2;
+        $this->assertTrue($component->price($shipment));
+        $this->assertSame('23.00', $shipment->fresh()->precio);
+
+        $shipment->tarifa_contrato_id = null;
+        $this->assertFalse($component->price($shipment));
+        $this->assertNull($shipment->fresh()->precio);
+    }
+
     public function test_migration_preserves_existing_tariff_ids_and_company_access_without_guessing_the_year(): void
     {
         $legacy = TarifaContrato::create($this->row(['empresa_id' => 1]));
         $migration = require database_path('migrations/2026_11_16_120000_create_tarifarios_contrato.php');
         $services = require database_path('migrations/2026_11_16_130000_create_servicios_contrato.php');
+        $titular = require database_path('migrations/2026_11_19_120000_add_empresa_titular_to_tarifarios_contrato.php');
+        $titular->down();
         $services->down();
         $migration->down();
         $migration->up();
         $services->up();
+        $titular->up();
         $preserved = TarifaContrato::paraEmpresa(1)->firstOrFail();
         $this->assertSame($legacy->id, $preserved->id);
         $this->assertSame('20.50', $preserved->kilo);
@@ -375,17 +743,44 @@ class TarifaContratoBulkTest extends TestCase
         $this->assertNotNull($preserved->tarifario->publicado_en);
     }
 
-    public function test_requires_a_year_and_rejects_duplicate_name_and_year(): void
+    public function test_requires_a_registered_company_and_prevents_duplicate_schedules_for_the_same_company_and_year(): void
     {
-        $this->post(route('tarifa-contrato.tarifarios-store'), ['nombre' => 'Tarifario A'])->assertSessionHasErrors('anio');
-        $this->post(route('tarifa-contrato.tarifarios-store'), ['nombre' => 'Tarifario A', 'anio' => 2026])->assertSessionHasErrors('nombre');
-        $this->assertDatabaseCount('tarifarios_contrato', 1);
+        $url = route('tarifa-contrato.tarifarios-store');
+        $this->postJson($url, ['nombre' => 'Tarifario A'])->assertUnprocessable()
+            ->assertJsonValidationErrors(['empresa_titular_id', 'anio']);
+        $this->postJson($url, ['empresa_titular_id' => 999, 'anio' => 2027])->assertUnprocessable()
+            ->assertJsonValidationErrors('empresa_titular_id');
+        $this->post($url, ['empresa_titular_id' => 1, 'anio' => 2027])->assertSessionHasNoErrors();
+        $this->postJson($url, ['empresa_titular_id' => 1, 'anio' => 2027])->assertUnprocessable()
+            ->assertJsonValidationErrors('anio');
+
+        DB::table('empresa')->where('id', 2)->update(['nombre' => 'Empresa uno']);
+        $this->post($url, ['empresa_titular_id' => 2, 'anio' => 2027])->assertSessionHasNoErrors();
+        $this->assertSame([1, 2], TarifarioContrato::where('anio', 2027)->orderBy('empresa_titular_id')->pluck('empresa_titular_id')->all());
+    }
+
+    public function test_existing_unambiguous_company_drafts_are_linked_without_activating_them(): void
+    {
+        $titular = require database_path('migrations/2026_11_19_120000_add_empresa_titular_to_tarifarios_contrato.php');
+        $titular->down();
+        $borrador = TarifarioContrato::create(['nombre' => 'EMPRESA UNO', 'anio' => 2027]);
+        $compartido = TarifarioContrato::create(['nombre' => 'Empresa dos', 'anio' => 2027]);
+        TarifaContrato::create($this->row(['tarifario_contrato_id' => $compartido->id]));
+        app(TarifarioContratoService::class)->asignar($compartido->id, [1]);
+        $titular->up();
+
+        $this->assertSame(1, $borrador->fresh()->empresaTitular->id);
+        $this->assertFalse($borrador->empresasActivas()->exists());
+        $this->assertNull($compartido->fresh()->empresa_titular_id);
+        $this->assertSame([1], $compartido->empresasActivas()->pluck('empresa.id')->all());
     }
 
     public function test_administration_views_render_the_year_and_current_assignments(): void
     {
         TarifaContrato::create($this->row());
         app(TarifarioContratoService::class)->asignar($this->tarifario->id, [1]);
+        $borrador = TarifarioContrato::create(['nombre' => 'Tarifario pendiente', 'anio' => 2027]);
+        TarifaContrato::create($this->row(['tarifario_contrato_id' => $borrador->id]));
         foreach (['tarifarios', 'index', 'importForm', 'servicios'] as $method) {
             $controller = app(TarifaContratoController::class);
             $view = in_array($method, ['index', 'servicios'], true) ? $controller->$method(request()) : $controller->$method();
@@ -394,6 +789,24 @@ class TarifaContratoBulkTest extends TestCase
             $template = str_replace("@include('footer')", '', $template);
             $html = Blade::render($template." @yield('content') @stack('js')", $view->getData() + ['errors' => new ViewErrorBag]);
             $this->assertStringContainsString('Tarifario', $html);
+            if ($method === 'tarifarios') {
+                $this->assertStringNotContainsString('<th>Estado</th>', $html);
+                $documento = new \DOMDocument();
+                @$documento->loadHTML('<meta charset="utf-8">'.$html);
+                $xpath = new \DOMXPath($documento);
+                $this->assertSame('Nombre de la empresa *', $xpath->evaluate('string(//label[@for="empresa_titular_id"])'));
+                $empresas = $xpath->query('//select[@id="empresa_titular_id" and @name="empresa_titular_id" and @required]/option[@value!=""]');
+                $this->assertSame([2 => 'Empresa dos · 002', 1 => 'Empresa uno · 001'], collect(iterator_to_array($empresas))
+                    ->mapWithKeys(fn ($opcion) => [$opcion->getAttribute('value') => trim($opcion->textContent)])->all());
+                $this->assertStringNotContainsString('name="nombre"', $html);
+                $this->assertStringContainsString('tarifario-estado--borrador">Borrador</span>', $html);
+                $this->assertStringContainsString(route('tarifa-contrato.tarifarios-aprobar', $borrador), $html);
+                $this->assertStringContainsString('Aprobar uso', $html);
+                $this->assertSame(1, $xpath->query('//button[@data-aprobar-tarifario and @type="button" and @data-nombre="Tarifario pendiente" and @data-anio="2027" and @data-cantidad="1"]')->length);
+                $this->assertSame(1, $xpath->query('//dialog[@id="tarifario-aprobacion"]//button[@data-aprobacion-confirmar]')->length);
+                $this->assertSame(1, $xpath->query('//button[@data-abrir-acciones="tarifario-acciones-'.$borrador->id.'"]')->length);
+                $this->assertSame(1, $xpath->query('//dialog[@id="tarifario-acciones-'.$borrador->id.'"]//button[@data-aprobar-tarifario]')->length);
+            }
             if ($method !== 'importForm') {
                 $this->assertStringContainsString('2026', $html);
                 if ($method !== 'servicios') {
@@ -414,11 +827,76 @@ class TarifaContratoBulkTest extends TestCase
         $user->shouldReceive('hasRole')->andReturnFalse();
         $user->shouldReceive('can')->andReturnFalse();
         $this->actingAs($user);
-        $this->post(route('tarifa-contrato.tarifarios-store'), ['nombre' => 'Sin permiso', 'anio' => 2027])->assertForbidden();
+        $this->post(route('tarifa-contrato.tarifarios-store'), ['empresa_titular_id' => 1, 'anio' => 2027])->assertForbidden();
+        $this->post(route('tarifa-contrato.tarifarios-aprobar', $this->tarifario))->assertForbidden();
         $this->post(route('tarifa-contrato.tarifarios-asignar', $this->tarifario), ['empresas' => [1]])->assertForbidden();
         $this->post(route('tarifa-contrato.servicios-store'), ['nombre' => 'SIN PERMISO', 'anio' => 2026])->assertForbidden();
         $this->assertDatabaseCount('tarifarios_contrato', 1);
         $this->assertDatabaseCount('tarifario_contrato_empresa', 0);
+    }
+
+    public function test_preloading_a_tarifario_copies_all_edited_rows_to_an_independent_destination(): void
+    {
+        $servicio = 'SERVICIO LOCAL ENTEL';
+        ServicioContrato::asegurar($servicio, 2026);
+        for ($number = 1; $number <= 261; $number++) {
+            TarifaContrato::create($this->row([
+                'destino' => 'LA PAZ', 'servicio' => $servicio, 'zona' => 'Zona 2', 'provincia' => 'PROVINCIA '.$number,
+                'peso' => $number === 1 ? 1.5 : null,
+            ]));
+        }
+        $destino = TarifarioContrato::create(['nombre' => 'Otra empresa', 'anio' => 2027]);
+
+        $request = Request::create(route('tarifa-contrato.create'), 'GET', ['tarifario_origen_id' => $this->tarifario->id]);
+        $request->setLaravelSession(app('session.store'));
+        $view = app(TarifaContratoController::class)->create($request)->getData();
+        $filas = $view['filasPrecargadas'];
+        $this->assertCount(261, $filas);
+        $this->assertSame([$destino->id], $view['tarifarios']->pluck('id')->all());
+        $this->assertSame('1.50', $filas[0]['peso']);
+        $this->assertArrayNotHasKey('tarifario_contrato_id', $filas[0]);
+        $this->assertFalse(ServicioContrato::deAnio(2027)->where('nombre', $servicio)->exists());
+
+        $filas[0]['kilo'] = '27,50';
+        $payload = [
+            'tarifario_origen_id' => $this->tarifario->id,
+            'tarifario_contrato_id' => $destino->id,
+            'tarifas_serializadas' => json_encode($filas, JSON_THROW_ON_ERROR),
+        ];
+        $this->post(route('tarifa-contrato.store'), $payload)
+            ->assertSessionHasNoErrors()->assertRedirect(route('tarifa-contrato.index', ['tarifario_id' => $destino->id]));
+
+        $this->assertSame(261, $destino->tarifas()->count());
+        $this->assertSame(261, $this->tarifario->tarifas()->count());
+        $this->assertSame('20.50', $this->tarifario->tarifas()->orderBy('id')->firstOrFail()->kilo);
+        $copia = $destino->tarifas()->orderBy('id')->firstOrFail();
+        $this->assertSame('27.50', $copia->kilo);
+        $this->assertSame('1.50', $copia->peso);
+        $this->assertSame('Zona 2', $copia->zona);
+        $this->assertSame(2027, $copia->servicioCatalogo->anio);
+
+        $this->post(route('tarifa-contrato.store'), $payload)->assertSessionHasNoErrors();
+        $this->assertSame(261, $destino->tarifas()->count());
+    }
+
+    public function test_preloaded_rows_cannot_be_saved_back_into_the_source_or_create_unrelated_services(): void
+    {
+        $origen = TarifaContrato::create($this->row());
+        $payload = [
+            'tarifario_origen_id' => $this->tarifario->id,
+            'tarifario_contrato_id' => $this->tarifario->id,
+            'tarifas_serializadas' => json_encode([$this->row(['kilo' => 50])], JSON_THROW_ON_ERROR),
+        ];
+        $this->postJson(route('tarifa-contrato.store'), $payload)->assertUnprocessable()->assertJsonValidationErrors('tarifario_contrato_id');
+        $this->assertSame('20.50', $origen->fresh()->kilo);
+
+        $destino = TarifarioContrato::create(['nombre' => 'Otra empresa', 'anio' => 2027]);
+        $this->postJson(route('tarifa-contrato.store'), [
+            ...$payload, 'tarifario_contrato_id' => $destino->id,
+            'tarifas_serializadas' => json_encode([$this->row(['servicio' => 'INVENTADO'])], JSON_THROW_ON_ERROR),
+        ])->assertUnprocessable()->assertJsonValidationErrors('tarifas.0.servicio');
+        $this->assertDatabaseCount('tarifa_contrato', 1);
+        $this->assertFalse(ServicioContrato::query()->where('nombre', 'INVENTADO')->exists());
     }
 
     public function test_services_can_be_added_searched_and_filtered_by_year(): void
@@ -482,8 +960,8 @@ class TarifaContratoBulkTest extends TestCase
     {
         ServicioContrato::asegurar('SERVICIO PERSONALIZADO', 2026);
         $original = TarifaContrato::create($this->row(['servicio' => 'SERVICIO PERSONALIZADO']));
-        $this->post(route('tarifa-contrato.tarifarios-store'), ['nombre' => 'Renovado', 'anio' => 2027, 'copiar_de_id' => $this->tarifario->id])->assertSessionHasNoErrors();
-        $copy = TarifarioContrato::where('nombre', 'Renovado')->firstOrFail()->tarifas()->firstOrFail();
+        $this->post(route('tarifa-contrato.tarifarios-store'), ['empresa_titular_id' => 1, 'anio' => 2027, 'copiar_de_id' => $this->tarifario->id])->assertSessionHasNoErrors();
+        $copy = TarifarioContrato::where('empresa_titular_id', 1)->firstOrFail()->tarifas()->firstOrFail();
         $this->assertSame(2027, $copy->servicioCatalogo->anio);
         $this->assertSame(2026, $original->fresh()->servicioCatalogo->anio);
         $this->assertSame($original->kilo, $copy->kilo);
@@ -493,7 +971,7 @@ class TarifaContratoBulkTest extends TestCase
     public function test_defining_the_year_of_an_existing_tariff_rebinds_services_without_changing_prices(): void
     {
         $tarifa = TarifaContrato::create($this->row());
-        $this->put(route('tarifa-contrato.tarifarios-update', $this->tarifario), ['nombre' => 'Tarifario A', 'anio' => 2028])->assertSessionHasNoErrors();
+        $this->put(route('tarifa-contrato.tarifarios-update', $this->tarifario), ['empresa_titular_id' => 1, 'anio' => 2028])->assertSessionHasNoErrors();
         $this->assertSame(2028, $tarifa->fresh()->servicioCatalogo->anio);
         $this->assertSame('20.50', $tarifa->fresh()->kilo);
         $this->assertSame('ENVIO NACIONAL (REGULAR)', $tarifa->fresh()->servicio);
@@ -519,14 +997,14 @@ class TarifaContratoBulkTest extends TestCase
 
     public function test_an_empty_new_year_does_not_automatically_copy_or_seed_services(): void
     {
-        $this->post(route('tarifa-contrato.tarifarios-store'), ['nombre' => 'NUEVO AÑO', 'anio' => 2029])->assertSessionHasNoErrors();
+        $this->post(route('tarifa-contrato.tarifarios-store'), ['empresa_titular_id' => 1, 'anio' => 2029])->assertSessionHasNoErrors();
         $this->assertSame(0, ServicioContrato::deAnio(2029)->count());
         ServicioContrato::asegurar('SERVICIO DEFINIDO PARA 2029', 2029);
         $names = $this->getJson(route('tarifa-contrato.servicios', ['anio' => 2029]))->assertOk()->json('servicios');
         $this->assertSame(['SERVICIO DEFINIDO PARA 2029'], $names);
 
         TarifaContrato::create($this->row());
-        $this->post(route('tarifa-contrato.tarifarios-store'), ['nombre' => 'COPIA EXPLICITA', 'anio' => 2030, 'copiar_de_id' => $this->tarifario->id])->assertSessionHasNoErrors();
+        $this->post(route('tarifa-contrato.tarifarios-store'), ['empresa_titular_id' => 2, 'anio' => 2030, 'copiar_de_id' => $this->tarifario->id])->assertSessionHasNoErrors();
         $this->assertSame(['ENVIO NACIONAL (REGULAR)'], ServicioContrato::deAnio(2030)->pluck('nombre')->all());
     }
 

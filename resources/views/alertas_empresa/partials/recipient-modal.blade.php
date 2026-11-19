@@ -14,6 +14,7 @@
         .company-alert-modal .company-alert-title { max-width: 720px; margin-bottom: 1.25rem; color: #173f76; font-weight: 800; line-height: 1.08; letter-spacing: -.015em; }
         .company-alert-modal .company-alert-copy { max-width: 760px; color: #374151; font-size: 1.02rem; line-height: 1.72; white-space: pre-line; }
         .company-alert-modal .company-alert-footer { display: flex; grid-column: 2; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: .75rem; padding: 1rem 2.2rem; border-top: 1px solid #e4ebf4; background: #f8fafc; }
+        .company-alert-modal .company-alert-footer > div { display: flex; flex-wrap: wrap; gap: .5rem; }
         .company-alert-modal .company-alert-footer .btn { border-radius: 9px; font-weight: 700; }
         .company-alert-modal .btn-alert-primary { border: 0; border-radius: 10px; background: linear-gradient(135deg, #2864b4, #163f78); color: #fff; font-weight: 700; padding: .72rem 1.2rem; box-shadow: 0 8px 16px rgba(25, 75, 139, .22); }
         @media (max-width: 575.98px) {
@@ -56,6 +57,9 @@
                 </div>
                 <div class="company-alert-footer">
                     <div>
+                        <a class="btn btn-outline-primary" href="{{ route('alertas-empresa.portada', ['alertaEmpresa' => $alertaEmpresaPendiente, 'descargar' => 1], false) }}">
+                            <i class="fas fa-download mr-1" aria-hidden="true"></i> Descargar imagen
+                        </a>
                         @if(filled($alertaEmpresaPendiente->pdf_path))
                             <a class="btn btn-outline-danger" href="{{ route('alertas-empresa.pdf', $alertaEmpresaPendiente, false) }}" target="_blank" rel="noopener">
                                 <i class="fas fa-file-pdf mr-1"></i> Ver PDF adjunto

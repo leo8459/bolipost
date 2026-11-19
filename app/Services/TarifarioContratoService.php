@@ -9,6 +9,25 @@ use Illuminate\Validation\ValidationException;
 
 class TarifarioContratoService
 {
+    public function aprobar(int $tarifarioId): void
+    {
+        DB::transaction(function () use ($tarifarioId) {
+            $tarifario = TarifarioContrato::query()->lockForUpdate()->findOrFail($tarifarioId);
+            if ($tarifario->publicado_en) {
+                return;
+            }
+
+            if (! $tarifario->tarifas()->exists()) {
+                throw ValidationException::withMessages(['tarifario_contrato_id' => 'Carga al menos una tarifa antes de aprobar el uso del tarifario.']);
+            }
+
+            if ($tarifario->empresa_titular_id) {
+                $this->activarParaEmpresas($tarifario->id, [$tarifario->empresa_titular_id]);
+            }
+            $tarifario->update(['publicado_en' => now()]);
+        });
+    }
+
     public function asignar(int $tarifarioId, array $empresaIds): void
     {
         DB::transaction(function () use ($tarifarioId, $empresaIds) {
@@ -16,23 +35,33 @@ class TarifarioContratoService
             if (! $tarifario->tarifas()->exists()) {
                 throw ValidationException::withMessages(['empresas' => 'Agrega tarifas antes de asignar este tarifario.']);
             }
-            $empresas = Empresa::query()->whereIn('id', $empresaIds)->orderBy('id')->lockForUpdate()->get();
-            foreach ($empresas as $empresa) {
-                $actual = DB::table('tarifario_contrato_empresa')->where('empresa_id', $empresa->id)->where('activo', true)->first();
-                if ($actual && (int) $actual->tarifario_contrato_id === $tarifarioId) {
-                    continue;
-                }
-                DB::table('tarifario_contrato_empresa')->where('empresa_id', $empresa->id)->where('activo', true)
-                    ->update(['activo' => false, 'finalizado_en' => now()]);
-                DB::table('tarifario_contrato_empresa')->updateOrInsert(
-                    ['empresa_id' => $empresa->id, 'tarifario_contrato_id' => $tarifarioId],
-                    ['activo' => true, 'asignado_en' => now(), 'finalizado_en' => null]
-                );
+            if (! $tarifario->publicado_en && $tarifario->empresa_titular_id) {
+                $empresaIds[] = $tarifario->empresa_titular_id;
             }
+            $this->activarParaEmpresas($tarifarioId, $empresaIds);
             if (! $tarifario->publicado_en) {
                 $tarifario->update(['publicado_en' => now()]);
             }
         });
+    }
+
+    private function activarParaEmpresas(int $tarifarioId, array $empresaIds): void
+    {
+        $empresas = Empresa::query()->whereIn('id', $empresaIds)->orderBy('id')->lockForUpdate()->get();
+        $fecha = now();
+        foreach ($empresas as $empresa) {
+            $asignaciones = DB::table('tarifario_contrato_empresa')->where('empresa_id', $empresa->id);
+            $activas = (clone $asignaciones)->where('activo', true);
+            $activas->where('tarifario_contrato_id', '<>', $tarifarioId)
+                ->update(['activo' => false, 'finalizado_en' => $fecha]);
+            if ((clone $asignaciones)->where('tarifario_contrato_id', $tarifarioId)->where('activo', true)->exists()) {
+                continue;
+            }
+            DB::table('tarifario_contrato_empresa')->updateOrInsert(
+                ['empresa_id' => $empresa->id, 'tarifario_contrato_id' => $tarifarioId],
+                ['activo' => true, 'asignado_en' => $fecha, 'finalizado_en' => null]
+            );
+        }
     }
 
     public function editable(int $id): TarifarioContrato

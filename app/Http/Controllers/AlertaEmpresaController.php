@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Middleware\EnsureRoutePermission;
 use App\Models\AlertaEmpresa;
 use App\Models\Empresa;
 use App\Models\User;
@@ -154,9 +155,20 @@ class AlertaEmpresaController extends Controller
 
     public function portada(Request $request, AlertaEmpresa $alertaEmpresa): StreamedResponse
     {
-        $this->authorizeRecipient($request, $alertaEmpresa);
+        $this->authorizeRecipient($request, $alertaEmpresa, allowIndexAccess: true);
 
-        return Storage::disk('public')->response($alertaEmpresa->portada_path, null, [
+        $disk = Storage::disk('public');
+        $path = $alertaEmpresa->portada_path;
+        abort_unless($disk->exists($path), 404);
+
+        if ($request->boolean('descargar')) {
+            $extension = pathinfo($path, PATHINFO_EXTENSION);
+            $filename = 'alerta-'.$alertaEmpresa->id.($extension === '' ? '' : '.'.$extension);
+
+            return $disk->download($path, $filename, ['X-Content-Type-Options' => 'nosniff']);
+        }
+
+        return $disk->response($path, null, [
             'Content-Disposition' => 'inline',
             'X-Content-Type-Options' => 'nosniff',
         ]);
@@ -210,15 +222,16 @@ class AlertaEmpresaController extends Controller
             ->download('reporte-vistas-alerta-'.$alertaEmpresa->id.'.pdf');
     }
 
-    private function authorizeRecipient(Request $request, AlertaEmpresa $alertaEmpresa, bool $allowManager = true): void
-    {
+    private function authorizeRecipient(
+        Request $request,
+        AlertaEmpresa $alertaEmpresa,
+        bool $allowManager = true,
+        bool $allowIndexAccess = false,
+    ): void {
         $user = $request->user();
-        $isManager = false;
-        if ($allowManager) {
-            $isEmpresaUser = $user->hasRole('empresa');
-            $isManager = ! $isEmpresaUser
-                && ($user->isSuperAdmin() || $user->can('feature.alertas-empresa.manage'));
-        }
+        $isManager = $allowManager
+            && ! $user->hasRole('empresa')
+            && ($user->isSuperAdmin() || $user->can('feature.alertas-empresa.manage'));
         $isCompanyRecipient = $user->empresa_id
             && $alertaEmpresa->empresas()->whereKey($user->empresa_id)->exists();
         $isIndividualRecipient = ! $user->empresa_id
@@ -226,6 +239,17 @@ class AlertaEmpresaController extends Controller
         $isRecipient = $alertaEmpresa->aprobada_at !== null
             && ($isCompanyRecipient || $isIndividualRecipient);
 
-        abort_unless($isManager || $isRecipient, 403);
+        if ($isManager || $isRecipient) {
+            return;
+        }
+
+        if ($allowIndexAccess && ! $user->hasRole('empresa')) {
+            $denialReason = app(EnsureRoutePermission::class)->denialReason($request, 'alertas-empresa.index');
+            abort_if($denialReason !== null, 403);
+
+            return;
+        }
+
+        abort(403);
     }
 }

@@ -1,7 +1,7 @@
 @php
     $selectedTarifarioId = (string) old('tarifario_contrato_id', $tarifaContrato->tarifario_contrato_id ?? ($defaults['tarifario_contrato_id'] ?? request('tarifario_id', '')));
     $selectedTarifario = $tarifarios->firstWhere('id', (int) $selectedTarifarioId);
-    $selectedYear = (string) old('tarifario_anio', $selectedTarifario ? ($selectedTarifario->anio ?? 'sin-anio') : now()->year);
+    $selectedYear = (string) old('tarifario_anio', $selectedTarifario ? ($selectedTarifario->anio ?? 'sin-anio') : (($tarifarioOrigen ?? null)?->anio ?? $defaultTarifarioYear ?? now()->year));
     $years = $tarifarios->pluck('anio')->filter()->push(now()->year, now()->year + 1)->unique()->sortDesc();
 @endphp
 <div class="row" data-tarifario-year-filter>
@@ -17,19 +17,22 @@
         </select>
     </div>
     <div class="col-md-9 form-group mb-3">
-        <label for="tarifario_contrato_id">Tarifario *</label>
+        <label for="tarifario_contrato_id">{{ $tarifarioLabel ?? 'Tarifario' }} *</label>
         <select class="form-control @error('tarifario_contrato_id') is-invalid @enderror" id="tarifario_contrato_id" name="tarifario_contrato_id" aria-describedby="tarifario-year-empty tarifario-select-help" required>
             <option value="">Elige un tarifario…</option>
             @foreach($tarifarios as $item)
-                <option value="{{ $item->id }}" data-anio="{{ $item->anio ?? 'sin-anio' }}" @selected($selectedTarifarioId === (string) $item->id)>{{ $item->etiqueta }}</option>
+                <option value="{{ $item->id }}" data-anio="{{ $item->anio ?? 'sin-anio' }}" @selected($selectedTarifarioId === (string) $item->id)>{{ $item->etiquetaSeleccion }}</option>
             @endforeach
         </select>
         @error('tarifario_contrato_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
         <div class="small text-warning mt-1" id="tarifario-year-empty" role="status" hidden>No hay tarifarios disponibles para el año seleccionado. Puedes crear uno desde el enlace de abajo.</div>
-        <small class="text-muted" id="tarifario-select-help">Las filas se guardarán en el tarifario que elijas. <a href="{{ route('tarifa-contrato.tarifarios') }}">Administrar tarifarios</a>.</small>
+        <small class="text-muted" id="tarifario-select-help">{{ $tarifarioHelp ?? 'Las filas se guardarán en el tarifario que elijas.' }} <a href="{{ route('tarifa-contrato.tarifarios') }}">Administrar tarifarios</a>.</small>
         <details class="small mt-2 sheet-service-options">
             <summary data-services-help-toggle>¿No encuentras un servicio?</summary>
-            <p class="mb-1 mt-2">Solo aparecen los servicios del año seleccionado. Puedes <a href="{{ route('tarifa-contrato.servicios', ['anio' => $selectedYear]) }}" data-services-link target="_blank" rel="noopener">ver o añadir servicios</a>.</p>
+            <p class="mb-1 mt-2">
+                {{ !empty($tarifarioOrigen) ? 'Puedes usar los servicios del año de destino y los de la precarga.' : 'Solo aparecen los servicios del año seleccionado.' }}
+                Puedes <a href="{{ route('tarifa-contrato.servicios', ['anio' => $selectedYear]) }}" data-services-link target="_blank" rel="noopener">ver o añadir servicios</a>.
+            </p>
             <button type="button" class="btn btn-sm btn-outline-secondary" data-refresh-services>Actualizar lista de servicios</button>
             <small class="text-muted" data-services-status role="status">Si añadiste uno, actualiza esta lista para usarlo.</small>
         </details>

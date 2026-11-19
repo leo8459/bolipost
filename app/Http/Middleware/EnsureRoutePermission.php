@@ -18,36 +18,44 @@ class EnsureRoutePermission
      */
     public function handle(Request $request, Closure $next): Response
     {
+        $denialReason = $this->denialReason($request, $request->route()?->getName());
+        if ($denialReason !== null) {
+            abort(403, $denialReason);
+        }
+
+        return $next($request);
+    }
+
+    public function denialReason(Request $request, ?string $permissionName): ?string
+    {
         if (! (bool) config('acl.route_permission.enabled', true)) {
-            return $next($request);
+            return null;
         }
 
         $user = $request->user();
 
         if (! $user) {
-            return $next($request);
+            return null;
         }
 
         $superAdminRole = (string) config('acl.super_admin_role', 'administrador');
 
         if ($superAdminRole !== '' && method_exists($user, 'hasRole') && $user->hasRole($superAdminRole)) {
-            return $next($request);
+            return null;
         }
 
         // Compatibilidad con instalaciones que usan variantes de rol admin
         // (por ejemplo: "Super Admin", "Super Admin Nuevo", etc.).
         if ($this->isPrivilegedAdminUser($user)) {
-            return $next($request);
+            return null;
         }
 
-        $permissionName = $request->route()?->getName();
-
-        if (! is_string($permissionName) || $permissionName === '') {
-            return $next($request);
+        if ($permissionName === null || $permissionName === '') {
+            return null;
         }
 
         if (in_array($permissionName, (array) config('acl.excluded_route_permissions', []), true)) {
-            return $next($request);
+            return null;
         }
 
         $permissionsToCheck = AclPermissionRegistry::authorizationPermissionsForRouteAccess($permissionName);
@@ -56,15 +64,15 @@ class EnsureRoutePermission
 
         if ($existingPermissions === []) {
             if ((bool) config('acl.route_permission.allow_when_permission_missing', true)) {
-                return $next($request);
+                return null;
             }
 
-            abort(403, 'No se encontro la configuracion de permisos para esta ventana.');
+            return 'No se encontro la configuracion de permisos para esta ventana.';
         }
 
         foreach ($existingPermissions as $permission) {
             if ($user->can($permission)) {
-                return $next($request);
+                return null;
             }
         }
 
@@ -76,12 +84,12 @@ class EnsureRoutePermission
 
             foreach ($existingPermissions as $permission) {
                 if ($user->can($permission)) {
-                    return $next($request);
+                    return null;
                 }
             }
         }
 
-        abort(403, 'No tienes permiso para acceder a esta ventana o accion.');
+        return 'No tienes permiso para acceder a esta ventana o accion.';
     }
 
     private function isPrivilegedAdminUser(mixed $user): bool

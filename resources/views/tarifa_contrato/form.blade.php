@@ -92,14 +92,20 @@
 
             <div class="col-md-3">
                 <div class="form-group mb-3">
-                    <label for="zona">Zona (Opcional)</label>
+                    <label for="zona">Zona (subservicio local)</label>
                     <input
                         type="text"
                         id="zona"
                         name="zona"
-                        value="{{ old('zona', $tarifaContrato->zona ?? ($defaults['zona'] ?? '')) }}"
+                        list="zonas-locales-tarifa"
+                        value="{{ old('zona', $tarifaContrato->zonaLocal() ?? $tarifaContrato->zona ?? ($defaults['zona'] ?? '')) }}"
                         class="form-control @error('zona') is-invalid @enderror"
                     >
+                    <datalist id="zonas-locales-tarifa">
+                        @foreach (\App\Models\TarifaContrato::ZONAS_LOCALES as $zona)
+                            <option value="{{ $zona }}"></option>
+                        @endforeach
+                    </datalist>
                     @error('zona')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror

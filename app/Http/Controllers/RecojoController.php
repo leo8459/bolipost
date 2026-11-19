@@ -26,6 +26,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Facades\Excel;
 
 class RecojoController extends Controller
@@ -666,6 +667,7 @@ class RecojoController extends Controller
         $empresaId = (int) ($user->empresa_id ?? 0);
         $serviciosTarifa = collect();
         $provinciasPorDestino = [];
+        $zonasLocales = [];
 
         if ($empresaId > 0) {
             $serviciosTarifa = TarifaContrato::query()
@@ -696,6 +698,24 @@ class RecojoController extends Controller
                 sort($provincias);
                 $provinciasPorDestino[$destino] = $provincias;
             }
+
+            $tarifasConZona = TarifaContrato::query()
+                ->paraEmpresa($empresaId)
+                ->whereRaw('trim(upper(origen)) = ?', [$origen])
+                ->whereNotNull('zona')
+                ->distinct()
+                ->get(['servicio', 'destino', 'provincia', 'zona']);
+
+            foreach ($tarifasConZona as $tarifa) {
+                $zona = $tarifa->zonaLocal();
+                if ($zona === null) {
+                    continue;
+                }
+
+                $destino = strtoupper(trim($tarifa->destino));
+                $provincia = $tarifa->provincia === null ? '' : mb_strtoupper(trim($tarifa->provincia));
+                $zonasLocales[$tarifa->servicio][$destino][$provincia][] = $zona;
+            }
         }
 
         return view('paquetes_contrato.create-con-tarifa', [
@@ -704,6 +724,7 @@ class RecojoController extends Controller
             'departamentos' => self::DEPARTAMENTOS,
             'serviciosTarifa' => $serviciosTarifa,
             'provinciasPorDestino' => $provinciasPorDestino,
+            'zonasLocales' => $zonasLocales,
             'canContratoCreateTarifaSubmit' => $this->canSubmitContratoCreateConTarifa($user),
         ]);
     }
@@ -734,6 +755,7 @@ class RecojoController extends Controller
             'nombre_d' => 'required|string|max:255',
             'telefono_d' => 'required|string|max:50',
             'servicio' => 'required|string|max:255',
+            'zona' => 'nullable|string|max:255',
             'destino' => 'required|string|in:'.implode(',', self::DEPARTAMENTOS),
             'direccion' => 'required|string|max:255',
             'mapa' => 'nullable|string|max:500',
@@ -776,14 +798,15 @@ class RecojoController extends Controller
 
         $destino = $this->normalizeDepartamentoContrato((string) $data['destino']);
         $servicio = $this->normalizeServicioTarifa((string) $data['servicio']);
-        $provincia = ! empty($data['provincia']) ? strtoupper(trim((string) $data['provincia'])) : null;
+        $provincia = ! empty($data['provincia']) ? mb_strtoupper(trim($data['provincia'])) : null;
 
         $tarifa = $this->resolveTarifaContrato(
             (int) $empresa->id,
             $origen,
             $destino,
             $servicio,
-            $provincia
+            $provincia,
+            $data['zona'] ?? null,
         );
 
         if (! $tarifa) {
@@ -1548,29 +1571,43 @@ class RecojoController extends Controller
         string $origen,
         string $destino,
         string $servicio,
-        ?string $provincia
+        ?string $provincia,
+        ?string $zona = null,
     ): ?TarifaContrato {
-        $baseQuery = TarifaContrato::query()
+        $servicioLocal = ServicioContrato::esLocal($servicio);
+        $consulta = TarifaContrato::query()
             ->paraEmpresa($empresaId)
             ->whereRaw('trim(upper(origen)) = ?', [$origen])
             ->whereRaw('trim(upper(destino)) = ?', [$destino])
-            ->whereRaw('trim(upper(servicio)) = ?', [$servicio]);
+            ->whereRaw('trim(upper(servicio)) = ?', [$servicio])
+            ->where(function ($query) use ($provincia, $servicioLocal) {
+                $query->whereNull('provincia');
+                if ($servicioLocal) {
+                    $query->orWhereRaw("trim(provincia) = ''");
+                }
+                if ($provincia !== null && $provincia !== '') {
+                    $query->orWhereRaw('trim(upper(provincia)) = ?', [$provincia]);
+                }
+            })
+            ->orderByRaw("CASE WHEN NULLIF(trim(provincia), '') IS NULL THEN 1 ELSE 0 END")
+            ->orderByDesc('id');
 
-        if ($provincia !== null && $provincia !== '') {
-            $exacta = (clone $baseQuery)
-                ->whereRaw('trim(upper(provincia)) = ?', [$provincia])
-                ->orderByDesc('id')
-                ->first();
-
-            if ($exacta) {
-                return $exacta;
-            }
+        if (! $servicioLocal) {
+            return $consulta->first();
         }
 
-        return (clone $baseQuery)
-            ->whereNull('provincia')
-            ->orderByDesc('id')
-            ->first();
+        $zona = TarifaContrato::normalizarZona($zona);
+        $tarifas = $consulta->get();
+        if ($zona === null && $tarifas->contains(fn (TarifaContrato $tarifa) => $tarifa->zonaLocal() !== null)) {
+            throw ValidationException::withMessages(['zona' => 'Selecciona una zona para el servicio local.']);
+        }
+
+        $tarifa = $tarifas->first(fn (TarifaContrato $tarifa) => $tarifa->zonaLocal() === $zona);
+        if ($zona !== null && ! $tarifa) {
+            throw ValidationException::withMessages(['zona' => 'La zona seleccionada no tiene tarifa para esta ruta y servicio.']);
+        }
+
+        return $tarifa;
     }
 
     protected function calculatePrecioContrato(float $peso, float $precioBaseKilo, float $precioKiloExtra): float
@@ -1648,6 +1685,7 @@ class RecojoController extends Controller
             'destino' => 'departamento de destino',
             'direccion' => 'dirección del destinatario',
             'provincia' => 'provincia de destino',
+            'zona' => 'zona del servicio local',
             'peso' => 'peso',
             'ida_vuelta' => 'servicio ida y vuelta',
             'numero_copias' => 'número de copias',

@@ -646,11 +646,13 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
     Route::delete('/tarifa-contrato/servicios/{servicio}', [TarifaContratoController::class, 'eliminarServicio'])->name('tarifa-contrato.servicios-destroy');
     Route::post('/tarifa-contrato/tarifarios', [TarifaContratoController::class, 'guardarTarifario'])->name('tarifa-contrato.tarifarios-store');
     Route::put('/tarifa-contrato/tarifarios/{tarifario}', [TarifaContratoController::class, 'actualizarTarifario'])->name('tarifa-contrato.tarifarios-update');
+    Route::post('/tarifa-contrato/tarifarios/{tarifario}/aprobar', [TarifaContratoController::class, 'aprobarTarifario'])->name('tarifa-contrato.tarifarios-aprobar');
     Route::post('/tarifa-contrato/tarifarios/{tarifario}/asignar', [TarifaContratoController::class, 'asignarTarifario'])->name('tarifa-contrato.tarifarios-asignar');
     Route::get('/tarifa-contrato/create', [TarifaContratoController::class, 'create'])->name('tarifa-contrato.create');
     Route::get('/tarifa-contrato/import', [TarifaContratoController::class, 'importForm'])->name('tarifa-contrato.import-form');
     Route::post('/tarifa-contrato/import', [TarifaContratoController::class, 'import'])->name('tarifa-contrato.import');
     Route::get('/tarifa-contrato/plantilla-excel', [TarifaContratoController::class, 'downloadTemplateExcel'])->name('tarifa-contrato.template-excel');
+    Route::get('/tarifa-contrato/exportar-excel', [TarifaContratoController::class, 'exportExcel'])->name('tarifa-contrato.export');
     Route::get('/tarifa-contrato/reporte', [TarifaContratoController::class, 'reporte'])->name('tarifa-contrato.reporte');
     Route::get('/tarifa-contrato/reporte-detalle', [TarifaContratoController::class, 'reporteDetalle'])->name('tarifa-contrato.reporte-detalle');
     Route::get('/tarifario-tiktoker', [TarifarioTiktokerController::class, 'index'])->name('tarifario-tiktoker.index');

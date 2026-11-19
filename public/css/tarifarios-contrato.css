@@ -1,0 +1,320 @@
+.tarifario-pagina {
+    --tarifario-azul: var(--agbc-azul, #20539a);
+    --tarifario-amarillo: var(--agbc-dorado, #fecc36);
+    --tarifario-azul-claro: #eff5fd;
+    --tarifario-borde: #dbe5f2;
+    padding-bottom: 1.25rem;
+}
+.tarifario-encabezado {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.9rem;
+    margin-bottom: 1rem;
+    padding: clamp(1rem, 2.5vw, 1.75rem);
+    border-radius: 0.8rem;
+    color: #fff;
+    background: linear-gradient(112deg, #163b70, var(--tarifario-azul));
+}
+.tarifario-encabezado h1 { margin: 0; font-size: clamp(1.3rem, 2.5vw, 1.7rem); font-weight: 700; }
+.tarifario-encabezado p { margin: 0.35rem 0 0; color: #e1ebfa; font-size: 0.88rem; }
+.tarifario-encabezado-acciones { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.tarifario-encabezado-acciones .btn { font-size: 0.9rem; }
+.tarifario-encabezado .tarifario-nav-secundario { color: #fff; border-color: #adc3e4; }
+.tarifario-encabezado .tarifario-nav-secundario:hover { color: #fff; background: #2b62aa; }
+.tarifario-encabezado .tarifario-nav-principal { color: #173658; background: var(--tarifario-amarillo); font-weight: 600; }
+.tarifario-encabezado .tarifario-nav-principal:hover { background: #ffda62; }
+.tarifario-pagina .tarifario-boton-azul { color: #fff; background: var(--tarifario-azul); border-color: var(--tarifario-azul); }
+.tarifario-pagina .tarifario-boton-azul:is(:hover, :focus-visible) { color: #fff; background: #173b70; border-color: #173b70; }
+.tarifario-pagina .tarifario-boton-amarillo { color: #173658; background: var(--tarifario-amarillo); border-color: var(--tarifario-amarillo); font-weight: 600; }
+.tarifario-pagina .tarifario-boton-amarillo:is(:hover, :focus-visible) { color: #173658; background: #ffda62; border-color: #edbb2b; }
+.tarifario-pagina .tarifario-boton-borde { color: var(--tarifario-azul); background: #fff; border-color: #9eb8dc; }
+.tarifario-pagina .tarifario-boton-borde:is(:hover, :focus-visible) { color: #173b70; background: var(--tarifario-azul-claro); border-color: var(--tarifario-azul); }
+.tarifario-aviso { color: #173b70; background: var(--tarifario-azul-claro); border-color: var(--tarifario-borde); }
+
+.tarifario-panel {
+    min-width: 0;
+    margin-bottom: 0.85rem;
+    scroll-margin-top: 4.25rem;
+    background: #fff;
+    border: 1px solid var(--tarifario-borde);
+    border-radius: 0.75rem;
+    box-shadow: 0 3px 10px rgba(22, 59, 112, 0.07);
+    overflow: hidden;
+}
+.tarifario-panel-cabecera {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-height: 3.5rem;
+    padding: 0.7rem 1.15rem;
+    color: #173b65;
+    cursor: pointer;
+    list-style: none;
+}
+.tarifario-panel-cabecera::-webkit-details-marker { display: none; }
+.tarifario-panel-cabecera::after {
+    content: '';
+    flex: 0 0 0.55rem;
+    width: 0.55rem;
+    height: 0.55rem;
+    margin: -0.25rem 0.25rem 0 0;
+    border: solid var(--tarifario-azul);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+.tarifario-panel[open] > .tarifario-panel-cabecera { background: var(--tarifario-azul-claro); border-bottom: 1px solid var(--tarifario-borde); }
+.tarifario-panel[open] > .tarifario-panel-cabecera::after { transform: rotate(225deg); margin-top: 0.2rem; }
+.tarifario-panel-cabecera:hover { background: #e9f0fa; }
+.tarifario-panel-cabecera:focus-visible { outline: 2px solid var(--tarifario-azul); outline-offset: -3px; }
+.tarifario-panel-cabecera h2 {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.35;
+}
+.tarifario-panel-icono {
+    display: inline-grid;
+    flex: 0 0 2rem;
+    width: 2rem;
+    height: 2rem;
+    place-items: center;
+    color: var(--tarifario-azul);
+    background: #e2ebf9;
+    border-radius: 0.4rem;
+    font-size: 0.9rem;
+}
+.tarifario-panel-contenido { padding: 1rem 1.15rem; }
+#nuevo-tarifario .select2-selection--single {
+    display: flex;
+    align-items: center;
+    min-height: calc(2.25rem + 2px);
+    border-color: #ced4da;
+    border-radius: 0.25rem;
+}
+#nuevo-tarifario .select2-selection__rendered { flex: 1; padding-left: 0.75rem; }
+#nuevo-tarifario .select2-selection__arrow { height: calc(2.25rem + 2px); }
+#nuevo-tarifario .is-invalid + .select2-container .select2-selection--single { border-color: #dc3545; }
+.tarifario-guia { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: 0.7rem; }
+.tarifario-guia li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    padding: 0.8rem;
+    border: 1px solid var(--tarifario-borde);
+    border-radius: 0.55rem;
+    background: #f8faff;
+}
+.tarifario-guia-numero {
+    display: inline-grid;
+    flex: 0 0 1.6rem;
+    height: 1.6rem;
+    place-items: center;
+    border-radius: 50%;
+    color: #574000;
+    background: #ffebac;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.tarifario-lista-controles {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.75rem 1.25rem;
+    background: #fcfdff;
+}
+.tarifario-lista-controles[hidden],
+.tarifario-tabla tbody tr[hidden] { display: none !important; }
+.tarifario-buscador { flex: 1 1 17rem; max-width: 26rem; }
+.tarifario-tabla { margin-bottom: 0; }
+.tarifario-tabla thead th { background: var(--tarifario-azul-claro); color: #183e70; border-top: 1px solid var(--tarifario-borde); border-bottom: 1px solid var(--tarifario-borde); }
+.tarifario-tabla :is(th, td) { vertical-align: top; }
+.tarifario-tabla .tarifario-fila-titulo { min-width: 9rem; font-weight: 600; overflow-wrap: anywhere; }
+.tarifario-cantidad { font-variant-numeric: tabular-nums; }
+.tarifario-columna-acciones { width: 1%; }
+.tarifario-columna-historial { width: 32%; }
+.tarifario-acciones { display: flex; align-items: center; gap: 0.55rem; white-space: nowrap; }
+.tarifario-acciones > .btn { margin-left: auto; }
+.tarifario-estado {
+    display: inline-flex;
+    padding: 0.25rem 0.65rem;
+    border-radius: 1rem;
+    background: var(--tarifario-azul-claro);
+    color: #173b70;
+    font-size: 0.77rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.tarifario-estado--borrador { background: #fff1bf; color: #604500; }
+.tarifario-estado--uso { background: var(--tarifario-azul); color: #fff; }
+.tarifario-estado--historico { background: #edf0f4; color: #45566d; }
+.tarifario-desplegable > summary {
+    padding: 0.4rem 0.6rem;
+    color: #173b65;
+    background: var(--tarifario-azul-claro);
+    border: 1px solid var(--tarifario-borde);
+    border-radius: 0.35rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+.tarifario-desplegable > summary:hover { background: #e6effb; }
+
+.tarifario-modal {
+    width: min(36rem, calc(100% - 2rem));
+    max-height: calc(100% - 2rem);
+    padding: 0;
+    overflow: auto;
+    border: 1px solid var(--tarifario-borde);
+    border-radius: 1rem;
+    background: #fff;
+    color: #193759;
+    box-shadow: 0 20px 56px rgba(15, 39, 74, 0.3);
+}
+.tarifario-modal:not([open]) { display: none; }
+.tarifario-modal::backdrop { background: rgba(10, 22, 45, 0.64); }
+.tarifario-modal-cabecera {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1.05rem 1.15rem;
+    border-bottom: 3px solid var(--tarifario-amarillo);
+    background: var(--tarifario-azul);
+    color: #fff;
+}
+.tarifario-modal-cabecera p { margin: 0.25rem 0 0; color: #e4edfc; overflow-wrap: anywhere; }
+.tarifario-modal-cerrar { color: #fff; border-color: #adc3e4; line-height: 1.25; }
+.tarifario-modal-cerrar:is(:hover, :focus-visible) { color: #173b65; background: var(--tarifario-amarillo); }
+.tarifario-opciones { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.65rem; }
+.tarifario-opcion {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    width: 100%;
+    height: 100%;
+    padding: 0.75rem;
+    text-align: left;
+    color: #173b65;
+    background: #fff;
+    border: 1px solid var(--tarifario-borde);
+    border-radius: 0.65rem;
+    font-size: 0.92rem;
+}
+.tarifario-opcion small { display: block; color: #496481; line-height: 1.4; }
+.tarifario-opcion:hover { background: var(--tarifario-azul-claro); color: #173b65; text-decoration: none; }
+.tarifario-opcion:focus-visible { outline: 2px solid var(--tarifario-azul); outline-offset: 2px; }
+.tarifario-opcion-destacada { background: #fff7dd; border-color: #f0d68d; }
+.tarifario-opcion-destacada:hover { background: #fff0bc; }
+.tarifario-opcion-destacada .tarifario-panel-icono { background: #ffebac; color: #574000; }
+.tarifario-opciones-secundarias { display: grid; gap: 0.55rem; margin-top: 0.8rem; }
+.tarifario-empresas { max-height: 10.5rem; overflow: auto; border: 1px solid var(--tarifario-borde); border-radius: 0.35rem; }
+.tarifario-empresa { display: flex; gap: 0.55rem; align-items: baseline; margin: 0; padding: 0.35rem 0.65rem; font-size: 0.85rem; cursor: pointer; }
+.tarifario-empresa:hover { background: var(--tarifario-azul-claro); }
+.tarifario-empresa[hidden] { display: none; }
+.tarifario-empresa input { accent-color: var(--tarifario-azul); }
+.tarifario-aprobacion-cabecera {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 1.2rem 1.35rem;
+    border-bottom: 1px solid #f1dfad;
+    background: #fff6db;
+    color: #593c00;
+}
+.tarifario-aprobacion-icono {
+    display: grid;
+    flex: 0 0 2.8rem;
+    height: 2.8rem;
+    place-items: center;
+    border-radius: 50%;
+    background: #ffd66d;
+    font-size: 1.15rem;
+}
+.tarifario-modal h2 { margin: 0; font-size: clamp(1.05rem, 3vw, 1.35rem); font-weight: 700; line-height: 1.3; }
+.tarifario-aprobacion-contenido { padding: 1.15rem 1.35rem; }
+.tarifario-aprobacion-datos {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 0.65rem 1.15rem;
+    margin-bottom: 0.8rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--tarifario-borde);
+    border-radius: 0.65rem;
+    background: var(--tarifario-azul-claro);
+}
+.tarifario-aprobacion-datos dt { color: #496481; font-size: 0.8rem; }
+.tarifario-aprobacion-datos dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.tarifario-aprobacion-efecto { margin: 0; color: #496481; font-size: 0.9rem; }
+.tarifario-aprobacion-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0.9rem 1.35rem;
+    border-top: 1px solid var(--tarifario-borde);
+}
+.tarifario-aprobacion-acciones a { margin-right: auto; }
+
+.tarifario-filtros { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.85rem 1rem; }
+.tarifario-filtros label { display: block; margin-bottom: 0.35rem; color: #173b65; font-size: 0.88rem; }
+.tarifario-filtros-acciones, .tarifario-reportes, .tarifario-fila-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 0.55rem; }
+.tarifario-filtros-acciones { margin-top: 0.9rem; }
+.tarifario-filtros.tarifario-servicios-filtros { grid-template-columns: minmax(8rem, 1fr) minmax(12rem, 2fr) auto; }
+.tarifario-servicios-gestion { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.85rem; align-items: start; }
+.tarifario-resultados-cabecera { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 0.8rem 1rem; }
+.tarifario-resultados-cabecera h2 { margin: 0; color: #173b65; font-size: 1.16rem; font-weight: 700; }
+.tarifario-resultados-contexto { margin: 0.35rem 0 0; color: #496481; font-size: 0.85rem; }
+.tarifario-tabla .tarifario-precio { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tarifario-precio strong { color: #174679; }
+.tarifario-tabla .tarifario-ruta { min-width: 7rem; }
+.tarifario-ruta i { padding-inline: 0.25rem; color: var(--tarifario-azul); font-size: 0.75rem; }
+.tarifario-zona { display: inline-block; margin-top: 0.35rem; padding: 0.15rem 0.5rem; border-radius: 1rem; background: #fff1bf; color: #604500; font-size: 0.75rem; }
+.tarifario-detalle-tarifa { min-width: 8rem; }
+.tarifario-detalle-tarifa dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.15rem 0.65rem; margin-top: 0.6rem; font-size: 0.78rem; }
+.tarifario-detalle-tarifa dd { margin: 0; overflow-wrap: anywhere; }
+.tarifario-fila-acciones { align-items: stretch; }
+.tarifario-paginacion { padding: 0.85rem 1.15rem; border-top: 1px solid var(--tarifario-borde); }
+.tarifario-paginacion .pagination { margin: 0; flex-wrap: wrap; }
+
+@media (max-width: 575.98px) {
+    .tarifario-filtros { grid-template-columns: 1fr; }
+    .tarifario-opciones { grid-template-columns: 1fr; }
+    .tarifario-aprobacion-datos { grid-template-columns: 1fr 1fr; }
+    .tarifario-aprobacion-datos > :first-child { grid-column: 1 / -1; }
+    .tarifario-aprobacion-acciones .btn { flex: 1 0 auto; }
+    .tarifario-aprobacion-acciones a { margin-right: 0; }
+}
+
+@media (max-width: 767.98px) {
+    .tarifario-filtros.tarifario-servicios-filtros, .tarifario-servicios-gestion { grid-template-columns: minmax(0, 1fr); }
+    .tarifario-panel-cabecera, .tarifario-panel-contenido { padding-right: 0.85rem; padding-left: 0.85rem; }
+    .tarifario-lista-controles { gap: 0.5rem; padding: 0.75rem; }
+    .tarifario-tabla-contenedor { padding: 0.25rem 0.6rem 0.75rem; }
+    table.tarifario-tabla.responsive-card-table > tbody > tr > :is(.tarifario-fila-titulo, .tarifario-columna-acciones, .tarifario-columna-historial, .tarifario-detalle-tarifa) {
+        display: block !important;
+        text-align: left !important;
+    }
+    table.tarifario-tabla.responsive-card-table > tbody > tr > .tarifario-fila-titulo {
+        color: #183e70;
+        background: var(--tarifario-azul-claro) !important;
+    }
+    .tarifario-tabla.responsive-card-table :is(.tarifario-fila-titulo, .tarifario-detalle-tarifa)::before { content: none; }
+    .tarifario-tabla.responsive-card-table :is(.tarifario-columna-acciones, .tarifario-columna-historial)::before {
+        display: block;
+        margin-bottom: 0.45rem;
+    }
+    .tarifario-tabla.responsive-card-table td :is(.tarifario-acciones, .tarifario-fila-acciones) .btn { width: auto !important; }
+    .tarifario-tabla :is(.tarifario-acciones .btn, .tarifario-desplegable > summary) { min-height: 36px; }
+}
+@media (min-width: 576px) and (max-width: 991.98px) {
+    .tarifario-filtros { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

@@ -12,8 +12,11 @@
     const rowsPerBatch = 9;
     const servicesByYear = JSON.parse(document.getElementById('servicios-contrato-config')?.textContent || '{}');
     const selectedTarifario = document.getElementById('tarifario_contrato_id');
-    const initialServiceYear = selectedTarifario?.value ? selectedTarifario.selectedOptions[0].dataset.anio : document.getElementById('tarifario_anio')?.value;
-    const initialServices = servicesByYear[initialServiceYear] || [];
+    const selectedYear = document.getElementById('tarifario_anio');
+    const serializedRows = form.elements.tarifas_serializadas;
+    const withCopyServices = services => [...new Set([...services, ...(config.copyServices || [])])];
+    const initialServiceYear = selectedTarifario?.value ? selectedTarifario.selectedOptions[0].dataset.anio : selectedYear?.value;
+    const initialServices = withCopyServices(servicesByYear[initialServiceYear] || []);
     const columns = [
         { key: 'origen', label: 'Origen *', width: 180, options: config.departments, required: true },
         { key: 'destino', label: 'Destino *', width: 180, options: config.departments, required: true },
@@ -22,15 +25,24 @@
         { key: 'kilo_extra', label: 'Kilogramo extra: precio (Bs) *', width: 215, numeric: true, required: true },
         { key: 'horas_entrega', label: 'Entrega (horas) *', width: 150, numeric: true, required: true },
         { key: 'direccion', label: 'Dirección (opcional)', width: 230 },
-        { key: 'zona', label: 'Zona (opcional)', width: 170 },
+        { key: 'zona', label: 'Zona (subservicio local)', width: 185 },
         { key: 'provincia_origen', label: 'Provincia origen', width: 210, department: 'origen' },
         { key: 'provincia', label: 'Provincia destino', width: 210, department: 'destino' },
         { key: 'retencion', label: 'Retención (%) (opcional)', width: 180, numeric: true },
     ];
+    if (config.copyWeightLabel) columns.push({ key: 'peso', label: config.copyWeightLabel, width: 180, numeric: true });
     const normalize = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim().replace(/\s+/g, ' ');
+    const isDepartment = column => column.key === 'origen' || column.key === 'destino';
+    const normalizeDepartment = value => String(value ?? '').trim().toUpperCase();
+    const departmentError = (column, value) => isDepartment(column) && value && !column.options.includes(value)
+        ? `«${value}» no está en la lista. Elige un departamento del menú.`
+        : '';
     const blankRow = () => Object.fromEntries(columns.map(column => [column.key, '']));
     const entries = Object.entries(config.rows || {}).slice(0, maxRows);
-    const rows = entries.map(([, row]) => Object.fromEntries(columns.map(column => [column.key, String(row?.[column.key] ?? '')])));
+    const rows = entries.map(([, row]) => Object.fromEntries(columns.map(column => {
+        const value = row?.[column.key];
+        return [column.key, isDepartment(column) ? normalizeDepartment(value) : String(value ?? '')];
+    })));
     const rowErrors = entries.map(([key]) => Object.fromEntries(columns.map(column => [column.key, config.errors?.[`tarifas.${key}.${column.key}`]?.[0] || ''])));
     while (rows.length < rowsPerBatch) { rows.push(blankRow()); rowErrors.push({}); }
     let active = { row: 0, col: 0 };
@@ -43,26 +55,63 @@
     const redoHistory = [];
     let lastCellEdit = null;
     const fullscreenButton = document.getElementById('sheet-fullscreen');
+    const fullscreenDestination = document.getElementById('sheet-fullscreen-destination');
+    const saveButton = document.getElementById('sheet-save');
+    const saveLabel = saveButton?.querySelector('span');
+    const saveDialog = document.getElementById('sheet-save-dialog');
+    const inactivePanels = [];
     let fallbackFullscreen = false;
+
+    function setFullscreenContext(expanded) {
+        if (expanded) {
+            root.setAttribute('role', 'dialog');
+            root.setAttribute('aria-modal', 'true');
+            root.setAttribute('aria-labelledby', 'sheet-fullscreen-title');
+            for (let panel = root; panel !== document.body && panel.parentElement; panel = panel.parentElement) {
+                for (const sibling of panel.parentElement.children) {
+                    if (sibling !== panel && !sibling.inert) {
+                        sibling.inert = true;
+                        inactivePanels.push(sibling);
+                    }
+                }
+            }
+        } else {
+            root.removeAttribute('role');
+            root.removeAttribute('aria-modal');
+            root.removeAttribute('aria-labelledby');
+            inactivePanels.splice(0).forEach(panel => { panel.inert = false; });
+        }
+    }
 
     function syncFullscreen() {
         const expanded = document.fullscreenElement === root || fallbackFullscreen;
+        if (expanded !== root.classList.contains('sheet-is-fullscreen')) setFullscreenContext(expanded);
         root.classList.toggle('sheet-is-fullscreen', expanded);
         document.body.classList.toggle('tarifa-sheet-expanded', expanded);
-        fullscreenButton?.setAttribute('aria-pressed', String(expanded));
         if (fullscreenButton) {
-            fullscreenButton.querySelector('span').textContent = expanded ? 'Salir de pantalla completa' : 'Pantalla completa';
+            fullscreenButton.setAttribute('aria-pressed', String(expanded));
+            fullscreenButton.setAttribute('aria-label', expanded ? 'Salir de pantalla completa' : 'Pantalla completa');
+            fullscreenButton.querySelector('span').textContent = expanded ? 'Salir' : 'Pantalla completa';
             fullscreenButton.querySelector('i').className = `fas fa-${expanded ? 'compress' : 'expand'} mr-1`;
         }
+        if (expanded && fullscreenDestination) {
+            fullscreenDestination.textContent = selectedTarifario?.value
+                ? selectedTarifario.selectedOptions[0].textContent.trim()
+                : 'Destino por elegir';
+        }
+    }
+
+    async function exitSheetFullscreen() {
+        if (document.fullscreenElement === root) await document.exitFullscreen();
+        fallbackFullscreen = false;
+        syncFullscreen();
     }
 
     fullscreenButton?.addEventListener('click', async () => {
         fullscreenButton.disabled = true;
         try {
-            if (document.fullscreenElement === root) {
-                await document.exitFullscreen();
-            } else if (fallbackFullscreen) {
-                fallbackFullscreen = false;
+            if (root.classList.contains('sheet-is-fullscreen')) {
+                await exitSheetFullscreen();
             } else {
                 try {
                     if (!root.requestFullscreen || !document.fullscreenEnabled) throw new Error('Fullscreen unavailable');
@@ -82,10 +131,21 @@
     });
     document.addEventListener('fullscreenchange', syncFullscreen);
     document.addEventListener('keydown', event => {
-        if (event.key === 'Escape' && fallbackFullscreen) {
+        if (event.key === 'Escape' && fallbackFullscreen && !saveDialog?.open) {
             fallbackFullscreen = false;
             syncFullscreen();
             fullscreenButton?.focus({ preventScroll: true });
+        }
+    });
+    selectedTarifario?.addEventListener('invalid', async event => {
+        if (!root.classList.contains('sheet-is-fullscreen')) return;
+        event.preventDefault();
+        try {
+            await exitSheetFullscreen();
+            selectedTarifario.focus();
+            selectedTarifario.reportValidity();
+        } catch {
+            announce('Sal de pantalla completa para elegir el tarifario de destino.');
         }
     });
 
@@ -94,15 +154,13 @@
     }
 
     function matchOption(column, value) {
+        if (isDepartment(column)) return normalizeDepartment(value);
         const text = normalize(value);
         const items = optionItems(column);
         const exact = items.find(option => normalize(option.value) === text || normalize(option.label) === text);
         if (exact) return exact.value;
         const matches = items.filter(option => (option.aliases || []).some(alias => alias && normalize(alias) === text));
         if (matches.length === 1) return matches[0].value;
-        if (['origen', 'destino'].includes(column.key)) {
-            return { CHUQUISACA: 'SUCRE', BENI: 'TRINIDAD', PANDO: 'COBIJA' }[text] || value;
-        }
         if (column.key === 'servicio') {
             const service = text.replace('LOCAL (', 'LOCAL(');
             return items.find(option => normalize(option.value) === service)?.value ?? value;
@@ -266,29 +324,28 @@
                 td.dataset.col = colIndex;
                 const control = document.createElement(column.options ? 'select' : 'input');
                 control.className = 'sheet-control' + (column.numeric ? ' sheet-numeric' : '');
-                control.name = `tarifas[${rowIndex}][${column.key}]`;
+                if (!serializedRows) control.name = `tarifas[${rowIndex}][${column.key}]`;
                 control.dataset.row = rowIndex;
                 control.dataset.col = colIndex;
                 control.setAttribute('aria-label', `Fila ${rowIndex + 1}, ${column.label.replace(' *', '')}`);
                 if (column.options) {
                     control.append(new Option('Seleccione…', ''));
                     optionItems(column).forEach(option => control.append(new Option(option.label, option.value)));
-                    if (column.key !== 'servicio' && row[column.key] && ![...control.options].some(option => option.value === row[column.key])) {
-                        control.append(new Option(row[column.key], row[column.key]));
-                    }
                 } else {
                     control.type = 'text';
                     control.autocomplete = 'off';
                     if (column.numeric) control.inputMode = column.key === 'horas_entrega' ? 'numeric' : 'decimal';
                     else control.maxLength = 255;
+                    if (column.key === 'zona') control.setAttribute('list', 'sheet-zonas-locales');
                     if (column.department) {
                         control.setAttribute('list', `sheet-provinces-${rowIndex}-${column.key}`);
                         updateProvinceList(rowIndex, column);
                     }
                 }
-                control.value = row[column.key];
+                const departmentIssue = departmentError(column, row[column.key]);
+                control.value = departmentIssue ? '' : row[column.key];
                 td.append(control);
-                const error = rowErrors[rowIndex]?.[column.key];
+                const error = departmentIssue || rowErrors[rowIndex]?.[column.key];
                 if (error) showError(control, error);
             });
         });
@@ -333,10 +390,11 @@
         clearError(row, col);
         const control = controlAt(row, col);
         if (control) {
-            if (column.options && ![...control.options].some(option => option.value === value)) control.append(new Option(value, value));
-            control.value = value;
+            const error = departmentError(column, value);
+            control.value = error ? '' : value;
+            if (error) showError(control, error);
         }
-        if (['origen', 'destino'].includes(column.key)) {
+        if (isDepartment(column)) {
             columns.filter(item => item.department === column.key).forEach(item => updateProvinceList(row, item));
         }
     }
@@ -394,12 +452,13 @@
 
     root.addEventListener('tarifario-services-change', event => {
         const col = columns.findIndex(column => column.key === 'servicio');
-        columns[col].options = event.detail.services;
+        const services = withCopyServices(event.detail.services);
+        columns[col].options = services;
         rows.forEach((row, rowIndex) => {
             const control = controlAt(rowIndex, col);
             const selected = row.servicio;
-            control.replaceChildren(new Option('Seleccione…', ''), ...event.detail.services.map(name => new Option(name, name)));
-            if (selected && !event.detail.services.includes(selected)) {
+            control.replaceChildren(new Option('Seleccione…', ''), ...services.map(name => new Option(name, name)));
+            if (selected && !services.includes(selected)) {
                 row.servicio = '';
                 showError(control, 'Este servicio no está disponible para el año seleccionado.');
             } else clearError(rowIndex, col);
@@ -620,7 +679,31 @@
         travelHistory(event.inputType === 'historyRedo');
     });
 
+    const importForm = document.getElementById('tarifas-excel-import-form');
+    importForm?.addEventListener('submit', event => {
+        if (!selectedTarifario.reportValidity()) {
+            event.preventDefault();
+            return;
+        }
+
+        importForm.elements.tarifario_contrato_id.value = selectedTarifario.value;
+        importForm.elements.tarifario_anio.value = selectedYear.value;
+    });
+
+    const preloadForm = document.getElementById('tarifario-preload-form');
+    preloadForm?.addEventListener('submit', () => {
+        preloadForm.elements.tarifario_id.value = selectedTarifario.value;
+    });
+
+    saveDialog?.addEventListener('cancel', event => event.preventDefault());
+
     form.addEventListener('submit', event => {
+        if (event.defaultPrevented) return;
+        if (saveButton?.disabled) {
+            event.preventDefault();
+            return;
+        }
+
         let firstInvalid = null;
         rows.forEach((row, rowIndex) => {
             columns.forEach((column, col) => clearError(rowIndex, col));
@@ -635,7 +718,9 @@
                     if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(decimal) || !Number.isFinite(number) || number < 0) error = 'Ingresa un número válido, mayor o igual a 0.';
                     else if (column.key === 'retencion' && number > 100) error = 'La retención debe estar entre 0 y 100.';
                     else if (column.key === 'horas_entrega' && !/^\d+$/.test(value)) error = 'Ingresa una cantidad entera de horas.';
-                } else if (value && column.options && !optionItems(column).some(option => option.value === value)) error = 'Selecciona un valor válido de la lista.';
+                } else if (value && column.options && !optionItems(column).some(option => option.value === value)) {
+                    error = departmentError(column, value) || 'Selecciona un valor válido de la lista.';
+                }
                 if (error) {
                     showError(controlAt(rowIndex, col), error);
                     firstInvalid ||= { row: rowIndex, col };
@@ -648,11 +733,22 @@
             announce('Revisa las celdas marcadas en rojo. Todavía no se guardaron las tarifas.');
             return;
         }
-        const save = document.getElementById('sheet-save');
-        if (save) { save.disabled = true; save.textContent = 'Guardando tarifas…'; }
+        if (serializedRows) {
+            serializedRows.value = JSON.stringify(rows.map(row => Object.fromEntries(
+                Object.entries(row).map(([key, value]) => [key, value.trim() || null])
+            )));
+        }
+        if (saveButton && saveLabel) {
+            saveButton.disabled = true;
+            saveLabel.textContent = 'Guardando tarifas…';
+        }
+        saveDialog?.showModal?.();
     });
     window.addEventListener('pageshow', () => {
-        const save = document.getElementById('sheet-save');
-        if (save) { save.disabled = false; save.textContent = 'Guardar tarifas'; }
+        if (saveDialog?.open) saveDialog.close();
+        if (saveButton && saveLabel) {
+            saveButton.disabled = false;
+            saveLabel.textContent = 'Guardar tarifas';
+        }
     });
 })();

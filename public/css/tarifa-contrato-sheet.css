@@ -1,62 +1,165 @@
-.tarifa-sheet-card { border-top: 3px solid #217346; }
-.sheet-setup { padding: 16px 18px 4px; margin-bottom: 22px; background: #f5f9f6; border: 1px solid #dce9e0; border-radius: 8px; }
+#tarifas-sheet {
+    --sheet-blue: var(--tarifario-azul, #20539a);
+    --sheet-yellow: var(--tarifario-amarillo, #fecc36);
+    --sheet-border: var(--tarifario-borde, #dbe5f2);
+    min-width: 0;
+}
+.sheet-setup > .sheet-step-heading { padding: 0.9rem 1.15rem; background: #eff5fd; border-bottom: 1px solid var(--sheet-border); }
+.sheet-setup .form-group { margin-bottom: 0 !important; }
+.sheet-setup .form-group label { color: #183d6b; }
+.sheet-load-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr)); gap: 0.65rem; align-items: start; margin-bottom: 0.8rem; }
+.sheet-load-option { margin-bottom: 0; box-shadow: none; }
+.sheet-load-option .tarifario-panel-cabecera { min-height: 3rem; }
+.sheet-prefill-aviso a { font-weight: 600; }
 .sheet-step-heading { display: flex; align-items: flex-start; gap: 10px; }
-.sheet-step-heading h2 { font-size: 16px; font-weight: 600; margin: 0 0 3px; color: #263f30; }
-.sheet-step-heading p { font-size: 13px; color: #64756b; margin: 0; }
-.sheet-step-number { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 28px; width: 28px; height: 28px; border-radius: 50%; background: #e2eee6; color: #217346; font-size: 14px; font-weight: 700; }
-.sheet-setup > .sheet-step-heading { margin-bottom: 16px; }
+.sheet-step-heading h2 { font-size: 16px; font-weight: 600; margin: 0 0 3px; color: #183d6b; }
+.sheet-step-heading p { font-size: 13px; color: #4f6381; margin: 0; }
+.sheet-step-number { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 28px; width: 28px; height: 28px; border-radius: 50%; background: #ffebac; color: #543c00; font-size: 14px; font-weight: 700; }
 .sheet-entry-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-.sheet-counter { background: #f1f5f2; border-radius: 6px; padding: 7px 10px; color: #53655a; font-size: 12px; }
-.sheet-counter strong { color: #217346; }
+.sheet-counter { background: #edf4ff; border-radius: 6px; padding: 7px 10px; color: #496481; font-size: 12px; }
+.sheet-counter strong { color: var(--sheet-blue); }
 .sheet-counter > span[aria-hidden] { margin: 0 6px; }
-.sheet-toolbar { display: flex; flex-direction: column; gap: 10px; }
+.sheet-toolbar { display: flex; flex-direction: column; gap: 10px; padding: 0.6rem 0.75rem; background: #fff; border: 1px solid var(--sheet-border); border-radius: 0.65rem; }
 .sheet-toolbar-main, .sheet-save-area { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 .sheet-toolbar-actions, .sheet-edit-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.sheet-edit-tools { gap: 6px; }
-.sheet-edit-tools .btn { font-size: 12px; }
-.sheet-guide { margin-bottom: 12px; font-size: 13px; color: #53655a; }
-.sheet-guide > summary, .sheet-service-options > summary { cursor: pointer; color: #217346; }
+.sheet-edit-tools { gap: 6px; padding-top: 0.45rem; border-top: 1px solid var(--sheet-border); }
+.sheet-edit-tools .btn { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; white-space: nowrap; }
+.sheet-guide { margin-bottom: 12px; font-size: 13px; color: #496481; }
+.sheet-guide > summary, .sheet-service-options > summary { cursor: pointer; color: var(--sheet-blue); }
 .sheet-guide > summary { padding: 3px 0; }
 .sheet-guide ol { margin: 10px 0; padding-left: 22px; }
 .sheet-guide p { margin: 0 0 8px; }
-.sheet-save-area { border-top: 1px solid #e3e9e5; padding-top: 18px; margin-top: 18px; }
-.sheet-formula-bar { display: flex; border: 1px solid #c8d1cc; background: #fff; font-size: 13px; min-height: 34px; align-items: center; }
-#sheet-cell-name { min-width: 65px; text-align: center; font-weight: 600; border-right: 1px solid #c8d1cc; padding: 6px; color: #217346; }
+.sheet-footer { margin-top: 0.6rem; border: 1px solid var(--sheet-border); border-radius: 0.65rem; background: #fff; overflow: hidden; }
+.sheet-save-area { padding: 0.75rem; }
+.sheet-save-dialog {
+    width: min(22rem, calc(100% - 2rem));
+    padding: 1.5rem;
+    border: 1px solid var(--sheet-border);
+    border-radius: 0.75rem;
+    background: #fff;
+    color: #183d6b;
+    box-shadow: 0 12px 32px rgba(22, 59, 112, 0.24);
+}
+.sheet-save-dialog:not([open]) { display: none; }
+.sheet-save-dialog[open] { display: flex; align-items: center; gap: 1rem; }
+.sheet-save-dialog::backdrop { background: rgba(10, 22, 45, 0.58); }
+.sheet-save-dialog .spinner-border { flex: 0 0 auto; width: 1.8rem; height: 1.8rem; color: var(--sheet-blue); }
+.sheet-save-dialog h2 { margin: 0 0 0.25rem; font-size: 1.1rem; font-weight: 700; }
+.sheet-save-dialog p { margin: 0; color: #496481; font-size: 0.875rem; }
+.sheet-formula-bar { display: flex; border: 1px solid var(--sheet-border); background: #fff; font-size: 13px; min-height: 34px; align-items: center; border-radius: 0.55rem 0.55rem 0 0; overflow: hidden; }
+#sheet-cell-name { background: #fff3ce; min-width: 65px; text-align: center; font-weight: 600; border-right: 1px solid var(--sheet-border); padding: 6px; color: var(--sheet-blue); }
 #sheet-cell-value { padding: 5px 12px; white-space: pre; }
-.sheet-viewport { max-height: 65vh; min-height: 340px; overflow: auto; border: 1px solid #c8d1cc; border-top: 0; background: #f7f9f8; position: relative; }
-.sheet-table { table-layout: fixed; border-collapse: separate; border-spacing: 0; width: max-content; color: #24332b; font-size: 13px; }
-.sheet-table th, .sheet-table td { border-right: 1px solid #d8dfda; border-bottom: 1px solid #d8dfda; padding: 0; position: relative; }
+.sheet-viewport { max-height: 65vh; min-height: 340px; overflow: auto; border: 1px solid var(--sheet-border); border-top: 0; border-radius: 0 0 0.55rem 0.55rem; background: #f6f9fe; position: relative; }
+.sheet-table { table-layout: fixed; border-collapse: separate; border-spacing: 0; width: max-content; color: #1c3456; font-size: 13px; }
+.sheet-table th, .sheet-table td { border-right: 1px solid #dce5f2; border-bottom: 1px solid #dce5f2; padding: 0; position: relative; }
 .sheet-table thead th { position: sticky; text-align: left; z-index: 3; }
-.sheet-table .sheet-letter { top: 0; height: 27px; background: #e9eeeb; color: #53655a; text-align: center; font-weight: 400; }
-.sheet-table .sheet-heading { top: 27px; height: 46px; background: #217346; color: #fff; padding: 6px 12px; font-weight: 600; line-height: 1.2; }
-.sheet-table .sheet-row-number { width: 46px; min-width: 46px; position: sticky; left: 0; z-index: 2; text-align: center; background: #e9eeeb; color: #53655a; font-weight: 400; cursor: pointer; }
+.sheet-table .sheet-letter { top: 0; height: 27px; background: #e9f0fb; color: #496481; text-align: center; font-weight: 400; }
+.sheet-table .sheet-heading { top: 27px; height: 46px; background: var(--sheet-blue); color: #fff; padding: 6px 12px; font-weight: 600; line-height: 1.2; }
+.sheet-table .sheet-row-number { width: 46px; min-width: 46px; position: sticky; left: 0; z-index: 2; text-align: center; background: #e9f0fb; color: #496481; font-weight: 400; cursor: pointer; }
 .sheet-table thead .sheet-row-number { z-index: 5; }
 .sheet-table tbody td { background: #fff; height: 39px; }
-.sheet-table tbody tr:nth-child(even) td { background: #fcfdfc; }
+.sheet-table tbody tr:nth-child(even) td { background: #f8faff; }
 .sheet-table .sheet-control { width: 100%; height: 38px; min-width: 0; display: block; border: 0; outline: none; border-radius: 0; background: transparent; color: inherit; padding: 6px 10px; font: inherit; }
 .sheet-table select.sheet-control { cursor: pointer; }
 .sheet-table .sheet-numeric { text-align: right; font-variant-numeric: tabular-nums; }
-.sheet-table td.sheet-selected { background: #e7f3eb !important; box-shadow: inset 0 0 0 1px #a5c9b2; }
-.sheet-table td.sheet-active { box-shadow: inset 0 0 0 2px #217346; z-index: 1; }
-.sheet-table .sheet-row-number.sheet-current-row { background: #cbe5d4; color: #145c32; font-weight: 600; }
+.sheet-table td.sheet-selected { background: #e8f1ff !important; box-shadow: inset 0 0 0 1px #abc5e6; }
+.sheet-table td.sheet-active { box-shadow: inset 0 0 0 2px var(--sheet-blue); z-index: 1; }
+.sheet-table .sheet-row-number.sheet-current-row { background: #ffe58c; color: #5c4200; font-weight: 600; }
 .sheet-table td.sheet-invalid { background: #fff0f0 !important; box-shadow: inset 0 0 0 1px #c93040; }
 .sheet-error { display: block; color: #b51e2c; padding: 0 8px 5px; font-size: 11px; }
-.sheet-fill-handle { position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px; padding: 0; background: #217346; border: 1px solid #fff; cursor: crosshair; z-index: 2; }
+.sheet-fill-handle { position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px; padding: 0; background: var(--sheet-yellow); border: 1px solid var(--sheet-blue); cursor: crosshair; z-index: 2; }
 .sheet-column-resizer { position: absolute; top: 0; right: -3px; width: 9px; height: 100%; cursor: col-resize; z-index: 6; touch-action: none; }
 .sheet-column-resizer:hover { background: #ffffff55; }
-.sheet-status { padding: 7px 10px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: #edf4ef; border: 1px solid #c8d1cc; border-top: 0; font-size: 12px; color: #41604c; }
+.sheet-status { padding: 7px 10px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: #eff5fd; border-bottom: 1px solid var(--sheet-border); font-size: 12px; color: #345575; }
 .sheet-dragging, .sheet-dragging * { user-select: none !important; cursor: crosshair !important; }
-.sheet-table .sheet-control:focus-visible { outline: 2px solid #217346; outline-offset: -2px; }
-.sheet-fullscreen-title { display: none; }
+.sheet-table .sheet-control:focus-visible { outline: 2px solid var(--sheet-blue); outline-offset: -2px; }
+.sheet-fullscreen-heading { display: none; }
 body.tarifa-sheet-expanded { overflow: hidden; }
-#tarifas-sheet.sheet-is-fullscreen { position: fixed; inset: 0; z-index: 1060; width: 100%; height: 100%; height: 100dvh; box-sizing: border-box; padding: 16px; background: #fff; display: flex; flex-direction: column; overflow: auto; font-family: "Segoe UI", Arial, sans-serif; }
-#tarifas-sheet.sheet-is-fullscreen > * { flex-shrink: 0; }
-#tarifas-sheet.sheet-is-fullscreen .sheet-fullscreen-title { display: block; font-size: 18px; font-weight: 600; margin: 0 0 12px; }
-#tarifas-sheet.sheet-is-fullscreen .sheet-viewport { flex: 1 1 auto; min-height: 120px; max-height: none; }
-#tarifas-sheet::backdrop { background: #fff; }
-@media (max-width: 767px) { .tarifa-sheet-card > .card-body { padding: 12px; } .sheet-viewport { max-height: 60vh; } }
+#tarifas-sheet.sheet-is-fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 1060;
+    width: 100%;
+    height: 100%;
+    height: 100dvh;
+    box-sizing: border-box;
+    padding: clamp(8px, 1.25vw, 18px);
+    background: #edf3fc;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.sheet-is-fullscreen :is(.sheet-setup, .sheet-entry-heading, #sheet-download-template, .sheet-load-options, .sheet-prefill-aviso, #sheet-help, .sheet-guide, .sheet-status-caption, .sheet-save-area .sheet-step-heading, .sheet-back-link) { display: none; }
+.sheet-is-fullscreen .sheet-toolbar {
+    flex-shrink: 0;
+    gap: 0;
+    padding: 0;
+    margin-bottom: 8px;
+    background: #fff;
+    border: 1px solid var(--sheet-border);
+    border-radius: 8px;
+}
+.sheet-is-fullscreen .sheet-toolbar-main { padding: 8px 12px; flex-wrap: nowrap; }
+.sheet-is-fullscreen .sheet-toolbar-main .sheet-toolbar-actions { margin-left: auto; }
+.sheet-is-fullscreen .sheet-toolbar-main .btn { white-space: nowrap; }
+.sheet-is-fullscreen .sheet-fullscreen-heading { display: flex; align-items: center; gap: clamp(10px, 1.5vw, 24px); min-width: 0; margin-right: auto; }
+.sheet-fullscreen-heading h2 { flex-shrink: 0; margin: 0; color: #183d6b; font-size: 17px; font-weight: 700; line-height: 1.2; }
+.sheet-fullscreen-target {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+    padding: 5px 10px;
+    background: #fff3ce;
+    border: 1px solid #f4d978;
+    border-radius: 6px;
+    color: #183d6b;
+}
+.sheet-fullscreen-target span { flex-shrink: 0; font-size: 12px; color: #496481; }
+.sheet-fullscreen-target strong { font-size: 15px; overflow-wrap: anywhere; }
+.sheet-is-fullscreen .sheet-edit-tools { padding: 6px 12px; border-top: 1px solid var(--sheet-border); }
+.sheet-is-fullscreen .sheet-formula-bar { flex-shrink: 0; border-radius: 6px 6px 0 0; }
+.sheet-is-fullscreen .sheet-viewport { flex: 1 1 0; min-height: 0; max-height: none; overscroll-behavior: contain; border-radius: 0 0 6px 6px; }
+.sheet-is-fullscreen .sheet-footer {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 7px 12px;
+    margin-top: 8px;
+    background: #fff;
+    border: 1px solid var(--sheet-border);
+    border-radius: 8px;
+}
+.sheet-is-fullscreen .sheet-status { flex: 1; min-width: 0; padding: 0; border: 0; background: transparent; }
+.sheet-is-fullscreen .sheet-save-area { margin: 0; padding: 0; border: 0; }
+.sheet-is-fullscreen .sheet-save-area .sheet-toolbar-actions { width: auto; }
+.sheet-is-fullscreen #sheet-save { white-space: nowrap; padding: 4px 10px; font-size: 13px; }
+#tarifas-sheet::backdrop { background: #edf3fc; }
 @media (max-width: 767px) {
-    .sheet-setup { padding: 12px 12px 0; margin-bottom: 18px; }
+    .sheet-setup > .sheet-step-heading { padding-inline: 0.85rem; }
+    .sheet-setup .form-group + .form-group { margin-top: 0.75rem; }
+    .sheet-viewport { max-height: 60vh; }
     .sheet-step-heading h2 { font-size: 15px; }
     .sheet-save-area > .sheet-toolbar-actions { width: 100%; justify-content: space-between; }
+}
+@media (max-width: 575px) {
+    .sheet-is-fullscreen .sheet-toolbar-main { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px 7px; }
+    .sheet-is-fullscreen .sheet-fullscreen-heading { display: contents; }
+    .sheet-fullscreen-heading h2 { font-size: 15px; }
+    .sheet-is-fullscreen .sheet-toolbar-main .sheet-toolbar-actions { grid-area: 1 / 2; }
+    .sheet-is-fullscreen #sheet-fullscreen { grid-area: 1 / 3; }
+    .sheet-fullscreen-target { grid-area: 2 / 1 / 3 / -1; padding: 3px 8px; }
+    .sheet-fullscreen-target strong { font-size: 14px; }
+    .sheet-is-fullscreen :is(.sheet-toolbar-main .btn, #sheet-save) { min-height: 36px; }
+    .sheet-is-fullscreen .sheet-edit-tools .btn { justify-content: center; width: 36px; min-height: 36px; position: relative; }
+    .sheet-is-fullscreen .sheet-edit-tools .btn span {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
 }

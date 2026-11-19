@@ -8,28 +8,7 @@
     <section class="content container-fluid">
         <div class="row">
             <div class="col-md-12">
-                @if ($message = Session::get('success'))
-                    <div class="alert alert-success">
-                        <p class="mb-0">{{ $message }}</p>
-                    </div>
-                @endif
-
-                @if ($message = Session::get('warning'))
-                    <div class="alert alert-warning">
-                        <p class="mb-0">{{ $message }}</p>
-                    </div>
-                @endif
-
-                @if (session()->has('import_errors'))
-                    <div class="alert alert-danger">
-                        <p class="mb-2"><strong>Errores de importacion (primeros 20):</strong></p>
-                        <ul class="mb-0">
-                            @foreach (session('import_errors', []) as $err)
-                                <li>{{ $err }}</li>
-                            @endforeach
-                        </ul>
-                    </div>
-                @endif
+                @include('tarifa_contrato.import-feedback')
 
                 @if ($errors->any())
                     <div class="alert alert-danger">
@@ -76,8 +55,8 @@
                                 <p class="mb-2"><strong>Columnas requeridas en el Excel (fila 1):</strong></p>
                                 <code>{{ implode(', ', $columnas) }}</code>
                                 <p class="mt-2 mb-2">
-                                    Selecciona el tarifario y su año antes de importar. Cada archivo carga precios de un solo tarifario.
-                                    Las empresas se asignan en <a href="{{ route('tarifa-contrato.tarifarios') }}">Tarifarios por año</a>.
+                                    Selecciona el año y el tarifario de la empresa antes de importar. El archivo carga precios en ese borrador.
+                                    Cuando estén listos, aprueba su uso en <a href="{{ route('tarifa-contrato.tarifarios') }}#tarifarios-registrados">Tarifarios registrados</a>.
                                 </p>
                                 <p class="mt-2 mb-2">
                                     <strong>Obligatorios:</strong> Origen, Destino, Servicio, Primer kilogramo: precio (Bs), Kilogramo extra: precio (Bs), Entrega (horas).
@@ -85,6 +64,7 @@
                                 <p class="mt-2 mb-2">
                                     <strong>Opcionales:</strong> Dirección, Zona, Provincia origen, Provincia destino y Retención (%) (si se omite se guarda 0).
                                 </p>
+                                <p class="mb-2">Para precios locales por zona, usa una fila por zona para la misma ruta. La columna Zona distingue esos precios al importar.</p>
                                 <p class="mt-2 mb-2">
                                     En la plantilla, <strong>Provincia origen</strong> y <strong>Provincia destino</strong>
                                     son campos libres. Puedes escribir cualquier provincia directamente.
@@ -95,7 +75,8 @@
                                 <hr>
                                 <p class="mb-1"><strong>Servicios permitidos:</strong></p>
                                 <ul class="mb-2" id="year-services-list"></ul>
-                                <p class="mb-1"><strong>Origen/Destino permitidos:</strong></p>
+                                <p class="mb-1"><strong>Origen y Destino permitidos</strong></p>
+                                <p class="mb-1">Usa la lista de la plantilla para ambos campos.</p>
                                 <p class="mb-0">{{ implode(', ', $departamentos) }}</p>
                             </div>
 

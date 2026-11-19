@@ -2254,36 +2254,24 @@ class PaquetesEms extends Component
             return null;
         }
 
-        $baseQuery = TarifaContrato::query()
+        $tarifas = TarifaContrato::query()
             ->paraEmpresa($empresaId)
             ->whereRaw('trim(upper(origen)) = ?', [$origen])
-            ->whereRaw('trim(upper(destino)) = ?', [$destino]);
+            ->whereRaw('trim(upper(destino)) = ?', [$destino])
+            ->orderByDesc('id')
+            ->get()
+            ->reject(fn (TarifaContrato $tarifa) => $tarifa->zonaLocal() !== null);
 
         if ($provincia !== '') {
-            $exacta = (clone $baseQuery)
-                ->whereRaw('trim(upper(provincia)) = ?', [$provincia])
-                ->orderByDesc('id')
-                ->first();
+            $exacta = $tarifas->first(fn (TarifaContrato $tarifa) => $this->normalizeTarifaText((string) $tarifa->provincia) === $provincia);
 
             if ($exacta) {
                 return $exacta;
             }
         }
 
-        $sinProvincia = (clone $baseQuery)
-            ->whereNull('provincia')
-            ->orderByDesc('id')
-            ->first();
-
-        if ($sinProvincia) {
-            return $sinProvincia;
-        }
-
-        if ((clone $baseQuery)->count() === 1) {
-            return (clone $baseQuery)->first();
-        }
-
-        return null;
+        return $tarifas->first(fn (TarifaContrato $tarifa) => $tarifa->provincia === null)
+            ?? ($tarifas->count() === 1 ? $tarifas->first() : null);
     }
 
     protected function calculatePrecioContrato(float $peso, float $precioBaseKilo, float $precioKiloExtra): float
@@ -2312,7 +2300,7 @@ class PaquetesEms extends Component
 
     protected function normalizeTarifaText(string $value): string
     {
-        return strtoupper(trim($value));
+        return mb_strtoupper(trim($value));
     }
 
     protected function composeCn33Remitente(?string $nombreRemitente, ?string $empresaNombre): string

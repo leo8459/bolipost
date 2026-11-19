@@ -11,6 +11,8 @@ class TarifaContrato extends Model
 {
     use HasFactory;
 
+    public const ZONAS_LOCALES = ['Zona 1', 'Zona 2', 'Zona 3'];
+
     protected $table = 'tarifa_contrato';
 
     protected $fillable = [
@@ -55,7 +57,27 @@ class TarifaContrato extends Model
             }
             $tarifa->servicio_contrato_id = $servicio->id;
             $tarifa->servicio = $servicio->nombre;
+            if (ServicioContrato::esLocal($tarifa->servicio)) {
+                $tarifa->zona = self::normalizarZona($tarifa->zona);
+            }
         });
+    }
+
+    public static function normalizarZona(?string $zona): ?string
+    {
+        $zona = mb_strtoupper(trim((string) $zona));
+        $zona = trim(preg_replace('/\s+/u', ' ', $zona) ?? $zona);
+
+        if (preg_match('/^(?:ZONA *)?0*([1-3])$/', $zona, $coincidencias)) {
+            return self::ZONAS_LOCALES[(int) $coincidencias[1] - 1];
+        }
+
+        return $zona === '' ? null : $zona;
+    }
+
+    public function zonaLocal(): ?string
+    {
+        return ServicioContrato::esLocal((string) $this->servicio) ? self::normalizarZona($this->zona) : null;
     }
 
     public function servicioCatalogo()

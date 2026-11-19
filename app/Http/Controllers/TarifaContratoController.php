@@ -14,8 +14,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -23,6 +25,7 @@ use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TarifaContratoController extends Controller
 {
@@ -75,12 +78,6 @@ class TarifaContratoController extends Controller
         'SUCRE',
         'TRINIDAD',
         'COBIJA',
-    ];
-
-    private const DEPARTAMENTO_ALIASES = [
-        'CHUQUISACA' => 'SUCRE',
-        'BENI' => 'TRINIDAD',
-        'PANDO' => 'COBIJA',
     ];
 
     private const PROVINCIAS_POR_DEPARTAMENTO = [
@@ -153,7 +150,7 @@ class TarifaContratoController extends Controller
         'kilo_extra' => 'Kilogramo extra: precio (Bs) *',
         'horas_entrega' => 'Entrega (horas) *',
         'direccion' => 'Dirección (opcional)',
-        'zona' => 'Zona (opcional)',
+        'zona' => 'Zona (subservicio local)',
         'provincia_origen' => 'Provincia origen',
         'provincia_destino' => 'Provincia destino',
         'retencion' => 'Retención (%) (opcional)',
@@ -183,6 +180,8 @@ class TarifaContratoController extends Controller
         'retencion',
         'horas_entrega',
     ];
+
+    private const MAX_FILAS_MANUALES = 50;
 
     public function servicios(Request $request)
     {
@@ -279,8 +278,9 @@ class TarifaContratoController extends Controller
         abort_unless(auth()->user(), 403);
 
         return view('tarifa_contrato.tarifarios', [
-            'tarifarios' => TarifarioContrato::query()->withCount(['tarifas', 'empresasActivas'])
-                ->with('empresasActivas:id,nombre')->orderByRaw('anio IS NULL')->orderByDesc('anio')->orderBy('nombre')->get(),
+            'tarifarios' => TarifarioContrato::query()->withCount(['tarifas', 'empresasActivas'])->withExists('empresas')
+                ->with(['empresaTitular:id,nombre,codigo_cliente', 'empresasActivas:id,nombre'])
+                ->orderByRaw('anio IS NULL')->orderByDesc('anio')->orderBy('nombre')->get(),
             'empresas' => Empresa::query()->with(['tarifariosContrato' => fn ($query) => $query->orderByDesc('asignado_en')])
                 ->orderBy('nombre')->get(),
         ]);
@@ -290,14 +290,23 @@ class TarifaContratoController extends Controller
     {
         $this->authorizeTarifaContratoButtonAction('save');
         $data = $request->validate([
-            'nombre' => ['required', 'string', 'max:180', Rule::unique('tarifarios_contrato')->where('anio', $request->input('anio'))],
+            'empresa_titular_id' => ['required', 'integer', Rule::exists('empresa', 'id')],
             'anio' => ['required', 'integer', 'between:2000,2100'],
             'copiar_de_id' => ['nullable', 'integer', Rule::exists('tarifarios_contrato', 'id')],
+        ], [
+            'empresa_titular_id.required' => 'Selecciona la empresa titular.',
+            'empresa_titular_id.exists' => 'Selecciona una empresa registrada.',
         ]);
         $tarifario = DB::transaction(function () use ($data) {
             $source = ! empty($data['copiar_de_id'])
                 ? TarifarioContrato::query()->lockForUpdate()->findOrFail($data['copiar_de_id']) : null;
-            $tarifario = TarifarioContrato::query()->create(Arr::only($data, ['nombre', 'anio']));
+            $empresa = Empresa::query()->lockForUpdate()->findOrFail($data['empresa_titular_id']);
+            $this->validarTarifarioUnico($empresa->id, $empresa->nombre, (int) $data['anio']);
+            $tarifario = TarifarioContrato::query()->create([
+                'empresa_titular_id' => $empresa->id,
+                'nombre' => $empresa->nombre,
+                'anio' => $data['anio'],
+            ]);
             $source?->tarifas()->chunkById(200, function ($tarifas) use ($tarifario) {
                 foreach ($tarifas as $tarifa) {
                     ServicioContrato::asegurar($tarifa->servicio, $tarifario->anio);
@@ -311,18 +320,32 @@ class TarifaContratoController extends Controller
         });
 
         return redirect()->route('tarifa-contrato.index', ['tarifario_id' => $tarifario->id])
-            ->with('success', 'Tarifario creado. Carga o edita sus tarifas y luego asígnalo a las empresas.');
+            ->with('success', "Tarifario de {$tarifario->nombre} creado. Carga los precios y aprueba su uso cuando estén listos.");
     }
 
     public function actualizarTarifario(Request $request, TarifarioContrato $tarifario)
     {
         $this->authorizeTarifaContratoButtonAction('save');
         $data = $request->validate([
-            'nombre' => ['required', 'string', 'max:180', Rule::unique('tarifarios_contrato')->where('anio', $request->input('anio'))->ignore($tarifario->id)],
             'anio' => ['required', 'integer', 'between:2000,2100'],
+            'empresa_titular_id' => $tarifario->publicado_en
+                ? ['prohibited']
+                : ['required', 'integer', Rule::exists('empresa', 'id')],
+        ], [
+            'empresa_titular_id.required' => 'Selecciona la empresa titular.',
+            'empresa_titular_id.exists' => 'Selecciona una empresa registrada.',
+            'empresa_titular_id.prohibited' => 'La empresa titular de un tarifario aprobado se conserva.',
         ]);
         DB::transaction(function () use ($tarifario, $data) {
             $tarifario = TarifarioContrato::query()->lockForUpdate()->findOrFail($tarifario->id);
+            if ($tarifario->publicado_en && isset($data['empresa_titular_id'])) {
+                throw ValidationException::withMessages(['empresa_titular_id' => 'La empresa titular de un tarifario aprobado se conserva.']);
+            }
+            $empresaId = $data['empresa_titular_id'] ?? $tarifario->empresa_titular_id;
+            $empresa = $empresaId ? Empresa::query()->lockForUpdate()->findOrFail($empresaId) : null;
+            $nombre = $empresa?->nombre ?? $tarifario->nombre;
+            $this->validarTarifarioUnico($empresa?->id, $nombre, (int) $data['anio'], $tarifario->id);
+
             if ($tarifario->anio !== (int) $data['anio']) {
                 $tarifario->tarifas()->select(['id', 'servicio'])->chunkById(200, function ($tarifas) use ($data) {
                     foreach ($tarifas as $tarifa) {
@@ -331,10 +354,42 @@ class TarifaContratoController extends Controller
                     }
                 });
             }
-            $tarifario->update($data);
+            $tarifario->update([
+                'empresa_titular_id' => $empresa?->id,
+                'nombre' => $nombre,
+                'anio' => $data['anio'],
+            ]);
         });
 
-        return redirect()->route('tarifa-contrato.tarifarios')->with('success', 'Nombre y año actualizados.');
+        return redirect()->route('tarifa-contrato.tarifarios')->with('success', 'Datos del tarifario actualizados.');
+    }
+
+    private function validarTarifarioUnico(?int $empresaId, string $nombre, int $anio, ?int $exceptoId = null): void
+    {
+        $existe = TarifarioContrato::query()->where('empresa_titular_id', $empresaId)->where('anio', $anio)
+            ->when($empresaId === null, fn ($query) => $query->where('nombre', $nombre))
+            ->when($exceptoId, fn ($query, $id) => $query->whereKeyNot($id))
+            ->exists();
+        if ($existe) {
+            throw ValidationException::withMessages(['anio' => $empresaId
+                ? 'La empresa ya tiene un tarifario para ese año. Ábrelo desde Tarifarios registrados.'
+                : 'Ya existe un tarifario con ese nombre y año.']);
+        }
+    }
+
+    public function aprobarTarifario(TarifarioContrato $tarifario)
+    {
+        $this->authorizeTarifaContratoButtonAction('save');
+        app(TarifarioContratoService::class)->aprobar($tarifario->id);
+
+        $empresa = $tarifario->refresh()->empresaTitular;
+
+        return redirect()->route('tarifa-contrato.tarifarios')->with('success', match (true) {
+            $empresa && $tarifario->empresasActivas()->whereKey($empresa->id)->exists() =>
+                "Tarifario aprobado para {$empresa->nombre}. Las nuevas guías usarán estos precios.",
+            $empresa !== null => 'Este tarifario ya estaba aprobado. Consulta su asignación en Tarifarios registrados.',
+            default => 'Tarifario aprobado para uso. Sus precios están protegidos y ya puede asignarse a empresas.',
+        });
     }
 
     public function asignarTarifario(Request $request, TarifarioContrato $tarifario)
@@ -354,8 +409,8 @@ class TarifaContratoController extends Controller
     {
         $q = trim((string) $request->query('q', ''));
         $servicio = strtoupper(trim((string) $request->query('servicio', '')));
-        $origen = strtoupper(trim((string) $request->query('origen', '')));
-        $destino = strtoupper(trim((string) $request->query('destino', '')));
+        $origen = $this->normalizeDepartamento($request->query('origen', ''));
+        $destino = $this->normalizeDepartamento($request->query('destino', ''));
         $empresaId = (int) $request->query('empresa_id', 0);
         $tarifarioId = (int) $request->query('tarifario_id', 0);
 
@@ -369,28 +424,12 @@ class TarifaContratoController extends Controller
             ->orderBy('servicio')
             ->pluck('servicio');
 
-        $origenesFiltro = TarifaContrato::query()
-            ->select('origen')
-            ->whereNotNull('origen')
-            ->whereRaw("trim(origen) <> ''")
-            ->distinct()
-            ->orderBy('origen')
-            ->pluck('origen');
-
-        $destinosFiltro = TarifaContrato::query()
-            ->select('destino')
-            ->whereNotNull('destino')
-            ->whereRaw("trim(destino) <> ''")
-            ->distinct()
-            ->orderBy('destino')
-            ->pluck('destino');
-
         $empresasFiltro = Empresa::query()
             ->orderBy('nombre')
             ->get(['id', 'nombre', 'sigla']);
 
         $tarifas = TarifaContrato::query()
-            ->with(['tarifario.empresasActivas'])
+            ->with(['tarifario.empresasActivas', 'tarifario.empresaTitular:id,nombre,codigo_cliente'])
             ->when($tarifarioId > 0, fn ($query) => $query->where('tarifario_contrato_id', $tarifarioId))
             ->when($empresaId > 0, function ($query) use ($empresaId) {
                 $query->paraEmpresa($empresaId);
@@ -432,10 +471,11 @@ class TarifaContratoController extends Controller
             'destino' => $destino,
             'empresaId' => $empresaId,
             'tarifarioId' => $tarifarioId,
-            'tarifarios' => TarifarioContrato::query()->orderByRaw('anio IS NULL')->orderByDesc('anio')->orderBy('nombre')->get(),
+            'tarifarios' => TarifarioContrato::query()->with('empresaTitular:id,nombre,codigo_cliente')
+                ->orderByRaw('anio IS NULL')->orderByDesc('anio')->orderBy('nombre')->get(),
             'serviciosFiltro' => $serviciosFiltro,
-            'origenesFiltro' => $origenesFiltro,
-            'destinosFiltro' => $destinosFiltro,
+            'origenesFiltro' => self::DEPARTAMENTOS,
+            'destinosFiltro' => self::DEPARTAMENTOS,
             'empresasFiltro' => $empresasFiltro,
         ]);
     }
@@ -443,7 +483,24 @@ class TarifaContratoController extends Controller
     public function create(Request $request)
     {
         $copyId = (int) $request->query('copy_id', 0);
-        $this->authorizeTarifaContratoButtonAction($copyId > 0 ? 'duplicate' : 'create');
+        $hasTarifarioOrigen = $request->filled('tarifario_origen_id');
+        $this->authorizeTarifaContratoButtonAction($copyId > 0 || $hasTarifarioOrigen ? 'duplicate' : 'create');
+
+        $tarifarioOrigen = null;
+        $filasPrecargadas = [];
+        if ($hasTarifarioOrigen) {
+            $request->validate(['tarifario_origen_id' => ['required', 'integer', Rule::exists('tarifarios_contrato', 'id')]]);
+            $tarifarioOrigen = TarifarioContrato::query()->findOrFail($request->integer('tarifario_origen_id'));
+            $filasPrecargadas = $tarifarioOrigen->tarifas()->orderBy('id')->get()->map(function (TarifaContrato $tarifa) {
+                $fila = Arr::except(Arr::only($tarifa->toArray(), self::FORM_FIELDS), ['tarifario_contrato_id']);
+                $fila['origen'] = $this->normalizeDepartamento($tarifa->origen);
+                $fila['destino'] = $this->normalizeDepartamento($tarifa->destino);
+                $fila['servicio'] = $this->normalizeServicio($tarifa->servicio);
+                $fila['zona'] = $tarifa->zonaLocal() ?? $tarifa->zona;
+
+                return $fila;
+            })->all();
+        }
 
         if ($request->boolean('reset')) {
             $request->session()->forget('tarifa_contrato_defaults');
@@ -461,6 +518,9 @@ class TarifaContratoController extends Controller
         if ($request->filled('tarifario_id')) {
             $defaults['tarifario_contrato_id'] = (int) $request->query('tarifario_id');
         }
+        if (ServicioContrato::esLocal((string) ($defaults['servicio'] ?? ''))) {
+            $defaults['zona'] = TarifaContrato::normalizarZona($defaults['zona'] ?? null);
+        }
 
         return view('tarifa_contrato.create', [
             'tarifaContrato' => new TarifaContrato(),
@@ -469,13 +529,33 @@ class TarifaContratoController extends Controller
             'provinciasPorDepartamento' => self::PROVINCIAS_POR_DEPARTAMENTO,
             'defaults' => $defaults,
             'copySource' => $copySource,
-            'tarifarios' => TarifarioContrato::query()->whereNull('publicado_en')->orderByRaw('anio IS NULL')->orderByDesc('anio')->orderBy('nombre')->get(),
+            'tarifarioOrigen' => $tarifarioOrigen,
+            'filasPrecargadas' => $filasPrecargadas,
+            'maxSheetRows' => count($filasPrecargadas) + self::MAX_FILAS_MANUALES,
+            'tarifariosOrigen' => TarifarioContrato::query()->whereHas('tarifas')->withCount('tarifas')
+                ->with(['empresaTitular:id,nombre,codigo_cliente', 'empresasActivas:id,nombre'])->orderByDesc('anio')->orderBy('nombre')->get(),
+            'tarifarios' => TarifarioContrato::query()->with('empresaTitular:id,nombre,codigo_cliente')->whereNull('publicado_en')
+                ->when($tarifarioOrigen, fn ($query, $source) => $query->whereKeyNot($source->id))
+                ->orderByRaw('anio IS NULL')->orderByDesc('anio')->orderBy('nombre')->get(),
         ]);
     }
 
     public function store(Request $request)
     {
         $this->authorizeTarifaContratoButtonAction('save');
+
+        if ($request->hasAny(['tarifario_origen_id', 'tarifas_serializadas'])) {
+            $this->authorizeTarifaContratoButtonAction('duplicate');
+            $data = $request->validate([
+                'tarifario_origen_id' => ['required', 'integer', Rule::exists('tarifarios_contrato', 'id')],
+                'tarifas_serializadas' => ['required', 'string', 'json'],
+            ]);
+            $origen = TarifarioContrato::query()->withCount('tarifas')->findOrFail($data['tarifario_origen_id']);
+            $request->merge(['tarifas' => json_decode($data['tarifas_serializadas'], true)]);
+            $request->offsetUnset('tarifas_serializadas');
+
+            return $this->storeMultiple($request, $origen);
+        }
 
         if ($request->has('tarifas')) {
             return $this->storeMultiple($request);
@@ -499,16 +579,28 @@ class TarifaContratoController extends Controller
             ->with('success', 'Tarifa de contrato creada correctamente.');
     }
 
-    private function storeMultiple(Request $request)
+    private function storeMultiple(Request $request, ?TarifarioContrato $origen = null)
     {
+        $limiteFilas = self::MAX_FILAS_MANUALES + ($origen?->tarifas_count ?? 0);
         $request->validate([
             'tarifario_contrato_id' => ['required', 'integer', Rule::exists('tarifarios_contrato', 'id')],
-            'tarifas' => ['required', 'array', 'list', 'min:1', 'max:50'],
+            'tarifas' => ['required', 'array', 'list', 'min:1', 'max:'.$limiteFilas],
             'tarifas.*' => ['array'],
         ]);
 
         $rows = [];
-        $anio = TarifarioContrato::query()->findOrFail($request->integer('tarifario_contrato_id'))->anio;
+        $destino = TarifarioContrato::query()->findOrFail($request->integer('tarifario_contrato_id'));
+        if ($origen?->is($destino)) {
+            throw ValidationException::withMessages(['tarifario_contrato_id' => 'El tarifario de destino debe ser distinto del tarifario de origen.']);
+        }
+        $anio = $destino->anio;
+        $rowRules = $this->validationRules(anio: $anio);
+        if ($origen) {
+            $serviciosPermitidos = $destino->serviciosDisponibles()->pluck('nombre')->merge(
+                $origen->tarifas()->distinct()->pluck('servicio')->map(fn ($nombre) => $this->normalizeServicio($nombre))
+            )->unique()->all();
+            $rowRules['servicio'] = ['required', 'string', 'max:255', Rule::in($serviciosPermitidos)];
+        }
         $rules = [];
         $attributes = [];
 
@@ -519,6 +611,9 @@ class TarifaContratoController extends Controller
             }
 
             $row['tarifario_contrato_id'] = $request->input('tarifario_contrato_id');
+            if ($origen && ($row['peso'] ?? '') === '') {
+                $row['peso'] = null;
+            }
             $rows[$index] = $this->normalizeFormData($row);
             foreach (['peso', 'kilo', 'kilo_extra', 'retencion'] as $field) {
                 // Accept Excel decimals with a comma, keeping invalid text for validation.
@@ -529,7 +624,7 @@ class TarifaContratoController extends Controller
                 }
             }
 
-            foreach ($this->validationRules(anio: $anio) as $field => $fieldRules) {
+            foreach ($rowRules as $field => $fieldRules) {
                 $key = "tarifas.{$index}.{$field}";
                 $rules[$key] = $fieldRules;
                 $attributes[$key] = 'fila '.($index + 1).', '.str_replace('_', ' ', $field);
@@ -542,17 +637,42 @@ class TarifaContratoController extends Controller
 
         $validated = Validator::make(['tarifas' => $rows], $rules, [], $attributes)->validate();
 
-        DB::transaction(function () use ($validated, $request) {
-            app(TarifarioContratoService::class)->editable((int) $request->input('tarifario_contrato_id'));
-            foreach ($validated['tarifas'] as $row) {
+        $filas = $validated['tarifas'];
+        $insertadas = DB::transaction(function () use ($filas, $destino, $origen, $anio) {
+            $editable = app(TarifarioContratoService::class)->editable($destino->id);
+            if ($origen) {
+                if ($editable->anio !== $anio) {
+                    throw ValidationException::withMessages(['tarifario_contrato_id' => 'El año del tarifario de destino cambió. Revisa la selección antes de guardar.']);
+                }
+
+                foreach (collect($filas)->pluck('servicio')->unique() as $servicio) {
+                    ServicioContrato::asegurar($servicio, $anio);
+                }
+
+                $nuevas = 0;
+                foreach ($filas as $fila) {
+                    $nuevas += (int) $this->guardarTarifaImportada($fila, compararPeso: true);
+                }
+
+                return $nuevas;
+            }
+
+            foreach ($filas as $row) {
                 TarifaContrato::query()->create($row);
             }
+
+            return count($filas);
         });
 
-        $count = count($validated['tarifas']);
+        if ($origen) {
+            $actualizadas = count($filas) - $insertadas;
+
+            return redirect()->route('tarifa-contrato.index', ['tarifario_id' => $destino->id])
+                ->with('success', "Tarifario {$destino->etiqueta} guardado. Creadas: {$insertadas}, actualizadas: {$actualizadas}.");
+        }
 
         return redirect()->route('tarifa-contrato.index')
-            ->with('success', "Se registraron {$count} tarifas de contrato correctamente.");
+            ->with('success', "Se registraron {$insertadas} tarifas de contrato correctamente.");
     }
 
     public function importForm()
@@ -563,7 +683,8 @@ class TarifaContratoController extends Controller
             'serviciosPorAnio' => ServicioContrato::catalogoPorAnio(),
             'departamentos' => self::DEPARTAMENTOS,
             'columnas' => array_values(self::IMPORT_COLUMN_LABELS),
-            'tarifarios' => TarifarioContrato::query()->whereNull('publicado_en')->orderByRaw('anio IS NULL')->orderByDesc('anio')->orderBy('nombre')->get(),
+            'tarifarios' => TarifarioContrato::query()->with('empresaTitular:id,nombre,codigo_cliente')
+                ->whereNull('publicado_en')->orderByRaw('anio IS NULL')->orderByDesc('anio')->orderBy('nombre')->get(),
         ]);
     }
 
@@ -612,6 +733,7 @@ class TarifaContratoController extends Controller
             $created = 0;
             $updated = 0;
             $errors = [];
+            $compararPeso = in_array('kilo_de_1_a_2', $header, true) || in_array('peso', $header, true);
             $line = 1; // Cabecera
 
             foreach ($rows as $row) {
@@ -652,7 +774,7 @@ class TarifaContratoController extends Controller
 
                 $validator = Validator::make(
                     $payload,
-                    $this->validationRules((string) ($payload['destino'] ?? ''), (string) ($payload['origen'] ?? ''), $tarifario->anio),
+                    $this->validationRules($tarifario->anio),
                     $this->importValidationMessages(),
                     [
                         'tarifario_contrato_id' => 'tarifario',
@@ -676,33 +798,21 @@ class TarifaContratoController extends Controller
                     continue;
                 }
 
-                $validated = $validator->validated();
-                $unique = Arr::only($validated, [
-                    'tarifario_contrato_id',
-                    'origen',
-                    'destino',
-                    'servicio',
-                    'provincia',
-                    'provincia_origen',
-                ]);
-
-                $values = Arr::only($validated, ['direccion', 'zona', 'kilo', 'kilo_extra', 'retencion', 'horas_entrega']);
-                if (in_array('kilo_de_1_a_2', $header, true) || in_array('peso', $header, true)) {
-                    $unique['peso'] = $validated['peso'] ?? null;
-                }
-
-                $tarifa = TarifaContrato::query()->where($unique)->orderByDesc('id')->first();
-                if ($tarifa) {
-                    $tarifa->update($values);
-                    $updated++;
-                } else {
-                    TarifaContrato::query()->create($validated);
+                if ($this->guardarTarifaImportada($validator->validated(), $compararPeso)) {
                     $created++;
+                } else {
+                    $updated++;
                 }
             }
 
-            $message = "Importacion completada. Creadas: {$created}, actualizadas: {$updated}.";
-            $redirect = redirect()->route('tarifa-contrato.import-form', ['tarifario_id' => $request->input('tarifario_contrato_id')]);
+            $message = "Importación completada. Creadas: {$created}, actualizadas: {$updated}.";
+            $redirectRoute = 'tarifa-contrato.import-form';
+            $redirectParams = ['tarifario_id' => $tarifario->id];
+            if ($request->boolean('volver_a_crear')) {
+                $redirectRoute = 'tarifa-contrato.create';
+                $redirectParams['copy_id'] = $request->integer('copy_id') ?: null;
+            }
+            $redirect = redirect()->route($redirectRoute, $redirectParams);
 
             if ($created === 0 && $updated === 0 && empty($errors)) {
                 $redirect->with('warning', 'No se guardo ninguna fila. Revisa que el archivo tenga datos desde la fila 2 y valores validos.');
@@ -718,6 +828,32 @@ class TarifaContratoController extends Controller
 
             return $redirect;
         });
+    }
+
+    private function guardarTarifaImportada(array $data, bool $compararPeso): bool
+    {
+        $clave = Arr::only($data, ['tarifario_contrato_id', 'origen', 'destino', 'servicio', 'provincia', 'provincia_origen']);
+        if ($compararPeso) {
+            $clave['peso'] = $data['peso'] ?? null;
+        }
+
+        $coincidencias = TarifaContrato::query()->where($clave)->orderByDesc('id');
+        if (ServicioContrato::esLocal($data['servicio'])) {
+            $zona = TarifaContrato::normalizarZona($data['zona'] ?? null);
+            $tarifa = $coincidencias->get()->first(fn (TarifaContrato $item) => $item->zonaLocal() === $zona);
+        } else {
+            $tarifa = $coincidencias->first();
+        }
+
+        if ($tarifa) {
+            $tarifa->update(Arr::only($data, ['direccion', 'zona', 'kilo', 'kilo_extra', 'retencion', 'horas_entrega']));
+
+            return false;
+        }
+
+        TarifaContrato::query()->create($data);
+
+        return true;
     }
 
     private function buildImportRowSummary(array $data): string
@@ -781,12 +917,8 @@ class TarifaContratoController extends Controller
         $rules = is_string($field) ? array_keys((array) ($failed[$field] ?? [])) : [];
         $rule = $rules[0] ?? null;
 
-        if ($field === 'origen' && $rule === 'In') {
-            return 'no se guardo porque el origen no coincide con un departamento valido. Usa por ejemplo LA PAZ, COCHABAMBA, SANTA CRUZ, SUCRE, TRINIDAD o COBIJA.';
-        }
-
-        if ($field === 'destino' && $rule === 'In') {
-            return 'no se guardo porque el destino no coincide con un departamento valido. Si escribiste una provincia como destino, pon el departamento. Ejemplo: SUCRE para CHUQUISACA, TRINIDAD para BENI y COBIJA para PANDO.';
+        if (in_array($field, ['origen', 'destino'], true) && in_array($rule, ['In', 'Required'], true)) {
+            return "elige uno de los nueve departamentos de la plantilla para {$field}.";
         }
 
         if ($field === 'servicio' && in_array($rule, ['In', 'Exists'], true)) {
@@ -808,7 +940,7 @@ class TarifaContratoController extends Controller
         return 'no se guardo porque ' . $validator->errors()->first();
     }
 
-    public function downloadTemplateExcel(Request $request)
+    public function downloadTemplateExcel(Request $request): StreamedResponse
     {
         $this->authorizeTarifaContratoButtonAction('export');
         $request->validate([
@@ -818,48 +950,128 @@ class TarifaContratoController extends Controller
         $anio = $request->filled('tarifario_id')
             ? TarifarioContrato::query()->findOrFail($request->integer('tarifario_id'))->anio
             : ($request->input('anio') === 'sin-anio' ? null : (int) $request->input('anio', now()->year));
-        $servicios = ServicioContrato::deAnio($anio)->orderBy('nombre')->pluck('nombre')->all();
-        $columns = array_map(fn ($column) => self::IMPORT_COLUMN_LABELS[$column], self::IMPORT_COLUMNS);
 
-        return response()->streamDownload(function () use ($columns, $servicios, $anio) {
+        return $this->downloadTarifarioExcel($anio, 'plantilla_tarifa_contrato.xlsx');
+    }
+
+    public function exportExcel(Request $request): StreamedResponse
+    {
+        $this->authorizeTarifaContratoButtonAction('export');
+        $validated = $request->validate([
+            'empresa_id' => ['nullable', 'required_without:tarifario_id', 'integer', Rule::exists('empresa', 'id')],
+            'tarifario_id' => ['nullable', 'required_without:empresa_id', 'integer', Rule::exists('tarifarios_contrato', 'id')],
+        ], [
+            'empresa_id.required_without' => 'Selecciona una empresa o un tarifario para descargar.',
+            'tarifario_id.required_without' => 'Selecciona una empresa o un tarifario para descargar.',
+        ]);
+
+        $tarifarios = TarifarioContrato::query()
+            ->when($validated['tarifario_id'] ?? null, fn ($query, $id) => $query->whereKey($id))
+            ->when($validated['empresa_id'] ?? null, fn ($query, $id) => $query->whereHas(
+                'empresasActivas', fn ($empresas) => $empresas->whereKey($id)
+            ))
+            ->limit(2)
+            ->get();
+
+        if ($tarifarios->isEmpty()) {
+            throw ValidationException::withMessages(['empresa_id' => 'La empresa no tiene un tarifario activo que coincida con la selección.']);
+        }
+        if ($tarifarios->count() > 1) {
+            throw ValidationException::withMessages(['tarifario_id' => 'La empresa tiene más de un tarifario activo. Elige cuál deseas descargar.']);
+        }
+
+        $tarifario = $tarifarios->first();
+        $nombre = Str::slug($tarifario->nombre) ?: (string) $tarifario->id;
+        $anio = $tarifario->anio ?? 'sin-anio';
+
+        return $this->downloadTarifarioExcel($tarifario->anio, "tarifario-{$nombre}-{$anio}.xlsx", $tarifario);
+    }
+
+    private function downloadTarifarioExcel(?int $anio, string $filename, ?TarifarioContrato $tarifario = null): StreamedResponse
+    {
+        $servicios = ServicioContrato::deAnio($anio)->orderBy('nombre')->pluck('nombre')->all();
+
+        return response()->streamDownload(function () use ($servicios, $anio, $tarifario) {
             $spreadsheet = new Spreadsheet();
             $sheet = $spreadsheet->getActiveSheet();
             $sheet->setTitle('TarifaContrato');
-            $sheet->fromArray($columns, null, 'A1');
-            $sheet->freezePane('A2');
-            $sheet->setAutoFilter('A1:K1');
-            $sheet->getStyle('A1:K1')->applyFromArray([
-                'font' => ['bold' => true, 'color' => ['argb' => 'FFFFFFFF']],
-                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FF217346']],
-                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
-            ]);
-            $sheet->getRowDimension(1)->setRowHeight(44);
-            foreach (range('A', 'K') as $column) {
-                $sheet->getColumnDimension($column)->setWidth(24);
+            $resumen = $tarifario ? $spreadsheet->createSheet()->setTitle('Resumen') : null;
+            $columns = self::IMPORT_COLUMNS;
+            $columnasServicio = ['destino', 'origen', ...array_slice(self::IMPORT_COLUMNS, 2)];
+            $hojasServicio = [];
+            $tarifas = $tarifario?->tarifas()->orderBy('servicio')->orderByRaw('UPPER(TRIM(destino))')
+                ->orderBy('origen')->orderBy('zona')->orderBy('id')->cursor() ?? [];
+            $row = 2;
+            foreach ($tarifas as $tarifa) {
+                if ($tarifa->peso !== null && ! in_array('peso', $columns, true)) {
+                    $columns[] = 'peso';
+                    $columnasServicio[] = 'peso';
+                }
+                $this->writeTarifaExcelRow($sheet, $row++, $tarifa, $columns);
+
+                $servicio = $tarifa->servicio;
+                if (! isset($hojasServicio[$servicio])) {
+                    $prefijo = sprintf('%02d - ', count($hojasServicio) + 1);
+                    $nombre = trim(str_replace([...Worksheet::getInvalidCharacters(), "'"], ' ', $servicio));
+                    $titulo = $prefijo.mb_substr($nombre ?: 'Servicio', 0, 31 - strlen($prefijo));
+                    $hojasServicio[$servicio] = ['hoja' => $spreadsheet->createSheet()->setTitle($titulo), 'fila' => 4];
+                }
+
+                $this->writeTarifaExcelRow(
+                    $hojasServicio[$servicio]['hoja'],
+                    $hojasServicio[$servicio]['fila']++,
+                    $tarifa,
+                    $columnasServicio,
+                );
             }
-            $sheet->getColumnDimension('C')->setWidth(42);
-            $sheet->getColumnDimension('D')->setWidth(32);
-            $sheet->getColumnDimension('E')->setWidth(32);
-            $sheet->getStyle('D2:E5000')->getNumberFormat()->setFormatCode('#,##0.00');
-            $sheet->getStyle('F2:F5000')->getNumberFormat()->setFormatCode('0');
-            $sheet->getStyle('K2:K5000')->getNumberFormat()->setFormatCode('#,##0.00');
+
+            $lastRow = $row - 1;
+            $lastEditableRow = max(5000, $lastRow);
+            $this->formatearHojaTarifas($sheet, $columns, 1, $lastRow, $lastEditableRow);
+            if ($resumen) {
+                foreach ($hojasServicio as $servicio => ['hoja' => $hoja, 'fila' => $siguienteFila]) {
+                    $this->formatearHojaTarifas($hoja, $columnasServicio, 3, $siguienteFila - 1, $siguienteFila - 1, 'Departamento de destino');
+                    $ultimaColumna = $hoja->getHighestDataColumn();
+                    $hoja->mergeCells("A1:{$ultimaColumna}1");
+                    $hoja->setCellValueExplicit('A1', $servicio, DataType::TYPE_STRING);
+                    $hoja->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+                    $hoja->getRowDimension(1)->setRowHeight(28);
+                    $hoja->setCellValue('A2', 'Volver al resumen');
+                    $this->enlazarHojaExcel($hoja, 'A2', $resumen);
+                    $hoja->setCellValue('C2', 'Abrir hoja para importar');
+                    $this->enlazarHojaExcel($hoja, 'C2', $sheet);
+                    $hoja->freezePane('B4');
+                }
+                $this->llenarResumenExcel($resumen, $tarifario->etiqueta, $sheet, $hojasServicio);
+            }
 
             $catalogos = $spreadsheet->createSheet();
             $catalogos->setTitle('Catalogos');
-            $catalogos->fromArray(['SERVICIOS '.($anio ?? 'AÑO POR DEFINIR'), 'DEPARTAMENTOS'], null, 'A1');
+            $catalogos->fromArray(['SERVICIOS '.($anio ?? 'AÑO POR DEFINIR'), 'DEPARTAMENTOS', 'ZONAS LOCALES'], null, 'A1');
             foreach ($servicios as $index => $servicio) {
                 $catalogos->setCellValue('A'.($index + 2), $servicio);
             }
             foreach (self::DEPARTAMENTOS as $index => $departamento) {
                 $catalogos->setCellValue('B'.($index + 2), $departamento);
             }
+            foreach (TarifaContrato::ZONAS_LOCALES as $index => $zona) {
+                $catalogos->setCellValue('C'.($index + 2), $zona);
+            }
             $catalogos->getColumnDimension('A')->setWidth(48);
             $catalogos->getColumnDimension('B')->setWidth(24);
+            $catalogos->getColumnDimension('C')->setWidth(24);
             $lastService = max(2, count($servicios) + 1);
             $lastDepartment = count(self::DEPARTAMENTOS) + 1;
-            $this->applyListValidation($sheet, 'A2:A5000', "=Catalogos!\$B\$2:\$B\${$lastDepartment}");
-            $this->applyListValidation($sheet, 'B2:B5000', "=Catalogos!\$B\$2:\$B\${$lastDepartment}");
-            $this->applyListValidation($sheet, 'C2:C5000', "=Catalogos!\$A\$2:\$A\${$lastService}");
+            $formulaDepartamentos = "=Catalogos!\$B\$2:\$B\${$lastDepartment}";
+            foreach (['A', 'B'] as $columna) {
+                $this->applyListValidation($sheet, "{$columna}2:{$columna}{$lastEditableRow}", $formulaDepartamentos, allowBlank: false);
+                foreach ($hojasServicio as ['hoja' => $hoja, 'fila' => $siguienteFila]) {
+                    $ultimaFila = $siguienteFila - 1;
+                    $this->applyListValidation($hoja, "{$columna}4:{$columna}{$ultimaFila}", $formulaDepartamentos, allowBlank: false);
+                }
+            }
+            $this->applyListValidation($sheet, "C2:C{$lastEditableRow}", "=Catalogos!\$A\$2:\$A\${$lastService}");
+            $this->applyListValidation($sheet, "H2:H{$lastEditableRow}", '=Catalogos!$C$2:$C$'.(count(TarifaContrato::ZONAS_LOCALES) + 1), strict: false);
 
             $instructions = $spreadsheet->createSheet();
             $instructions->setTitle('Instrucciones');
@@ -869,17 +1081,117 @@ class TarifaContratoController extends Controller
                 ['Cada archivo carga las tarifas de un solo tarifario; las empresas se asignan después.'],
                 ['No cambies los encabezados. Empieza a llenar datos desde la fila 2.'],
                 ['Los títulos son los mismos que en la plataforma. Los campos con * son obligatorios.'],
+                ['En Origen y Destino, selecciona uno de los nueve valores en mayúsculas de la hoja Catalogos.'],
                 ['Primer kilogramo: precio (Bs) y Kilogramo extra: precio (Bs) indican los precios. No es necesario llenar un peso.'],
+                ['Para precios locales por zona, usa una fila por ruta y zona. En la columna Zona puedes elegir Zona 1, Zona 2 o Zona 3.'],
                 ['Opcionales: dirección, zona, provincias y retención. Retención vacía equivale a 0 %.'],
                 ['Para pegar en la página: copia solo las celdas de datos de A a K (sin la cabecera, máximo 50 filas por vez).'],
                 ['Los tarifarios publicados conservan sus precios. Crea o copia otro tarifario para renovar.'],
                 ['Haz clic en la primera celda de Origen, pega con Ctrl+V, revisa los datos y pulsa Guardar tarifas.'],
             ], null, 'A1');
+            if (in_array('peso', $columns, true)) {
+                $instructions->setCellValue('A'.($instructions->getHighestDataRow() + 1), 'Usa Importar Excel para conservar los datos de la columna Peso (kg).');
+            }
             $instructions->getColumnDimension('A')->setWidth(120);
-            $instructions->getStyle('A1:A10')->getAlignment()->setWrapText(true);
-            $spreadsheet->setActiveSheetIndex(0);
+            $instructions->getStyle('A1:A'.$instructions->getHighestDataRow())->getAlignment()->setWrapText(true);
+            $spreadsheet->setActiveSheetIndexByName($resumen ? 'Resumen' : 'TarifaContrato');
             (new Xlsx($spreadsheet))->save('php://output');
-        }, 'plantilla_tarifa_contrato.xlsx');
+        }, $filename, ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
+    }
+
+    private function formatearHojaTarifas(
+        Worksheet $hoja,
+        array $columnas,
+        int $cabecera,
+        int $ultimaFila,
+        int $ultimaFilaConFormato,
+        ?string $tituloDestino = null,
+    ): void {
+        $titulos = array_map(fn ($columna) => match ($columna) {
+            'destino' => $tituloDestino ?? self::IMPORT_COLUMN_LABELS['destino'],
+            'peso' => 'Peso (kg) (opcional)',
+            default => self::IMPORT_COLUMN_LABELS[$columna],
+        }, $columnas);
+        $hoja->fromArray($titulos, null, 'A'.$cabecera);
+        $primeraFila = $cabecera + 1;
+        $ultimaColumna = $hoja->getHighestDataColumn();
+        $hoja->freezePane('A'.$primeraFila);
+        $hoja->setAutoFilter("A{$cabecera}:{$ultimaColumna}{$ultimaFila}");
+        $hoja->getStyle("A{$cabecera}:{$ultimaColumna}{$cabecera}")->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['argb' => 'FFFFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FF217346']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
+        ]);
+        $hoja->getRowDimension($cabecera)->setRowHeight(44);
+        foreach (range('A', $ultimaColumna) as $columna) {
+            $hoja->getColumnDimension($columna)->setWidth(24);
+        }
+        $hoja->getColumnDimension('C')->setWidth(42);
+        $hoja->getColumnDimension('D')->setWidth(32);
+        $hoja->getColumnDimension('E')->setWidth(32);
+        $hoja->getStyle("D{$primeraFila}:E{$ultimaFilaConFormato}")->getNumberFormat()->setFormatCode('0.00');
+        $hoja->getStyle("F{$primeraFila}:F{$ultimaFilaConFormato}")->getNumberFormat()->setFormatCode('0');
+        $hoja->getStyle("K{$primeraFila}:K{$ultimaFilaConFormato}")->getNumberFormat()->setFormatCode('0.00');
+        if ($ultimaColumna === 'L') {
+            $hoja->getStyle("L{$primeraFila}:L{$ultimaFilaConFormato}")->getNumberFormat()->setFormatCode('0.00');
+        }
+    }
+
+    private function llenarResumenExcel(Worksheet $resumen, string $nombreTarifario, Worksheet $hojaImportable, array $hojasServicio): void
+    {
+        $resumen->mergeCells('A1:C1')->setCellValue('A1', 'Tarifario '.$nombreTarifario);
+        $resumen->getStyle('A1')->getFont()->setBold(true)->setSize(16);
+        $resumen->getRowDimension(1)->setRowHeight(30);
+        $resumen->mergeCells('A2:C2')->setCellValue('A2', 'Abre una pestaña por servicio para consultar los departamentos de destino de la A a la Z.');
+        $resumen->mergeCells('A3:C3')->setCellValue('A3', 'Abrir TarifaContrato para editar y volver a importar');
+        $this->enlazarHojaExcel($resumen, 'A3', $hojaImportable);
+        $resumen->fromArray(['Servicio', 'Tarifas', 'Pestaña'], null, 'A5');
+        $resumen->getStyle('A5:C5')->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['argb' => 'FFFFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FF217346']],
+        ]);
+        $resumen->getColumnDimension('A')->setWidth(70);
+        $resumen->getColumnDimension('B')->setWidth(12);
+        $resumen->getColumnDimension('C')->setWidth(18);
+        $resumen->freezePane('A6');
+
+        $fila = 6;
+        foreach ($hojasServicio as $servicio => ['hoja' => $hoja, 'fila' => $siguienteFila]) {
+            $resumen->setCellValueExplicit('A'.$fila, $servicio, DataType::TYPE_STRING);
+            $resumen->setCellValue('B'.$fila, $siguienteFila - 4);
+            $resumen->setCellValue('C'.$fila, 'Abrir hoja');
+            $this->enlazarHojaExcel($resumen, 'C'.$fila, $hoja);
+            $fila++;
+        }
+        if ($hojasServicio === []) {
+            $resumen->setCellValue('A6', 'Este tarifario todavía no tiene tarifas.');
+        } else {
+            $resumen->getStyle('A6:A'.($fila - 1))->getAlignment()->setWrapText(true);
+        }
+    }
+
+    private function enlazarHojaExcel(Worksheet $origen, string $celda, Worksheet $destino): void
+    {
+        $origen->getCell($celda)->getHyperlink()->setUrl("sheet://'".$destino->getTitle()."'!A1");
+        $origen->getStyle($celda)->getFont()->setUnderline(true)->getColor()->setARGB('FF146344');
+    }
+
+    private function writeTarifaExcelRow(Worksheet $sheet, int $row, TarifaContrato $tarifa, array $columns): void
+    {
+        foreach ($columns as $index => $column) {
+            $value = match ($column) {
+                'origen', 'destino' => $this->normalizeDepartamento($tarifa->$column),
+                'zona' => $tarifa->zonaLocal() ?? $tarifa->zona,
+                'provincia_destino' => $tarifa->provincia,
+                'kilo', 'kilo_extra', 'retencion', 'peso' => $tarifa->$column === null ? null : (float) $tarifa->$column,
+                default => $tarifa->$column,
+            };
+
+            if ($value !== null) {
+                $type = is_int($value) || is_float($value) ? DataType::TYPE_NUMERIC : DataType::TYPE_STRING;
+                $sheet->setCellValueExplicit([$index + 1, $row], $value, $type);
+            }
+        }
     }
 
     public function reporte()
@@ -1030,7 +1342,7 @@ class TarifaContratoController extends Controller
                         $tarifa->origen ?: '—',
                         $tarifa->destino ?: '—',
                         $tarifa->direccion ?: '—',
-                        $tarifa->zona ?: '—',
+                        ($tarifa->zonaLocal() ?? $tarifa->zona) ?: '—',
                         $tarifa->peso !== null ? \App\Support\BolivianNumber::format($tarifa->peso, 2) : '—',
                         \App\Support\BolivianNumber::format($tarifa->kilo, 2),
                         \App\Support\BolivianNumber::format($tarifa->kilo_extra, 2),
@@ -1061,7 +1373,8 @@ class TarifaContratoController extends Controller
             'departamentos' => self::DEPARTAMENTOS,
             'provinciasPorDepartamento' => self::PROVINCIAS_POR_DEPARTAMENTO,
             'defaults' => [],
-            'tarifarios' => TarifarioContrato::query()->whereNull('publicado_en')->orWhereKey($tarifaContrato->tarifario_contrato_id)->orderByRaw('anio IS NULL')->orderByDesc('anio')->orderBy('nombre')->get(),
+            'tarifarios' => TarifarioContrato::query()->with('empresaTitular:id,nombre,codigo_cliente')
+                ->whereNull('publicado_en')->orWhereKey($tarifaContrato->tarifario_contrato_id)->orderByRaw('anio IS NULL')->orderByDesc('anio')->orderBy('nombre')->get(),
         ]);
     }
 
@@ -1103,7 +1416,10 @@ class TarifaContratoController extends Controller
         $anio = TarifarioContrato::query()->findOrFail($request->integer('tarifario_contrato_id'))->anio;
         $request->merge($this->normalizeFormData($request->only(self::FORM_FIELDS)));
 
-        $data = $request->validate($this->validationRules((string) $request->input('destino'), (string) $request->input('origen'), $anio));
+        $data = $request->validate($this->validationRules($anio), [
+            'origen.in' => 'Elige el origen de la lista de departamentos.',
+            'destino.in' => 'Elige el destino de la lista de departamentos.',
+        ]);
 
         if ($request->filled('peso')) {
             $data['peso'] = $this->parseDecimal($request->input('peso'));
@@ -1135,7 +1451,7 @@ class TarifaContratoController extends Controller
         return $data;
     }
 
-    private function validationRules(string $destino = '', string $origen = '', ?int $anio = null): array
+    private function validationRules(?int $anio = null): array
     {
         return [
             'tarifario_contrato_id' => ['required', 'integer', Rule::exists('tarifarios_contrato', 'id')],
@@ -1165,6 +1481,7 @@ class TarifaContratoController extends Controller
         }
 
         return match ($value) {
+            'zona (opcional)', 'zona / subservicio' => 'zona',
             'peso', 'peso (kg)', 'peso (kg) (opcional)' => 'kilo_de_1_a_2',
             'kilo de 1 a 2', 'kilo 1 a 2', 'kilo_de_1_a_2' => 'kilo_de_1_a_2',
             'provincia origen', 'provincia_origen' => 'provincia_origen',
@@ -1173,15 +1490,15 @@ class TarifaContratoController extends Controller
         };
     }
 
-    private function applyListValidation(Worksheet $sheet, string $range, string $formula): void
+    private function applyListValidation(Worksheet $sheet, string $range, string $formula, bool $strict = true, bool $allowBlank = true): void
     {
         [$start, $end] = explode(':', $range);
         $startCell = $sheet->getCell($start);
         $validation = $startCell->getDataValidation();
         $validation->setType(DataValidation::TYPE_LIST);
-        $validation->setAllowBlank(true);
+        $validation->setAllowBlank($allowBlank);
         $validation->setShowDropDown(true);
-        $validation->setShowErrorMessage(true);
+        $validation->setShowErrorMessage($strict);
         $validation->setErrorTitle('Valor invalido');
         $validation->setError('Selecciona un valor de la lista.');
         $validation->setFormula1($formula);
@@ -1288,9 +1605,7 @@ class TarifaContratoController extends Controller
 
     private function normalizeDepartamento($value): string
     {
-        $text = strtoupper(trim((string) $value));
-
-        return self::DEPARTAMENTO_ALIASES[$text] ?? $text;
+        return is_scalar($value) ? mb_strtoupper(trim((string) $value)) : '';
     }
 
 }

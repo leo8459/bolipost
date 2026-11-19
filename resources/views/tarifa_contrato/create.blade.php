@@ -1,51 +1,62 @@
 @extends('adminlte::page')
 @section('title', 'Crear tarifas de contrato')
-@section('template_title')
-    Tarifa Contrato
-@endsection
+@section('template_title', 'Crear tarifas de contrato')
+
+@push('css')
+    <link rel="stylesheet" href="{{ asset('css/tarifarios-contrato.css') }}?v={{ filemtime(public_path('css/tarifarios-contrato.css')) }}">
+@endpush
 
 @section('content')
-    <section class="content container-fluid">
-        <div class="row">
-            <div class="col-md-12">
-                @if ($errors->any())
-                    <div class="alert alert-danger">
-                        <ul class="mb-0">
-                            @foreach ($errors->all() as $error)
-                                <li>{{ $error }}</li>
-                            @endforeach
-                        </ul>
-                    </div>
-                @endif
-
-                <div class="card card-default tarifa-sheet-card">
-                    <div class="card-header">
-                        <h1 class="card-title font-weight-bold"><i class="fas fa-table mr-2" aria-hidden="true"></i>Crear tarifas de contrato</h1>
-                    </div>
-                    <div class="card-body">
-                        @if (collect($defaults ?? [])->except('tarifario_contrato_id')->contains(fn ($value) => $value !== null && $value !== ''))
-                            <div class="alert alert-info">
-                                La primera fila está precargada. Revisa sus datos antes de guardar.
-                                @aclcan('create', null, 'tarifa-contrato')
-                                <a href="{{ route('tarifa-contrato.create', ['reset' => 1, 'tarifario_id' => $defaults['tarifario_contrato_id'] ?? request('tarifario_id')]) }}" class="btn btn-sm btn-outline-secondary ml-2">
-                                    Limpiar precarga
-                                </a>
-                                @endaclcan
-                            </div>
-                        @endif
-                        @if (!empty($copySource))
-                            <div class="alert alert-warning">
-                                Usamos la tarifa #{{ $copySource->id }} como base para completar la primera fila.
-                            </div>
-                        @endif
-                        <form method="POST" action="{{ route('tarifa-contrato.store') }}" id="tarifas-sheet-form">
-                            @csrf
-                            @include('tarifa_contrato.spreadsheet')
-                        </form>
-                    </div>
-                </div>
-            </div>
+@php
+    $puedePrecargar = ($tarifariosOrigen ?? collect())->isNotEmpty() && \Illuminate\Support\Facades\Blade::check('aclcan', 'duplicate', null, 'tarifa-contrato');
+    $puedeImportar = \Illuminate\Support\Facades\Blade::check('aclcan', 'import', null, 'tarifa-contrato');
+@endphp
+<section class="content container-fluid pt-3 tarifario-pagina">
+    <header class="tarifario-encabezado">
+        <div>
+            <h1>Crear tarifas de contrato</h1>
+            <p>Elige el tarifario de destino y carga sus precios en la hoja o desde Excel.</p>
         </div>
-    </section>
-    @include('footer')
+        <nav class="tarifario-encabezado-acciones" aria-label="Administración de tarifas">
+            <a href="{{ route('tarifa-contrato.index') }}" class="btn tarifario-nav-secundario">Ver tarifas</a>
+            <a href="{{ route('tarifa-contrato.tarifarios') }}#tarifarios-registrados" class="btn tarifario-nav-principal">Tarifarios por empresa y año</a>
+        </nav>
+    </header>
+
+    @include('tarifa_contrato.import-feedback', ['successClass' => 'tarifario-aviso'])
+    @if($errors->any())
+        <div class="alert alert-danger" role="alert">
+            <ul class="mb-0">
+                @foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach
+            </ul>
+        </div>
+    @endif
+
+    @if($puedePrecargar)
+        <form method="GET" action="{{ route('tarifa-contrato.create') }}" id="tarifario-preload-form">
+            <input type="hidden" name="tarifario_id" value="{{ old('tarifario_contrato_id', $defaults['tarifario_contrato_id'] ?? '') }}">
+        </form>
+    @endif
+    @if($puedeImportar)
+        <form method="POST" action="{{ route('tarifa-contrato.import') }}" id="tarifas-excel-import-form" enctype="multipart/form-data">
+            @csrf
+            <input type="hidden" name="volver_a_crear" value="1">
+            <input type="hidden" name="tarifario_contrato_id">
+            <input type="hidden" name="tarifario_anio">
+            @if(request()->integer('copy_id') > 0)
+                <input type="hidden" name="copy_id" value="{{ request()->integer('copy_id') }}">
+            @endif
+        </form>
+    @endif
+
+    <form method="POST" action="{{ route('tarifa-contrato.store') }}" id="tarifas-sheet-form">
+        @csrf
+        @if(!empty($tarifarioOrigen))
+            <input type="hidden" name="tarifario_origen_id" value="{{ $tarifarioOrigen->id }}">
+            <input type="hidden" name="tarifas_serializadas">
+        @endif
+        @include('tarifa_contrato.spreadsheet')
+    </form>
+</section>
+@include('footer')
 @endsection

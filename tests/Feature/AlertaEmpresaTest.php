@@ -17,6 +17,8 @@ use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use Smalot\PdfParser\Parser;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -248,8 +250,40 @@ class AlertaEmpresaTest extends TestCase
         $this->assertDatabaseCount('alertas_empresa', 0);
     }
 
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_user_with_history_access_can_download_the_original_cover(): void
+    {
+        $this->withMiddleware(EnsureRoutePermission::class);
+        Storage::fake('public');
+        $user = User::factory()->create();
+        $user->givePermissionTo(Permission::findOrCreate('alertas-empresa.index', 'web'));
+
+        $alerta = $this->createPublishedAlert();
+        $cover = $this->fakePng();
+        $image = $cover->get();
+        Storage::disk('public')->put($alerta->portada_path, $image);
+        $downloadUrl = route('alertas-empresa.portada', ['alertaEmpresa' => $alerta, 'descargar' => 1], false);
+
+        $this->actingAs($user)->get(route('alertas-empresa.index'))
+            ->assertOk()
+            ->assertSee($downloadUrl)
+            ->assertSee('Descargar imagen');
+
+        $this->get(route('alertas-empresa.portada', $alerta))
+            ->assertOk()
+            ->assertHeader('Content-Disposition', 'inline');
+
+        $download = $this->get($downloadUrl)->assertDownload('alerta-'.$alerta->id.'.png');
+        $this->assertSame($image, $download->streamedContent());
+
+        $this->actingAs(User::factory()->create())->get($downloadUrl)->assertForbidden();
+    }
+
     public function test_empresa_role_only_lists_approved_alerts_for_its_own_company(): void
     {
+        $this->withMiddleware(EnsureRoutePermission::class);
+        Storage::fake('public');
         $ownEmpresa = $this->createEmpresa();
         $otherEmpresa = Empresa::query()->create([
             'nombre' => 'OTRA EMPRESA',
@@ -257,8 +291,8 @@ class AlertaEmpresaTest extends TestCase
             'codigo_cliente' => 'OE001',
         ]);
         $user = User::factory()->create(['empresa_id' => $ownEmpresa->id]);
-        $empresaRole = new Role(['name' => 'empresa', 'guard_name' => 'web']);
-        $user->setRelation('roles', collect([$empresaRole]));
+        $user->assignRole(Role::findOrCreate('empresa', 'web'));
+        $user->givePermissionTo(Permission::findOrCreate('alertas-empresa.index', 'web'));
 
         $ownAlert = AlertaEmpresa::query()->create([
             'titulo' => 'Alerta propia aprobada',
@@ -267,6 +301,8 @@ class AlertaEmpresaTest extends TestCase
             'aprobada_at' => now(),
         ]);
         $ownAlert->empresas()->attach([$ownEmpresa->id, $otherEmpresa->id]);
+        $cover = $this->fakePng();
+        Storage::disk('public')->put($ownAlert->portada_path, $cover->get());
 
         $otherAlert = AlertaEmpresa::query()->create([
             'titulo' => 'Alerta de otra empresa',
@@ -294,6 +330,13 @@ class AlertaEmpresaTest extends TestCase
 
         $this->actingAs($user)
             ->get(route('alertas-empresa.portada', $otherAlert))
+            ->assertForbidden();
+
+        $this->get(route('alertas-empresa.portada', ['alertaEmpresa' => $ownAlert, 'descargar' => 1]))
+            ->assertDownload('alerta-'.$ownAlert->id.'.png');
+        $this->get(route('alertas-empresa.portada', ['alertaEmpresa' => $otherAlert, 'descargar' => 1]))
+            ->assertForbidden();
+        $this->get(route('alertas-empresa.portada', ['alertaEmpresa' => $pendingAlert, 'descargar' => 1]))
             ->assertForbidden();
     }
 

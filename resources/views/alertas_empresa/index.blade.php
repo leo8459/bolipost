@@ -78,6 +78,9 @@
                                     @endif
                                 </td>
                                 <td class="text-right text-nowrap">
+                                    <a class="btn btn-sm btn-outline-primary" href="{{ route('alertas-empresa.portada', ['alertaEmpresa' => $alerta, 'descargar' => 1], false) }}">
+                                        <i class="fas fa-download mr-1" aria-hidden="true"></i>Descargar imagen
+                                    </a>
                                     @aclcan('print-readers', null, 'alertas-empresa')
                                         @if($alerta->aprobada_at)
                                             <a class="btn btn-sm btn-outline-success" href="{{ route('alertas-empresa.reporte-vistas', $alerta, false) }}" title="Descargar reporte PDF de vistas por empresa y usuario">

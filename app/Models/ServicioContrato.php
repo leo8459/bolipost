@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class ServicioContrato extends Model
 {
@@ -44,6 +45,11 @@ class ServicioContrato extends Model
         $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
 
         return str_replace(['LOCAL (REGULAR)', 'LOCAL (EXPRESS)'], ['LOCAL(REGULAR)', 'LOCAL(EXPRESS)'], $value);
+    }
+
+    public static function esLocal(string $nombre): bool
+    {
+        return preg_match('/^(?:(?:ENVIO|SERVICIO) )?LOCAL\b/', Str::ascii(self::normalizarNombre($nombre))) === 1;
     }
 
     public static function asegurar(string $nombre, ?int $anio): self
