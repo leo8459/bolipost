@@ -177,8 +177,10 @@ class Users extends Component
             $user->provincia_origen = $this->normalizeProvinciaOrigen();
             // If CI is left empty on edit, keep existing value.
             $user->ci = $ciValue !== '' ? $ciValue : $user->ci;
-            $user->empresa_id = (int) $this->empresa_id;
-            $user->empresa_sucursal_id = filled($this->empresa_sucursal_id) ? (int) $this->empresa_sucursal_id : null;
+            $user->empresa_id = filled($this->empresa_id) ? (int) $this->empresa_id : null;
+            $user->empresa_sucursal_id = filled($this->empresa_id) && filled($this->empresa_sucursal_id)
+                ? (int) $this->empresa_sucursal_id
+                : null;
             if (! $this->empresaMode) {
                 $user->sucursal_id = filled($this->sucursal_id) ? (int) $this->sucursal_id : null;
             }
@@ -557,8 +559,16 @@ class Users extends Component
             'regionalesSeleccionadas.*' => ['required', 'string', Rule::in($regionales)],
             'ci' => ['nullable', 'string', 'max:255'],
             'provincia_origen' => ['nullable', 'string', 'max:255'],
-            'empresa_id' => ['bail', 'required', 'integer', 'exists:empresa,id'],
-            'empresa_sucursal_id' => EmpresaSucursal::assignmentRules($this->empresa_id, required: ! $this->empresaMode),
+            'empresa_id' => [
+                'bail',
+                $this->empresaMode ? 'required' : 'nullable',
+                'integer',
+                'exists:empresa,id',
+            ],
+            'empresa_sucursal_id' => EmpresaSucursal::assignmentRules(
+                $this->empresa_id,
+                required: ! $this->empresaMode && filled($this->empresa_id)
+            ),
             'sucursal_id' => ['nullable', 'integer', 'exists:sucursales,id'],
             'roleIds' => ['nullable', 'array'],
             'roleIds.*' => ['integer', 'exists:roles,id'],

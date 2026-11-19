@@ -1165,6 +1165,10 @@
                         </button>
                     </div>
                     <div class="modal-body">
+                        @php
+                            $empresaObligatoria = ! $editingId || $empresaMode;
+                            $sucursalEmpresaObligatoria = ! $empresaMode && (! $editingId || (bool) $selectedEmpresaId);
+                        @endphp
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-group">
@@ -1246,9 +1250,16 @@
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label for="userEmpresaId">Empresa <span class="required-star">*</span></label>
-                                    <select id="userEmpresaId" wire:model.change="empresa_id" class="form-control" required>
-                                        <option value="">Selecciona una empresa</option>
+                                    <label for="userEmpresaId">
+                                        Empresa
+                                        @if($empresaObligatoria)
+                                            <span class="required-star">*</span>
+                                        @else
+                                            (opcional)
+                                        @endif
+                                    </label>
+                                    <select id="userEmpresaId" wire:model.change="empresa_id" class="form-control" @required($empresaObligatoria)>
+                                        <option value="">{{ $editingId && ! $empresaMode ? 'Sin empresa asignada' : 'Selecciona una empresa' }}</option>
                                         @foreach($empresas as $empresa)
                                             <option value="{{ $empresa->id }}">
                                                 {{ $empresa->codigo_cliente }} - {{ $empresa->nombre }} ({{ $empresa->sigla }})
@@ -1262,16 +1273,16 @@
                                 <div class="form-group">
                                     <label for="userEmpresaSucursalId">
                                         Sucursal de empresa
-                                        @if($empresaMode)
+                                        @if(! $sucursalEmpresaObligatoria)
                                             (opcional)
                                         @else
                                             <span class="required-star">*</span>
                                         @endif
                                     </label>
                                     <select id="userEmpresaSucursalId" wire:key="user-empresa-sucursal-{{ $selectedEmpresaId }}"
-                                        wire:model="empresa_sucursal_id" class="form-control" @required(! $empresaMode)
+                                        wire:model="empresa_sucursal_id" class="form-control" @required($sucursalEmpresaObligatoria)
                                         @disabled(! $selectedEmpresaId) wire:loading.attr="disabled" wire:target="empresa_id">
-                                        <option value="">{{ $selectedEmpresaId ? ($empresaMode ? 'Sin sucursal' : 'Selecciona una sucursal') : 'Selecciona una empresa primero' }}</option>
+                                        <option value="">{{ $selectedEmpresaId ? ($empresaMode ? 'Sin sucursal' : 'Selecciona una sucursal') : ($editingId && ! $empresaMode ? 'Sin sucursal de empresa' : 'Selecciona una empresa primero') }}</option>
                                         @foreach($sucursalesEmpresa as $sucursalEmpresa)
                                             <option value="{{ $sucursalEmpresa->id }}">{{ $sucursalEmpresa->etiqueta }}</option>
                                         @endforeach

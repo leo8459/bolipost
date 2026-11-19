@@ -392,7 +392,7 @@
                 </div>
                 <button type="button" class="kardex-ticket-modal__close" aria-label="Cerrar" data-kardex-ticket-close>&times;</button>
             </div>
-            <p id="kardexManualTicketDescription" class="kardex-ticket-modal__description">Ingresa el código de guía del envío. El ticket no necesita consulta a IPS ni factura.</p>
+            <p id="kardexManualTicketDescription" class="kardex-ticket-modal__description">Ingresa el código de guía. Se consultará el peso en IPS; solo la opción Entregado guarda un registro en el Kardex y no registra un evento en IPS.</p>
             <form id="kardexManualTicketForm" method="POST" action="{{ route($manualDeliveryTicketRoute) }}">
                 @csrf
                 <input type="hidden" id="kardexManualTicketConfirmValue" name="confirmar_entrega" value="0">
@@ -405,7 +405,7 @@
                 <div id="kardexManualTicketConfirmation" class="kardex-ticket-modal__confirmation" hidden role="alert">
                     <strong>Elige qué necesitas para este envío:</strong>
                     <code id="kardexManualTicketConfirmedCode"></code>
-                    <span><strong>Pre-entrega</strong> solo genera el ticket; no consulta IPS ni guarda un registro. <strong>Entregado</strong> registra una sola entrega en el Kardex, sin factura ni importe. Reimprimir no duplica el registro.</span>
+                    <span>Ambas opciones consultan el peso en IPS. <strong>Pre-entrega</strong> genera el ticket. <strong>Entregado</strong> registra la entrega en el Kardex.</span>
                 </div>
                 <div id="kardexManualTicketStatus" class="kardex-ticket-modal__status" hidden role="status" aria-live="polite"></div>
                 <div class="kardex-ticket-modal__actions">
@@ -791,8 +791,8 @@
                 manualTicketStatus.hidden = false;
                 manualTicketStatus.className = 'kardex-ticket-modal__status';
                 manualTicketStatus.textContent = mode === 'pre_entrega'
-                    ? 'Generando ticket de pre-entrega…'
-                    : 'Registrando la entrega en el Kardex y generando el ticket…';
+                    ? 'Consultando el peso en IPS y generando ticket…'
+                    : 'Consultando el peso en IPS, registrando en Kardex y generando ticket…';
 
                 try {
                     const response = await fetch(manualTicketForm.action, {
@@ -834,10 +834,10 @@
 
                     manualTicketStatus.className = 'kardex-ticket-modal__status kardex-ticket-modal__status--success';
                     manualTicketStatus.textContent = mode === 'pre_entrega'
-                        ? 'Ticket de pre-entrega descargado. No se guardó ningún registro; puedes volver a generarlo cuando lo necesites.'
+                        ? 'Ticket de pre-entrega descargado.'
                         : (alreadyInKardex
-                            ? 'La entrega ya estaba en el Kardex. Se reutilizó el mismo registro y se descargó el ticket.'
-                            : 'Entrega registrada en el Kardex sin factura ni importe. Puedes volver a imprimir el ticket sin duplicarla.');
+                            ? 'Ticket de entrega descargado.'
+                            : 'Entrega registrada en el Kardex. Ticket descargado.');
                     activeButton.innerHTML = mode === 'pre_entrega'
                         ? '<i class="fas fa-redo mr-1" aria-hidden="true"></i>Reimprimir pre-entrega'
                         : '<i class="fas fa-redo mr-1" aria-hidden="true"></i>Reimprimir entrega';

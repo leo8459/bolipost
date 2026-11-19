@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Services\FacturaFirmaPdfService;
 use App\Services\FacturacionCartService;
+use App\Services\SitraIpsClient;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -16,6 +18,7 @@ class KardexManualDeliveryTicketController extends Controller
         Request $request,
         FacturaFirmaPdfService $pdfService,
         FacturacionCartService $sales,
+        SitraIpsClient $ips,
     ): JsonResponse|StreamedResponse {
         $data = $request->validate([
             'codigo' => ['required', 'string', 'max:35', 'regex:/^[A-Za-z0-9-]+$/'],
@@ -33,8 +36,44 @@ class KardexManualDeliveryTicketController extends Controller
         $isDelivery = $mode === 'entrega';
         $regional = $request->routeIs('mis-ventas.kardex-regional.ticket-manual');
 
-        // The ticket may reuse weight/charge information already in the billing API.
-        // This is a read-only lookup and never calls IPS or inspects postal events.
+        try {
+            $ipsResult = $ips->package($code);
+        } catch (RequestException $exception) {
+            if ($exception->response->status() === 404) {
+                return response()->json([
+                    'message' => 'La guía no aparece en IPS. Verifica el código antes de generar el ticket.',
+                ], 404);
+            }
+
+            report($exception);
+
+            return response()->json([
+                'message' => 'No se pudo consultar el peso en IPS. Intenta nuevamente; todavía no se registró la entrega.',
+            ], 503);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return response()->json([
+                'message' => 'No se pudo consultar el peso en IPS. Intenta nuevamente; todavía no se registró la entrega.',
+            ], 503);
+        }
+
+        $ipsPackage = data_get($ipsResult, 'package', []);
+        if (! is_array($ipsPackage) || $ipsPackage === []) {
+            return response()->json([
+                'message' => 'IPS no devolvió los datos de esta guía. Verifica el código e intenta nuevamente.',
+            ], 404);
+        }
+
+        $weight = data_get($ipsPackage, 'weight_kg', data_get($ipsPackage, 'peso_kg'));
+        if (! is_numeric($weight) || (float) $weight < 0) {
+            return response()->json([
+                'message' => 'IPS no tiene un peso válido registrado para esta guía. No se generó el ticket ni se registró la entrega.',
+            ], 409);
+        }
+        $weight = round((float) $weight, 3);
+
+        // The optional amount is read from billing history, but the weight always comes from IPS.
         try {
             $charge = $sales->findDeliveryTicketCharge($user, $code, $regional);
         } catch (Throwable) {
@@ -47,9 +86,7 @@ class KardexManualDeliveryTicketController extends Controller
                 $registration = $sales->registerManualDelivery(
                     $user,
                     $code,
-                    isset($charge['weight']) && is_numeric($charge['weight']) && (float) $charge['weight'] >= 0
-                        ? (float) $charge['weight']
-                        : null,
+                    $weight,
                 );
             } catch (Throwable $exception) {
                 report($exception);
@@ -67,7 +104,6 @@ class KardexManualDeliveryTicketController extends Controller
             ?? $user->sucursal?->municipio
             ?? ''
         ));
-        $weight = $charge['weight'] ?? null;
         $ticket = [
             'packages' => [[
                 'codigo' => $code,
@@ -82,7 +118,6 @@ class KardexManualDeliveryTicketController extends Controller
             'oficina' => $officeName,
             'generado' => Carbon::now('America/La_Paz')->locale('es')
                 ->translatedFormat('d \\d\\e F \\d\\e Y H:i:s'),
-            'estado_entrega' => $isDelivery ? 'ENTREGADO' : 'PRE-ENTREGA',
             'fecha_entrega' => '',
         ];
 
