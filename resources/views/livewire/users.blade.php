@@ -877,7 +877,9 @@
                                     del codigo <strong>{{ $appliedFilterCodigoCliente }}</strong>
                                 @endif
                                 @if($appliedFilterEmpresaId !== '')
-                                    @php($empresaFiltro = $empresas->firstWhere('id', (int) $appliedFilterEmpresaId))
+                                    @php
+                                        $empresaFiltro = $empresas->firstWhere('id', (int) $appliedFilterEmpresaId);
+                                    @endphp
                                     @if($empresaFiltro)
                                         : <strong>{{ $empresaFiltro->nombre }}</strong>
                                     @endif
@@ -1258,7 +1260,7 @@
                                             (opcional)
                                         @endif
                                     </label>
-                                    <select id="userEmpresaId" wire:model.change="empresa_id" class="form-control" @required($empresaObligatoria)>
+                                    <select id="userEmpresaId" wire:model.change="empresa_id" class="form-control" {{ $empresaObligatoria ? 'required' : '' }}>
                                         <option value="">{{ $editingId && ! $empresaMode ? 'Sin empresa asignada' : 'Selecciona una empresa' }}</option>
                                         @foreach($empresas as $empresa)
                                             <option value="{{ $empresa->id }}">
@@ -1280,7 +1282,7 @@
                                         @endif
                                     </label>
                                     <select id="userEmpresaSucursalId" wire:key="user-empresa-sucursal-{{ $selectedEmpresaId }}"
-                                        wire:model="empresa_sucursal_id" class="form-control" @required($sucursalEmpresaObligatoria)
+                                        wire:model="empresa_sucursal_id" class="form-control" {{ $sucursalEmpresaObligatoria ? 'required' : '' }}
                                         @disabled(! $selectedEmpresaId) wire:loading.attr="disabled" wire:target="empresa_id">
                                         <option value="">{{ $selectedEmpresaId ? ($empresaMode ? 'Sin sucursal' : 'Selecciona una sucursal') : ($editingId && ! $empresaMode ? 'Sin sucursal de empresa' : 'Selecciona una empresa primero') }}</option>
                                         @foreach($sucursalesEmpresa as $sucursalEmpresa)
