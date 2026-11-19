@@ -115,7 +115,7 @@
                 <hr>
 
                 <h5 class="mb-3">Facturacion</h5>
-                <p class="text-muted">Estos controles habilitan o deshabilitan los botones globalmente. QR y factura electronica se asignan por rol; Tarjeta NFC + factura se habilita individualmente en Editar usuario para facturadores cuyo rol permite QR + factura.</p>
+                <p class="text-muted">Estos controles habilitan o deshabilitan los botones globalmente. Los permisos de QR, Tarjeta NFC y factura electronica se asignan por rol; Tarjeta NFC + factura tambien requiere habilitar al cajero individualmente en Editar usuario.</p>
 
                 <div class="form-group form-check">
                     <input type="hidden" name="facturacionShowFacturaElectronica" value="0">
@@ -133,7 +133,7 @@
                     <input type="hidden" name="facturacionShowTarjetaNfc" value="0">
                     <input type="checkbox" class="form-check-input" id="facturacionShowTarjetaNfc" name="facturacionShowTarjetaNfc" value="1" {{ old('facturacionShowTarjetaNfc', $settings['facturacionShowTarjetaNfc']) ? 'checked' : '' }}>
                     <label class="form-check-label" for="facturacionShowTarjetaNfc">Mostrar boton Tarjeta NFC + factura</label>
-                    <small class="form-text text-muted">Es un interruptor global; tambien debes habilitar Tarjeta NFC en Editar usuario y el rol debe permitir QR + factura.</small>
+                    <small class="form-text text-muted">Es un interruptor global; tambien debes habilitar Tarjeta NFC en el rol y en Editar usuario para cada cajero autorizado.</small>
                 </div>
 
                 <div class="form-group form-check">

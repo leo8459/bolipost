@@ -1342,6 +1342,25 @@
                             @error('roleIds') <small class="text-danger">{{ $message }}</small> @enderror
                             @error('roleIds.*') <small class="text-danger d-block">{{ $message }}</small> @enderror
                         </div>
+
+                        @if($editingId && !$empresaMode && auth()->user()?->can('admin-only-menu') && !session()->has('impersonator_id') && !session()->has('impersonator_cliente_admin_id'))
+                            <div class="card border-primary mt-3 mb-0">
+                                <div class="card-body py-3">
+                                    <div class="form-check">
+                                        <input
+                                            class="form-check-input"
+                                            type="checkbox"
+                                            id="userFacturacionTarjetaNfc"
+                                            wire:model.defer="facturacionTarjetaNfc"
+                                        >
+                                        <label class="form-check-label font-weight-bold" for="userFacturacionTarjetaNfc">
+                                            Habilitar Tarjeta NFC + factura para este facturador
+                                        </label>
+                                    </div>
+                                    <small class="text-muted d-block mt-1">La cajera vera este boton solo si el interruptor global esta activo y su rol permite Tarjeta NFC o QR + factura.</small>
+                                </div>
+                            </div>
+                        @endif
                     </div>
                     <div class="modal-footer users-modal-footer">
                         @if($editingId && !$empresaMode && auth()->user()?->can('admin-only-menu') && !session()->has('impersonator_id') && !session()->has('impersonator_cliente_admin_id'))

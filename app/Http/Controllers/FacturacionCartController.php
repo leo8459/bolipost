@@ -657,27 +657,16 @@ class FacturacionCartController extends Controller
         $user = $request->user();
         $this->authorizeFacturacionAccess($user);
 
-        $requiredBillingText = static function (string $label): \Closure {
-            return static function (string $attribute, mixed $value, \Closure $fail) use ($label): void {
-                if (trim((string) $value) === '') {
-                    $fail('El campo ' . $label . ' es obligatorio.');
-                }
-            };
-        };
-
         $billingSnapshot = $request->validate([
             'cart_id' => ['nullable', 'integer', 'min:1'],
             'modalidad_facturacion' => ['nullable', 'in:con_datos,sin_cliente'],
             'canal_emision' => ['required', 'in:factura_electronica,qr'],
             'qr_payment_method' => ['nullable', Rule::in(['QRSIMPLE', 'T2P'])],
             'tipo_documento' => ['nullable', 'string', 'max:20', Rule::in(array_keys(\App\Models\Cliente::tiposDocumentoIdentidad()))],
-            'numero_documento' => ['required', 'string', 'max:80', $requiredBillingText('numero de documento')],
+            'numero_documento' => ['nullable', 'string', 'max:80'],
             'complemento_documento' => ['nullable', 'string', 'max:30'],
-            'razon_social' => ['required', 'string', 'max:255', $requiredBillingText('razon social')],
+            'razon_social' => ['nullable', 'string', 'max:255'],
             'correo_facturacion' => ['nullable', 'email', 'max:50'],
-        ], [
-            'numero_documento.required' => 'El campo numero de documento es obligatorio.',
-            'razon_social.required' => 'El campo razon social es obligatorio.',
         ]);
         $qrPaymentMethod = strtoupper(trim((string) ($billingSnapshot['qr_payment_method'] ?? 'QRSIMPLE')));
         unset($billingSnapshot['qr_payment_method']);
@@ -693,6 +682,19 @@ class FacturacionCartController extends Controller
                     ? $request->boolean('auto_emit_invoice')
                     : strtolower((string) ($billingSnapshot['canal_emision'] ?? 'factura_electronica')) !== 'qr'
             );
+        $requiresFiscalData = ($billingSnapshot['canal_emision'] ?? null) !== 'qr' || $autoEmitInvoice;
+        if ($requiresFiscalData) {
+            $missingBillingFields = [];
+            if (trim((string) ($billingSnapshot['numero_documento'] ?? '')) === '') {
+                $missingBillingFields['numero_documento'] = 'El campo numero de documento es obligatorio.';
+            }
+            if (trim((string) ($billingSnapshot['razon_social'] ?? '')) === '') {
+                $missingBillingFields['razon_social'] = 'El campo razon social es obligatorio.';
+            }
+            if ($missingBillingFields !== []) {
+                throw ValidationException::withMessages($missingBillingFields);
+            }
+        }
         $requestedCartId = isset($billingSnapshot['cart_id']) ? (int) $billingSnapshot['cart_id'] : null;
         $mode = $modePolicy->modeFor((string) $billingSnapshot['canal_emision'], $autoEmitInvoice, $qrPaymentMethod);
         $this->authorizeFacturacionMode($user, $modePolicy, $mode);

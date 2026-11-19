@@ -131,7 +131,11 @@ class RoleController extends Controller
             in_array('feature.dashboard.facturacion', $selectedPermissions, true)
             && ! app(FacturacionModePolicy::class)->roleHasExplicitModeConfiguration($role)
         ) {
-            $selectedPermissions = array_merge($selectedPermissions, FacturacionModePolicy::modePermissionNames());
+            $legacyModePermissions = array_values(array_diff(
+                FacturacionModePolicy::modePermissionNames(),
+                [FacturacionModePolicy::CARD_NFC_USER_PERMISSION]
+            ));
+            $selectedPermissions = array_merge($selectedPermissions, $legacyModePermissions);
         }
 
         return view('role.edit', compact('role', 'permissionGroups', 'menuPermissionSummary', 'selectedPermissions'));

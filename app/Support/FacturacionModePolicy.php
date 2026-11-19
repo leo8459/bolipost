@@ -15,6 +15,7 @@ class FacturacionModePolicy
         'efectivo' => 'facturacion.mode.efectivo',
         'qr_factura' => 'facturacion.mode.qr_factura',
         'qr_solo' => 'facturacion.mode.qr_solo',
+        'tarjeta_nfc' => 'facturacion.mode.tarjeta_nfc',
     ];
 
     private const BILLING_ACCESS_PERMISSION = 'feature.dashboard.facturacion';
@@ -31,7 +32,7 @@ class FacturacionModePolicy
         if ($mode === 'tarjeta_nfc') {
             return $this->isGloballyEnabled($mode)
                 && $user->can(self::BILLING_ACCESS_PERMISSION)
-                && $this->roleAllows($user, 'qr_factura')
+                && ($this->roleAllows($user, 'tarjeta_nfc') || $this->roleAllows($user, 'qr_factura'))
                 && $user->getDirectPermissions()->pluck('name')->contains(self::CARD_NFC_USER_PERMISSION);
         }
 

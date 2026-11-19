@@ -114,9 +114,11 @@ class UserController extends Controller
         $sucursalesEmpresa = $this->companyBranchOptions();
         $qrCashier = null;
         $canManageCashierSettings = $this->canManageQrCashierAssignment($request);
+        $facturacionModePolicy = app(\App\Support\FacturacionModePolicy::class);
         $canConfigureCardPayment = $canManageCashierSettings
             && $user->can('feature.dashboard.facturacion')
-            && app(\App\Support\FacturacionModePolicy::class)->roleAllows($user, 'qr_factura');
+            && ($facturacionModePolicy->roleAllows($user, 'tarjeta_nfc')
+                || $facturacionModePolicy->roleAllows($user, 'qr_factura'));
         if ($canManageCashierSettings) {
             $cashier = $qrAssignments->cashierContext($user);
             $qrCashier = [
@@ -261,8 +263,10 @@ class UserController extends Controller
 
         if ($canManageCashierSettings) {
             $cardPermission = Permission::findOrCreate(\App\Support\FacturacionModePolicy::CARD_NFC_USER_PERMISSION, 'web');
+            $facturacionModePolicy = app(\App\Support\FacturacionModePolicy::class);
             if (! $user->can('feature.dashboard.facturacion')
-                || ! app(\App\Support\FacturacionModePolicy::class)->roleAllows($user, 'qr_factura')) {
+                || ! ($facturacionModePolicy->roleAllows($user, 'tarjeta_nfc')
+                    || $facturacionModePolicy->roleAllows($user, 'qr_factura'))) {
                 $user->revokePermissionTo($cardPermission);
             } elseif ($request->exists('facturacionTarjetaNfc')) {
                 if ($request->boolean('facturacionTarjetaNfc')) {

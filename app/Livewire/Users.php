@@ -12,7 +12,9 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 class Users extends Component
 {
@@ -49,6 +51,7 @@ class Users extends Component
     public $empresa_sucursal_id = '';
     public $sucursal_id = '';
     public $roleIds = [];
+    public $facturacionTarjetaNfc = false;
 
     public $newPassword = '';
     public $passwordUserId = null;
@@ -150,6 +153,9 @@ class Users extends Component
         $this->empresa_sucursal_id = (string) ($user->empresa_sucursal_id ?? '');
         $this->sucursal_id = $user->sucursal_id ? (string) $user->sucursal_id : '';
         $this->roleIds = $user->roles()->pluck('roles.id')->map(fn ($id) => (string) $id)->all();
+        $this->facturacionTarjetaNfc = $user->getDirectPermissions()
+            ->pluck('name')
+            ->contains(\App\Support\FacturacionModePolicy::CARD_NFC_USER_PERMISSION);
         $this->applyEmpresaRoleMode();
 
         $this->resetValidation();
@@ -192,7 +198,31 @@ class Users extends Component
             $user->save();
             $user->syncRoles($this->resolveRoleNames());
 
-            session()->flash('success', 'Usuario actualizado correctamente.');
+            $cardPermissionWasRejected = false;
+            if (! $this->empresaMode && $this->canManageFacturacionTarjetaNfc()) {
+                $cardPermission = Permission::findOrCreate(\App\Support\FacturacionModePolicy::CARD_NFC_USER_PERMISSION, 'web');
+                $modePolicy = app(\App\Support\FacturacionModePolicy::class);
+                $roleCanUseCardPayment = $modePolicy->roleAllows($user, 'tarjeta_nfc')
+                    || $modePolicy->roleAllows($user, 'qr_factura');
+                $cardPermissionWasRejected = (bool) $this->facturacionTarjetaNfc
+                    && (! $user->can('feature.dashboard.facturacion') || ! $roleCanUseCardPayment);
+
+                if (! $user->can('feature.dashboard.facturacion') || ! $roleCanUseCardPayment || ! (bool) $this->facturacionTarjetaNfc) {
+                    $user->revokePermissionTo($cardPermission);
+                    $this->facturacionTarjetaNfc = false;
+                } else {
+                    $user->givePermissionTo($cardPermission);
+                }
+
+                app(PermissionRegistrar::class)->forgetCachedPermissions();
+            }
+
+            session()->flash(
+                $cardPermissionWasRejected ? 'warning' : 'success',
+                $cardPermissionWasRejected
+                    ? 'Usuario actualizado, pero Tarjeta NFC no se habilito: verifica el acceso Facturacion y el permiso del rol.'
+                    : 'Usuario actualizado correctamente.'
+            );
         } else {
             $this->authorizePermission($this->permissionFor('store'));
             $this->alias = $this->normalizeAlias($this->alias);
@@ -595,6 +625,13 @@ class Users extends Component
         return Role::query()->whereIn('id', $roleIds)->pluck('name')->toArray();
     }
 
+    private function canManageFacturacionTarjetaNfc(): bool
+    {
+        return auth()->user()?->can('admin-only-menu') === true
+            && ! session()->has('impersonator_id')
+            && ! session()->has('impersonator_cliente_admin_id');
+    }
+
     protected function messages(): array
     {
         return [
@@ -619,6 +656,7 @@ class Users extends Component
         $this->empresa_sucursal_id = '';
         $this->sucursal_id = '';
         $this->roleIds = [];
+        $this->facturacionTarjetaNfc = false;
         $this->resetValidation();
     }
 

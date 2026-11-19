@@ -26,6 +26,7 @@
     $facturacionModeUser = auth()->user();
     $showFacturaElectronicaButton = $canOpenFacturacionShortcut && $facturacionModeUser && $facturacionModePolicy->allows($facturacionModeUser, 'efectivo');
     $showQrFacturaButton = $canOpenFacturacionShortcut && $facturacionModeUser && $facturacionModePolicy->allows($facturacionModeUser, 'qr_factura');
+    $showQrSoloButton = $canOpenFacturacionShortcut && $facturacionModeUser && $facturacionModePolicy->allows($facturacionModeUser, 'qr_solo');
     $showTarjetaNfcButton = $canOpenFacturacionShortcut && $facturacionModeUser && $facturacionModePolicy->allows($facturacionModeUser, 'tarjeta_nfc');
     $facturacionMonitorDefaultUrl = \App\Models\AppSetting::getValue('facturacion.monitor_default_url', '');
     $activeFacturacionCart = $facturacionContext['draft'] ?? null;
@@ -159,6 +160,7 @@
     $availableInvoiceModes = collect([
         'factura_electronica' => $showFacturaElectronicaButton,
         'qr_factura' => $showQrFacturaButton,
+        'qr_solo' => $showQrSoloButton,
         't2p_factura' => $showTarjetaNfcButton,
     ])->filter()->keys()->values();
     $hasAvailableInvoiceMode = $availableInvoiceModes->isNotEmpty();
@@ -166,6 +168,7 @@
         $activeInvoiceMode = (string) $availableInvoiceModes->first();
         [$activeInvoiceChannel, $activeAutoEmitInvoice] = match ($activeInvoiceMode) {
             'qr_factura', 't2p_factura' => ['qr', '1'],
+            'qr_solo' => ['qr', '0'],
             default => ['factura_electronica', '1'],
         };
         $activeQrPaymentMethod = $activeInvoiceMode === 't2p_factura' ? 'T2P' : 'QRSIMPLE';
@@ -239,6 +242,7 @@
     $visibleInvoiceModeCount = collect([
         $showFacturaElectronicaButton,
         $showQrFacturaButton,
+        $showQrSoloButton,
         $showTarjetaNfcButton,
     ])->filter()->count();
     $hasLastEmissionData = $ultimaFacturacionEmitida
@@ -478,7 +482,7 @@
                 <div class="global-shortcut-selector-block">
                     <div class="global-shortcut-selector-group">
                         <span class="global-shortcut-selector-label">Emision</span>
-                        <div class="global-shortcut-choice-row global-shortcut-choice-row--invoice-channel {{ $visibleInvoiceModeCount <= 1 ? 'global-shortcut-choice-row--single' : ($visibleInvoiceModeCount === 2 ? 'global-shortcut-choice-row--double' : 'global-shortcut-choice-row--triple') }}" role="tablist" aria-label="Modo de emisión y cobro">
+                        <div class="global-shortcut-choice-row global-shortcut-choice-row--invoice-channel {{ $visibleInvoiceModeCount <= 1 ? 'global-shortcut-choice-row--single' : ($visibleInvoiceModeCount === 2 ? 'global-shortcut-choice-row--double' : ($visibleInvoiceModeCount === 3 ? 'global-shortcut-choice-row--triple' : 'global-shortcut-choice-row--quad')) }}" role="tablist" aria-label="Modo de emisión y cobro">
                             @if($showFacturaElectronicaButton)
                             <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceMode === 'factura_electronica') is-active @endif" data-invoice-channel-choice="factura_electronica" @disabled(!$isCajaAbierta || $activeQrPaymentMethodLocked)>
                                 <span class="global-shortcut-choice-btn__icon" aria-hidden="true">
@@ -505,6 +509,20 @@
                                 <span class="global-shortcut-choice-btn__content">
                                     <span class="global-shortcut-choice-btn__title">QR + factura</span>
                                     <span class="global-shortcut-choice-btn__meta">Cobro y luego fiscal</span>
+                                </span>
+                            </button>
+                            @endif
+                            @if($showQrSoloButton)
+                            <button type="button" class="global-shortcut-choice-btn @if($activeInvoiceMode === 'qr_solo') is-active @endif" data-invoice-channel-choice="qr_solo" @disabled(!$isCajaAbierta || $activeQrPaymentMethodLocked)>
+                                <span class="global-shortcut-choice-btn__icon" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none">
+                                        <path d="M4.75 4.75h5.5v5.5h-5.5zM13.75 4.75h5.5v5.5h-5.5zM4.75 13.75h5.5v5.5h-5.5z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                                        <path d="M15 13.75h1.5v1.5H15zM18 16.25h1.25v3H16.5V18h1.5v-1.75ZM13.75 18h1.75v1.25h-1.75z" fill="currentColor"/>
+                                    </svg>
+                                </span>
+                                <span class="global-shortcut-choice-btn__content">
+                                    <span class="global-shortcut-choice-btn__title">QR solo pago</span>
+                                    <span class="global-shortcut-choice-btn__meta">Cobro QR sin emitir factura automaticamente</span>
                                 </span>
                             </button>
                             @endif
@@ -2833,6 +2851,9 @@
         .global-shortcut-choice-row--triple {
             grid-template-columns: repeat(3, minmax(0, 1fr));
         }
+        .global-shortcut-choice-row--quad {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
         .global-shortcut-choice-row--invoice-channel {
             grid-template-columns: repeat(3, minmax(0, 1fr));
             align-items: stretch;
@@ -2840,6 +2861,9 @@
             max-width: 100%;
         }
         .global-shortcut-choice-row--invoice-channel.global-shortcut-choice-row--double {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .global-shortcut-choice-row--invoice-channel.global-shortcut-choice-row--quad {
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
         .global-shortcut-choice-row--invoice-channel.global-shortcut-choice-row--single {
@@ -8527,6 +8551,19 @@
 
                 const documentField = scopedBillingForm.querySelector('input[name="numero_documento"]');
                 const razonSocialField = scopedBillingForm.querySelector('input[name="razon_social"]');
+                const channelField = scopedBillingForm.querySelector('input[name="canal_emision"]');
+                const autoEmitField = scopedBillingForm.querySelector('#facturacionAutoEmitInvoiceInput');
+                const qrPaymentMethodField = scopedBillingForm.querySelector('input[name="qr_payment_method"]');
+                const isPaymentOnlyQr = channelField instanceof HTMLInputElement
+                    && String(channelField.value || '').toLowerCase() === 'qr'
+                    && autoEmitField instanceof HTMLInputElement
+                    && String(autoEmitField.value || '') === '0'
+                    && (!(qrPaymentMethodField instanceof HTMLInputElement) || String(qrPaymentMethodField.value || '').toUpperCase() !== 'T2P');
+
+                if (isPaymentOnlyQr) {
+                    return { ok: true };
+                }
+
                 const missingFields = [];
 
                 if (!(documentField instanceof HTMLInputElement) || String(documentField.value || '').trim() === '') {
@@ -10467,14 +10504,14 @@
                 }
                 const visibleInvoiceModes = new Set(Array.from(invoiceChannelButtons)
                     .map((button) => String(button.dataset.invoiceChannelChoice || '').toLowerCase())
-                    .filter((mode) => ['factura_electronica', 'qr_factura', 't2p_factura'].includes(mode)));
+                    .filter((mode) => ['factura_electronica', 'qr_factura', 'qr_solo', 't2p_factura'].includes(mode)));
                 const storedInvoiceMode = facturacionQrPaymentMethodLocked ? '' : readStoredInvoiceMode();
                 if (visibleInvoiceModes.has(storedInvoiceMode)) {
                     if (facturacionInvoiceChannelInput instanceof HTMLInputElement) {
                         facturacionInvoiceChannelInput.value = storedInvoiceMode === 'factura_electronica' ? 'factura_electronica' : 'qr';
                     }
                     if (facturacionAutoEmitInvoiceInput instanceof HTMLInputElement) {
-                        facturacionAutoEmitInvoiceInput.value = '1';
+                        facturacionAutoEmitInvoiceInput.value = storedInvoiceMode === 'qr_solo' ? '0' : '1';
                     }
                     invoiceChannelButtons.forEach((candidate) => {
                         if (candidate instanceof HTMLElement) {
@@ -10490,7 +10527,7 @@
                             facturacionInvoiceChannelInput.value = fallbackMode === 'factura_electronica' ? 'factura_electronica' : 'qr';
                         }
                         if (facturacionAutoEmitInvoiceInput instanceof HTMLInputElement) {
-                            facturacionAutoEmitInvoiceInput.value = '1';
+                            facturacionAutoEmitInvoiceInput.value = fallbackMode === 'qr_solo' ? '0' : '1';
                         }
                         invoiceChannelButtons.forEach((candidate) => {
                             if (candidate instanceof HTMLElement) {
@@ -10507,11 +10544,11 @@
                     }
                     button.addEventListener('click', function () {
                         const mode = String(button.dataset.invoiceChannelChoice || '').toLowerCase();
-                        if (!['factura_electronica', 'qr_factura', 't2p_factura'].includes(mode)) {
+                        if (!['factura_electronica', 'qr_factura', 'qr_solo', 't2p_factura'].includes(mode)) {
                             return;
                         }
                         const channel = mode === 'factura_electronica' ? 'factura_electronica' : 'qr';
-                        const autoEmitInvoice = '1';
+                        const autoEmitInvoice = mode === 'qr_solo' ? '0' : '1';
                         storeInvoiceMode(mode);
 
                         const panel = button.closest('.global-shortcut-modal__panel');

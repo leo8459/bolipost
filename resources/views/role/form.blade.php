@@ -15,6 +15,10 @@
             'label' => 'QR solo pago',
             'hint' => 'Cobra por QR sin emitir automaticamente una factura.',
         ],
+        'facturacion.mode.tarjeta_nfc' => [
+            'label' => 'Tarjeta NFC + factura',
+            'hint' => 'Permite que los usuarios autorizados individualmente de este rol cobren con tarjeta sin contacto y emitan factura.',
+        ],
     ];
     $facturacionPermissionNames = array_keys($facturacionModeOptions);
     $technicalPermissionGroups = collect($permissionGroups ?? [])

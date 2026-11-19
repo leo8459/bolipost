@@ -242,7 +242,7 @@
                             {{ old('facturacionTarjetaNfc', $user->getDirectPermissions()->pluck('name')->contains(\App\Support\FacturacionModePolicy::CARD_NFC_USER_PERMISSION)) ? 'checked' : '' }}>
                         <label class="form-check-label font-weight-bold" for="facturacionTarjetaNfc">Habilitar Tarjeta NFC + factura para este facturador</label>
                     </div>
-                    <small class="form-text text-muted">Solo este usuario verá el botón cuando el interruptor global esté activo y su rol permita QR + factura.</small>
+                    <small class="form-text text-muted">Solo este usuario verá el botón cuando el interruptor global esté activo y su rol permita Tarjeta NFC o QR + factura.</small>
                     @error('facturacionTarjetaNfc')
                         <div class="text-danger mt-2">{{ $message }}</div>
                     @enderror
