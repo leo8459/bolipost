@@ -7,7 +7,7 @@ use Illuminate\Support\Str;
 
 class ChasquiCartero
 {
-    private const ROLES = [
+    public const ROLES = [
         'auxiliar_urbano',
         'auxiliar_urbano_dnd',
         'auxiliar_7',

@@ -1,5 +1,7 @@
 <?php
 
+use App\Services\DailyDeliveryMailService;
+use App\Services\DailyDeliveryReport;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -29,6 +31,11 @@ Schedule::command('operations:send-daily-closing')
     ->dailyAt('20:00')
     ->timezone('America/La_Paz')
     ->withoutOverlapping();
+
+Schedule::command('operations:send-daily-deliveries')
+    ->dailyAt(DailyDeliveryMailService::SEND_AT)
+    ->timezone(DailyDeliveryReport::TIMEZONE)
+    ->withoutOverlapping(60);
 
 Schedule::command('contracts:cancel-expired-pickups')
     ->hourly()

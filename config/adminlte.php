@@ -493,6 +493,13 @@ $config = [
                             'icon' => 'fas fa-clipboard-list',
                             'active' => ['administrador/correo-electronico/cierre-diario'],
                         ],
+                        [
+                            'text' => 'Entregas diarias',
+                            'can' => 'admin-only-menu',
+                            'route' => 'daily-deliveries-email.index',
+                            'icon' => 'fas fa-truck',
+                            'active' => ['administrador/correo-electronico/entregas-diarias'],
+                        ],
                     ],
                 ],
                 [

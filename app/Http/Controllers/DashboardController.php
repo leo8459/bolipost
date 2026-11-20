@@ -11,6 +11,8 @@ use App\Models\Recojo;
 use App\Models\SolicitudCliente;
 use App\Support\BitacoraCn33Service;
 use App\Support\BoliviaBusinessCalendar;
+use App\Support\CarteroEvent;
+use App\Support\ContractReportScope;
 use App\Support\DeliveryFulfillment;
 use App\Support\TiktokerEvent;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -35,7 +37,7 @@ class DashboardController extends Controller
     private array $estadoIdCache = [];
     private array $moduleConfigCache = [];
 
-    private const EVENTO_ENTREGADO_ID = 316;
+    private const EVENTO_ENTREGADO_ID = CarteroEvent::ENTREGADO_ID;
     private const EVENTO_ENVIADO_VENTANILLA_ID = 312;
     private const EVENTO_EMS_SOLICITUD_ID = 295;
     private const CERTI_ORDI_GREEN_DAYS = 7;
@@ -577,13 +579,16 @@ class DashboardController extends Controller
         $modulosSeleccionados = $this->resolveModulosSeleccionados($request);
         [$desde, $hasta, $rangoLabel, $rangoKey] = $this->resolveRangoFechas($request);
         $departamentoCartero = $this->resolveDepartamentoFiltroPorCampo($request, 'cartero_departamento');
+        $ordenDepartamentos = $request->query('orden') === 'registrados' ? 'registrados' : 'entregados';
+        $finDeHoy = now()->endOfDay();
+        $hastaOperativo = $hasta?->min($finDeHoy) ?? $finDeHoy;
         $diasLaborables = $this->countDeliveryWorkingDays(
             $modulosSeleccionados,
             $desde,
-            $hasta
+            $hastaOperativo
         );
 
-        $entregadores = $this->buildRankingEntregadores($modulosSeleccionados, $desde, $hasta, null, '', $departamentoCartero)
+        $entregadores = $this->buildRankingEntregadores($modulosSeleccionados, $desde, $hastaOperativo, null, '', $departamentoCartero)
             ->map(function ($row) {
                 $ems = (int) ($row->ems ?? 0);
                 $contrato = (int) ($row->contrato ?? 0);
@@ -613,9 +618,9 @@ class DashboardController extends Controller
                 return $row;
             });
 
-        $asignados = $this->buildRankingAsignadosCartero($modulosSeleccionados, $desde, $hasta, null, '', $departamentoCartero)
+        $asignados = $this->buildRankingAsignadosCartero($modulosSeleccionados, $desde, $hastaOperativo, null, '', $departamentoCartero)
             ->keyBy('id');
-        $ventanilla = $this->buildRankingEntregasVentanilla($modulosSeleccionados, $desde, $hasta, null, '', $departamentoCartero)
+        $ventanilla = $this->buildRankingEntregasVentanilla($modulosSeleccionados, $desde, $hastaOperativo, null, '', $departamentoCartero)
             ->keyBy('id');
 
         $entregadores = $entregadores
@@ -680,14 +685,24 @@ class DashboardController extends Controller
             ->values();
 
         $totalEntregados = (int) $entregadores->sum('total_entregados');
-
-        $resumenDepartamentos = $entregadores
+        $registradosPorDepartamento = $this->countRegisteredPackagesByDepartment(
+            $modulosSeleccionados,
+            $desde,
+            $hastaOperativo,
+            $departamentoCartero
+        );
+        $carterosPorDepartamento = $entregadores
             ->groupBy(function ($row) {
                 $departamento = strtoupper(trim((string) ($row->ciudad ?? '')));
 
                 return $departamento !== '' ? $departamento : 'SIN DEPARTAMENTO';
-            })
-            ->map(function ($carteros, string $departamento) use ($diasLaborables) {
+            });
+
+        $resumenDepartamentos = $carterosPorDepartamento->keys()
+            ->merge(array_keys($registradosPorDepartamento))
+            ->unique()
+            ->map(function (string $departamento) use ($carterosPorDepartamento, $registradosPorDepartamento, $diasLaborables) {
+                $carteros = $carterosPorDepartamento->get($departamento, collect());
                 $totalAsignados = (int) $carteros->sum('total_asignados');
                 $totalCarteroEntregados = (int) $carteros->sum('total_cartero_entregados');
                 $totalVentanilla = (int) $carteros->sum('total_ventanilla');
@@ -698,6 +713,7 @@ class DashboardController extends Controller
                     'departamento' => $departamento,
                     'carteros' => $carteros->sortByDesc('total_entregados')->values(),
                     'cantidad_carteros' => $carteros->count(),
+                    'total_registrados' => $registradosPorDepartamento[$departamento] ?? 0,
                     'total_asignados' => $totalAsignados,
                     'total_cartero_entregados' => $totalCarteroEntregados,
                     'total_ventanilla' => $totalVentanilla,
@@ -713,7 +729,10 @@ class DashboardController extends Controller
                     ),
                 ];
             })
-            ->sortByDesc('total_entregados')
+            ->sortBy([
+                ['total_' . $ordenDepartamentos, 'desc'],
+                ['departamento', 'asc'],
+            ])
             ->values();
 
         $totalAsignados = (int) $entregadores->sum('total_asignados');
@@ -728,6 +747,9 @@ class DashboardController extends Controller
         return [
             'entregadores' => $entregadores,
             'resumenDepartamentos' => $resumenDepartamentos,
+            'ordenDepartamentos' => $ordenDepartamentos,
+            'totalRegistrados' => array_sum($registradosPorDepartamento),
+            'totalAsignados' => $totalAsignados,
             'cumplimientoGeneral' => $cumplimientoGeneral,
             'diasLaborables' => $diasLaborables,
             'promedioDiarioGeneral' => $diasLaborables > 0 ? $totalEntregados / $diasLaborables : 0,
@@ -742,19 +764,61 @@ class DashboardController extends Controller
         ];
     }
 
+    private function countRegisteredPackagesByDepartment(
+        array $modules,
+        ?Carbon $from,
+        ?Carbon $to,
+        string $department
+    ): array {
+        $totals = [];
+        $canceledStateId = $this->resolveEstadoIdByName('CANCELADO');
+
+        foreach ($modules as $module) {
+            $config = $this->dashboardModuleConfig($module);
+            $normalizedDestination = 'TRIM(UPPER(' . $config['departamento_column'] . '))';
+            $destination = "CASE {$normalizedDestination}
+                WHEN 'COCHABAMBA IVIRGARZAMA' THEN 'COCHABAMBA'
+                WHEN 'TRINIDAD-RIBERALTA' THEN 'TRINIDAD'
+                ELSE {$normalizedDestination}
+            END";
+            $packageCode = $this->packageCodeExpression($config);
+            $query = DB::table($config['table']);
+
+            $this->applyDateFilter($query, 'created_at', $from, $to);
+            $this->excludeCanceledState($query, $config['estado_column'], $canceledStateId);
+            $this->excludeTestCompanyPackages($query, $config);
+            if ($department !== '') {
+                $query->whereRaw($destination . ' = ?', [$department]);
+            }
+
+            $counts = $query
+                ->selectRaw($destination . ' as departamento, COUNT(DISTINCT ' . $packageCode . ') as total')
+                ->groupByRaw($destination)
+                ->get();
+
+            foreach ($counts as $count) {
+                $destinationName = $count->departamento ?: 'SIN DEPARTAMENTO';
+                $totals[$destinationName] = ($totals[$destinationName] ?? 0) + (int) $count->total;
+            }
+        }
+
+        return $totals;
+    }
+
     private function countDeliveryWorkingDays(
         array $modulosSeleccionados,
         ?Carbon $from,
-        ?Carbon $to
+        Carbon $to
     ): int {
-        if (!$from || !$to) {
+        if (!$from) {
             $firstDeliveryAt = null;
             $lastDeliveryAt = null;
 
             foreach ($modulosSeleccionados as $moduloKey) {
                 $config = $this->dashboardModuleConfig($moduloKey);
                 $query = DB::table($config['event_table'] . ' as delivered')
-                    ->where('delivered.evento_id', self::EVENTO_ENTREGADO_ID);
+                    ->where('delivered.evento_id', self::EVENTO_ENTREGADO_ID)
+                    ->where('delivered.created_at', '<=', $to);
 
                 $this->excludeCanceledPackageForEvent($query, $config, 'delivered');
 
@@ -1882,22 +1946,10 @@ class DashboardController extends Controller
         $this->excludeCanceledState($query, $alias . '.' . $config['estado_column'], $estadoCanceladoId);
     }
 
-    private function excludedCompanyQuery(string $packageAlias): Builder
-    {
-        return DB::table('empresa as excluded_company')
-            ->selectRaw('1')
-            ->whereRaw('excluded_company.id = COALESCE('.$packageAlias.'.empresa_id, '
-                .'(SELECT company_user.empresa_id FROM users as company_user WHERE company_user.id = '.$packageAlias.'.user_id))')
-            ->where(function (Builder $company): void {
-                $company->whereRaw("LOWER(TRIM(COALESCE(excluded_company.nombre, ''))) LIKE ?", ['%prueba%'])
-                    ->orWhereRaw("UPPER(TRIM(COALESCE(excluded_company.nombre, ''))) = ?", ['EMPRESA']);
-            });
-    }
-
     private function excludeTestCompanyPackages(Builder $query, array $config, string $tableAlias = ''): void
     {
         if ($config['table'] === 'paquetes_contrato') {
-            $query->whereNotExists($this->excludedCompanyQuery($tableAlias !== '' ? $tableAlias : $config['table']));
+            $query->whereNotExists(ContractReportScope::excludedCompanyQuery($tableAlias !== '' ? $tableAlias : $config['table']));
         }
     }
 
@@ -1908,7 +1960,7 @@ class DashboardController extends Controller
                 DB::table('paquetes_contrato as excluded_package')
                     ->selectRaw('1')
                     ->whereColumn('excluded_package.codigo', $eventAlias.'.codigo')
-                    ->whereExists($this->excludedCompanyQuery('excluded_package'))
+                    ->whereExists(ContractReportScope::excludedCompanyQuery('excluded_package'))
             );
         }
     }
@@ -2403,13 +2455,9 @@ class DashboardController extends Controller
                     DB::raw("'" . $config['label'] . "' as modulo"),
                     DB::raw('COUNT(DISTINCT ' . $eventTable . '.codigo) as total'),
                 ])
-                ->where(function ($q) {
-                    $q->whereRaw('LOWER(eventos.nombre_evento) LIKE ?', ['%asignado a cartero%'])
-                        ->orWhereRaw('LOWER(eventos.nombre_evento) LIKE ?', ['%camino para entrega fisica%'])
-                        ->orWhereRaw('LOWER(eventos.nombre_evento) LIKE ?', ['%transferido al agente de entrega%']);
-                })
                 ->groupBy($eventTable . '.user_id');
 
+            CarteroEvent::filterAssignments($query, 'eventos.nombre_evento');
             $this->applyDateFilter($query, $eventTable . '.created_at', $from, $to);
             $this->applyEventDepartamentoFilter($query, $config, $departamento);
             $this->excludeCanceledPackageForEvent($query, $config, $eventTable);

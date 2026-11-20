@@ -433,6 +433,16 @@ Route::middleware(['auth', 'internal.only', 'route.permission'])->group(function
             ->name('contract-expiration-email.daily-closing.index');
         Route::patch('/administrador/correo-electronico/cierre-diario', [ContractExpirationEmailController::class, 'updateDailyClosing'])
             ->name('contract-expiration-email.daily-closing.update');
+        Route::prefix('/administrador/correo-electronico/entregas-diarias')
+            ->name('daily-deliveries-email.')
+            ->controller(ContractExpirationEmailController::class)
+            ->group(function () {
+                Route::get('/', 'dailyDeliveries')->name('index');
+                Route::patch('/', 'updateDailyDeliveries')->name('update');
+                Route::post('/enviar', 'sendDailyDeliveries')->name('send');
+                Route::post('/destinatarios', 'addDailyDeliveriesRecipient')->name('recipients.store');
+                Route::delete('/destinatarios', 'removeDailyDeliveriesRecipient')->name('recipients.destroy');
+            });
     });
 
     Route::get('/configuracion/aplicacion', [AppConfigController::class, 'edit'])->name('configuracion.aplicacion.edit');

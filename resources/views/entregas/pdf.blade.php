@@ -16,7 +16,7 @@
         .title { margin: 3px 0; font-size: 19px; font-weight: bold; color: #ffffff; }
         .meta { font-size: 8px; color: #e2eaf5; }
         .kpis { margin-bottom: 12px; table-layout: fixed; }
-        .kpis td { width: 50%; padding: 6px 8px; border: 1px solid #d8e1ec; background: #f7f9fc; text-align: center; }
+        .kpis td { width: 33.33%; padding: 6px 8px; border: 1px solid #d8e1ec; background: #f7f9fc; text-align: center; }
         .kpi-label { color: #66778b; font-size: 6.5px; font-weight: bold; text-transform: uppercase; }
         .kpi-value { margin-top: 4px; color: #123b70; font-size: 13px; font-weight: bold; }
         .section-title { margin: 10px 0 5px; padding: 6px 8px; border-left: 4px solid #1f5fae; background: #edf3fa; color: #123b70; font-size: 9px; font-weight: bold; text-transform: uppercase; }
@@ -47,7 +47,6 @@
 @php
     $carteros = collect($entregadores ?? []);
     $departamentos = collect($resumenDepartamentos ?? []);
-    $totalAsignados = (int) $carteros->sum('total_asignados');
     $totalFisica = (int) $carteros->sum('total_cartero_entregados');
     $totalVentanilla = (int) $carteros->sum('total_ventanilla');
     $totalEntregados = (int) $carteros->sum('total_entregados');
@@ -85,18 +84,17 @@
 <table class="kpis">
     <tbody>
         <tr>
-            <td><div class="kpi-label">Carteros</div><div class="kpi-value">{{ \App\Support\BolivianNumber::format($carteros->count()) }}</div></td>
+            <td><div class="kpi-label">Registrados</div><div class="kpi-value">{{ \App\Support\BolivianNumber::format($totalRegistrados) }}</div></td>
             <td><div class="kpi-label">Asignados</div><div class="kpi-value">{{ \App\Support\BolivianNumber::format($totalAsignados) }}</div></td>
+            <td><div class="kpi-label">Total entregados</div><div class="kpi-value">{{ \App\Support\BolivianNumber::format($totalEntregados) }}</div></td>
         </tr>
         <tr>
+            <td><div class="kpi-label">Carteros</div><div class="kpi-value">{{ \App\Support\BolivianNumber::format($carteros->count()) }}</div></td>
             <td><div class="kpi-label">Entrega física</div><div class="kpi-value">{{ \App\Support\BolivianNumber::format($totalFisica) }}</div></td>
             <td><div class="kpi-label">Ventanilla</div><div class="kpi-value">{{ \App\Support\BolivianNumber::format($totalVentanilla) }}</div></td>
         </tr>
         <tr>
-            <td><div class="kpi-label">Total entregados</div><div class="kpi-value">{{ \App\Support\BolivianNumber::format($totalEntregados) }}</div></td>
             <td><div class="kpi-label">Promedio diario</div><div class="kpi-value">{{ \App\Support\BolivianNumber::format($promedioDiarioGeneral ?? 0, 2) }}</div></td>
-        </tr>
-        <tr>
             <td><div class="kpi-label">Pendientes</div><div class="kpi-value">{{ \App\Support\BolivianNumber::format($totalPendientes) }}</div></td>
             <td><div class="kpi-label">Cumplimiento</div><div class="kpi-value">{{ \App\Support\BolivianNumber::format($cumplimientoGeneral, 1) }}%</div></td>
         </tr>
@@ -105,13 +103,14 @@
 
 <div class="section-title">Resumen por departamento</div>
 @if($departamentos->isEmpty())
-    <div class="empty">No hay entregas ni asignaciones para los filtros seleccionados.</div>
+    <div class="empty">No hay registros, asignaciones ni entregas para los filtros seleccionados.</div>
 @else
     <table class="table">
         <thead>
             <tr>
                 <th>Departamento</th>
                 <th class="num">Carteros</th>
+                <th class="num">Registrados</th>
                 <th class="num">Asignados</th>
                 <th class="num">Entrega física</th>
                 <th class="num">Ventanilla</th>
@@ -129,6 +128,7 @@
                 <tr>
                     <td>{{ $nombreDepartamento }}</td>
                     <td class="num">{{ \App\Support\BolivianNumber::format($departamento['cantidad_carteros']) }}</td>
+                    <td class="num">{{ \App\Support\BolivianNumber::format($departamento['total_registrados']) }}</td>
                     <td class="num">{{ \App\Support\BolivianNumber::format($departamento['total_asignados']) }}</td>
                     <td class="num">{{ \App\Support\BolivianNumber::format($departamento['total_cartero_entregados']) }}</td>
                     <td class="num">{{ \App\Support\BolivianNumber::format($departamento['total_ventanilla']) }}</td>
@@ -141,6 +141,7 @@
             <tr class="total-row">
                 <td>TOTAL GENERAL</td>
                 <td class="num">{{ \App\Support\BolivianNumber::format($carteros->count()) }}</td>
+                <td class="num">{{ \App\Support\BolivianNumber::format($totalRegistrados) }}</td>
                 <td class="num">{{ \App\Support\BolivianNumber::format($totalAsignados) }}</td>
                 <td class="num">{{ \App\Support\BolivianNumber::format($totalFisica) }}</td>
                 <td class="num">{{ \App\Support\BolivianNumber::format($totalVentanilla) }}</td>
@@ -154,6 +155,7 @@
 @endif
 
 @foreach($departamentos as $departamento)
+    @continue($departamento['cantidad_carteros'] === 0)
     @php
         $nombreDepartamento = mb_convert_case(mb_strtolower($departamento['departamento'], 'UTF-8'), MB_CASE_TITLE, 'UTF-8');
         $carterosDepartamento = collect($departamento['carteros']);

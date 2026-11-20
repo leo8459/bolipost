@@ -7,12 +7,13 @@ use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithColumnFormatting;
 use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Concerns\WithStrictNullComparison;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 
-class DashboardEntregasResumenExport implements FromArray, ShouldAutoSize, WithColumnFormatting, WithEvents, WithTitle
+class DashboardEntregasResumenExport implements FromArray, ShouldAutoSize, WithColumnFormatting, WithEvents, WithStrictNullComparison, WithTitle
 {
     public function __construct(
         private readonly array $reportData
@@ -39,7 +40,7 @@ class DashboardEntregasResumenExport implements FromArray, ShouldAutoSize, WithC
             ['RESUMEN EJECUTIVO DE ENTREGAS'],
             ['Periodo', (string) ($this->reportData['rangoLabel'] ?? 'Todo el historial')],
             ['Días laborables (lunes a sábado)', $diasLaborables],
-            ['Departamento del cartero', (string) (($this->reportData['departamentoCartero'] ?? '') ?: 'Todos')],
+            ['Departamento', (string) (($this->reportData['departamentoCartero'] ?? '') ?: 'Todos')],
             ['Módulos', collect($this->reportData['modulosSeleccionados'] ?? [])
                 ->map(fn ($key) => $this->reportData['modulosDisponibles'][$key]['label'] ?? strtoupper((string) $key))
                 ->implode(', ')],
@@ -47,6 +48,7 @@ class DashboardEntregasResumenExport implements FromArray, ShouldAutoSize, WithC
             [
                 'Departamento',
                 'Carteros',
+                'Registrados',
                 'Asignados',
                 'Entrega física',
                 'Ventanilla',
@@ -61,6 +63,7 @@ class DashboardEntregasResumenExport implements FromArray, ShouldAutoSize, WithC
             $rows[] = [
                 $this->formatDepartment((string) ($departamento['departamento'] ?? '')),
                 (int) ($departamento['cantidad_carteros'] ?? 0),
+                (int) ($departamento['total_registrados'] ?? 0),
                 (int) ($departamento['total_asignados'] ?? 0),
                 (int) ($departamento['total_cartero_entregados'] ?? 0),
                 (int) ($departamento['total_ventanilla'] ?? 0),
@@ -74,6 +77,7 @@ class DashboardEntregasResumenExport implements FromArray, ShouldAutoSize, WithC
         $rows[] = [
             'TOTAL',
             $carteros->count(),
+            (int) ($this->reportData['totalRegistrados'] ?? 0),
             $totalAsignados,
             $totalCarteroEntregados,
             $totalVentanilla,
@@ -94,9 +98,10 @@ class DashboardEntregasResumenExport implements FromArray, ShouldAutoSize, WithC
             'D' => NumberFormat::FORMAT_NUMBER,
             'E' => NumberFormat::FORMAT_NUMBER,
             'F' => NumberFormat::FORMAT_NUMBER,
-            'G' => NumberFormat::FORMAT_NUMBER_00,
-            'H' => NumberFormat::FORMAT_NUMBER,
-            'I' => NumberFormat::FORMAT_NUMBER_00,
+            'G' => NumberFormat::FORMAT_NUMBER,
+            'H' => NumberFormat::FORMAT_NUMBER_00,
+            'I' => NumberFormat::FORMAT_NUMBER,
+            'J' => NumberFormat::FORMAT_NUMBER_00,
         ];
     }
 
@@ -110,14 +115,14 @@ class DashboardEntregasResumenExport implements FromArray, ShouldAutoSize, WithC
                 $totalRow = 8 + $departmentCount;
 
                 $sheet->freezePane('A8');
-                $sheet->setAutoFilter('A7:I' . max(7, 7 + $departmentCount));
-                $sheet->getStyle('A1:I1')->getFont()->setBold(true)->setSize(16)->getColor()->setRGB('123B70');
-                $sheet->getStyle('A7:I7')->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
-                $sheet->getStyle('A7:I7')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('1F5FAE');
+                $sheet->setAutoFilter('A7:J' . max(7, 7 + $departmentCount));
+                $sheet->getStyle('A1:J1')->getFont()->setBold(true)->setSize(16)->getColor()->setRGB('123B70');
+                $sheet->getStyle('A7:J7')->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
+                $sheet->getStyle('A7:J7')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('1F5FAE');
 
                 if ($lastRow >= $totalRow) {
-                    $sheet->getStyle('A' . $totalRow . ':I' . $totalRow)->getFont()->setBold(true);
-                    $sheet->getStyle('A' . $totalRow . ':I' . $totalRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('E8F0FB');
+                    $sheet->getStyle('A' . $totalRow . ':J' . $totalRow)->getFont()->setBold(true);
+                    $sheet->getStyle('A' . $totalRow . ':J' . $totalRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('E8F0FB');
                 }
             },
         ];

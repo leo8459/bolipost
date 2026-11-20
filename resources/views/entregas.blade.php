@@ -38,8 +38,12 @@
 
         .entregas-summary {
             display: grid;
-            grid-template-columns: repeat(7, minmax(110px, 1fr));
+            grid-template-columns: repeat(6, minmax(0, 1fr));
             gap: 10px;
+        }
+
+        .entregas-comparison {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
         }
 
         .entregas-kpi {
@@ -193,10 +197,14 @@
             overflow: hidden;
         }
 
+        .department-ranking-header {
+            gap: 8px 16px;
+        }
+
         .department-summary {
             display: grid;
-            grid-template-columns: minmax(150px, 1.5fr) repeat(5, minmax(82px, 1fr)) auto;
-            gap: 12px;
+            grid-template-columns: minmax(115px, 1.5fr) repeat(7, minmax(0, 1fr)) auto;
+            gap: 8px;
             align-items: center;
             padding: 13px 15px;
             cursor: pointer;
@@ -220,6 +228,13 @@
             color: #123b70;
             font-weight: 900;
             font-size: 1rem;
+            overflow-wrap: anywhere;
+        }
+
+        .department-title-block {
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .department-stat small,
@@ -232,6 +247,7 @@
             font-size: .68rem;
             font-weight: 800;
             text-transform: uppercase;
+            overflow-wrap: anywhere;
         }
 
         .department-stat strong {
@@ -254,11 +270,7 @@
             min-width: 1040px;
         }
 
-        @media (max-width: 991.98px) {
-            .entregas-summary {
-                grid-template-columns: repeat(2, minmax(140px, 1fr));
-            }
-
+        @media (max-width: 1199.98px) {
             .department-summary {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
@@ -267,6 +279,12 @@
             .department-toggle {
                 grid-column: 1 / -1;
             }
+        }
+
+        @media (max-width: 991.98px) {
+            .entregas-summary:not(.entregas-comparison) {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
 
             .excel-wrap {
                 overflow-x: auto;
@@ -274,6 +292,12 @@
 
             .excel-table {
                 min-width: 1040px;
+            }
+        }
+
+        @media (max-width: 479.98px) {
+            .entregas-comparison {
+                grid-template-columns: 1fr;
             }
         }
 
@@ -513,7 +537,6 @@
     </style>
 
     @php
-        $totalAsignados = (int) $entregadores->sum('total_asignados');
         $totalGeneral = (int) $entregadores->sum('total_entregados');
         $totalCarteroEntregados = (int) $entregadores->sum('total_cartero_entregados');
         $totalVentanilla = (int) $entregadores->sum('total_ventanilla');
@@ -526,6 +549,7 @@
     <div class="card entregas-card mb-3">
         <div class="card-body entregas-filter">
             <form method="GET" action="{{ route('entregas.index') }}" class="row">
+                <input type="hidden" name="orden" value="{{ $ordenDepartamentos }}">
                 <div class="col-md-3 mb-3">
                     <label class="mb-1">Rango</label>
                     <select class="form-control" name="range">
@@ -548,7 +572,7 @@
                     <input type="date" class="form-control" name="to" value="{{ request('to', $rangoHasta ?? '') }}">
                 </div>
                 <div class="col-md-3 mb-3">
-                    <label class="mb-1">Departamento del cartero</label>
+                    <label class="mb-1">Departamento</label>
                     <select class="form-control" name="cartero_departamento">
                         <option value="">Todos</option>
                         @foreach($departamentosDisponibles as $dep)
@@ -581,7 +605,7 @@
                     <span class="text-muted ml-md-2">
                         {{ $rangoLabel ?? 'Todo el historial' }}
                         @if(($departamentoCartero ?? '') !== '')
-                            | Carteros de {{ $departamentoCartero }}
+                            | {{ $departamentoCartero }}
                         @endif
                     </span>
                 </div>
@@ -589,23 +613,37 @@
         </div>
     </div>
 
+    <div class="entregas-summary entregas-comparison mb-2">
+        <div class="entregas-kpi"><span>Registrados</span><strong>{{ \App\Support\BolivianNumber::format($totalRegistrados) }}</strong></div>
+        <div class="entregas-kpi"><span>Asignados</span><strong>{{ \App\Support\BolivianNumber::format($totalAsignados) }}</strong></div>
+        <div class="entregas-kpi"><span>Total entregados</span><strong>{{ \App\Support\BolivianNumber::format($totalGeneral) }}</strong></div>
+    </div>
+    <p class="text-muted small mb-3">Los registrados excluyen los cancelados y se agrupan por destino. Los asignados y entregados se agrupan por departamento del cartero. Cada total usa la fecha de su operación.</p>
+
     <div class="entregas-summary mb-3">
         <div class="entregas-kpi"><span>Carteros</span><strong>{{ \App\Support\BolivianNumber::format($totalCarteros) }}</strong></div>
         <div class="entregas-kpi"><span>Entrega física</span><strong>{{ \App\Support\BolivianNumber::format($totalCarteroEntregados) }}</strong></div>
         <div class="entregas-kpi"><span>Ventanilla</span><strong>{{ \App\Support\BolivianNumber::format($totalVentanilla) }}</strong></div>
-        <div class="entregas-kpi"><span>Total entregados</span><strong>{{ \App\Support\BolivianNumber::format($totalGeneral) }}</strong></div>
         <div class="entregas-kpi" title="Total entregado dividido entre los días del periodo de lunes a sábado"><span>Promedio diario</span><strong>{{ \App\Support\BolivianNumber::format($promedioDiarioGeneral ?? 0, 2) }}</strong><small>Lun-Sáb · {{ \App\Support\BolivianNumber::format($diasLaborables ?? 0) }} días</small></div>
         <div class="entregas-kpi"><span>Pendientes asignados</span><strong>{{ \App\Support\BolivianNumber::format($totalPendientesAsignados) }}</strong></div>
         <div class="entregas-kpi"><span>Cumplimiento</span><strong>{{ \App\Support\BolivianNumber::format($cumplimientoGeneral, 1) }}%</strong></div>
     </div>
 
-    <div class="card entregas-card">
-        <div class="card-header d-flex flex-wrap justify-content-between align-items-center">
+    <div class="card entregas-card" id="ranking-departamentos">
+        <div class="card-header department-ranking-header d-flex flex-wrap justify-content-between align-items-center">
             <div>
-                <strong>Resumen por departamento</strong>
+                <h2 class="h6 d-inline font-weight-bold mb-0">Ranking por departamento</h2>
                 <span class="text-muted ml-2">{{ $rangoLabel ?? 'Todo el historial' }}</span>
             </div>
-            <span class="text-muted small">Abre un departamento para ver sus carteros.</span>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Orden del ranking">
+                @foreach(['entregados' => 'Por entregas', 'registrados' => 'Por registros'] as $orden => $etiqueta)
+                    <a href="{{ route('entregas.index', array_replace(request()->query(), ['orden' => $orden])) }}#ranking-departamentos"
+                       class="btn {{ $ordenDepartamentos === $orden ? 'btn-primary' : 'btn-outline-primary' }}"
+                       @if($ordenDepartamentos === $orden) aria-current="true" @endif>
+                        {{ $etiqueta }}
+                    </a>
+                @endforeach
+            </div>
         </div>
         <div class="card-body p-3">
             @forelse($resumenDepartamentos as $departamento)
@@ -615,12 +653,17 @@
                 <details class="department-card">
                     <summary class="department-summary">
                         <div class="department-title-block">
-                            <div class="department-name">{{ $nombreDepartamento }}</div>
-                            <small class="text-muted">{{ \App\Support\BolivianNumber::format($departamento['cantidad_carteros']) }} carteros</small>
+                            <span class="excel-rank flex-shrink-0"><span class="sr-only">Puesto </span>{{ $loop->iteration }}</span>
+                            <div>
+                                <div class="department-name">{{ $nombreDepartamento }}</div>
+                                <small class="text-muted">{{ \App\Support\BolivianNumber::format($departamento['cantidad_carteros']) }} carteros</small>
+                            </div>
                         </div>
+                        <div class="department-stat"><small>Registrados</small><strong>{{ \App\Support\BolivianNumber::format($departamento['total_registrados']) }}</strong></div>
+                        <div class="department-stat"><small>Asignados</small><strong>{{ \App\Support\BolivianNumber::format($departamento['total_asignados']) }}</strong></div>
+                        <div class="department-stat"><small>Total entregados</small><strong>{{ \App\Support\BolivianNumber::format($departamento['total_entregados']) }}</strong></div>
                         <div class="department-stat"><small>Entrega física</small><strong>{{ \App\Support\BolivianNumber::format($departamento['total_cartero_entregados']) }}</strong></div>
                         <div class="department-stat"><small>Ventanilla</small><strong>{{ \App\Support\BolivianNumber::format($departamento['total_ventanilla']) }}</strong></div>
-                        <div class="department-stat"><small>Total entregados</small><strong>{{ \App\Support\BolivianNumber::format($departamento['total_entregados']) }}</strong></div>
                         <div class="department-stat"><small>Prom. diario</small><strong>{{ \App\Support\BolivianNumber::format($departamento['promedio_diario'], 2) }}</strong></div>
                         <div class="department-stat"><small>Cumplimiento</small><strong>{{ \App\Support\BolivianNumber::format($departamento['cumplimiento'], 1) }}%</strong></div>
                         <span class="department-toggle">Ver carteros <i class="fas fa-chevron-down ml-1"></i></span>
@@ -642,7 +685,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach($departamento['carteros'] as $item)
+                                    @forelse($departamento['carteros'] as $item)
                                         @php
                                             $cumplimiento = min(100.0, max(0.0, (float) $item->cumplimiento_asignados));
                                         @endphp
@@ -662,16 +705,18 @@
                                                 </div>
                                             </td>
                                         </tr>
-                                    @endforeach
+                                    @empty
+                                        <tr><td colspan="9" class="text-center text-muted">No hay asignaciones ni entregas para este departamento en el periodo.</td></tr>
+                                    @endforelse
                                 </tbody>
                             </table>
                         </div>
                     </div>
                 </details>
             @empty
-                <div class="text-center text-muted py-4">No hay asignaciones ni entregas para el filtro seleccionado.</div>
+                <div class="text-center text-muted py-4">No hay registros, asignaciones ni entregas para el filtro seleccionado.</div>
             @endforelse
-            <div class="text-muted small mt-2">El cumplimiento incluye entregas por cartero y ventanilla; los pendientes se suman por cartero para que los excedentes de uno no oculten pendientes de otro. El promedio diario usa {{ \App\Support\BolivianNumber::format($diasLaborables ?? 0) }} días de lunes a sábado; no cuenta domingos.</div>
+            <div class="text-muted small mt-2">El cumplimiento incluye entregas por cartero y ventanilla. Los pendientes se calculan por cartero y luego se suman. El promedio diario usa {{ \App\Support\BolivianNumber::format($diasLaborables ?? 0) }} días de lunes a sábado, con el día de hoy como fecha límite.</div>
         </div>
     </div>
 

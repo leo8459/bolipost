@@ -15,6 +15,7 @@ use App\Models\Recojo as RecojoContrato;
 use App\Models\SolicitudCliente;
 use App\Models\User;
 use App\Support\CarteroEvent;
+use App\Support\ChasquiCartero;
 use App\Support\StoredImage;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
@@ -49,13 +50,7 @@ class CarterosController extends Controller
         'NOTIFICADO',
     ];
 
-    private const DISTRIBUTION_ASSIGNEE_ROLES = [
-        'auxiliar_urbano',
-        'auxiliar_urbano_dnd',
-        'auxiliar_7',
-        'cartero_ems',
-        'carteros_ems',
-    ];
+    private const DISTRIBUTION_ASSIGNEE_ROLES = ChasquiCartero::ROLES;
 
     private const DEPARTMENT_CAPITALS = [
         'COCHABAMBA',

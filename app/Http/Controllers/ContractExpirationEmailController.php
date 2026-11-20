@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Services\ContractExpirationMailService;
 use App\Services\DailyClosingMailService;
+use App\Services\DailyDeliveryMailService;
+use App\Services\DailyDeliveryReport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -73,6 +75,71 @@ class ContractExpirationEmailController extends Controller
         return redirect()
             ->route('contract-expiration-email.daily-closing.index', ['date' => $data['date']])
             ->with('status', "Cierre del {$data['date']} enviado correctamente a {$sent} destinatario(s).");
+    }
+
+    public function dailyDeliveries(Request $request, DailyDeliveryMailService $mail, DailyDeliveryReport $reports)
+    {
+        $date = $this->dailyDeliveryDate($request);
+
+        return view('configuracion.daily-deliveries-email', [
+            'recipients' => $mail->recipients(),
+            'automaticEnabled' => $mail->automaticSendingEnabled(),
+            'sendAt' => DailyDeliveryMailService::SEND_AT,
+            'selectedDate' => $date,
+            'report' => $reports->forDate($date),
+        ]);
+    }
+
+    public function updateDailyDeliveries(Request $request, DailyDeliveryMailService $mail)
+    {
+        $data = $request->validate(['enabled' => ['required', 'boolean']]);
+        $mail->setAutomaticSendingEnabled((bool) $data['enabled']);
+
+        return back()->with('status', 'Configuración de Entregas diarias guardada.');
+    }
+
+    public function sendDailyDeliveries(Request $request, DailyDeliveryMailService $mail, DailyDeliveryReport $reports)
+    {
+        $date = $this->dailyDeliveryDate($request, required: true);
+        $recipients = $mail->recipients();
+        if ($recipients === []) {
+            return back()->with('warning', 'Agregue un destinatario para enviar el reporte.');
+        }
+
+        try {
+            $sent = $mail->send($recipients, $reports->forDate($date));
+        } catch (Throwable $exception) {
+            Log::error('No se pudo completar el envío de Entregas diarias.', ['exception' => $exception]);
+
+            return back()->with('error', 'No se pudo completar el envío. Revise la configuración del correo.');
+        }
+
+        return redirect()->route('daily-deliveries-email.index', ['date' => $date])
+            ->with('status', "Reporte del {$date} enviado a {$sent} destinatario(s).");
+    }
+
+    public function addDailyDeliveriesRecipient(Request $request, DailyDeliveryMailService $mail)
+    {
+        return $this->storeRecipient($request, $mail->recipients(), $mail->saveRecipients(...));
+    }
+
+    public function removeDailyDeliveriesRecipient(Request $request, DailyDeliveryMailService $mail)
+    {
+        return $this->destroyRecipient($request, $mail->recipients(), $mail->saveRecipients(...));
+    }
+
+    private function dailyDeliveryDate(Request $request, bool $required = false): string
+    {
+        $today = now(DailyDeliveryReport::TIMEZONE)->toDateString();
+        $data = $request->validate([
+            'date' => [$required ? 'required' : 'nullable', 'date_format:Y-m-d', 'before_or_equal:'.$today],
+        ], [
+            'date.required' => 'Seleccione el día que desea enviar.',
+            'date.date_format' => 'Seleccione una fecha válida.',
+            'date.before_or_equal' => 'Seleccione el día de hoy o una fecha anterior.',
+        ]);
+
+        return $data['date'] ?? $today;
     }
 
     public function updateAutomaticSending(Request $request, ContractExpirationMailService $mailService)
