@@ -72,9 +72,19 @@ class IpsCombinedOfficeWorkbench
         $detail = $this->ips->package($code, $first['office_cd']);
         $package = $detail['package'];
         $event = (int) ($package['operational_event_cd'] ?? $package['event_cd'] ?? 0);
-        $officeCd = $action === 'EMG' && in_array($event, [13, 35, 72], true)
-            ? (int) ($package['next_office_cd'] ?? -1)
-            : (int) ($package['operational_office_cd'] ?? $package['office_cd'] ?? -1);
+        $unregisteredDestinationReceipt = $action === 'SMART_RECEPTION'
+            && $event === 30
+            && (int) ($package['state_cd'] ?? -1) === 0
+            && trim((string) ($package['destination_country'] ?? '')) === ''
+            && empty($package['destination_country_inferred'])
+            && trim((string) ($package['origin_country'] ?? '')) !== ''
+            && strtoupper(trim((string) $package['origin_country'])) !== 'BO'
+            && empty($package['terminal']);
+        $officeCd = $unregisteredDestinationReceipt
+            ? (int) $first['office_cd']
+            : (in_array($action, ['EMG', 'SMART_RECEPTION'], true) && in_array($event, [13, 35, 72, 1251], true)
+                ? (int) ($package['next_office_cd'] ?? -1)
+                : (int) ($package['operational_office_cd'] ?? $package['office_cd'] ?? -1));
         $office = collect($offices)->firstWhere('office_cd', $officeCd);
         abort_unless($office, 409, 'El paquete no está encaminado ni recibido en ninguna de tus oficinas de La Paz. Revisa su ruta en IPS.');
         $package = $this->withReceiptOptions($package, $offices);

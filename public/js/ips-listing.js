@@ -4,6 +4,7 @@
     const status = document.getElementById('ips-listing-status');
     if (!listing || !status) return;
     let activeRequest;
+    let recipientSearchTimer;
     const workspace = document.querySelector('.ips-workspace');
     const fixedWorkflow = workspace?.dataset.workflowAction || '';
     const scanEnabled = workspace?.dataset.scanEnabled === '1';
@@ -38,7 +39,11 @@
         const request = new AbortController();
         activeRequest = request;
         listing.setAttribute('aria-busy', 'true');
-        status.hidden = true;
+        listing.querySelectorAll('.ips-selection-add button').forEach(button => { button.disabled = true; });
+        status.hidden = false;
+        status.textContent = url.searchParams.get('recipient_address_q')?.trim()
+            ? 'Buscando paquetes por destinatario o dirección…'
+            : 'Actualizando paquetes…';
         try {
             const response = await fetch(url.href, {
                 signal: request.signal,
@@ -135,7 +140,7 @@
                         checkbox.checked = true;
                         checkbox.dispatchEvent(new Event('change', {bubbles: true}));
                     }
-                    if (fixedWorkflow === 'EMG') window.dispatchEvent(new CustomEvent('ips:receipt-requested', {detail: {code}}));
+                    if (fixedWorkflow === 'EMG' || workspace?.dataset.smartReception === '1') window.dispatchEvent(new CustomEvent('ips:receipt-requested', {detail: {code}}));
                 }
                 status.hidden = false;
                 status.textContent = 'Ese paquete ya está en la bandeja.';
@@ -180,7 +185,9 @@
                 if (trayCount) trayCount.textContent = result.count + '/50 paquetes';
                 window.dispatchEvent(new CustomEvent('ips:selection-added', {detail: {...result, scanned: true}}));
                 status.hidden = false;
-                status.textContent = fixedWorkflow === 'EMG'
+                status.textContent = workspace?.dataset.smartReception === '1'
+                    ? 'IPS determinó el siguiente paso. Confirma la llegada física y el resultado real de Aduana cuando corresponda.'
+                    : fixedWorkflow === 'EMG'
                     ? 'Revisa los datos UPU y confirma la llegada f\u00edsica en el modal de recepci\u00f3n.'
                     : result.package?.needs_receipt_office
                     ? 'Paquete seleccionado y oficina asignada automáticamente. Confirma su llegada física en el modal de recepción.'
@@ -210,9 +217,14 @@
         const form = event.target.closest('.ips-search');
         if (!form) return;
         event.preventDefault();
-        const code = String(new FormData(form).get('q') || '').trim().toUpperCase();
+        clearTimeout(recipientSearchTimer);
+        recipientSearchTimer = null;
+        const formData = new FormData(form);
+        const code = String(formData.get('q') || formData.get('recipient_address_q') || '').trim().toUpperCase();
         const isWorkflowScan = scanEnabled && fixedWorkflow && /^[A-Z0-9-]{8,35}$/.test(code);
-        if (isWorkflowScan) {
+        const isDeliveryBarcode = scanEnabled && workspace?.dataset.deliveryOnly === '1'
+            && !fixedWorkflow && /^[A-Z]{2}\d{9}[A-Z]{2}$/.test(code);
+        if (isWorkflowScan || isDeliveryBarcode) {
             scanQueue.push(code);
             const input = form.querySelector('#ips-code');
             if (input) { input.value = ''; input.focus(); }
@@ -232,11 +244,46 @@
             if (addForm) addSelectionForm(addForm);
         });
     });
+    listing.addEventListener('input', event => {
+        const input = event.target.closest('#ips-code[name="recipient_address_q"]');
+        if (!input?.form || workspace?.dataset.deliveryOnly !== '1' || fixedWorkflow) return;
+
+        clearTimeout(recipientSearchTimer);
+        const value = input.value.trim();
+        const isDeliveryBarcode = /^[A-Z]{2}\d{9}[A-Z]{2}$/i.test(value);
+        if ((value.length > 0 && value.length < 2) || isDeliveryBarcode) return;
+
+        recipientSearchTimer = window.setTimeout(() => {
+            recipientSearchTimer = null;
+            const currentInput = listing.querySelector('#ips-code[name="recipient_address_q"]');
+            if (!currentInput?.form) return;
+            const currentValue = currentInput.value.trim();
+            if ((currentValue.length > 0 && currentValue.length < 2) || /^[A-Z]{2}\d{9}[A-Z]{2}$/i.test(currentValue)) return;
+
+            const url = searchUrl(currentInput.form);
+            load(url, false).then(loaded => {
+                if (loaded) history.replaceState(null, '', url.href);
+            });
+        }, 300);
+    });
     listing.addEventListener('paste', event => {
         const input = event.target.closest('#ips-code[data-search-on-paste]');
         if (!input?.form) return;
         const code = event.clipboardData?.getData('text/plain').trim().toUpperCase();
         if (!/^[A-Z0-9-]{1,35}$/.test(code ?? '')) return;
+
+        if (workspace?.dataset.deliveryOnly === '1' && !fixedWorkflow) {
+            if (!/^[A-Z]{2}\d{9}[A-Z]{2}$/.test(code)) return;
+            event.preventDefault();
+            scanQueue.push(code);
+            input.value = '';
+            status.hidden = false;
+            status.textContent = scanQueue.length > 1
+                ? 'Escaneos en cola: ' + scanQueue.length + '.'
+                : 'Agregando el paquete a la bandeja de entrega...';
+            processScanQueue();
+            return;
+        }
 
         event.preventDefault();
         input.value = code;
