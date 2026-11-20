@@ -39,11 +39,14 @@ class SitraIpsClient
 
     public function packages(array $filters = []): array
     {
-        return $this->client()
+        $request = $this->client()
             // LocalDB can need extra time to load its data after startup.
-            ->timeout(max(1, (int) config('services.sitra_ips.read_timeout', 60)))
-            ->get($this->url('/api/v1/ips/paquetes'), array_filter($filters, fn ($value) => $value !== null && $value !== ''))
-            ->throw()->json();
+            ->timeout(max(1, (int) config('services.sitra_ips.read_timeout', 60)));
+        $filters = array_filter($filters, fn ($value) => $value !== null && $value !== '');
+
+        $response = $request->get($this->url('/api/v1/ips/paquetes'), $filters);
+
+        return $response->throw()->json();
     }
 
     public function deliveryCatalog(int $office): array

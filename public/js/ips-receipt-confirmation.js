@@ -100,7 +100,8 @@
         rows.forEach(row => {
             const options = officeOptions(row);
             const pending = ['processing', 'uncertain'].includes(row.dataset.status);
-            needsRouteConfirmation ||= row.dataset.routeMismatch === '1' || options.length > 0;
+            const destinationMissing = row.dataset.destinationMissingReceipt === '1';
+            needsRouteConfirmation ||= row.dataset.routeMismatch === '1' || (options.length > 0 && !destinationMissing);
             if (!options.length || pending) return;
             const label = document.createElement('label');
             label.className = 'd-block mb-3';
@@ -120,9 +121,10 @@
                 option.textContent = office.office_name + (office.office_fcd ? ' · ' + office.office_fcd : '');
                 select.appendChild(option);
             });
-            select.value = suggestedOffice(row, options, preferredOffice);
+            select.dataset.officeSelectable = destinationMissing ? '1' : '0';
+            select.value = destinationMissing ? '' : suggestedOffice(row, options, preferredOffice);
             select.receiptLockedOffice = select.value;
-            select.disabled = true;
+            select.disabled = !destinationMissing;
             label.appendChild(select);
             offices.appendChild(label);
         });
@@ -135,7 +137,7 @@
     function read(dialog) {
         const offices = {};
         dialog.querySelectorAll('#ips-confirm-receipt-offices select[data-code]').forEach(select => {
-            offices[select.dataset.code] = select.receiptLockedOffice;
+            offices[select.dataset.code] = select.dataset.officeSelectable === '1' ? select.value : select.receiptLockedOffice;
         });
         const upu = {};
         dialog.querySelectorAll('#ips-confirm-upu-fields fieldset[data-code]').forEach(section => {

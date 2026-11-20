@@ -3,7 +3,7 @@
 @section('content')
 @include('paquetes_ips.partials.offices')
 @php($workbenchMode = $deliveryOnly ? 'delivery' : (in_array($workflowAction ?? '', ['EMR', 'EMG', 'CUSTOMS_RETURN'], true) ? 'reception' : ''))
-<div class="ips-workspace" data-mode="{{ $workbenchMode }}" data-receipt-preferred-office="{{ $link?->ips_office_cd ?? '' }}" data-upu-destination="{{ auth()->user()?->ciudad ?? '' }}" data-combined-offices="{{ empty($combinedOffices) ? '' : implode('_', array_column($combinedOffices, 'office_cd')) }}" data-delivery-only="{{ $deliveryOnly ? '1' : '0' }}" data-courier-only="{{ $courierOnly ? '1' : '0' }}" data-workflow-action="{{ $workflowAction ?? '' }}" data-scan-enabled="{{ $readOnly ? '0' : '1' }}" data-preferred-receptacle="{{ $preferredReceptaclePid ?? '' }}" data-add-label="{{ ($workflowAction ?? null) ? 'Agregar al paso' : (($deliveryOnly ?? false) ? 'Agregar a entrega' : 'Agregar') }}" data-selection-add-url="{{ $selectionAddUrl }}" data-operate-url="{{ $operateUrl }}">
+<div class="ips-workspace" data-mode="{{ $workbenchMode }}" data-smart-reception="{{ !empty($smartReception) ? '1' : '0' }}" data-receipt-preferred-office="{{ $link?->ips_office_cd ?? '' }}" data-upu-destination="{{ auth()->user()?->ciudad ?? '' }}" data-combined-offices="{{ empty($combinedOffices) ? '' : implode('_', array_column($combinedOffices, 'office_cd')) }}" data-delivery-only="{{ $deliveryOnly ? '1' : '0' }}" data-courier-only="{{ $courierOnly ? '1' : '0' }}" data-workflow-action="{{ $workflowAction ?? '' }}" data-scan-enabled="{{ $readOnly ? '0' : '1' }}" data-preferred-receptacle="{{ $preferredReceptaclePid ?? '' }}" data-add-label="{{ ($workflowAction ?? null) ? 'Agregar al paso' : (($deliveryOnly ?? false) ? 'Agregar a entrega' : 'Agregar') }}" data-selection-add-url="{{ $selectionAddUrl }}" data-operate-url="{{ $operateUrl }}">
     @if($workbenchMode)
         @include('paquetes_ips.partials.workbench-heading')
     @elseif(!$warehouseView && ($workflowAction ?? null) !== 'EDN')
@@ -166,7 +166,7 @@
                 @endif
                 <div class="ips-tray-items">
                     @forelse($selection as $code=>$entry)
-                        <article class="ips-tray-item" data-code="{{ $code }}" data-event="{{ (int) ($entry['package']['operational_event_cd'] ?? $entry['package']['event_cd'] ?? 0) }}" data-actions="{{ implode(',', $entry['package']['allowed_actions'] ?? []) }}" data-status="{{ $entry['status'] }}" data-payload-action="{{ $entry['payload']['event'] ?? '' }}" data-customs-return="{{ in_array((int) ($entry['package']['operational_event_cd'] ?? $entry['package']['event_cd'] ?? 0), [31, 34, 1251], true) && (int) ($entry['package']['state_cd'] ?? -1) === 1 ? '1' : '0' }}" data-route-mismatch="{{ !empty($entry['route_mismatch_receipt']) ? '1' : '0' }}" data-receipt-offices="{{ json_encode($entry['package']['receipt_office_options'] ?? []) }}" data-receipt-locked-office="{{ $entry['package']['receipt_office_locked_cd'] ?? '' }}" data-workbench-office-cd="{{ $entry['office_cd'] ?? $entry['package']['workbench_office_cd'] ?? '' }}" data-upu-receipt="{{ json_encode($entry['upu_receipt'] ?? ['destinatario' => $entry['package']['recipient'] ?? '', 'telefono' => $entry['package']['phone'] ?? '', 'zona' => $entry['package']['address'] ?? '', 'peso' => $entry['package']['weight_kg'] ?? '']) }}">
+                        <article class="ips-tray-item" data-code="{{ $code }}" data-event="{{ (int) ($entry['package']['operational_event_cd'] ?? $entry['package']['event_cd'] ?? 0) }}" data-actions="{{ implode(',', $entry['package']['allowed_actions'] ?? []) }}" data-status="{{ $entry['status'] }}" data-payload-action="{{ $entry['payload']['event'] ?? '' }}" data-customs-return="{{ in_array((int) ($entry['package']['operational_event_cd'] ?? $entry['package']['event_cd'] ?? 0), [31, 34, 1251], true) && (int) ($entry['package']['state_cd'] ?? -1) === 1 ? '1' : '0' }}" data-route-mismatch="{{ !empty($entry['route_mismatch_receipt']) ? '1' : '0' }}" data-destination-missing-receipt="{{ !empty($entry['package']['destination_missing_receipt']) ? '1' : '0' }}" data-receptacle-pid="{{ $entry['receptacle_pid'] ?? $entry['package']['receptacle_pid'] ?? '' }}" data-receipt-offices="{{ json_encode($entry['package']['receipt_office_options'] ?? []) }}" data-receipt-locked-office="{{ $entry['package']['receipt_office_locked_cd'] ?? '' }}" data-workbench-office-cd="{{ $entry['office_cd'] ?? $entry['package']['workbench_office_cd'] ?? '' }}" data-upu-receipt="{{ json_encode($entry['upu_receipt'] ?? ['destinatario' => $entry['package']['recipient'] ?? '', 'telefono' => $entry['package']['phone'] ?? '', 'zona' => $entry['package']['address'] ?? '', 'peso' => $entry['package']['weight_kg'] ?? '']) }}">
                             <div class="d-flex align-items-center"><input class="ips-choice mr-2" type="checkbox" aria-label="Seleccionar {{ $code }}" @if($deliveryOnly) hidden @endif><strong>{{ $code }}</strong>
                                 @unless(in_array($entry['status'],['processing','uncertain'],true))<form class="ml-auto ips-selection-remove" method="POST" action="{{ route($selectionRemoveRouteName, \App\Support\IpsOfficeContext::parameters(request(), ($workflowAction ?? null) ? (['section' => $section, 'codigo' => $code] + (($workflowAction === 'CUSTOMS_RETURN' && !empty($entry['receptacle_pid'])) ? ['receptacle_pid' => $entry['receptacle_pid']] : [])) : ['codigo' => $code])) }}">@csrf @method('DELETE')<button type="submit" class="btn btn-sm text-muted" aria-label="Quitar {{ $code }}"><i class="fas fa-times"></i></button></form>@endunless
                             </div>
@@ -184,6 +184,17 @@
                             <div class="ips-physical-receipt mt-2" @if(($workflowAction ?? '') !== 'EMR') hidden @endif>
                                 <label class="ips-receipt-confirm-label"><input class="ips-physical-receipt-confirm mr-1" type="checkbox" @checked(!empty($entry['payload']['physical_receipt_confirmed'])) @disabled(!empty($entry['payload']))> Confirmo que el envío llegó físicamente a esta oficina.</label>
                             </div>
+                            @if(!empty($smartReception))
+                                <div class="ips-customs-release-fields mt-2" hidden>
+                                    <label class="ips-field-label">Resultado de Aduana</label>
+                                    <select class="form-control form-control-sm ips-customs-release-status" @disabled(!empty($entry['payload']))>
+                                        <option value="">Selecciona el resultado real de Aduana</option>
+                                        @foreach(($catalog['customs_release_statuses'] ?? []) as $releaseStatus)
+                                            <option value="{{ data_get($releaseStatus, 'CUSTOMS_RELEASE_STATUS_CD') }}" @selected(($entry['payload']['customs_release_status_cd'] ?? '') === data_get($releaseStatus, 'CUSTOMS_RELEASE_STATUS_CD'))>{{ data_get($releaseStatus, 'CUSTOMS_RELEASE_STATUS_CD') }} · {{ data_get($releaseStatus, 'CUSTOMS_RELEASE_STATUS_NM') }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            @endif
                             <div class="ips-exchange-receptacle-fields mt-2" @if(($workflowAction ?? '') !== 'EMR') hidden @endif><label class="ips-field-label">Envase internacional recibido y abierto</label><select class="form-control form-control-sm ips-exchange-receptacle" @disabled(!empty($entry['payload']))><option value="">Seleccionar envase</option>@foreach(($entry['package']['exchange_receptacles'] ?? []) as $receptacle)<option value="{{ data_get($receptacle, 'RECPTCL_PID') }}" @selected((string) ($entry['payload']['receptacle_pid'] ?? '') === (string) data_get($receptacle, 'RECPTCL_PID'))>{{ data_get($receptacle, 'RECPTCL_FID') }} · {{ data_get($receptacle, 'RECPTCL_MAILITMS_NO') !== null ? data_get($receptacle, 'RECPTCL_MAILITMS_NO').' declarados' : 'cantidad no declarada' }}</option>@endforeach</select></div>
                             <div class="ips-condition-fields mt-2" @if(($workflowAction ?? '') !== 'EMR') hidden @endif><label class="ips-field-label">Condicion fisica del paquete</label><select class="form-control form-control-sm ips-package-condition" @disabled(!empty($entry['payload']))><option value="">Revisar y seleccionar</option>@foreach(($catalog['item_conditions'] ?? []) as $condition)<option value="{{ data_get($condition, 'ITEM_CONDITION_CD') }}" @selected((string) ($entry['payload']['condition_cd'] ?? '') === (string) data_get($condition, 'ITEM_CONDITION_CD'))>{{ data_get($condition, 'ITEM_CONDITION_NM') }}</option>@endforeach</select></div>
                                                         <div class="ips-route-fields mt-2" hidden><label class="ips-field-label">Siguiente oficina de la ruta</label><select class="form-control form-control-sm ips-next-office" @disabled(!empty($entry['payload']))><option value="">Seleccionar oficina</option>@foreach(($entry['package']['next_offices'] ?? []) as $office)<option value="{{ data_get($office, 'OWN_OFFICE_CD') }}" @selected((string) ($entry['payload']['next_office_cd'] ?? '') === (string) data_get($office, 'OWN_OFFICE_CD'))>{{ data_get($office, 'OFFICE_NM') }}{{ data_get($office, 'OFFICE_FCD') ? ' · '.data_get($office, 'OFFICE_FCD') : '' }}</option>@endforeach</select></div>
@@ -548,6 +559,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const workspaceRoot = document.querySelector('.ips-workspace');
     const courierOnly = workspaceRoot?.dataset.courierOnly === '1';
     const fixedWorkflow = workspaceRoot?.dataset.workflowAction || '';
+    const smartReception = workspaceRoot?.dataset.smartReception === '1';
     const batchTargetFields = document.getElementById('ips-batch-target-fields');
     const batchTarget = document.getElementById('ips-batch-target');
     const batchTargetLabel = document.getElementById('ips-batch-target-label');
@@ -565,7 +577,10 @@ document.addEventListener('DOMContentLoaded', () => {
         EMR: {selector: '.ips-exchange-receptacle', label: 'Envase abierto para todo el lote', placeholder: 'Selecciona el envase recibido', key: 'RECPTCL_PID'},
     };
     function isReadyForWorkflow(row) {
-        return row.dataset.status === 'ready' && row.dataset.actions.split(',').includes(fixedWorkflow);
+        const allowed = row.dataset.actions.split(',');
+        return row.dataset.status === 'ready' && (smartReception
+            ? allowed.some(code => ['CUSTOMS_INFO', 'CUSTOMS_RETURN', 'EMG'].includes(code))
+            : allowed.includes(fixedWorkflow));
     }
     function compatibleBatch(rowsToCheck) {
         const config = batchTargetConfig[fixedWorkflow];
@@ -586,8 +601,21 @@ document.addEventListener('DOMContentLoaded', () => {
     function selectNextWorkflowBatch() {
         if (!fixedWorkflow) return;
         rows.forEach(row => { row.querySelector('.ips-choice').checked = false; });
+        if (smartReception) {
+            const retry = rows.find(row => ['processing', 'uncertain'].includes(row.dataset.status)
+                && ['CUSTOMS_INFO', 'CUSTOMS_RETURN', 'EMG'].includes(row.dataset.payloadAction));
+            if (retry) {
+                action.value = retry.dataset.payloadAction;
+                retry.querySelector('.ips-choice').checked = true;
+                return;
+            }
+        }
         const readyRows = rows.filter(isReadyForWorkflow);
-        const nextRows = fixedWorkflow === 'EMG' ? readyRows.slice(0, 1) : compatibleBatch(readyRows);
+        const nextRows = (fixedWorkflow === 'EMG' || smartReception) ? readyRows.slice(0, 1) : compatibleBatch(readyRows);
+        if (smartReception && nextRows.length) {
+            const allowed = nextRows[0].dataset.actions.split(',');
+            action.value = ['CUSTOMS_INFO', 'CUSTOMS_RETURN', 'EMG'].find(code => allowed.includes(code)) || '';
+        }
         nextRows.forEach(row => { row.querySelector('.ips-choice').checked = true; });
     }
     function canJoinSelectedWorkflowBatch(row) {
@@ -598,13 +626,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let confirmationRows = [], confirmationAction = '';
     const receiptSearchQueue = window.IpsReceiptConfirmation.createSearchQueue({
         find: code => rows.find(row => row.dataset.code === code &&
-            (isReadyForWorkflow(row) || (['processing', 'uncertain'].includes(row.dataset.status) && row.dataset.payloadAction === 'EMG'))),
+            (isReadyForWorkflow(row) || (['processing', 'uncertain'].includes(row.dataset.status) && row.dataset.payloadAction === action.value))),
         isBlocked: () => running || confirmationRows.length > 0 || Boolean(document.querySelector('dialog[open]')),
         open: row => openOperationConfirmation([row]),
-        onIdle: () => { if (fixedWorkflow === 'EMG') document.getElementById('ips-code')?.focus(); },
+        onIdle: () => { if (fixedWorkflow === 'EMG' || smartReception) document.getElementById('ips-code')?.focus(); },
     });
     window.addEventListener('ips:receipt-requested', event => {
-        if (fixedWorkflow === 'EMG') receiptSearchQueue.request(event.detail?.code);
+        if (fixedWorkflow === 'EMG' || smartReception) receiptSearchQueue.request(event.detail?.code);
     });
     document.querySelectorAll('dialog').forEach(modal => {
         if (modal !== dialog) modal.addEventListener('close', () => receiptSearchQueue.resume());
@@ -657,23 +685,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 batchTarget.value = '';
             }
         }
-        const needsPhysicalReceipt = ['EMR', 'CUSTOMS_RETURN'].includes(workflowAction);
+        const needsPhysicalReceipt = smartReception
+            ? ['CUSTOMS_INFO', 'CUSTOMS_RETURN'].includes(action.value)
+            : ['EMR', 'CUSTOMS_RETURN'].includes(workflowAction);
         let missingPhysicalReceipt = false;
         if (batchPhysicalFields && batchPhysicalConfirm && batchPhysicalLabel) {
-            const selectionKey = selectedRows.map(row => row.dataset.code).sort().join('|');
+            const selectionKey = (smartReception ? action.value : workflowAction) + '|' + selectedRows.map(row => row.dataset.code).sort().join('|');
             if (selectionKey !== lastPhysicalSelection) {
-                batchPhysicalConfirm.checked = workflowAction === 'EMR' && selectedRows.length > 0
+                batchPhysicalConfirm.checked = !smartReception && workflowAction === 'EMR' && selectedRows.length > 0
                     && selectedRows.every(row => row.dataset.scanned === '1');
                 lastPhysicalSelection = selectionKey;
             }
             batchPhysicalFields.hidden = !needsPhysicalReceipt || selectedRows.length === 0;
             batchPhysicalConfirm.disabled = running || !needsPhysicalReceipt || selectedRows.length === 0;
             batchPhysicalConfirm.required = needsPhysicalReceipt && selectedRows.length > 0;
-            batchPhysicalLabel.textContent = workflowAction === 'CUSTOMS_RETURN'
+            batchPhysicalLabel.textContent = (smartReception ? action.value : workflowAction) === 'CUSTOMS_INFO'
+                ? 'Confirmo que el envío llegó físicamente a esta oficina y registro el resultado aduanero real.'
+                : ((smartReception ? action.value : workflowAction) === 'CUSTOMS_RETURN'
                 ? 'Confirmo que Aduana devolvió físicamente estos paquetes a esta oficina.'
-                : (workflowAction === 'EMG'
-                    ? 'Confirmo que estos paquetes llegaron físicamente a esta oficina de entrega.'
-                    : 'Confirmo que estos paquetes están físicamente en el envase recibido y abierto.');
+                : 'Confirmo que estos paquetes están físicamente en el envase recibido y abierto.');
             selectedRows.forEach(row => {
                 const perItemConfirm = row.querySelector('.ips-physical-receipt-confirm');
                 perItemConfirm.checked = batchPhysicalConfirm.checked;
@@ -730,12 +760,12 @@ document.addEventListener('DOMContentLoaded', () => {
             handoverEventFilter = choice.action === 'HANDOVER_AGENT' ? choice.eventFilter : null;
             const eligible = new Set(choice.rows);
             rows.forEach(row => { row.querySelector('.ips-choice').checked = eligible.has(row); });
-        } else if (!deliveryOnly && candidateActions.length === 1 && !workflowAction) {
+        } else if (!deliveryOnly && candidateActions.length === 1 && (!workflowAction || smartReception)) {
             action.value = candidateActions[0];
         }
         if (deliveryAgentSelect && action.value !== 'HANDOVER_AGENT') deliveryAgentSelect.value = '';
-        const automaticAction = workflowAction || (candidateActions.length === 1 ? candidateActions[0] : null);
-        action.disabled = running || Boolean(workflowAction) || (deliveryOnly && deliveryChoices.length === 1) || (!deliveryOnly && Boolean(automaticAction));
+        const automaticAction = smartReception ? null : (workflowAction || (candidateActions.length === 1 ? candidateActions[0] : null));
+        action.disabled = running || (Boolean(workflowAction) && !smartReception) || (deliveryOnly && deliveryChoices.length === 1) || (!deliveryOnly && Boolean(automaticAction));
         if (deliveryOnly) {
             deliveryActionButtons.forEach(button => {
                 const eventFilter = button.dataset.eventFilter || null;
@@ -783,8 +813,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedRows = rows.filter(row => row.querySelector('.ips-choice').checked);
         const count = selectedRows.length;
         if (clearCompleted) clearCompleted.hidden = !rows.some(row => row.dataset.status === 'succeeded');
-        const batchState = syncBatchFields(workflowAction, selectedRows);
-        if (batchConditionFields) batchConditionFields.hidden = workflowAction !== 'EMR' || count === 0;
+        const batchState = syncBatchFields(smartReception ? action.value : workflowAction, selectedRows);
+        if (batchConditionFields) batchConditionFields.hidden = (smartReception ? action.value : workflowAction) !== 'EMR' || count === 0;
         if (deliveryAgentFields && deliveryAgentSelect) {
             const needsAgent = action.value === 'HANDOVER_AGENT';
             deliveryAgentFields.hidden = !needsAgent;
@@ -800,7 +830,17 @@ document.addEventListener('DOMContentLoaded', () => {
             customsOfficeSelect.disabled = running || !needsCustoms;
             customsOfficeTypeSelect.disabled = running || !needsCustoms;
         }
-        process.disabled = running || count === 0 || batchState.missingTarget || batchState.missingPhysicalReceipt || batchState.missingRouteMismatchConfirmation || Boolean(deliveryAgentSelect && action.value === 'HANDOVER_AGENT' && !deliveryAgentSelect.value) || Boolean(customsDetailsMissing);
+        const releaseStatusMissing = smartReception && action.value === 'CUSTOMS_INFO'
+            && selectedRows.some(row => !row.querySelector('.ips-customs-release-status')?.value);
+        rows.forEach(row => {
+            const fields = row.querySelector('.ips-customs-release-fields');
+            const select = row.querySelector('.ips-customs-release-status');
+            if (!fields || !select) return;
+            fields.hidden = action.value !== 'CUSTOMS_INFO';
+            select.required = action.value === 'CUSTOMS_INFO' && row.querySelector('.ips-choice').checked;
+            select.disabled = running || action.value !== 'CUSTOMS_INFO';
+        });
+        process.disabled = running || count === 0 || batchState.missingTarget || batchState.missingPhysicalReceipt || batchState.missingRouteMismatchConfirmation || releaseStatusMissing || Boolean(deliveryAgentSelect && action.value === 'HANDOVER_AGENT' && !deliveryAgentSelect.value) || Boolean(customsDetailsMissing);
         if (deliveryOnly) {
             const selectedRows = rows.filter(row => row.querySelector('.ips-choice').checked);
             let label = deliveryActionLabels[action.value] || 'Registrar movimiento';
@@ -821,13 +861,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (trayCount) trayCount.textContent = rows.length + '/50 en bandeja';
         } else {
-            const batchLabels = {EMR: 'Registrar paquetes', EDN: 'Registrar despacho', EIB: 'Asociar a saca', EMG: 'Registrar recepción en IPS', CUSTOMS_RETURN: 'Registrar devolución de Aduana (38)', HANDOVER_AGENT: 'Asignar cartero', EDG: 'Registrar salida a reparto', EMH: 'Registrar intento fallido'};
+            const batchLabels = {EMR: 'Registrar paquetes', EDN: 'Registrar despacho', EIB: 'Asociar a saca', EMG: 'Registrar recepción en IPS (32)', CUSTOMS_INFO: 'Registrar resultado aduanero (34)', CUSTOMS_RETURN: 'Registrar devolución física (38)', HANDOVER_AGENT: 'Asignar cartero', EDG: 'Registrar salida a reparto', EMH: 'Registrar intento fallido'};
             process.textContent = count
-                ? (batchState.missingRouteMismatchConfirmation
+                ? (releaseStatusMissing
+                    ? 'Selecciona el resultado real de Aduana · ' + count + (count === 1 ? ' paquete' : ' paquetes')
+                    : (batchState.missingRouteMismatchConfirmation
                     ? 'Confirma recepción con ruta distinta · ' + count + (count === 1 ? ' paquete' : ' paquetes')
                     : (batchState.missingPhysicalReceipt
                         ? (action.value === 'CUSTOMS_RETURN' ? 'Confirma devolución física de Aduana · ' : 'Confirma llegada física · ') + count + (count === 1 ? ' paquete' : ' paquetes')
-                        : (batchLabels[action.value] || 'Registrar movimiento') + ' · ' + count + (count === 1 ? ' paquete' : ' paquetes')))
+                        : (batchLabels[action.value] || 'Registrar movimiento') + ' · ' + count + (count === 1 ? ' paquete' : ' paquetes'))))
                 : 'Selecciona paquetes compatibles';
         }
     }
@@ -867,7 +909,7 @@ document.addEventListener('DOMContentLoaded', () => {
         action.dispatchEvent(new Event('change', {bubbles: true}));
     });
     function choiceChanged(event) {
-        if (fixedWorkflow === 'EMG' && event.target.checked) {
+        if ((fixedWorkflow === 'EMG' || smartReception) && event.target.checked) {
             rows.forEach(row => {
                 const checkbox = row.querySelector('.ips-choice');
                 if (checkbox !== event.target) checkbox.checked = false;
@@ -884,11 +926,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         const article = document.createElement('article');
-        article.className = 'ips-tray-item'; article.dataset.code = data.code; article.dataset.event = Number(packageData.operational_event_cd ?? packageData.event_cd ?? 0); article.dataset.routeMismatch = data.route_mismatch_receipt ? '1' : '0';
+        article.className = 'ips-tray-item'; article.dataset.code = data.code; article.dataset.event = Number(packageData.operational_event_cd ?? packageData.event_cd ?? 0); article.dataset.routeMismatch = data.route_mismatch_receipt ? '1' : '0'; article.dataset.destinationMissingReceipt = packageData.destination_missing_receipt ? '1' : '0';
         article.dataset.actions = (packageData.allowed_actions || []).join(','); article.dataset.status = 'ready'; article.dataset.payloadAction = ''; article.dataset.scanned = data.scanned ? '1' : '0';
         article.dataset.receiptOffices = JSON.stringify(packageData.receipt_office_options || []);
         article.dataset.receiptLockedOffice = String(packageData.receipt_office_locked_cd ?? '');
         article.dataset.workbenchOfficeCd = String(packageData.workbench_office_cd ?? '');
+        article.dataset.receptaclePid = String(data.receptacle_pid || packageData.receptacle_pid || '');
         article.dataset.upuReceipt = JSON.stringify({destinatario: packageData.recipient ?? '', telefono: packageData.phone ?? '', zona: packageData.address ?? '', peso: packageData.weight_kg ?? ''});
         article.dataset.customsReturn = [31, 34, 1251].includes(Number(packageData.operational_event_cd ?? packageData.event_cd)) && Number(packageData.state_cd) === 1 ? '1' : '0';
         const deliveryModeField = courierOnly
@@ -903,7 +946,8 @@ document.addEventListener('DOMContentLoaded', () => {
             + '<div class="ips-route-fields mt-2" hidden><label class="ips-field-label">Siguiente oficina de la ruta</label><select class="form-control form-control-sm ips-next-office" required><option value="">Seleccionar oficina</option></select></div>'
             + '<div class="ips-sack-fields mt-2" hidden><label class="ips-field-label">Saca nacional abierta</label><select class="form-control form-control-sm ips-domestic-receptacle" required><option value="">Seleccionar saca</option></select></div>'
             + '<div class="ips-exchange-receptacle-fields mt-2" hidden><label class="ips-field-label">Envase internacional recibido y abierto</label><select class="form-control form-control-sm ips-exchange-receptacle" required><option value="">Seleccionar envase</option></select></div>'
-            + '<div class="ips-condition-fields mt-2" hidden><label class="ips-field-label">Condicion fisica del paquete</label><select class="form-control form-control-sm ips-package-condition"><option value="">Revisar y seleccionar</option></select></div>';
+            + '<div class="ips-condition-fields mt-2" hidden><label class="ips-field-label">Condicion fisica del paquete</label><select class="form-control form-control-sm ips-package-condition"><option value="">Revisar y seleccionar</option></select></div>'
+            + (smartReception ? '<div class="ips-customs-release-fields mt-2" hidden><label class="ips-field-label">Resultado de Aduana</label><select class="form-control form-control-sm ips-customs-release-status" required><option value="">Selecciona el resultado real de Aduana</option></select></div>' : '');
         if (courierOnly) article.querySelector('.ips-delivery-fields').outerHTML = deliveryModeField;
         const upuZone = article.querySelector('.ips-upu-zone');
         if (upuZone) upuZone.value = packageData.address ?? '';
@@ -923,12 +967,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const reasonCatalog = @json($catalog['non_delivery_reasons'] ?? []);
         const measureCatalog = @json($catalog['non_delivery_measures'] ?? []);
         const itemConditionCatalog = @json($catalog['item_conditions'] ?? []);
+        const customsReleaseStatuses = @json($catalog['customs_release_statuses'] ?? []);
         const appendOptions = (select, items, idKey, labelKey) => items.forEach(item => {
             const option = document.createElement('option'); option.value = item[idKey]; option.textContent = item[labelKey]; select.appendChild(option);
         });
         appendOptions(article.querySelector('.ips-nondelivery-reason'), reasonCatalog, 'NON_DELIVERY_REASON_CD', 'NON_DELIVERY_REASON_NM');
         appendOptions(article.querySelector('.ips-nondelivery-measure'), measureCatalog, 'NON_DELIVERY_MEASURE_CD', 'NON_DELIVERY_MEASURE_NM');
         appendOptions(article.querySelector('.ips-package-condition'), itemConditionCatalog, 'ITEM_CONDITION_CD', 'ITEM_CONDITION_NM');
+        const releaseStatusSelect = article.querySelector('.ips-customs-release-status');
+        if (releaseStatusSelect) appendOptions(releaseStatusSelect, customsReleaseStatuses, 'CUSTOMS_RELEASE_STATUS_CD', 'CUSTOMS_RELEASE_STATUS_NM');
         (packageData.next_offices || []).forEach(office => {
             const option = document.createElement('option');
             option.value = office.OWN_OFFICE_CD;
@@ -961,8 +1008,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 message.hidden = false;
             }
         }
+        if (smartReception) {
+            rows.forEach(row => { row.querySelector('.ips-choice').checked = false; });
+            const allowed = (packageData.allowed_actions || []);
+            action.value = ['CUSTOMS_INFO', 'CUSTOMS_RETURN', 'EMG'].find(code => allowed.includes(code)) || '';
+            article.querySelector('.ips-choice').checked = Boolean(action.value);
+        }
         update();
-        if (fixedWorkflow === 'EMG') receiptSearchQueue.request(data.code);
+        if (fixedWorkflow === 'EMG' || smartReception) receiptSearchQueue.request(data.code);
     });
     document.addEventListener('submit', async event => {
         const form = event.target.closest('.ips-selection-remove');
@@ -1030,7 +1083,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     function openOperationConfirmation(selected) {
         if (running || dialog.open || !selected.length) return;
-        if (fixedWorkflow === 'EMG') {
+        if (fixedWorkflow === 'EMG' && !smartReception) {
             action.value = 'EMG';
             rows.forEach(row => { row.querySelector('.ips-choice').checked = selected.includes(row); });
             update();
@@ -1049,6 +1102,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         for (const row of selected) {
             if (action.value === 'EMR' && !row.querySelector('.ips-package-condition').value) { row.querySelector('.ips-package-condition').reportValidity(); return; }
+            if (action.value === 'CUSTOMS_INFO' && !row.querySelector('.ips-customs-release-status')?.value) { row.querySelector('.ips-customs-release-status')?.reportValidity(); return; }
         }
         if (deliveryAgentSelect && action.value === 'HANDOVER_AGENT' && !deliveryAgentSelect.value) {
             deliveryAgentSelect?.reportValidity();
@@ -1067,13 +1121,26 @@ document.addEventListener('DOMContentLoaded', () => {
             workspaceRoot?.dataset.upuDestination || '', workspaceRoot?.dataset.receiptPreferredOffice || '');
         document.getElementById('ips-confirm-title').textContent = action.value === 'EMI' ? 'Confirmar entrega al destinatario' : (action.value === 'EMG' ? 'Confirmar recepción de paquetes' : 'Confirmar movimiento');
         document.getElementById('ips-confirm-submit').textContent = action.value === 'EMI' ? 'Sí, registrar entrega' : (action.value === 'EMG' ? 'Sí, recibir y registrar UPU' : 'Confirmar y registrar');
-        document.getElementById('ips-confirm-description').textContent = (action.value === 'CUSTOMS_PRESENT'
+        document.getElementById('ips-confirm-description').textContent = (action.value === 'CUSTOMS_INFO'
+                ? 'IPS registrará el resultado de Aduana seleccionado para este paquete. La decisión debe coincidir con la revisión física.'
+                : (action.value === 'CUSTOMS_RETURN' && smartReception
+                    ? 'Confirma que el envío fue liberado y regresó físicamente desde Aduana a esta oficina. Se registrará el evento 38.'
+                    : (action.value === 'CUSTOMS_PRESENT'
                 ? 'Se registrará el envío a Aduana para los paquetes seleccionados.'
-                : (deliveryActionLabels[action.value] || action.options[action.selectedIndex]?.textContent || 'Se registrará el movimiento seleccionado en IPS.'));
+                : (deliveryActionLabels[action.value] || action.options[action.selectedIndex]?.textContent || 'Se registrará el movimiento seleccionado en IPS.'))));
         if (targetDescription) document.getElementById('ips-confirm-description').textContent += targetDescription;
-        if (action.value === 'EMG') document.getElementById('ips-confirm-description').textContent = 'Revisa los paquetes seleccionados y confirma su llegada física. Cada recepción se registrará en su oficina correspondiente.';
+        if (action.value === 'EMG') {
+            const missingDestination = selected.some(row => row.dataset.destinationMissingReceipt === '1');
+            const needsOfficeSelection = selected.some(row => row.dataset.destinationMissingReceipt === '1'
+                && window.IpsReceiptConfirmation.officeOptions(row).length > 0);
+            document.getElementById('ips-confirm-description').textContent = missingDestination
+                ? (needsOfficeSelection
+                    ? 'IPS no tiene registrado el destino de este envío. Selecciona la oficina donde llegó físicamente y confirma la recepción; se registrará solo el evento 32, sin cambiar el destino.'
+                    : 'IPS no tiene registrado el destino de este envío. Confirma que llegó físicamente a esta oficina; se registrará solo el evento 32, sin cambiar el destino.')
+                : 'Revisa los paquetes seleccionados y confirma su llegada física. Cada recepción se registrará en su oficina correspondiente.';
+        }
         document.getElementById('ips-confirm-codes').textContent = selected.map(row=>row.dataset.code).join(', ');
-        if (fixedWorkflow && action.value !== 'EMG') {
+        if (fixedWorkflow && !smartReception && action.value !== 'EMG') {
             executeBatch(selected, action.value);
         } else {
             confirmationRows = [...selected];
@@ -1094,10 +1161,12 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const operation = {codigo:row.dataset.code,action:chosenAction,confirmed:true,signatory:row.querySelector('.ips-signatory').value || null};
                 if (chosenAction === 'EMR') operation.physical_receipt_confirmed = batchPhysicalConfirm?.checked || false;
+                if (chosenAction === 'CUSTOMS_INFO') operation.physical_receipt_confirmed = batchPhysicalConfirm?.checked || false;
                 if (chosenAction === 'CUSTOMS_RETURN') {
                     operation.physical_receipt_confirmed = batchPhysicalConfirm?.checked || false;
-                    operation.receptacle_pid = workspaceRoot?.dataset.preferredReceptacle || '';
+                    operation.receptacle_pid = smartReception ? (row.dataset.receptaclePid || '') : (workspaceRoot?.dataset.preferredReceptacle || '');
                 }
+                if (chosenAction === 'CUSTOMS_INFO') operation.customs_release_status_cd = row.querySelector('.ips-customs-release-status')?.value || '';
                 if (chosenAction === 'EMG') operation.physical_receipt_confirmed = receiptConfirmation?.physical ?? batchPhysicalConfirm?.checked ?? false;
                 const upuZone = row.querySelector('.ips-upu-zone');
                 if (chosenAction === 'EMG' && upuZone) {
@@ -1109,7 +1178,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (upuReceipt) operation.upu_receipt = upuReceipt;
                     const receiptOffice = receiptConfirmation?.offices[row.dataset.code];
                     if (receiptOffice) operation.receipt_office_cd = receiptOffice;
-                    if (row.dataset.routeMismatch === '1' || receiptOffice || window.IpsReceiptConfirmation.officeOptions(row).length) operation.route_mismatch_confirmed = receiptConfirmation?.routeMismatch ?? false;
+                    if (row.dataset.destinationMissingReceipt === '1') operation.unregistered_destination_receipt_confirmed = true;
+                    else if (row.dataset.routeMismatch === '1' || receiptOffice || window.IpsReceiptConfirmation.officeOptions(row).length) operation.route_mismatch_confirmed = receiptConfirmation?.routeMismatch ?? false;
                 }
                 if (chosenAction === 'EMI') operation.delivery_mode = row.querySelector('.ips-delivery-mode').value;
                 if (chosenAction === 'EDN') operation.next_office_cd = row.querySelector('.ips-next-office').value;
@@ -1162,11 +1232,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (fixedWorkflow && !rows.some(row => row.querySelector('.ips-choice').checked)) selectNextWorkflowBatch();
         update();
-        progress.textContent = chosenAction === 'EMG'
-            ? successes + ' recepciones registradas en IPS de ' + selected.length + '. Revisa el resultado de cada paquete.'
-            : (chosenAction === 'EMI'
-                ? successes + ' entregas registradas de ' + selected.length + '. Revisa el resultado de cada paquete.'
-                : successes + ' confirmados de ' + selected.length + '. Revisa el resultado de cada paquete.');
+        progress.textContent = smartReception && chosenAction === 'CUSTOMS_INFO'
+            ? (successes === selected.length
+                ? 'Resultado aduanero registrado en IPS. Escanea de nuevo el envío para verificar el siguiente paso.'
+                : successes + ' de ' + selected.length + ' resultados aduaneros registrados. Revisa el resultado del paquete antes de continuar.')
+            : (smartReception && chosenAction === 'CUSTOMS_RETURN'
+                ? (successes === selected.length
+                    ? 'Devolución física registrada en IPS. Escanea de nuevo el envío para registrar su recepción (32).'
+                    : successes + ' de ' + selected.length + ' devoluciones físicas registradas. Revisa el resultado del paquete antes de continuar.')
+                : (chosenAction === 'EMG'
+                    ? successes + ' recepciones registradas en IPS de ' + selected.length + '. Revisa el resultado de cada paquete.'
+                    : (chosenAction === 'EMI'
+                        ? successes + ' entregas registradas de ' + selected.length + '. Revisa el resultado de cada paquete.'
+                        : successes + ' confirmados de ' + selected.length + '. Revisa el resultado de cada paquete.')));
         document.getElementById('ips-refresh').hidden = false;
         receiptSummaryOpen.hidden = !['EMG', 'EMI'].includes(chosenAction);
         if (['EMG', 'EMI'].includes(chosenAction)) showReceiptSummary(selected, chosenAction);
