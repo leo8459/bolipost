@@ -11,7 +11,7 @@ class DailyDeliveryExport implements WithMultipleSheets
     public function sheets(): array
     {
         $summary = [
-            ['Corte (Bolivia)', $this->report['cutoff']],
+            ['Corte (Bolivia)', $this->report['cutoff'], 'Regional', $this->report['regional'] ?? 'Nacional'],
             ['Servicio', 'Registrados', 'Asignados', 'Entregados'],
         ];
         foreach ($this->report['modules'] as $module) {

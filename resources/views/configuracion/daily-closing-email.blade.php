@@ -23,12 +23,8 @@
     @endif
 
     <div class="row">
-        @include('configuracion.partials.daily-mail-controls', [
-            'routePrefix' => 'contract-expiration-email.daily-closing',
-            'mailTitle' => 'Cierre diario',
-            'reportLabel' => 'cierre',
+        @include('configuracion.partials.daily-closing-mail-controls', [
             'automaticEnabled' => $dailyClosingEnabled,
-            'sendAt' => '20:00',
         ])
 
         <div class="col-lg-8">

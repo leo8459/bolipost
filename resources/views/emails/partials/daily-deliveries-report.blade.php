@@ -1,4 +1,7 @@
-<p class="delivery-report-cutoff">Operaciones del día hasta el {{ $report['cutoff'] }}, hora de Bolivia.</p>
+<p class="delivery-report-cutoff">
+    <strong>{{ isset($report['regional']) ? 'Regional '.$report['regional'] : 'Consolidado nacional' }}</strong><br>
+    Operaciones del día hasta el {{ $report['cutoff'] }}, hora de Bolivia.
+</p>
 
 <h3>Comparativo por servicio</h3>
 <div class="table-responsive">
@@ -26,7 +29,7 @@
         </tfoot>
     </table>
 </div>
-<p class="delivery-report-note">Los totales excluyen los envíos cancelados y cuentan cada código una vez por servicio. Los registros, asignaciones y entregas se cuentan según la fecha de cada operación.</p>
+<p class="delivery-report-note">Los totales excluyen los envíos cancelados y cuentan cada código una vez por servicio. Los registros, asignaciones y entregas se cuentan según la fecha de cada operación. @if (isset($report['regional'])) Los totales se agrupan por la regional de destino y el detalle muestra los carteros y usuarios de esa regional. @endif</p>
 
 <h3>Asignaciones y entregas por cartero</h3>
 <div class="table-responsive">
@@ -58,9 +61,9 @@
                     <td align="right">{{ \App\Support\BolivianNumber::format($courier['delivered']) }}</td>
                 </tr>
             @empty
-                <tr><td colspan="8">No hay carteros ni usuarios con actividad en esta fecha.</td></tr>
+                <tr><td colspan="8">No hay carteros ni usuarios activos para mostrar.</td></tr>
             @endforelse
         </tbody>
     </table>
 </div>
-<p class="delivery-report-note">Un envío reasignado puede aparecer en más de una fila. Las entregas se atribuyen al usuario que registró la entrega.</p>
+<p class="delivery-report-note">El detalle muestra solo a los usuarios activos. Un envío reasignado puede aparecer en más de una fila. Las entregas se atribuyen al usuario que registró la entrega.</p>

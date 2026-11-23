@@ -8,6 +8,7 @@ use App\Services\DailyDeliveryMailService;
 use App\Services\DailyDeliveryReport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
@@ -80,13 +81,23 @@ class ContractExpirationEmailController extends Controller
     public function dailyDeliveries(Request $request, DailyDeliveryMailService $mail, DailyDeliveryReport $reports)
     {
         $date = $this->dailyDeliveryDate($request);
+        $recipients = $mail->recipients();
+        $nationalRecipients = $recipients[DailyDeliveryMailService::NATIONAL] ?? [];
+        unset($recipients[DailyDeliveryMailService::NATIONAL]);
+        $regionals = DailyDeliveryReport::regionals();
+        $filters = $request->validate(['regional' => ['nullable', Rule::in($regionals)]]);
+        $regional = $filters['regional'] ?? null;
 
         return view('configuracion.daily-deliveries-email', [
-            'recipients' => $mail->recipients(),
+            'regionalRecipients' => $recipients,
+            'nationalRecipients' => $nationalRecipients,
+            'nationalScope' => DailyDeliveryMailService::NATIONAL,
+            'regionals' => $regionals,
             'automaticEnabled' => $mail->automaticSendingEnabled(),
             'sendAt' => DailyDeliveryMailService::SEND_AT,
             'selectedDate' => $date,
-            'report' => $reports->forDate($date),
+            'selectedRegional' => $regional,
+            'report' => $reports->forDate($date, $regional),
         ]);
     }
 
@@ -103,29 +114,54 @@ class ContractExpirationEmailController extends Controller
         $date = $this->dailyDeliveryDate($request, required: true);
         $recipients = $mail->recipients();
         if ($recipients === []) {
-            return back()->with('warning', 'Agregue un destinatario para enviar el reporte.');
+            return back()->with('warning', 'Agregue un destinatario regional o nacional para enviar el reporte.');
         }
 
-        try {
-            $sent = $mail->send($recipients, $reports->forDate($date));
-        } catch (Throwable $exception) {
-            Log::error('No se pudo completar el envío de Entregas diarias.', ['exception' => $exception]);
+        ['sent' => $sent, 'failed' => $failed] = $mail->sendReports($recipients, $reports->cutoffForDate($date));
+        $redirect = redirect()->route('daily-deliveries-email.index', ['date' => $date]);
 
-            return back()->with('error', 'No se pudo completar el envío. Revise la configuración del correo.');
+        if ($failed > 0) {
+            return $redirect->with($sent > 0 ? 'warning' : 'error', "Reportes del {$date}. Correos enviados: {$sent}. Fallidos: {$failed}.");
         }
 
-        return redirect()->route('daily-deliveries-email.index', ['date' => $date])
-            ->with('status', "Reporte del {$date} enviado a {$sent} destinatario(s).");
+        return $redirect->with('status', "Reportes del {$date} enviados. Total de correos: {$sent}.");
     }
 
     public function addDailyDeliveriesRecipient(Request $request, DailyDeliveryMailService $mail)
     {
-        return $this->storeRecipient($request, $mail->recipients(), $mail->saveRecipients(...));
+        $data = $this->dailyDeliveryRecipient($request);
+        if (! $mail->addRecipient($data['scope'], $data['recipient'], $data['name'] ?? null)) {
+            return redirect()->route('daily-deliveries-email.index')
+                ->withErrors(['recipient' => 'Ese correo ya figura en la lista seleccionada.'])
+                ->withInput($data);
+        }
+
+        return redirect()->route('daily-deliveries-email.index')->with('status', 'Destinatario agregado correctamente.');
     }
 
     public function removeDailyDeliveriesRecipient(Request $request, DailyDeliveryMailService $mail)
     {
-        return $this->destroyRecipient($request, $mail->recipients(), $mail->saveRecipients(...));
+        $data = $this->dailyDeliveryRecipient($request);
+        if (! $mail->removeRecipient($data['scope'], $data['recipient'])) {
+            return redirect()->route('daily-deliveries-email.index')
+                ->withErrors(['recipient' => 'El correo no figura entre los destinatarios agregados manualmente.']);
+        }
+
+        return redirect()->route('daily-deliveries-email.index')->with('status', 'Destinatario manual eliminado correctamente.');
+    }
+
+    private function dailyDeliveryRecipient(Request $request): array
+    {
+        return $request->validate([
+            'scope' => ['required', Rule::in([DailyDeliveryMailService::NATIONAL, ...DailyDeliveryReport::regionals()])],
+            'recipient' => ['required', 'email:rfc', 'max:254'],
+            'name' => ['nullable', 'string', 'max:120'],
+        ], [
+            'scope.required' => 'Seleccione la regional del destinatario.',
+            'scope.in' => 'Seleccione una regional válida o el nivel nacional.',
+            'recipient.required' => 'Ingrese el correo electrónico del destinatario.',
+            'recipient.email' => 'Ingrese un correo electrónico válido.',
+        ]);
     }
 
     private function dailyDeliveryDate(Request $request, bool $required = false): string

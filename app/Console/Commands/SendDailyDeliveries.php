@@ -7,15 +7,14 @@ use App\Services\DailyDeliveryReport;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
-use Throwable;
 
 class SendDailyDeliveries extends Command
 {
     protected $signature = 'operations:send-daily-deliveries';
 
-    protected $description = 'Envía el comparativo diario de EMS y Contratos por cartero';
+    protected $description = 'Envía los reportes regionales y nacionales de entregas diarias de EMS y Contratos';
 
-    public function handle(DailyDeliveryMailService $mail, DailyDeliveryReport $reports): int
+    public function handle(DailyDeliveryMailService $mail): int
     {
         if (! $mail->automaticSendingEnabled()) {
             $this->info('El envío automático del reporte de entregas está desactivado.');
@@ -23,40 +22,17 @@ class SendDailyDeliveries extends Command
             return self::SUCCESS;
         }
 
-        $lock = Cache::lock('operations:send-daily-deliveries', 3600);
+        $lock = Cache::store('database')->lock('operations:send-daily-deliveries', 3600);
         if (! $lock->get()) {
             return self::SUCCESS;
         }
 
         try {
             $now = CarbonImmutable::now(DailyDeliveryReport::TIMEZONE);
-            $date = $now->toDateString();
-            $sent = $mail->sentOn($date);
-            $pending = array_diff($mail->recipients(), $sent);
-            if ($pending === []) {
-                $this->info('El reporte de entregas no tiene destinatarios pendientes.');
-
-                return self::SUCCESS;
-            }
-
             $cutoff = $now->setTimeFromTimeString(DailyDeliveryMailService::SEND_AT);
-            $report = $reports->through($now->min($cutoff));
-            $failed = 0;
-            foreach ($pending as $recipient) {
-                try {
-                    $mail->send([$recipient], $report);
-                } catch (Throwable $exception) {
-                    report($exception);
-                    $failed++;
+            ['sent' => $sent, 'failed' => $failed] = $mail->sendReports($mail->recipients(), $now->min($cutoff), automatic: true);
 
-                    continue;
-                }
-
-                $sent[] = $recipient;
-                $mail->markSent($date, $sent);
-            }
-
-            $this->info('Reportes de entregas enviados: '.(count($pending) - $failed).'.');
+            $this->info("Correos de entregas enviados: {$sent}. Fallidos: {$failed}.");
 
             return $failed === 0 ? self::SUCCESS : self::FAILURE;
         } finally {

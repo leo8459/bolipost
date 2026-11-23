@@ -17,12 +17,20 @@
         <div class="alert alert-danger">{{ $errors->first() }}</div>
     @endif
 
+    <div class="row" id="destinatarios-entregas-diarias">
+        <div class="col-lg-8 order-2 order-lg-1">
+            @include('configuracion.partials.daily-delivery-recipients', ['national' => false, 'groups' => $regionalRecipients])
+        </div>
+        <div class="col-lg-4 order-1 order-lg-2">
+            @include('configuracion.partials.daily-delivery-recipients', [
+                'national' => true,
+                'groups' => $nationalRecipients === [] ? [] : [$nationalScope => $nationalRecipients],
+            ])
+        </div>
+    </div>
+
     <div class="row">
-        @include('configuracion.partials.daily-mail-controls', [
-            'routePrefix' => 'daily-deliveries-email',
-            'mailTitle' => 'Entregas diarias',
-            'reportLabel' => 'reporte',
-        ])
+        @include('configuracion.partials.daily-delivery-mail-controls')
 
         <div class="col-lg-8">
             <div class="card card-info card-outline">

@@ -17,20 +17,54 @@ class DailyDeliveryReport
 {
     public const TIMEZONE = 'America/La_Paz';
 
-    private const MODULES = [
-        'ems' => ['EMS', 'paquetes_ems', 'estado_id', 'eventos_ems'],
-        'contratos' => ['Contratos', 'paquetes_contrato', 'estados_id', 'eventos_contrato'],
+    private const REGIONAL_DESTINATIONS = [
+        'COBIJA' => ['PANDO'],
+        'COCHABAMBA' => ['COCHABAMBA IVIRGARZAMA'],
+        'LA PAZ' => [],
+        'ORURO' => [],
+        'POTOSI' => ['POTOSÍ'],
+        'SANTA CRUZ' => ['SANTA CRUZ DE LA SIERRA'],
+        'SUCRE' => ['CHUQUISACA'],
+        'TARIJA' => [],
+        'TRINIDAD' => ['BENI', 'RIBERALTA', 'RURRENABAQUE', 'TRINIDAD-RIBERALTA'],
     ];
 
-    public function forDate(string $date): array
+    private const MODULES = [
+        'ems' => ['EMS', 'paquetes_ems', 'estado_id', 'eventos_ems', 'ciudad'],
+        'contratos' => ['Contratos', 'paquetes_contrato', 'estados_id', 'eventos_contrato', 'destino'],
+    ];
+
+    public static function regionals(): array
+    {
+        return array_keys(self::REGIONAL_DESTINATIONS);
+    }
+
+    public static function regionalFor(?string $destination): ?string
+    {
+        $destination = mb_strtoupper(trim((string) $destination));
+        foreach (self::REGIONAL_DESTINATIONS as $regional => $aliases) {
+            if ($destination === $regional || in_array($destination, $aliases, true)) {
+                return $regional;
+            }
+        }
+
+        return null;
+    }
+
+    public function forDate(string $date, ?string $regional = null): array
+    {
+        return $this->through($this->cutoffForDate($date), $regional);
+    }
+
+    public function cutoffForDate(string $date): CarbonImmutable
     {
         $day = CarbonImmutable::createFromFormat('!Y-m-d', $date, self::TIMEZONE);
         $now = CarbonImmutable::now(self::TIMEZONE);
 
-        return $this->through($day->isSameDay($now) ? $now : $day->endOfDay());
+        return $day->isSameDay($now) ? $now : $day->endOfDay();
     }
 
-    public function through(CarbonImmutable $cutoff): array
+    public function through(CarbonImmutable $cutoff, ?string $regional = null): array
     {
         $cutoff = $cutoff->setTimezone(self::TIMEZONE);
         $period = [
@@ -38,6 +72,7 @@ class DailyDeliveryReport
             $cutoff->setTimezone(config('app.timezone')),
         ];
         $canceledId = Estado::query()->whereRaw("TRIM(UPPER(nombre_estado)) = 'CANCELADO'")->value('id');
+        // Historical reassignment text can refer to an inactive user with the same name.
         $users = User::withTrashed()->orderBy('name')->orderBy('id')->get(['id', 'name', 'ciudad', 'deleted_at'])->keyBy('id');
         $usersByName = $users->groupBy(fn (User $user) => mb_strtolower(trim($user->name)));
         $courierIds = User::query()
@@ -46,8 +81,14 @@ class DailyDeliveryReport
 
         $modules = [];
         $activity = [];
-        foreach (self::MODULES as $key => [$label, $table, $stateColumn, $eventTable]) {
+        foreach (self::MODULES as $key => [$label, $table, $stateColumn, $eventTable, $destinationColumn]) {
             $packages = DB::table($table.' as pkg');
+            if ($regional !== null) {
+                $aliases = self::REGIONAL_DESTINATIONS[$regional] ?? null;
+                $destinations = $aliases === null ? [] : [$regional, ...$aliases];
+                $destination = DB::raw("UPPER(TRIM(REPLACE(pkg.{$destinationColumn}, 'í', 'Í')))");
+                $packages->whereIn($destination, $destinations);
+            }
             if ($canceledId !== null) {
                 $packages->where(fn (Builder $q) => $q->whereNull('pkg.'.$stateColumn)->orWhere('pkg.'.$stateColumn, '<>', $canceledId));
             }
@@ -79,6 +120,8 @@ class DailyDeliveryReport
         }
 
         $couriers = $users->only($courierIds->merge(array_keys($activity))->all())
+            ->reject(fn (User $user) => $user->trashed())
+            ->filter(fn (User $user) => $regional === null || self::regionalFor($user->ciudad) === $regional)
             ->map(function (User $user) use ($activity) {
                 $counts = [];
                 foreach (array_keys(self::MODULES) as $key) {
@@ -102,6 +145,7 @@ class DailyDeliveryReport
         return [
             'date' => $cutoff->toDateString(),
             'cutoff' => $cutoff->format('d/m/Y H:i:s'),
+            'regional' => $regional,
             'modules' => $modules,
             'totals' => [
                 'registered' => array_sum(array_column($modules, 'registered')),

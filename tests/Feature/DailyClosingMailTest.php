@@ -7,6 +7,7 @@ use App\Http\Controllers\ContractExpirationEmailController;
 use App\Http\Controllers\ReportesController;
 use App\Mail\DailyClosingMail;
 use App\Models\AppSetting;
+use App\Models\User;
 use App\Services\ContractExpirationMailService;
 use App\Services\DailyClosingMailService;
 use Carbon\CarbonImmutable;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Maatwebsite\Excel\Excel;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class DailyClosingMailTest extends TestCase
@@ -38,6 +40,7 @@ class DailyClosingMailTest extends TestCase
         Schema::create('users', function (Blueprint $t) {
             $t->id();
             $t->string('name');
+            $t->softDeletes();
         });
         Schema::create('eventos', function (Blueprint $t) {
             $t->id();
@@ -83,6 +86,29 @@ class DailyClosingMailTest extends TestCase
     {
         CarbonImmutable::setTestNow();
         parent::tearDown();
+    }
+
+    public function test_the_closing_page_renders_with_its_own_report_and_recipient_forms(): void
+    {
+        (require database_path('migrations/2025_06_11_195557_create_permission_tables.php'))->up();
+        Schema::create('empresa', function (Blueprint $table) {
+            $table->id();
+            $table->date('fin_contrato')->nullable();
+        });
+        $admin = User::findOrFail(1);
+        $admin->assignRole(Role::create(['name' => config('acl.super_admin_role'), 'guard_name' => 'web']));
+        app(DailyClosingMailService::class)->saveRecipients(['closing@example.com']);
+
+        $route = 'contract-expiration-email.daily-closing.';
+        $this->actingAs($admin)
+            ->get(route($route.'index', ['date' => '2026-09-15']))
+            ->assertOk()
+            ->assertSee('Enviar cierre del 15/09/2026')
+            ->assertSee('closing@example.com')
+            ->assertSee('action="'.route($route.'index').'"', false)
+            ->assertSee('action="'.route($route.'send').'"', false)
+            ->assertSee('action="'.route($route.'recipients.store').'"', false)
+            ->assertDontSee('name="regional"', false);
     }
 
     public function test_report_only_counts_and_lists_movements_inside_the_daily_cutoff(): void

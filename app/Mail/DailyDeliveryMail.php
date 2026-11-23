@@ -8,6 +8,7 @@ use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
+use Illuminate\Support\Str;
 use Maatwebsite\Excel\Excel as ExcelFormat;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -17,7 +18,9 @@ class DailyDeliveryMail extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: 'Entregas diarias '.$this->report['date'].' | EMS y Contratos');
+        $scope = $this->report['regional'] ?? 'NACIONAL';
+
+        return new Envelope(subject: 'Entregas diarias '.$this->report['date'].' | EMS y Contratos | '.$scope);
     }
 
     public function content(): Content
@@ -28,6 +31,9 @@ class DailyDeliveryMail extends Mailable
     public function attachments(): array
     {
         $filename = 'entregas-diarias-'.$this->report['date'];
+        if (isset($this->report['regional'])) {
+            $filename .= '-'.Str::slug($this->report['regional']);
+        }
 
         return [
             Attachment::fromData($this->pdfContents(...), $filename.'.pdf')->withMime('application/pdf'),
