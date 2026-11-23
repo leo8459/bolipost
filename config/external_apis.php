@@ -26,7 +26,7 @@ return [
         ],
         'tarifario:delivery-express:read' => [
             'name' => 'TARIFARIO DELIVERY EXPRESS',
-            'description' => 'Consulta todo el tarifario Delivery Express con los datos completos de la tabla y sus relaciones de origen, destino y servicio extra.',
+            'description' => 'Consulta el tarifario de la vista /tarifario-tiktoker con origen, destino y servicio extra. Filtros opcionales: q, origen_id, destino_id, precio_peso1, precio_peso2, precio_peso3 y precio_peso_extra.',
             'access' => 'Solo lectura',
             'icon' => 'fas fa-shipping-fast',
             'color' => 'success',
@@ -35,7 +35,7 @@ return [
                 [
                     'method' => 'GET',
                     'path' => '/api/tarifarios/delivery-express',
-                    'example' => '',
+                    'example' => '?q=La%20Paz',
                     'response' => [
                         'nombre_api' => 'TARIFARIO DELIVERY EXPRESS',
                         'tabla' => 'tarifario_tiktoker',

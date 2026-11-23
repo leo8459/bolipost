@@ -7,6 +7,7 @@ use App\Models\Destino;
 use App\Models\Origen;
 use App\Models\ServicioExtra;
 use App\Models\TarifarioTiktoker;
+use App\Support\TiktokerTariffFilters;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
@@ -50,7 +51,7 @@ class TarifarioTiktokerController extends Controller
 
     public function index(Request $request)
     {
-        $filters = $this->extractFilters($request);
+        $filters = TiktokerTariffFilters::fromQuery($request->query());
 
         $tarifas = $this->buildFilteredQuery($filters)
             ->orderByDesc('id')
@@ -75,7 +76,7 @@ class TarifarioTiktokerController extends Controller
 
     public function exportPdf(Request $request)
     {
-        $filters = $this->extractFilters($request);
+        $filters = TiktokerTariffFilters::fromQuery($request->query());
         $tarifas = $this->buildFilteredQuery($filters)
             ->orderBy('origen_id')
             ->orderBy('destino_id')
@@ -96,7 +97,7 @@ class TarifarioTiktokerController extends Controller
 
     public function downloadReportExcel(Request $request)
     {
-        $filters = $this->extractFilters($request);
+        $filters = TiktokerTariffFilters::fromQuery($request->query());
         $tarifas = $this->buildFilteredQuery($filters)
             ->orderBy('origen_id')
             ->orderBy('destino_id')
@@ -544,74 +545,16 @@ class TarifarioTiktokerController extends Controller
         return self::REGIONAL_DISPLAY_NAMES[$normalized] ?? $normalized;
     }
 
-    private function extractFilters(Request $request): array
-    {
-        return [
-            'q' => trim((string) $request->query('q', '')),
-            'origen_id' => max(0, (int) $request->query('origen_id', 0)),
-            'destino_id' => max(0, (int) $request->query('destino_id', 0)),
-            'precio_peso1' => $this->normalizePriceFilter($request->query('precio_peso1')),
-            'precio_peso2' => $this->normalizePriceFilter($request->query('precio_peso2')),
-            'precio_peso3' => $this->normalizePriceFilter($request->query('precio_peso3')),
-            'precio_peso_extra' => $this->normalizePriceFilter($request->query('precio_peso_extra')),
-        ];
-    }
-
-    private function normalizePriceFilter($value): ?float
-    {
-        if (! is_scalar($value)) {
-            return null;
-        }
-
-        $value = trim(str_replace(',', '.', (string) $value));
-
-        return $value !== '' && is_numeric($value) && (float) $value >= 0
-            ? round((float) $value, 2)
-            : null;
-    }
-
     private function buildFilteredQuery(array $filters)
     {
-        $q = (string) ($filters['q'] ?? '');
-        $origenId = (int) ($filters['origen_id'] ?? 0);
-        $destinoId = (int) ($filters['destino_id'] ?? 0);
-
-        return TarifarioTiktoker::query()
-            ->with([
+        return TiktokerTariffFilters::apply(
+            TarifarioTiktoker::query()->with([
                 'origen:id,nombre_origen',
                 'destino:id,nombre_destino',
                 'servicioExtra:id,nombre',
-            ])
-            ->when($origenId > 0, fn ($query) => $query->where('origen_id', $origenId))
-            ->when($destinoId > 0, fn ($query) => $query->where('destino_id', $destinoId))
-            ->when(($filters['precio_peso1'] ?? null) !== null, fn ($query) => $query->where('peso1', $filters['precio_peso1']))
-            ->when(($filters['precio_peso2'] ?? null) !== null, fn ($query) => $query->where('peso2', $filters['precio_peso2']))
-            ->when(($filters['precio_peso3'] ?? null) !== null, fn ($query) => $query->where('peso3', $filters['precio_peso3']))
-            ->when(($filters['precio_peso_extra'] ?? null) !== null, fn ($query) => $query->where('peso_extra', $filters['precio_peso_extra']))
-            ->when($q !== '', function ($query) use ($q) {
-                $priceTerm = str_replace(',', '.', $q);
-                $numericPrice = is_numeric($priceTerm) && (float) $priceTerm >= 0
-                    ? round((float) $priceTerm, 2)
-                    : null;
-
-                $query->where(function ($search) use ($q, $numericPrice) {
-                    $search->whereRaw('CAST(peso1 AS TEXT) ILIKE ?', ["%{$q}%"])
-                        ->orWhereRaw('CAST(peso2 AS TEXT) ILIKE ?', ["%{$q}%"])
-                        ->orWhereRaw('CAST(peso3 AS TEXT) ILIKE ?', ["%{$q}%"])
-                        ->orWhereRaw('CAST(peso_extra AS TEXT) ILIKE ?', ["%{$q}%"])
-                        ->orWhereRaw('CAST(tiempo_entrega AS TEXT) ILIKE ?', ["%{$q}%"])
-                        ->orWhereHas('origen', fn ($sub) => $sub->where('nombre_origen', 'ILIKE', "%{$q}%"))
-                        ->orWhereHas('destino', fn ($sub) => $sub->where('nombre_destino', 'ILIKE', "%{$q}%"))
-                        ->orWhereHas('servicioExtra', fn ($sub) => $sub->where('nombre', 'ILIKE', "%{$q}%"));
-
-                    if ($numericPrice !== null) {
-                        $search->orWhere('peso1', $numericPrice)
-                            ->orWhere('peso2', $numericPrice)
-                            ->orWhere('peso3', $numericPrice)
-                            ->orWhere('peso_extra', $numericPrice);
-                    }
-                });
-            });
+            ]),
+            $filters,
+        );
     }
 
     private function groupTarifasByOrigen(Collection $tarifas): Collection

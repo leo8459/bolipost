@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Tarifario;
 use App\Models\TarifarioTiktoker;
+use App\Support\TiktokerTariffFilters;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
@@ -28,10 +30,23 @@ class TarifarioApiController extends Controller
         return $this->response('TARIFARIO EMS NACIONAL', 'tarifario', $tarifarios);
     }
 
-    public function deliveryExpress(): JsonResponse
+    public function deliveryExpress(Request $request): JsonResponse
     {
-        $tarifarios = TarifarioTiktoker::query()
-            ->with(['origen', 'destino', 'servicioExtra'])
+        $priceRule = ['nullable', 'string', 'regex:/^\d{1,10}(?:[.,]\d{1,2})?$/D'];
+        $filters = $request->validate([
+            'q' => ['nullable', 'string', 'max:255'],
+            'origen_id' => ['nullable', 'integer', 'min:0'],
+            'destino_id' => ['nullable', 'integer', 'min:0'],
+            'precio_peso1' => $priceRule,
+            'precio_peso2' => $priceRule,
+            'precio_peso3' => $priceRule,
+            'precio_peso_extra' => $priceRule,
+        ]);
+
+        $tarifarios = TiktokerTariffFilters::apply(
+            TarifarioTiktoker::query()->with(['origen', 'destino', 'servicioExtra']),
+            TiktokerTariffFilters::fromQuery($filters),
+        )
             ->orderBy('id')
             ->get();
 

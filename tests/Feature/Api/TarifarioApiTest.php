@@ -133,5 +133,16 @@ class TarifarioApiTest extends TestCase
             ->assertJsonPath('data.0.origen.nombre_origen', 'COCHABAMBA')
             ->assertJsonPath('data.0.destino.nombre_destino', 'LA PAZ')
             ->assertJsonPath('data.0.servicio_extra.nombre', 'PUERTA A PUERTA');
+
+        $this->getJson('/api/tarifarios/delivery-express?'.http_build_query([
+            'q' => 'puerta',
+            'origen_id' => $origen,
+            'destino_id' => $destino,
+            'precio_peso1' => '20,00',
+        ]))->assertOk()->assertJsonPath('total_registros', 1);
+
+        $this->getJson('/api/tarifarios/delivery-express?precio_peso1=15')
+            ->assertOk()
+            ->assertJsonPath('total_registros', 0);
     }
 }

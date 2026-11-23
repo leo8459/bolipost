@@ -15,6 +15,14 @@
                 </button>
             @else
                 <a
+                    href="{{ route('configuracion.apis.index', ['nueva' => 1, 'api' => 'tarifario:delivery-express:read']) }}"
+                    class="btn btn-outline-primary mr-1"
+                    target="_blank"
+                    rel="noopener"
+                >
+                    <i class="fas fa-table mr-1"></i> Credencial del tarifario Delivery Express
+                </a>
+                <a
                     href="{{ route('configuracion.apis.index', ['nueva' => 1]) }}"
                     class="btn btn-primary mr-1"
                     id="newApiButton"
@@ -423,7 +431,7 @@
                                                         name="abilities[]"
                                                         value="{{ $apiRoute['ability'] }}"
                                                         aria-label="Seleccionar {{ $apiRoute['name'] }}"
-                                                        @checked(in_array($apiRoute['ability'], old('abilities', []), true))
+                                                        @checked(in_array($apiRoute['ability'], (array) old('abilities', $preselectedAbility), true))
                                                     >
                                                 </td>
                                                 <td><span class="badge badge-{{ $methodColor }}">{{ $apiRoute['method'] }}</span></td>
@@ -523,20 +531,49 @@
     </div>
     </div>
 
+    @php
+        $usageLabels = [
+            'recent' => ['text' => 'Uso reciente', 'color' => 'success'],
+            'previous' => ['text' => 'Usada anteriormente', 'color' => 'warning'],
+            'none' => ['text' => 'Sin uso registrado', 'color' => 'secondary'],
+        ];
+    @endphp
     <div class="card api-form-card">
         <div class="card-header bg-white border-0 pt-4 px-4">
-            <h4 class="mb-1 font-weight-bold">Credenciales creadas</h4>
-            <p class="text-muted mb-0">Revisa sus APIs autorizadas, copia el token o desactiva el acceso.</p>
+            <h4 class="mb-1 font-weight-bold">Credenciales creadas <span class="text-muted">({{ $tokens->count() }})</span></h4>
+            <p class="text-muted mb-0">Uso reciente durante los últimos 7 días.</p>
         </div>
         <div class="card-body px-4 pb-4">
+            <div class="row mx-n1 mb-2">
+                @foreach ($usageLabels as $status => $label)
+                    <div class="col-12 col-sm-4 px-1 mb-2">
+                        <div class="d-flex align-items-center h-100 rounded border bg-light px-3 py-2">
+                            <strong class="h4 mb-0 mr-2">{{ $usageStatusCounts->get($status, 0) }}</strong>
+                            <span>{{ $label['text'] }}</span>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+            @if ($hasUsageTracking)
+                <details class="small mb-3">
+                    <summary class="text-primary">Cómo se cuentan las apps</summary>
+                    <div class="text-muted mt-1">
+                        Cada app se identifica por el nombre que envía o por su origen web. Si solo conocemos la IP, aparece como conexión sin identificar.
+                        Para identificar una app móvil o de servidor, envía <code>X-API-Client: portal-clientes</code> junto al token.
+                        Usa el mismo identificador en todas las llamadas de una app y uno distinto para cada app.
+                    </div>
+                </details>
+            @else
+                <p class="small text-muted mb-3">El conteo de apps se habilita al aplicar la migración de uso de APIs.</p>
+            @endif
             <div class="table-responsive">
                 <table class="table table-hover table-bordered">
                     <thead class="bg-light">
                         <tr>
                             <th>Integración</th>
+                            <th>Uso y apps</th>
                             <th>APIs autorizadas</th>
                             <th>URLs para probar</th>
-                            <th>Estado y uso</th>
                             <th>Token JWT</th>
                             <th class="text-right">Acciones</th>
                         </tr>
@@ -546,8 +583,74 @@
                             <tr>
                                 <td>
                                     <strong>{{ $token->name }}</strong>
+                                    <div class="mt-1">
+                                        <span class="badge badge-{{ $token->isUsable() ? 'success' : 'secondary' }}">
+                                            {{ $token->isUsable() ? 'Token activo' : 'Token inactivo' }}
+                                        </span>
+                                    </div>
                                     <div class="small text-muted">Creado: {{ optional($token->created_at)->format('d/m/Y H:i') }}</div>
                                     <div class="small text-muted">Vence: {{ optional($token->expires_at)->format('d/m/Y') ?? 'Sin vencimiento' }}</div>
+                                </td>
+                                <td style="min-width: 218px;">
+                                    @php
+                                        $usageLabel = $usageLabels[$usageStatuses[$token->id]];
+                                        $appCount = (int) $token->recent_apps_count;
+                                        $ipCount = (int) $token->recent_unidentified_ips_count;
+                                        $callCount = (int) $token->calls_count;
+                                    @endphp
+                                    <span class="badge badge-{{ $usageLabel['color'] }} mb-1">{{ $usageLabel['text'] }}</span>
+                                    @if ($hasUsageTracking && ($callCount > 0 || $token->last_used_at === null))
+                                        <div>
+                                            <strong>{{ number_format($appCount, 0, ',', '.') }}</strong>
+                                            {{ $appCount === 1 ? 'app identificada' : 'apps identificadas' }}
+                                            <span class="small text-muted">en 7 días</span>
+                                        </div>
+                                        @if ($ipCount > 0)
+                                            <div class="small text-muted">
+                                                {{ number_format($ipCount, 0, ',', '.') }}
+                                                {{ $ipCount === 1 ? 'IP sin app identificada' : 'IP distintas sin app identificada' }}
+                                            </div>
+                                        @endif
+                                    @else
+                                        <div class="small text-muted">Sin datos por aplicación</div>
+                                    @endif
+                                    @if ($token->last_used_at)
+                                        <div class="small text-muted">Último uso {{ $token->last_used_at->format('d/m/Y H:i:s') }}</div>
+                                    @endif
+                                    @if ($callCount > 0)
+                                        <details class="mt-2 small">
+                                            <summary class="text-primary">Ver llamadas y orígenes recientes</summary>
+                                            <div class="mt-1">
+                                                <strong>{{ number_format($callCount, 0, ',', '.') }}</strong>
+                                                {{ $callCount === 1 ? 'llamada exitosa en total' : 'llamadas exitosas en total' }}
+                                            </div>
+                                            <ul class="list-unstyled mb-0">
+                                                @foreach ($token->usages as $usage)
+                                                    <li class="border-top pt-2 mt-2">
+                                                        @if ($usage->source_app)
+                                                            <div class="font-weight-bold text-break">{{ $usage->source_app }}</div>
+                                                        @endif
+                                                        <div class="text-break">
+                                                            @if ($usage->source_origin)
+                                                                Origen web <code>{{ $usage->source_origin }}</code>
+                                                            @elseif ($usage->source_ip)
+                                                                IP <code>{{ $usage->source_ip }}</code>
+                                                            @elseif (! $usage->source_app)
+                                                                Origen no disponible
+                                                            @endif
+                                                        </div>
+                                                        <span class="font-weight-bold">{{ $usage->method }}</span>
+                                                        <code class="text-break">{{ $usage->endpoint_url }}</code>
+                                                        <div class="text-muted">
+                                                            {{ number_format($usage->request_count, 0, ',', '.') }}
+                                                            {{ $usage->request_count === 1 ? 'llamada' : 'llamadas' }}
+                                                            · {{ $usage->last_used_at->format('d/m/Y H:i:s') }}
+                                                        </div>
+                                                    </li>
+                                                @endforeach
+                                            </ul>
+                                        </details>
+                                    @endif
                                 </td>
                                 <td style="min-width: 260px;">
                                     @forelse (($token->abilities ?? []) as $ability)
@@ -582,14 +685,6 @@
                                     @empty
                                         <span class="text-muted">No hay URL documentada.</span>
                                     @endforelse
-                                </td>
-                                <td>
-                                    @if ($token->isUsable())
-                                        <span class="badge badge-success mb-1">Activo</span>
-                                    @else
-                                        <span class="badge badge-secondary mb-1">Inactivo</span>
-                                    @endif
-                                    <div class="small text-muted">Último uso: {{ optional($token->last_used_at)->format('d/m/Y H:i') ?? 'Sin uso' }}</div>
                                 </td>
                                 <td>
                                     @php

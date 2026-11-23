@@ -7,6 +7,7 @@ use App\Http\Middleware\EnsureRoutePermission;
 use App\Models\ExternalApiToken;
 use Illuminate\Auth\Middleware\Authenticate;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -37,6 +38,8 @@ class ExternalApiTokenSelectionTest extends TestCase
             $table->timestamp('revoked_at')->nullable();
             $table->timestamps();
         });
+        $usageMigration = require database_path('migrations/2026_11_23_120000_create_external_api_usages_table.php');
+        $usageMigration->up();
 
         Schema::create('app_settings', function (Blueprint $table): void {
             $table->id();
@@ -176,6 +179,146 @@ class ExternalApiTokenSelectionTest extends TestCase
         $this->assertSame($abilities, $token->abilities);
         $this->assertNotEmpty($token->token_plain);
         $this->assertTrue($token->isUsable());
+    }
+
+    public function test_la_credencial_del_tarifario_registra_el_endpoint_y_el_origen_de_cada_uso_exitoso(): void
+    {
+        $ability = 'tarifario:delivery-express:read';
+        $html = $this->get(route('configuracion.apis.index', ['nueva' => 1, 'api' => $ability]))
+            ->assertOk()
+            ->getContent();
+        $document = new \DOMDocument;
+        @$document->loadHTML($html);
+        $checked = (new \DOMXPath($document))->query('//input[@name="abilities[]" and @checked]');
+        $this->assertSame(1, $checked->length);
+        $this->assertSame($ability, $checked->item(0)->getAttribute('value'));
+
+        Schema::create('tarifario_tiktoker', function (Blueprint $table): void {
+            $table->id();
+        });
+
+        $this->post(route('configuracion.apis.store'), [
+            'name' => 'Integración de tarifario',
+            'abilities' => [$ability],
+        ])->assertRedirect(route('configuracion.apis.index'));
+        $token = ExternalApiToken::query()->sole();
+        $endpoint = '/api/tarifarios/delivery-express';
+
+        $this->getJson($endpoint)->assertUnauthorized();
+        $headers = ['Authorization' => 'Bearer '.$token->token_plain];
+        $this->getJson('/api/tarifarios/ems-nacional', $headers)->assertForbidden();
+        $this->getJson($endpoint.'?origen_id=-1', $headers)->assertUnprocessable();
+        $this->assertDatabaseCount('external_api_usages', 0);
+        $this->assertNull($token->fresh()->last_used_at);
+
+        $this->getJson($endpoint.'?dato_privado=secreto-de-consulta', $headers + [
+            'Origin' => 'https://portal.example',
+        ])->assertOk();
+        $this->getJson($endpoint, $headers + [
+            'Referer' => 'https://portal.example/ruta-privada?sesion=secreto',
+        ])->assertOk();
+        $this->getJson($endpoint, ['X-API-Token' => $token->token_plain])->assertOk();
+
+        $this->assertDatabaseCount('external_api_usages', 2);
+        $this->assertDatabaseHas('external_api_usages', [
+            'external_api_token_id' => $token->id,
+            'method' => 'GET',
+            'endpoint_url' => url($endpoint),
+            'source_origin' => 'https://portal.example',
+            'source_ip' => null,
+            'request_count' => 2,
+        ]);
+        $this->assertDatabaseHas('external_api_usages', [
+            'external_api_token_id' => $token->id,
+            'source_origin' => null,
+            'source_ip' => '127.0.0.1',
+            'request_count' => 1,
+        ]);
+
+        $this->get(route('configuracion.apis.index'))
+            ->assertOk()
+            ->assertSeeText('Último uso')
+            ->assertSeeText('llamadas exitosas')
+            ->assertSee('<strong>3</strong>', false)
+            ->assertSee('https://portal.example')
+            ->assertDontSee('secreto-de-consulta')
+            ->assertDontSee('ruta-privada');
+
+        $this->delete(route('configuracion.apis.destroy', $token))->assertRedirect();
+        $this->assertDatabaseCount('external_api_usages', 0);
+
+        Schema::drop('external_api_usages');
+        $this->get(route('configuracion.apis.index'))
+            ->assertOk()
+            ->assertSeeText('El conteo de apps se habilita al aplicar la migración');
+    }
+
+    public function test_el_panel_muestra_actividad_y_cuenta_apps_distintas_por_credencial_en_siete_dias(): void
+    {
+        $ability = 'tarifario:delivery-express:read';
+        Route::middleware(['external.api.jwt', 'external.api.ability:'.$ability])->group(function (): void {
+            Route::get('/api/uso-prueba/primera', fn () => response()->noContent());
+            Route::get('/api/uso-prueba/segunda', fn () => response()->noContent());
+        });
+
+        foreach (['Integración actual', 'Integración anterior', 'Integración nueva'] as $name) {
+            $this->post(route('configuracion.apis.store'), ['name' => $name, 'abilities' => [$ability]])
+                ->assertRedirect();
+        }
+
+        $current = ExternalApiToken::query()->where('name', 'Integración actual')->sole();
+        $previous = ExternalApiToken::query()->where('name', 'Integración anterior')->sole();
+        $currentHeaders = ['Authorization' => 'Bearer '.$current->token_plain];
+        $previousHeaders = ['Authorization' => 'Bearer '.$previous->token_plain];
+
+        $this->travel(-8)->days();
+        $this->getJson('/api/uso-prueba/primera', $currentHeaders + ['X-API-Client' => 'app-antigua'])->assertNoContent();
+        $this->getJson('/api/uso-prueba/primera', $previousHeaders + ['Origin' => 'https://anterior.example'])->assertNoContent();
+        $this->travelBack();
+
+        $this->getJson('/api/uso-prueba/primera', $currentHeaders + ['X-API-Client' => 'PackGo'])->assertNoContent();
+        $this->getJson('/api/uso-prueba/segunda', $currentHeaders + [
+            'X-API-Client' => 'packgo',
+            'Origin' => 'https://packgo.example',
+        ])->assertNoContent();
+        $this->getJson('/api/uso-prueba/primera', $currentHeaders + ['Origin' => 'https://portal.example'])->assertNoContent();
+        $this->getJson('/api/uso-prueba/segunda', $currentHeaders + ['Origin' => 'https://portal.example'])->assertNoContent();
+        $this->getJson('/api/uso-prueba/primera', $currentHeaders)->assertNoContent();
+
+        $html = $this->get(route('configuracion.apis.index'))
+            ->assertOk()
+            ->assertSeeText('Uso y apps')
+            ->assertSeeText('Ver llamadas y orígenes')
+            ->assertSeeText('packgo')
+            ->assertSeeText('X-API-Client: portal-clientes')
+            ->getContent();
+
+        $document = new \DOMDocument;
+        @$document->loadHTML($html);
+        $xpath = new \DOMXPath($document);
+        foreach (['Uso reciente', 'Usada anteriormente', 'Sin uso registrado'] as $label) {
+            $this->assertSame('1', $xpath->evaluate('string(//div[span="'.$label.'"]/strong)'));
+        }
+
+        $currentCell = '//tr[td/strong="Integración actual"]/td[2]';
+        $previousCell = '//tr[td/strong="Integración anterior"]/td[2]';
+        $newCell = '//tr[td/strong="Integración nueva"]/td[2]';
+        $currentUsage = $xpath->evaluate('normalize-space('.$currentCell.')');
+        $previousUsage = $xpath->evaluate('normalize-space('.$previousCell.')');
+        $newUsage = $xpath->evaluate('normalize-space('.$newCell.')');
+
+        $this->assertStringContainsString('Uso reciente 2 apps identificadas en 7 días', $currentUsage);
+        $this->assertStringContainsString('1 IP sin app identificada', $currentUsage);
+        $this->assertStringContainsString('6 llamadas exitosas en total', $currentUsage);
+        $this->assertStringContainsString('Usada anteriormente 0 apps identificadas en 7 días', $previousUsage);
+        $this->assertStringContainsString('1 llamada exitosa en total', $previousUsage);
+        $this->assertStringContainsString('Sin uso registrado 0 apps identificadas en 7 días', $newUsage);
+
+        Schema::drop('external_api_usages');
+        $this->get(route('configuracion.apis.index'))
+            ->assertOk()
+            ->assertSeeText('Sin datos por aplicación')
+            ->assertSeeText('Último uso');
     }
 
     public function test_puede_crear_una_credencial_con_permisos_separados_de_bitacora(): void

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ExternalApiToken;
+use App\Models\ExternalApiUsage;
 use App\Services\ApiManualDocxService;
 use App\Support\ExternalApiJwt;
 use Illuminate\Http\Request;
@@ -10,6 +11,7 @@ use Illuminate\Routing\Route as LaravelRoute;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -17,9 +19,42 @@ class ExternalApiTokenController extends Controller
 {
     public function index(Request $request)
     {
-        $tokens = ExternalApiToken::query()
-            ->latest('id')
-            ->get();
+        $hasUsageTracking = Schema::hasTable('external_api_usages');
+        $recentUsageSince = now()->subDays(7);
+        $tokens = ExternalApiToken::query()->latest('external_api_tokens.id');
+        if ($hasUsageTracking) {
+            $usageTotals = ExternalApiUsage::query()
+                ->select('external_api_token_id')
+                ->selectRaw('SUM(request_count) AS calls_count')
+                ->selectRaw(
+                    'COUNT(DISTINCT CASE WHEN last_used_at >= ? THEN source_app END)
+                    + COUNT(DISTINCT CASE WHEN last_used_at >= ? AND source_app IS NULL THEN source_origin END) AS recent_apps_count',
+                    [$recentUsageSince, $recentUsageSince],
+                )
+                ->selectRaw(
+                    'COUNT(DISTINCT CASE WHEN last_used_at >= ? THEN source_ip END) AS recent_unidentified_ips_count',
+                    [$recentUsageSince],
+                )
+                ->groupBy('external_api_token_id');
+
+            $tokens->leftJoinSub($usageTotals, 'usage_totals', 'usage_totals.external_api_token_id', '=', 'external_api_tokens.id')
+                ->select([
+                    'external_api_tokens.*',
+                    'usage_totals.calls_count',
+                    'usage_totals.recent_apps_count',
+                    'usage_totals.recent_unidentified_ips_count',
+                ])
+                ->with(['usages' => fn ($query) => $query->latest('last_used_at')->latest('id')->limit(10)]);
+        }
+        $tokens = $tokens->get();
+        $usageStatuses = $tokens->mapWithKeys(fn (ExternalApiToken $token): array => [
+            $token->id => match (true) {
+                $token->last_used_at === null => 'none',
+                $token->last_used_at->gte($recentUsageSince) => 'recent',
+                default => 'previous',
+            },
+        ]);
+        $usageStatusCounts = $usageStatuses->countBy();
         $apiCatalog = config('external_apis.catalog', []);
         $legacyAbilityNames = config('external_apis.legacy_names', []);
         $apiSelectionGroups = $this->apiSelectionGroups($apiCatalog);
@@ -59,6 +94,10 @@ class ExternalApiTokenController extends Controller
             return [$token->id => $endpoints];
         })->all();
         $createMode = $request->boolean('nueva');
+        $requestedAbility = $request->query('api');
+        $preselectedAbility = $createMode && is_string($requestedAbility) && isset($apiCatalog[$requestedAbility])
+            ? [$requestedAbility]
+            : [];
 
         return view('configuracion.apis', compact(
             'tokens',
@@ -69,7 +108,11 @@ class ExternalApiTokenController extends Controller
             'routeAbilityNames',
             'abilityEndpoints',
             'tokenEndpointMap',
-            'createMode'
+            'createMode',
+            'preselectedAbility',
+            'hasUsageTracking',
+            'usageStatuses',
+            'usageStatusCounts'
         ));
     }
 
