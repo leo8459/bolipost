@@ -673,13 +673,13 @@ class PaquetesIpsController extends Controller
         $isInternationalPage = $internationalPage !== null || $internationalWorkflow !== null;
         $courierOnly = $section === 'almacen' && $warehouseView === 'asignados-a-mi';
         $deliveryOnly = $section === 'almacen' && in_array($warehouseView, ['por-entregar', 'asignados-a-mi'], true);
-        $deliveryBarcodeSearch = $section === 'almacen'
+        $deliveryCodeSearch = $section === 'almacen'
             && $warehouseView === 'por-entregar'
-            && preg_match('/^[A-Z]{2}\d{9}[A-Z]{2}$/i', $recipientSearch) === 1;
+            && preg_match('/^[A-Z]{2}\d/i', $recipientSearch) === 1;
         $localRecipientSearch = $section === 'almacen'
             && $warehouseView === 'por-entregar'
             && $recipientSearch !== ''
-            && ! $deliveryBarcodeSearch;
+            && ! $deliveryCodeSearch;
         $smartReception = $section === 'recepcion-oficina';
         $workbenchActions = $workflowAction ? ($smartReception ? ['EMG', 'CUSTOMS_INFO', 'CUSTOMS_RETURN'] : [$workflowAction])
             : ($courierOnly ? ['EDG', 'EMH', 'EMI'] : ($deliveryOnly ? ['EMI'] : null));
@@ -814,7 +814,7 @@ class PaquetesIpsController extends Controller
                 $packageFilters = [
                     'status' => $stage,
                     'office_cd' => $link->ips_office_cd,
-                    'q' => $deliveryBarcodeSearch ? strtoupper($recipientSearch) : $search,
+                    'q' => $deliveryCodeSearch ? strtoupper($recipientSearch) : $search,
                     'page' => $page,
                     'per_page' => 25,
                 ];

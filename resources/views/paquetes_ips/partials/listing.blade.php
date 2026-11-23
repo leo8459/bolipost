@@ -15,10 +15,11 @@
                         <input id="ips-code" type="search" name="q" maxlength="35" value="{{ $search }}" placeholder="Escanea o escribe un código…" class="form-control" autocomplete="off">
                     @endif
                     @if($preferredReceptaclePid ?? null)<input type="hidden" name="receptacle_pid" value="{{ $preferredReceptaclePid }}">@endif
-                    <button type="submit" class="btn btn-primary ips-search-submit"><i class="fas fa-search mr-2" aria-hidden="true"></i><span>{{ $pendingDelivery ? 'Buscar o agregar' : ($searchPurpose ? 'Buscar para '.$searchPurpose : 'Buscar') }}</span></button>
+                    <button type="submit" class="btn btn-primary ips-search-submit"><i class="fas fa-search mr-2" aria-hidden="true"></i><span>{{ $pendingDelivery ? 'Buscar' : ($searchPurpose ? 'Buscar para '.$searchPurpose : 'Buscar') }}</span></button>
                     @if($pendingDelivery ? ($recipientSearch ?? false) : $search)<a href="{{ $listingClearUrl ?? $listingUrl ?? route('ips.index', \App\Support\IpsOfficeContext::parameters(request(), [])) }}" class="btn btn-light">Limpiar</a>@endif
                 </form>
                 @if($pendingDelivery)
+                    <p class="ips-footnote px-3 pt-0" role="note">Buscar solo consulta: destinatario o dirección en SIOP y código en IPS. Para agregar un resultado, usa la acción de su fila; el escaneo rápido con lector y Enter lo agrega directamente.</p>
                 @endif
                 @if($workflowHint ?? null)<p class="ips-footnote px-3 pt-0" role="note">{{ $workflowHint }}</p>@endif
                 @unless($isInternationalPage ?? false)

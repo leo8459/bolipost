@@ -7854,11 +7854,8 @@
                     throw new Error(errorMessage);
                 }
 
-                const shouldWaitForFacturaResult = !data.download_pdf
-                    && !data.qr_data
-                    && data.cart
-                    && String(data.cart.canal_emision || '').toLowerCase() !== 'qr'
-                    && ['PENDIENTE', 'PROCESADA', ''].includes(String(data.cart.estado_emision || '').trim().toUpperCase());
+                const shouldWaitForFacturaResult = shouldKeepFacturaPolling(data)
+                    && String(data.cart.estado_emision || '').trim().toUpperCase() !== 'EMISION_INCIERTA';
 
                 const finalData = shouldWaitForFacturaResult
                     ? await waitForFacturaEmitResult(data.cart.id, data)
@@ -7960,7 +7957,7 @@
                 }
 
                 const emissionStatus = String(data.cart.estado_emision || '').trim().toUpperCase();
-                return ['PENDIENTE', 'PROCESADA', ''].includes(emissionStatus);
+                return ['PENDIENTE', 'PROCESADA', 'EMITIENDO', 'EMISION_INCIERTA', ''].includes(emissionStatus);
             };
 
             const isQrPaymentConfirmed = (data) => {

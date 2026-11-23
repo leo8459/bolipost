@@ -1184,6 +1184,15 @@ class FacturacionCartController extends Controller
         }
 
         $estado = strtoupper(trim((string) ($respuesta['estado'] ?? '')));
+        if (in_array($estado, ['EMITIENDO', 'EMISION_INCIERTA'], true)) {
+            return [
+                'type' => 'info',
+                'title' => 'Factura en verificación',
+                'message' => 'SAFE está consultando la misma orden en SEFE.',
+                'detail' => trim((string) ($respuesta['mensaje'] ?? '')),
+                'action' => $action,
+            ];
+        }
         $estadoPago = strtolower(trim((string) (
             data_get($respuesta, 'estado_pago')
             ?? data_get($respuesta, 'payment_status')

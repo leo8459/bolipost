@@ -4,10 +4,11 @@
     const status = document.getElementById('ips-listing-status');
     if (!listing || !status) return;
     let activeRequest;
-    let recipientSearchTimer;
     const workspace = document.querySelector('.ips-workspace');
     const fixedWorkflow = workspace?.dataset.workflowAction || '';
     const scanEnabled = workspace?.dataset.scanEnabled === '1';
+    let deliveryScanTyping = {input: null, startedAt: 0, lastAt: 0, characters: 0};
+    let searchButtonClicked = false;
     const setScanPlaceholder = () => {
         if (fixedWorkflow === 'EMG') {
             listing.querySelector('#ips-code')?.setAttribute('placeholder', 'Escanea un c\u00f3digo para recibir');
@@ -41,8 +42,10 @@
         listing.setAttribute('aria-busy', 'true');
         listing.querySelectorAll('.ips-selection-add button').forEach(button => { button.disabled = true; });
         status.hidden = false;
-        status.textContent = url.searchParams.get('recipient_address_q')?.trim()
-            ? 'Buscando paquetes por destinatario o dirección…'
+        const recipientQuery = url.searchParams.get('recipient_address_q')?.trim() || '';
+        const codeLookup = /^[A-Z]{2}\d/i.test(recipientQuery);
+        status.textContent = recipientQuery
+            ? (codeLookup ? 'Buscando código en IPS…' : 'Buscando en SIOP por destinatario o dirección…')
             : 'Actualizando paquetes…';
         try {
             const response = await fetch(url.href, {
@@ -58,12 +61,27 @@
                 throw new Error(result.message || 'No se pudo consultar IPS.');
             }
             if (request !== activeRequest) return;
-            const restoreSearchFocus = document.activeElement === listing.querySelector('#ips-code');
+            const previousSearchInput = listing.querySelector('#ips-code');
+            const restoreSearchFocus = document.activeElement === previousSearchInput;
+            const selectionStart = restoreSearchFocus ? previousSearchInput.selectionStart : null;
+            const selectionEnd = restoreSearchFocus ? previousSearchInput.selectionEnd : null;
+            const selectionDirection = restoreSearchFocus ? previousSearchInput.selectionDirection : null;
             // Server-rendered, escaped Blade markup from this authenticated same-origin route.
             listing.classList.remove('is-stale');
             listing.innerHTML = result.html;
             setScanPlaceholder();
-            if (restoreSearchFocus) listing.querySelector('#ips-code')?.focus();
+            if (restoreSearchFocus) {
+                const nextSearchInput = listing.querySelector('#ips-code');
+                nextSearchInput?.focus({preventScroll: true});
+                if (nextSearchInput && selectionStart !== null && selectionEnd !== null) {
+                    const max = nextSearchInput.value.length;
+                    nextSearchInput.setSelectionRange(
+                        Math.min(selectionStart, max),
+                        Math.min(selectionEnd, max),
+                        selectionDirection || 'none'
+                    );
+                }
+            }
             if (push) history.pushState(null, '', url.href);
             status.hidden = true;
             return true;
@@ -72,7 +90,9 @@
             listing.classList.add('is-stale');
             listing.querySelectorAll('.ips-selection-add button').forEach(button => { button.disabled = true; });
             status.hidden = false;
-            status.textContent = 'No se pudo consultar IPS. Se mantienen resultados anteriores, que pueden no corresponder a esta búsqueda. Vuelve a intentar antes de agregar paquetes.';
+            status.textContent = recipientQuery && !codeLookup
+                ? 'No se pudo buscar en SIOP. Se mantienen resultados anteriores, que pueden no corresponder a esta búsqueda. Vuelve a intentar antes de agregar paquetes.'
+                : 'No se pudo consultar IPS. Se mantienen resultados anteriores, que pueden no corresponder a esta búsqueda. Vuelve a intentar antes de agregar paquetes.';
             return false;
         } finally {
             if (request === activeRequest) listing.removeAttribute('aria-busy');
@@ -81,6 +101,46 @@
 
     const scanQueue = [];
     let processingScans = false;
+
+    function resetDeliveryScanTyping() {
+        deliveryScanTyping = {input: null, startedAt: 0, lastAt: 0, characters: 0};
+    }
+
+    listing.addEventListener('input', event => {
+        const input = event.target.closest('#ips-code[name="recipient_address_q"]');
+        if (!input || workspace?.dataset.deliveryOnly !== '1' || fixedWorkflow) return;
+
+        const insertedText = event.inputType === 'insertText' ? String(event.data || '') : '';
+        if (!insertedText || !/^[A-Z0-9]+$/i.test(insertedText)) {
+            resetDeliveryScanTyping();
+            return;
+        }
+
+        const now = performance.now();
+        if (deliveryScanTyping.input !== input || !deliveryScanTyping.lastAt || now - deliveryScanTyping.lastAt > 250) {
+            deliveryScanTyping = {input, startedAt: now, lastAt: now, characters: insertedText.length};
+            return;
+        }
+
+        deliveryScanTyping.lastAt = now;
+        deliveryScanTyping.characters += insertedText.length;
+    });
+
+    listing.addEventListener('click', event => {
+        if (!event.target.closest('.ips-search-submit')) return;
+        searchButtonClicked = true;
+        window.setTimeout(() => { searchButtonClicked = false; }, 0);
+    });
+
+    function isRapidDeliveryScannerInput(input, code) {
+        const typing = deliveryScanTyping;
+        if (typing.input !== input || typing.characters < code.length - 1 || !typing.lastAt) return false;
+        const duration = typing.lastAt - typing.startedAt;
+        const timeSinceLastCharacter = performance.now() - typing.lastAt;
+        return duration <= 900
+            && duration / Math.max(typing.characters, 1) <= 45
+            && timeSinceLastCharacter <= 300;
+    }
 
     async function addSelectionForm(addForm, scanned = false) {
         const button = addForm.querySelector('button');
@@ -217,54 +277,33 @@
         const form = event.target.closest('.ips-search');
         if (!form) return;
         event.preventDefault();
-        clearTimeout(recipientSearchTimer);
-        recipientSearchTimer = null;
         const formData = new FormData(form);
         const code = String(formData.get('q') || formData.get('recipient_address_q') || '').trim().toUpperCase();
         const isWorkflowScan = scanEnabled && fixedWorkflow && /^[A-Z0-9-]{8,35}$/.test(code);
-        const isDeliveryBarcode = scanEnabled && workspace?.dataset.deliveryOnly === '1'
-            && !fixedWorkflow && /^[A-Z]{2}\d{9}[A-Z]{2}$/.test(code);
-        if (isWorkflowScan || isDeliveryBarcode) {
+        const searchInput = form.querySelector('#ips-code');
+        const isDeliveryScannerScan = scanEnabled
+            && workspace?.dataset.deliveryOnly === '1'
+            && !fixedWorkflow
+            && !searchButtonClicked
+            && /^[A-Z]{2}\d{9}[A-Z]{2}$/.test(code)
+            && isRapidDeliveryScannerInput(searchInput, code);
+        if (isWorkflowScan || isDeliveryScannerScan) {
             scanQueue.push(code);
-            const input = form.querySelector('#ips-code');
-            if (input) { input.value = ''; input.focus(); }
+            if (searchInput) { searchInput.value = ''; searchInput.focus(); }
+            resetDeliveryScanTyping();
             status.hidden = false;
             status.textContent = scanQueue.length > 1
                 ? 'Escaneos en cola: ' + scanQueue.length + '.'
-                : 'Consultando el paquete en IPS...';
+                : isDeliveryScannerScan ? 'Código escaneado; agregando a la bandeja…' : 'Consultando el paquete en IPS...';
             processScanQueue();
             return;
         }
         load(searchUrl(form)).then(loaded => {
-            const legacyBarcode = scanEnabled && /^[A-Z]{2}\d{9}[A-Z]{2}$/.test(code);
-            if (!loaded || !legacyBarcode) return;
-            const exactRow = [...listing.querySelectorAll('.ips-code')]
-                .find(node => node.textContent.trim().toUpperCase() === code)?.closest('tr');
-            const addForm = exactRow?.querySelector('.ips-selection-add');
-            if (addForm) addSelectionForm(addForm);
+            if (!loaded) return;
+            const nextInput = listing.querySelector('#ips-code');
+            nextInput?.focus({preventScroll: true});
+            if (nextInput) nextInput.setSelectionRange(nextInput.value.length, nextInput.value.length);
         });
-    });
-    listing.addEventListener('input', event => {
-        const input = event.target.closest('#ips-code[name="recipient_address_q"]');
-        if (!input?.form || workspace?.dataset.deliveryOnly !== '1' || fixedWorkflow) return;
-
-        clearTimeout(recipientSearchTimer);
-        const value = input.value.trim();
-        const isDeliveryBarcode = /^[A-Z]{2}\d{9}[A-Z]{2}$/i.test(value);
-        if ((value.length > 0 && value.length < 2) || isDeliveryBarcode) return;
-
-        recipientSearchTimer = window.setTimeout(() => {
-            recipientSearchTimer = null;
-            const currentInput = listing.querySelector('#ips-code[name="recipient_address_q"]');
-            if (!currentInput?.form) return;
-            const currentValue = currentInput.value.trim();
-            if ((currentValue.length > 0 && currentValue.length < 2) || /^[A-Z]{2}\d{9}[A-Z]{2}$/i.test(currentValue)) return;
-
-            const url = searchUrl(currentInput.form);
-            load(url, false).then(loaded => {
-                if (loaded) history.replaceState(null, '', url.href);
-            });
-        }, 300);
     });
     listing.addEventListener('paste', event => {
         const input = event.target.closest('#ips-code[data-search-on-paste]');
@@ -273,15 +312,15 @@
         if (!/^[A-Z0-9-]{1,35}$/.test(code ?? '')) return;
 
         if (workspace?.dataset.deliveryOnly === '1' && !fixedWorkflow) {
-            if (!/^[A-Z]{2}\d{9}[A-Z]{2}$/.test(code)) return;
+            if (!/^[A-Z]{2}\d/.test(code)) return;
             event.preventDefault();
-            scanQueue.push(code);
-            input.value = '';
-            status.hidden = false;
-            status.textContent = scanQueue.length > 1
-                ? 'Escaneos en cola: ' + scanQueue.length + '.'
-                : 'Agregando el paquete a la bandeja de entrega...';
-            processScanQueue();
+            input.value = code;
+            load(searchUrl(input.form)).then(loaded => {
+                if (!loaded) return;
+                const nextInput = listing.querySelector('#ips-code');
+                nextInput?.focus({preventScroll: true});
+                if (nextInput) nextInput.setSelectionRange(nextInput.value.length, nextInput.value.length);
+            });
             return;
         }
 
