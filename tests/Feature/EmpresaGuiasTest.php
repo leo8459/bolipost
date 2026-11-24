@@ -191,16 +191,17 @@ class EmpresaGuiasTest extends TestCase
         }
     }
 
-    public function test_menu_contiene_empresa_y_guias_empresa(): void
+    public function test_menu_de_administrador_contiene_empresa_y_sus_opciones(): void
     {
-        $empresaMenu = collect(config('adminlte.menu'))
-            ->first(fn ($item) => is_array($item)
-                && ($item['text'] ?? null) === 'Empresa'
-                && collect($item['submenu'] ?? [])->contains(
-                    fn ($child) => ($child['url'] ?? null) === 'empresa/guias'
-                ));
+        $menu = collect(config('adminlte.menu'));
+        $admin = $menu->firstWhere('text', 'Administrador');
+        $empresaMenu = collect($admin['submenu'] ?? [])->firstWhere('text', 'Empresa');
 
-        $this->assertNotNull($empresaMenu);
+        $this->assertFalse($menu->contains('text', 'Empresa'));
+        $this->assertEqualsCanonicalizing(
+            ['codigo-empresa', 'empresa/guias'],
+            array_column($empresaMenu['submenu'] ?? [], 'url')
+        );
         $this->assertContains(
             'area-contratos.todos',
             AclPermissionRegistry::authorizationPermissionsForRouteAccess('empresa.guias.index')
@@ -256,9 +257,12 @@ class EmpresaGuiasTest extends TestCase
         $this->assertSame(5, $multiMonthView->getData()['totalRegistrados']);
         $this->assertSame([7, 8], $multiMonthView->getData()['mesesSeleccionados']);
 
-        $conciliacionMenu = collect(config('adminlte.menu'))
+        $menu = collect(config('adminlte.menu'));
+        $contratosMenu = $menu->firstWhere('text', 'Paquetes Contratos');
+        $conciliacionMenu = collect($contratosMenu['submenu'] ?? [])
             ->first(fn ($item) => is_array($item) && ($item['can'] ?? null) === 'dashboard.conciliacion');
 
+        $this->assertFalse($menu->contains('can', 'dashboard.conciliacion'));
         $this->assertTrue(collect($conciliacionMenu['submenu'] ?? [])->contains(
             fn ($child) => ($child['url'] ?? null) === '/conciliacion/empresas-paquetes'
                 && ($child['can'] ?? null) === 'dashboard.conciliacion.empresas-paquetes'

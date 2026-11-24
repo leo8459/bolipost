@@ -23,7 +23,7 @@
                         <label for="alias">Nombre de usuario</label>
                         <div class="siop-input-wrap">
                             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" /></svg>
-                            <input id="alias" name="alias" type="text" value="{{ old('alias') }}" placeholder="Ej.: jperez" required autofocus autocomplete="username" @error('alias') aria-invalid="true" @enderror>
+                            <input id="alias" name="alias" type="text" value="{{ old('alias', $rememberedAlias) }}" placeholder="Ej.: jperez" required autofocus autocomplete="username" @error('alias') aria-invalid="true" @enderror>
                         </div>
                         <x-input-error :messages="$errors->get('alias')" class="siop-field-error" />
                     </div>
@@ -41,10 +41,14 @@
                         <x-input-error :messages="$errors->get('password')" class="siop-field-error" />
                     </div>
 
-                    <label for="remember_me" class="siop-remember">
-                        <input id="remember_me" type="checkbox" name="remember">
-                        <span>Recordarme</span>
-                    </label>
+                    <div>
+                        <input type="hidden" name="remember" value="0">
+                        <label for="remember_me" class="siop-remember">
+                            <input id="remember_me" type="checkbox" name="remember" value="1" aria-describedby="remember-help" @checked(old('remember', filled($rememberedAlias)))>
+                            <span>Recordarme</span>
+                        </label>
+                        <p id="remember-help" class="siop-remember-help">Para autocompletar la contraseña, acepta guardarla en tu navegador.</p>
+                    </div>
 
                     <button type="submit" class="siop-submit-button">
                         <span>Iniciar sesión</span>
@@ -162,6 +166,7 @@
         .siop-field-error ul{margin:0;padding-left:16px}
         .siop-remember{display:flex;align-items:center;gap:9px;width:max-content;margin:0;color:#6d7f99;font-size:14px;cursor:pointer}
         .siop-remember input{width:18px;height:18px;margin:0;border:1px solid #a9bad0;border-radius:4px;color:#f2b900;accent-color:#f2b900}
+        .siop-remember-help{margin:4px 0 0 27px;color:#536782;font-size:12px}
         .siop-submit-button{display:flex;min-height:52px;align-items:center;justify-content:space-between;border:0;border-radius:11px;background:linear-gradient(105deg,#ffc400,#ffb600);padding:0 20px 0 24px;color:#073f8f;font-size:17px;font-weight:800;box-shadow:0 9px 18px rgba(236,177,0,.25);transition:transform .18s,box-shadow .18s;cursor:pointer}
         .siop-submit-button:hover{transform:translateY(-1px);box-shadow:0 12px 22px rgba(236,177,0,.3)}
         .siop-submit-button:disabled{opacity:.65;cursor:wait;transform:none}

@@ -64,10 +64,48 @@ class AdminAuthorizationTest extends TestCase
         };
         $collectUrls($menu->menu());
 
-        foreach (['internacional/recepcion-oficina', 'internacional/almacen/por-entregar', 'users', 'roles', 'ips'] as $path) {
+        foreach ([
+            'internacional/recepcion-oficina', 'internacional/almacen/por-entregar', 'users', 'roles', 'ips',
+            'tarifa-contrato/import', 'bastiones/paquetes', 'bastiones/reporte',
+            'codigo-empresa', 'empresa/guias',
+        ] as $path) {
             $this->assertContains($path, $urls);
         }
         $this->assertFalse(Gate::allows('cliente-panel'));
+    }
+
+    public function test_operator_can_find_delegated_windows_under_administrador(): void
+    {
+        $operator = new User(['name' => 'Operador']);
+        $operator->setRelation('roles', new Collection);
+        $operator->setRelation('permissions', new Collection([
+            Permission::findByName('empresas.historial.index', 'web'),
+            Permission::findByName('todos-paquetes.index', 'web'),
+            Permission::findByName('users.index', 'web'),
+            Permission::findByName('bastiones.index', 'web'),
+            Permission::findByName('empresa.guias.index', 'web'),
+        ]));
+        $this->actingAs($operator);
+
+        $menu = new Builder([new RoutePermissionFilter, new GateFilter]);
+        $menu->add(...config('adminlte.menu'));
+        $items = collect($menu->menu());
+
+        $this->assertFalse($items->contains('text', 'Configuraciones'));
+        $this->assertFalse($items->contains('text', 'Bastiones'));
+        $admin = $items->firstWhere('text', 'Administrador');
+        $adminItems = collect($admin['submenu'] ?? []);
+        $this->assertEqualsCanonicalizing(['Bastiones', 'Configuraciones', 'Empresa'], $adminItems->pluck('text')->all());
+
+        $settings = $adminItems->firstWhere('text', 'Configuraciones');
+        $userSettings = collect($settings['submenu'])->firstWhere('text', 'Gestion Usuarios');
+        $this->assertContains('empresas/historial', array_column($userSettings['submenu'] ?? [], 'url'));
+
+        $bastiones = $adminItems->firstWhere('text', 'Bastiones');
+        $this->assertSame(['bastiones/paquetes'], array_column($bastiones['submenu'], 'url'));
+
+        $empresa = $adminItems->firstWhere('text', 'Empresa');
+        $this->assertSame(['empresa/guias'], array_column($empresa['submenu'], 'url'));
     }
 
     public function test_operator_permissions_and_unrelated_gates_remain_restricted(): void

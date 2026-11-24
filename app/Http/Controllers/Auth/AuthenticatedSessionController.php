@@ -9,12 +9,15 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 use Spatie\Permission\PermissionRegistrar;
 
 class AuthenticatedSessionController extends Controller
 {
+    private const REMEMBERED_ALIAS_COOKIE = 'siop_remembered_alias';
+
     /**
      * Display the login view.
      */
@@ -28,7 +31,9 @@ class AuthenticatedSessionController extends Controller
             session()->forget('url.intended');
         }
 
-        return view('auth.login');
+        return view('auth.login', [
+            'rememberedAlias' => $request->cookie(self::REMEMBERED_ALIAS_COOKIE, ''),
+        ]);
     }
 
     /**
@@ -100,7 +105,17 @@ class AuthenticatedSessionController extends Controller
             }
         }
 
-        return redirect()->to($redirectUrl);
+        $response = redirect()->to($redirectUrl);
+
+        if ($request->boolean('remember')) {
+            return $response->withCookie(Cookie::forever(self::REMEMBERED_ALIAS_COOKIE, $user->alias));
+        }
+
+        if ($request->hasCookie(self::REMEMBERED_ALIAS_COOKIE)) {
+            $response->withoutCookie(self::REMEMBERED_ALIAS_COOKIE);
+        }
+
+        return $response;
     }
 
     /**

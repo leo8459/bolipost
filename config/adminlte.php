@@ -363,38 +363,270 @@ $config = [
             ],
         ],
         [
-            'text' => 'Conciliación',
-            'icon' => 'fas fa-balance-scale',
-            'can' => 'dashboard.conciliacion',
-            'submenu' => [
-                [
-                    'text' => 'Facturado',
-                    'can' => 'dashboard.conciliacion.facturado',
-                    'url' => '/conciliacion/facturado',
-                    'icon' => 'fas fa-file-invoice-dollar',
-                ],
-                [
-                    'text' => 'Empresas paquetes',
-                    'can' => 'dashboard.conciliacion.empresas-paquetes',
-                    'url' => '/conciliacion/empresas-paquetes',
-                    'icon' => 'fas fa-building',
-                ],
-                [
-                    'text' => 'Conciliaciones',
-                    'can' => 'dashboard.conciliacion.conciliaciones',
-                    'url' => '/conciliacion/conciliaciones',
-                    'icon' => 'fas fa-exchange-alt',
-                ],
-            ],
-        ],
-        [
             'text' => 'Administrador',
             'icon' => 'fas fa-user-shield',
-            'can' => 'admin-only-menu',
             'submenu' => [
+                [
+                    'text' => 'Bastiones',
+                    'icon' => 'fas fa-shield-alt',
+                    'submenu' => [
+                        [
+                            'text' => 'Recuperar paquetes',
+                            'url' => 'bastiones/paquetes',
+                            'icon' => 'fas fa-undo-alt',
+                            'can' => 'bastiones.index',
+                        ],
+                        [
+                            'text' => 'Reporte de Bastión',
+                            'url' => 'bastiones/reporte',
+                            'icon' => 'fas fa-file-alt',
+                        ],
+                    ],
+                ],
+                [
+                    'text' => 'Configuraciones',
+                    'icon' => 'fas fa-cogs',
+                    'submenu' => [
+                        [
+                            'text' => 'Impotaciones',
+                            'icon' => 'fas fa-file-import',
+                            'submenu' => [
+                                [
+                                    'text' => 'Tarifas',
+                                    'icon' => 'fas fa-tags',
+                                    'submenu' => [
+                                        [
+                                            'text' => 'Importar Tarifas',
+                                            'url' => 'tarifa-contrato/import',
+                                            'icon' => 'fas fa-file-excel',
+                                        ],
+                                    ],
+                                ],
+                                [
+                                    'text' => 'Paquetes',
+                                    'icon' => 'fas fa-boxes',
+                                    'submenu' => [
+                                        [
+                                            'text' => 'Importacion de Paquetes',
+                                            'url' => 'importar/paquets',
+                                            'icon' => 'fas fa-upload',
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                        [
+                            'text' => 'Configuracion de tarifas',
+                            'icon' => 'fas fa-tags',
+                            'submenu' => [
+                                [
+                                    'text' => 'Tarifario contratos',
+                                    'icon' => 'fas fa-file-contract',
+                                    'submenu' => [
+                                        [
+                                            'text' => 'Tarifarios por año',
+                                            'url' => 'tarifa-contrato/tarifarios',
+                                            'icon' => 'fas fa-calendar-alt',
+                                        ],
+                                        [
+                                            'text' => 'Servicios por año',
+                                            'url' => 'tarifa-contrato/servicios',
+                                            'icon' => 'fas fa-list-alt',
+                                        ],
+                                        [
+                                            'text' => 'Tarifas',
+                                            'url' => 'tarifa-contrato',
+                                            'icon' => 'fas fa-file-invoice-dollar',
+                                        ],
+                                    ],
+                                ],
+                                [
+                                    'text' => 'EMS',
+                                    'icon' => 'fas fa-shipping-fast',
+                                    'submenu' => [
+                                        [
+                                            'text' => 'Tarifarios padre',
+                                            'url' => 'tarifario-padre',
+                                            'icon' => 'fas fa-layer-group',
+                                        ],
+                                        [
+                                            'text' => 'Servicios',
+                                            'url' => 'servicios',
+                                            'icon' => 'fas fa-concierge-bell',
+                                        ],
+                                        [
+                                            'text' => 'Tarifas',
+                                            'url' => 'tarifario',
+                                            'icon' => 'fas fa-tags',
+                                        ],
+                                    ],
+                                ],
+                                [
+                                    'text' => 'Delivery Express',
+                                    'icon' => 'fas fa-motorcycle',
+                                    'submenu' => [
+                                        [
+                                            'text' => 'Servicios extras',
+                                            'url' => 'servicio-extras',
+                                            'icon' => 'fas fa-plus-square',
+                                        ],
+                                        [
+                                            'text' => 'Tarifas',
+                                            'url' => 'tarifario-tiktoker',
+                                            'icon' => 'fas fa-hashtag',
+                                        ],
+                                    ],
+                                ],
+                                [
+                                    'text' => 'Conceptos Facturables',
+                                    'url' => 'conceptos-facturacion',
+                                    'icon' => 'fas fa-file-invoice',
+                                ],
+                                [
+                                    'text' => 'Origenes',
+                                    'url' => 'origenes',
+                                    'icon' => 'fas fa-route',
+                                ],
+                                [
+                                    'text' => 'Destinos',
+                                    'url' => 'destinos',
+                                    'icon' => 'fas fa-map-marker-alt',
+                                ],
+                                [
+                                    'text' => 'Pesos',
+                                    'url' => 'pesos',
+                                    'icon' => 'fas fa-weight-hanging',
+                                ],
+                            ],
+                        ],
+                        [
+                            'text' => 'Gestion Usuarios',
+                            'icon' => 'fas fa-users',
+                            // 'can'  => 'users.index',
+                            'submenu' => [
+
+                                [
+                                    'text' => 'Ingresos',
+                                    'url' => 'ingresos',
+                                    'icon' => 'fas fa-sign-in-alt',
+                                ],
+                                [
+                                    'text' => 'Usuarios empresas',
+                                    'url' => 'users/empresas',
+                                    'icon' => 'fas fa-building',
+                                ],
+                                [
+                                    'text' => 'Mandar solicitud de llenado a empresas',
+                                    'url' => 'empresa/solicitud-llenado',
+                                    'icon' => 'fas fa-clipboard-list',
+                                    'can' => 'users.empresas',
+                                ],
+                                [
+                                    'text' => 'Empresas',
+                                    'url' => 'empresas',
+                                    'icon' => 'fas fa-building',
+                                ],
+                                [
+                                    'text' => 'Historial de empresas',
+                                    'url' => 'empresas/historial',
+                                    'icon' => 'fas fa-history',
+                                    'can' => 'empresas.historial.index',
+                                ],
+                                [
+                                    'text' => 'Habilitar servicio adicional',
+                                    'url' => 'administrador/servicios-adicionales',
+                                    'icon' => 'fas fa-exchange-alt',
+                                    'can' => 'servicios-adicionales.index',
+                                ],
+                                [
+                                    'text' => 'Permisos',
+                                    'url' => 'permissions',
+                                    'icon' => 'fas fa-key',
+                                ],
+                            ],
+                        ],
+                        [
+                            'text' => 'Gestion Clientes',
+                            'icon' => 'fas fa-user-friends',
+                            'submenu' => [
+                                [
+                                    'text' => 'Ver Clientes',
+                                    'url' => 'clientes-admin',
+                                    'icon' => 'fas fa-address-book',
+                                ],
+                                [
+                                    'text' => 'Roles Clientes',
+                                    'url' => 'cliente-roles',
+                                    'icon' => 'fas fa-user-shield',
+                                ],
+                            ],
+                        ],
+                        [
+                            'text' => 'Estados',
+                            'url' => 'estados',
+                            'icon' => 'fas fa-flag',
+                        ],
+                        [
+                            'text' => 'Auditoria',
+                            'url' => 'auditoria',
+                            'icon' => 'fas fa-clipboard-list',
+                        ],
+                        [
+                            'text' => 'Ventanillas',
+                            'url' => 'ventanillas',
+                            'icon' => 'fas fa-window-restore',
+                        ],
+                        [
+                            'text' => 'Sucursales',
+                            'url' => 'sucursales',
+                            'icon' => 'fas fa-building',
+                        ],
+                        [
+                            'text' => 'Rendimiento',
+                            'url' => '/pulse',
+
+                            'icon' => 'fas fa-chart-line',
+                        ],
+
+                        [
+                            'text' => 'Tracking Local',
+                            'url' => '/tracking-local-event-rules',
+                            'icon' => 'fas fa-eye',
+                            'can' => 'admin-only-menu',
+                        ],
+                        [
+                            'text' => 'Aplicación',
+                            'url' => '/configuracion/aplicacion',
+                            'icon' => 'fas fa-mobile-alt',
+                        ],
+                        [
+                            'text' => 'Logs',
+                            'url' => '/log-viewer',
+
+                            'icon' => 'fas fa-file-alt',
+                        ],
+                    ],
+                ],
+                [
+                    'text' => 'Empresa',
+                    'icon' => 'fas fa-building',
+                    'submenu' => [
+                        [
+                            'text' => 'Generar códigos',
+                            'url' => 'codigo-empresa',
+                            'icon' => 'fas fa-qrcode',
+                        ],
+                        [
+                            'text' => 'Guías Empresa',
+                            'url' => 'empresa/guias',
+                            'icon' => 'fas fa-file-alt',
+                        ],
+                    ],
+                ],
                 [
                     'text' => 'Habilitaciones',
                     'icon' => 'fas fa-toggle-on',
+                    'can' => 'admin-only-menu',
                     'submenu' => [
                         [
                             'text' => 'Habilitaciones',
@@ -414,6 +646,7 @@ $config = [
                 [
                     'text' => 'Personal',
                     'icon' => 'fas fa-users',
+                    'can' => 'admin-only-menu',
                     'submenu' => [
                         [
                             'text' => 'Personal AGBC',
@@ -443,6 +676,7 @@ $config = [
                 [
                     'text' => 'Internacional',
                     'icon' => 'fas fa-globe-americas',
+                    'can' => 'admin-only-menu',
                     'submenu' => [
                         [
                             'text' => 'IPS',
@@ -461,6 +695,7 @@ $config = [
                     'text' => 'APIS',
                     'url' => '/configuracion/apis',
                     'icon' => 'fas fa-key',
+                    'required_parent_can' => 'admin-only-menu',
                 ],
                 [
                     'text' => 'Registros de APIs',
@@ -479,6 +714,7 @@ $config = [
                 [
                     'text' => 'Envío de correo',
                     'icon' => 'fas fa-envelope',
+                    'can' => 'admin-only-menu',
                     'submenu' => [
                         [
                             'text' => 'Contratos',
@@ -506,6 +742,7 @@ $config = [
                     'text' => 'Todos los paquetes',
                     'url' => 'todos-paquetes',
                     'icon' => 'fas fa-layer-group',
+                    'required_parent_can' => 'admin-only-menu',
                 ],
                 [
                     'text' => 'Eventos Administrador',
@@ -581,23 +818,6 @@ $config = [
             ],
         ],
         [
-            'text' => 'Bastiones',
-            'icon' => 'fas fa-shield-alt',
-            'submenu' => [
-                [
-                    'text' => 'Recuperar paquetes',
-                    'url' => 'bastiones/paquetes',
-                    'icon' => 'fas fa-undo-alt',
-                    'can' => 'bastiones.index',
-                ],
-                [
-                    'text' => 'Reporte de Bastión',
-                    'url' => 'bastiones/reporte',
-                    'icon' => 'fas fa-file-alt',
-                ],
-            ],
-        ],
-        [
             'text' => 'Admisiones',
             'icon' => 'fas fa-inbox',
             'submenu' => [
@@ -646,26 +866,34 @@ $config = [
             ],
         ],
         [
-            'text' => 'Empresa',
-            'icon' => 'fas fa-building',
-            'submenu' => [
-                [
-                    'text' => 'Generar códigos',
-                    'url' => 'codigo-empresa',
-                    'icon' => 'fas fa-qrcode',
-                ],
-                [
-                    'text' => 'Guías Empresa',
-                    'url' => 'empresa/guias',
-                    'icon' => 'fas fa-file-alt',
-                ],
-            ],
-        ],
-        [
             'text' => 'Paquetes Contratos',
             'icon' => 'fas fa-file-contract',
             'submenu' => [
-
+                [
+                    'text' => 'Conciliación',
+                    'icon' => 'fas fa-balance-scale',
+                    'can' => 'dashboard.conciliacion',
+                    'submenu' => [
+                        [
+                            'text' => 'Facturado',
+                            'can' => 'dashboard.conciliacion.facturado',
+                            'url' => '/conciliacion/facturado',
+                            'icon' => 'fas fa-file-invoice-dollar',
+                        ],
+                        [
+                            'text' => 'Empresas paquetes',
+                            'can' => 'dashboard.conciliacion.empresas-paquetes',
+                            'url' => '/conciliacion/empresas-paquetes',
+                            'icon' => 'fas fa-building',
+                        ],
+                        [
+                            'text' => 'Conciliaciones',
+                            'can' => 'dashboard.conciliacion.conciliaciones',
+                            'url' => '/conciliacion/conciliaciones',
+                            'icon' => 'fas fa-exchange-alt',
+                        ],
+                    ],
+                ],
                 [
                     'text' => 'Consulta de Contratos',
                     'icon' => 'fas fa-search',
@@ -1279,230 +1507,6 @@ $config = [
                     'text' => 'Eventos Auditoria',
                     'url' => 'eventos-auditoria',
                     'icon' => 'fas fa-history',
-                ],
-            ],
-        ],
-        [
-            'text' => 'Configuraciones',
-            'icon' => 'fas fa-cogs',
-            'submenu' => [
-                [
-                    'text' => 'Impotaciones',
-                    'icon' => 'fas fa-file-import',
-                    'submenu' => [
-                        [
-                            'text' => 'Tarifas',
-                            'icon' => 'fas fa-tags',
-                            'submenu' => [
-                                [
-                                    'text' => 'Importar Tarifas',
-                                    'url' => 'tarifa-contrato/import',
-                                    'icon' => 'fas fa-file-excel',
-                                ],
-                            ],
-                        ],
-                        [
-                            'text' => 'Paquetes',
-                            'icon' => 'fas fa-boxes',
-                            'submenu' => [
-                                [
-                                    'text' => 'Importacion de Paquetes',
-                                    'url' => 'importar/paquets',
-                                    'icon' => 'fas fa-upload',
-                                ],
-                            ],
-                        ],
-                    ],
-                ],
-                [
-                    'text' => 'Configuracion de tarifas',
-                    'icon' => 'fas fa-tags',
-                    'submenu' => [
-                        [
-                            'text' => 'Tarifario contratos',
-                            'icon' => 'fas fa-file-contract',
-                            'submenu' => [
-                                [
-                                    'text' => 'Tarifarios por año',
-                                    'url' => 'tarifa-contrato/tarifarios',
-                                    'icon' => 'fas fa-calendar-alt',
-                                ],
-                                [
-                                    'text' => 'Servicios por año',
-                                    'url' => 'tarifa-contrato/servicios',
-                                    'icon' => 'fas fa-list-alt',
-                                ],
-                                [
-                                    'text' => 'Tarifas',
-                                    'url' => 'tarifa-contrato',
-                                    'icon' => 'fas fa-file-invoice-dollar',
-                                ],
-                            ],
-                        ],
-                        [
-                            'text' => 'EMS',
-                            'icon' => 'fas fa-shipping-fast',
-                            'submenu' => [
-                                [
-                                    'text' => 'Tarifarios padre',
-                                    'url' => 'tarifario-padre',
-                                    'icon' => 'fas fa-layer-group',
-                                ],
-                                [
-                                    'text' => 'Servicios',
-                                    'url' => 'servicios',
-                                    'icon' => 'fas fa-concierge-bell',
-                                ],
-                                [
-                                    'text' => 'Tarifas',
-                                    'url' => 'tarifario',
-                                    'icon' => 'fas fa-tags',
-                                ],
-                            ],
-                        ],
-                        [
-                            'text' => 'Delivery Express',
-                            'icon' => 'fas fa-motorcycle',
-                            'submenu' => [
-                                [
-                                    'text' => 'Servicios extras',
-                                    'url' => 'servicio-extras',
-                                    'icon' => 'fas fa-plus-square',
-                                ],
-                                [
-                                    'text' => 'Tarifas',
-                                    'url' => 'tarifario-tiktoker',
-                                    'icon' => 'fas fa-hashtag',
-                                ],
-                            ],
-                        ],
-                        [
-                            'text' => 'Conceptos Facturables',
-                            'url' => 'conceptos-facturacion',
-                            'icon' => 'fas fa-file-invoice',
-                        ],
-                        [
-                            'text' => 'Origenes',
-                            'url' => 'origenes',
-                            'icon' => 'fas fa-route',
-                        ],
-                        [
-                            'text' => 'Destinos',
-                            'url' => 'destinos',
-                            'icon' => 'fas fa-map-marker-alt',
-                        ],
-                        [
-                            'text' => 'Pesos',
-                            'url' => 'pesos',
-                            'icon' => 'fas fa-weight-hanging',
-                        ],
-                    ],
-                ],
-                [
-                    'text' => 'Gestion Usuarios',
-                    'icon' => 'fas fa-users',
-                    // 'can'  => 'users.index',
-                    'submenu' => [
-
-                        [
-                            'text' => 'Ingresos',
-                            'url' => 'ingresos',
-                            'icon' => 'fas fa-sign-in-alt',
-                        ],
-                        [
-                            'text' => 'Usuarios empresas',
-                            'url' => 'users/empresas',
-                            'icon' => 'fas fa-building',
-                        ],
-                        [
-                            'text' => 'Mandar solicitud de llenado a empresas',
-                            'url' => 'empresa/solicitud-llenado',
-                            'icon' => 'fas fa-clipboard-list',
-                            'can' => 'users.empresas',
-                        ],
-                        [
-                            'text' => 'Empresas',
-                            'url' => 'empresas',
-                            'icon' => 'fas fa-building',
-                        ],
-                        [
-                            'text' => 'Historial de empresas',
-                            'url' => 'empresas/historial',
-                            'icon' => 'fas fa-history',
-                            'can' => 'empresas.historial.index',
-                        ],
-                        [
-                            'text' => 'Habilitar servicio adicional',
-                            'url' => 'administrador/servicios-adicionales',
-                            'icon' => 'fas fa-exchange-alt',
-                            'can' => 'servicios-adicionales.index',
-                        ],
-                        [
-                            'text' => 'Permisos',
-                            'url' => 'permissions',
-                            'icon' => 'fas fa-key',
-                        ],
-                    ],
-                ],
-                [
-                    'text' => 'Gestion Clientes',
-                    'icon' => 'fas fa-user-friends',
-                    'submenu' => [
-                        [
-                            'text' => 'Ver Clientes',
-                            'url' => 'clientes-admin',
-                            'icon' => 'fas fa-address-book',
-                        ],
-                        [
-                            'text' => 'Roles Clientes',
-                            'url' => 'cliente-roles',
-                            'icon' => 'fas fa-user-shield',
-                        ],
-                    ],
-                ],
-                [
-                    'text' => 'Estados',
-                    'url' => 'estados',
-                    'icon' => 'fas fa-flag',
-                ],
-                [
-                    'text' => 'Auditoria',
-                    'url' => 'auditoria',
-                    'icon' => 'fas fa-clipboard-list',
-                ],
-                [
-                    'text' => 'Ventanillas',
-                    'url' => 'ventanillas',
-                    'icon' => 'fas fa-window-restore',
-                ],
-                [
-                    'text' => 'Sucursales',
-                    'url' => 'sucursales',
-                    'icon' => 'fas fa-building',
-                ],
-                [
-                    'text' => 'Rendimiento',
-                    'url' => '/pulse',
-
-                    'icon' => 'fas fa-chart-line',
-                ],
-
-                [
-                    'text' => 'Tracking Local',
-                    'url' => '/tracking-local-event-rules',
-                    'icon' => 'fas fa-eye',
-                    'can' => 'admin-only-menu',
-                ],
-                [
-                    'text' => 'Aplicación',
-                    'url' => '/configuracion/aplicacion',
-                    'icon' => 'fas fa-mobile-alt',
-                ],
-                [
-                    'text' => 'Logs',
-                    'url' => '/log-viewer',
-
-                    'icon' => 'fas fa-file-alt',
                 ],
             ],
         ],
