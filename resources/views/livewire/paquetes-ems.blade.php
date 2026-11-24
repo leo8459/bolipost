@@ -1,4 +1,8 @@
-<div>
+<div @if ($this->isAlmacenEms)
+    x-data="almacenEmsPrelista($wire, @js(auth()->id()), @js(auth()->user()?->ciudad))"
+    @storage.window="storageChanged($event)" @online.window="reconnect()"
+@endif>
+    @assets
     <style>
         :root{
             --azul:#20539A;
@@ -2282,6 +2286,7 @@
             .ems-create-step-copy strong{ font-size:11px; }
         }
     </style>
+    @endassets
 
     <div
         class="manifest-loading-overlay"
@@ -3272,7 +3277,7 @@
                         @endphp
                         <div class="muted small">
                             Total en pagina: <strong>{{ $paquetes->count() }}</strong> |
-                            Seleccionados: <strong>{{ $seleccionadosTotal }}</strong>
+                            Seleccionados: <strong @if ($this->isAlmacenEms) wire:ignore x-text="total" @endif>{{ $seleccionadosTotal }}</strong>
                         </div>
                     @else
                         <div class="muted small">
@@ -3290,7 +3295,9 @@
                 @php
                     $seleccionadosTotalGlobal = (count($selectedPaquetes) + count($selectedPaquetesInt) + count($selectedContratos) + count($selectedSolicitudes));
                 @endphp
-                @if ($this->canUseSelectedPreview && $seleccionadosTotalGlobal > 0)
+                @if ($this->isAlmacenEms)
+                    @include('livewire.partials.almacen-ems-prelista')
+                @elseif ($this->canUseSelectedPreview && $seleccionadosTotalGlobal > 0)
                     <div class="prelist-shell mb-3">
                         @php
                             $selectedPreviewBase = collect($selectedPreviewRows ?? collect());

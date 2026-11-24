@@ -124,7 +124,7 @@
                                 <div class="selection-type-card"><strong>CERTI</strong><span>0</span></div>
                                 <div class="selection-type-card"><strong>ORDI</strong><span>0</span></div>
                                 <div class="selection-type-card"><strong>CONTRATO</strong><span>0</span></div>
-                                <div class="selection-type-card"><strong>SOLICITUD</strong><span>0</span></div>
+                                <div class="selection-type-card"><strong>DELIVERY EXPRESS</strong><span>0</span></div>
                             </div>
 
                             <div class="selection-actions mb-3">
@@ -361,6 +361,10 @@
 
             function selectionKey(row) { return row.tipo_paquete + ':' + row.id; }
 
+            function packageTypeLabel(type) {
+                return type === 'SOLICITUD' ? 'DELIVERY EXPRESS' : type;
+            }
+
             function buildSelectedItem(row) {
                 return {
                     id: parseInt(row.id, 10),
@@ -411,8 +415,8 @@
                 selectedCountBadge.textContent = String(items.length);
                 selectionTarget.textContent = 'Destino actual: ' + getAssigneeName();
                 selectedSummary.textContent = items.length ? items.length + ' paquete(s) listos para asignar.' : 'No hay paquetes seleccionados.';
-                selectedTypeSummary.innerHTML = ['EMS', 'CERTI', 'ORDI', 'CONTRATO', 'SOLICITUD'].map(function(type) {
-                    return '<div class="selection-type-card"><strong>' + type + '</strong><span>' + counts[type] + '</span></div>';
+                selectedTypeSummary.innerHTML = Object.keys(counts).map(function(type) {
+                    return '<div class="selection-type-card"><strong>' + packageTypeLabel(type) + '</strong><span>' + counts[type] + '</span></div>';
                 }).join('');
             }
 
@@ -428,7 +432,7 @@
                 selectedList.innerHTML = items.map(function(item) {
                     const key = item.tipo_paquete + ':' + item.id;
                     return '<div class="selection-item">' +
-                        '<div class="selection-item-top"><span class="carteros-chip">' + escapeHtml(item.tipo_paquete) + '</span><button type="button" class="selection-item-remove" data-key="' + escapeHtml(key) + '">Quitar</button></div>' +
+                        '<div class="selection-item-top"><span class="carteros-chip">' + escapeHtml(packageTypeLabel(item.tipo_paquete)) + '</span><button type="button" class="selection-item-remove" data-key="' + escapeHtml(key) + '">Quitar</button></div>' +
                         '<div class="selection-item-code">' + escapeHtml(item.codigo) + '</div>' +
                         '<div class="selection-item-meta"><strong>Destinatario:</strong> ' + escapeHtml(item.destinatario || '-') + '</div>' +
                         '<div class="selection-item-meta"><strong>Ubicacion:</strong> ' + escapeHtml(item.ciudad || '-') + ' / ' + escapeHtml(item.zona || '-') + '</div>' +
@@ -553,7 +557,7 @@
 
                     return '<tr>' +
                         '<td><input type="checkbox" class="row-check" data-id="' + item.id + '" data-key="' + escapeHtml(key) + '" data-tipo="' + escapeHtml(item.tipo_paquete) + '" data-codigo="' + escapeHtml(item.codigo) + '" data-destinatario="' + escapeHtml(item.destinatario) + '" data-telefono="' + escapeHtml(item.telefono) + '" data-ciudad="' + escapeHtml(item.ciudad) + '" data-zona="' + escapeHtml(item.zona) + '" data-peso="' + escapeHtml(item.peso) + '" data-estado="' + escapeHtml(item.estado) + '" data-created-at="' + escapeHtml(item.created_at) + '" ' + (isChecked ? 'checked' : '') + '></td>' +
-                        '<td>' + escapeHtml(item.tipo_paquete) + '</td>' +
+                        '<td>' + escapeHtml(packageTypeLabel(item.tipo_paquete)) + '</td>' +
                         '<td>' + escapeHtml(item.codigo) + '</td>' +
                         '<td>' + escapeHtml(item.destinatario) + '</td>' +
                         '<td>' + escapeHtml(item.telefono) + '</td>' +

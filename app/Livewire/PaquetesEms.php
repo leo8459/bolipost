@@ -97,6 +97,12 @@ class PaquetesEms extends Component
         'transito_ems' => 'paquetes-ems.recibir-regional',
         'en_transito_ems' => 'paquetes-ems.en-transito',
     ];
+    private const PREVIEW_SELECTIONS = [
+        'EMS' => 'selectedPaquetes',
+        'INT' => 'selectedPaquetesInt',
+        'CONTRATO' => 'selectedContratos',
+        'SOLICITUD' => 'selectedSolicitudes',
+    ];
     private const ALMACEN_EMS_REGISTER_CONTRACT_PERMISSION = 'feature.paquetes-ems.almacen.registercontract';
     private const ALMACEN_EMS_WEIGH_CONTRACT_PERMISSION = 'feature.paquetes-ems.almacen.weighcontract';
     private const ALMACEN_EMS_WEIGH_TIKTOKER_PERMISSION = 'feature.paquetes-ems.almacen.weightiktoker';
@@ -1015,9 +1021,12 @@ class PaquetesEms extends Component
         $hasEstadoId = Schema::hasColumn('paquetes_int', 'estado_id');
         $estadoAlmacenId = $this->findEstadoId('ALMACEN');
         $estadoRecibidoId = $this->findEstadoId('RECIBIDO');
-        $estadoTransitoId = $this->findEstadoId('TRANSITO');
-        $estadoRecibirRegionalId = $this->resolveRegionalRecepcionEstado()['id'] ?? null;
-        $estadoVentanillaId = $this->resolveVentanillaEstado()['id'] ?? null;
+        $estadoTransitoId = $this->isEnTransitoEms || $this->isTransitoEms
+            ? $this->findEstadoId('TRANSITO') : null;
+        $estadoRecibirRegionalId = $this->isTransitoEms
+            ? ($this->resolveRegionalRecepcionEstado()['id'] ?? null) : null;
+        $estadoVentanillaId = $this->isVentanillaEms || $this->isDevolucionEms
+            ? ($this->resolveVentanillaEstado()['id'] ?? null) : null;
 
         $query = DB::table('paquetes_int');
 
@@ -6160,7 +6169,6 @@ class PaquetesEms extends Component
         $emsInvoiceStatuses = [];
         $selectedPreviewRows = collect();
         $cn38DispatchSummaryRows = collect();
-        $ventanillaResumenRows = collect();
         $paquetesIntAdmision = collect();
         $origenesTransito = [];
         $destinosTransito = [];
@@ -6205,13 +6213,13 @@ class PaquetesEms extends Component
                 ->simplePaginate($this->normalizePerPage($this->perPagePaquetes));
             $paquetes = $almacenRows;
 
-            if ($this->canUseSelectedPreview) {
-                $selectedPreviewRows = $this->buildSelectedPreviewRows();
-                $cn38DispatchSummaryRows = $this->buildCn38DispatchSummaryRows();
-            }
-
             if ($this->isAlmacenEms) {
-                $ventanillaResumenRows = $this->buildVentanillaResumenRows();
+                $selectedPreviewRows = $this->almacenPreviewRows($paquetes->getCollection());
+                if ($this->showCn38Generate) {
+                    $cn38DispatchSummaryRows = $this->buildCn38DispatchSummaryRows();
+                }
+            } elseif ($this->canUseSelectedPreview) {
+                $selectedPreviewRows = $this->buildSelectedPreviewRows();
             }
 
             if ($this->isEnTransitoEms) {
@@ -6258,7 +6266,6 @@ class PaquetesEms extends Component
             'almacenRows' => $almacenRows,
             'selectedPreviewRows' => $selectedPreviewRows,
             'cn38DispatchSummaryRows' => $cn38DispatchSummaryRows,
-            'ventanillaResumenRows' => $ventanillaResumenRows,
             'contratosAlmacen' => $contratosAlmacen,
             'origenesTransito' => $origenesTransito,
             'destinosTransito' => $destinosTransito,
@@ -6284,35 +6291,56 @@ class PaquetesEms extends Component
         ]);
     }
 
-    protected function buildSelectedPreviewRows(): Collection
+    public function restoreAlmacenSelection(): void
     {
-        $idsEms = collect($this->selectedPaquetes)
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
+        if (!$this->isAlmacenEms) {
+            return;
+        }
 
-        $idsInt = collect($this->selectedPaquetesInt)
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
+        // Reuse the warehouse's status and regional scope, including records on other pages.
+        $query = $this->almacenUnificadoQuery()->reorder();
+        $query->where(function ($selection) {
+            $selection->whereRaw('1 = 0');
+            foreach (self::PREVIEW_SELECTIONS as $type => $property) {
+                if ($this->{$property}) {
+                    $selection->orWhere(fn ($group) => $group->where('record_type', $type)
+                        ->whereIntegerInRaw('record_id', $this->{$property}));
+                }
+            }
+        });
+        $available = $query->get(['record_type', 'record_id'])->groupBy('record_type');
+        foreach (self::PREVIEW_SELECTIONS as $type => $property) {
+            $validIds = $available->get($type, collect())->pluck('record_id')->all();
+            $this->{$property} = array_values(array_intersect($this->{$property}, $validIds));
+        }
+    }
 
-        $idsContratos = collect($this->selectedContratos)
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
+    private function almacenPreviewRows(Collection $page): Collection
+    {
+        $visible = $page->map(fn ($row) => (object) [
+            'tipo' => $row->record_type,
+            'record_id' => $row->record_id,
+            'codigo' => $row->codigo,
+            'destinatario' => $row->destinatario,
+            'origen' => $row->origen,
+            'destino' => $row->destino,
+            'direccion_r' => $row->direccion_r,
+            'direccion_d' => $row->direccion_d,
+            'peso' => $row->peso,
+        ]);
 
-        $idsSolicitudes = collect($this->selectedSolicitudes)
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
+        return $visible->concat($this->buildSelectedPreviewRows($visible));
+    }
+
+    protected function buildSelectedPreviewRows(?Collection $visible = null): Collection
+    {
+        $visibleByType = $visible?->groupBy('tipo') ?? collect();
+        $ids = [];
+        foreach (self::PREVIEW_SELECTIONS as $type => $property) {
+            $ids[$type] = array_diff($this->{$property}, $visibleByType->get($type, collect())->pluck('record_id')->all());
+        }
+
+        ['EMS' => $idsEms, 'INT' => $idsInt, 'CONTRATO' => $idsContratos, 'SOLICITUD' => $idsSolicitudes] = $ids;
 
         if (empty($idsEms) && empty($idsInt) && empty($idsContratos) && empty($idsSolicitudes)) {
             return collect();
@@ -6965,76 +6993,6 @@ class PaquetesEms extends Component
         $this->cn38BagWeights = [''];
     }
 
-    protected function buildVentanillaResumenRows(): Collection
-    {
-        $idsEms = collect($this->selectedPaquetes)
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
-
-        $idsContratos = collect($this->selectedContratos)
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
-
-        $idsSolicitudes = collect($this->selectedSolicitudes)
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
-
-        if (empty($idsEms) && empty($idsContratos) && empty($idsSolicitudes)) {
-            return collect();
-        }
-
-        $rows = collect();
-
-        if (!empty($idsEms)) {
-            $rows = $rows->concat(
-                DB::table('paquetes_ems')
-                    ->whereIn('id', $idsEms)
-                    ->selectRaw("'EMS' as tipo")
-                    ->selectRaw("coalesce(codigo, 'SIN CODIGO') as codigo")
-                    ->selectRaw("coalesce(origen, '-') as origen")
-                    ->selectRaw("coalesce(ciudad, '-') as destino")
-                    ->get()
-            );
-        }
-
-        if (!empty($idsContratos)) {
-            $rows = $rows->concat(
-                DB::table('paquetes_contrato')
-                    ->whereIn('id', $idsContratos)
-                    ->selectRaw("'CONTRATO' as tipo")
-                    ->selectRaw("coalesce(codigo, 'SIN CODIGO') as codigo")
-                    ->selectRaw("coalesce(origen, '-') as origen")
-                    ->selectRaw("coalesce(destino, '-') as destino")
-                    ->get()
-            );
-        }
-
-        if (!empty($idsSolicitudes)) {
-            $rows = $rows->concat(
-                DB::table('solicitud_clientes')
-                    ->whereIn('id', $idsSolicitudes)
-                    ->selectRaw("'SOLICITUD' as tipo")
-                    ->selectRaw("coalesce(nullif(trim(codigo_solicitud), ''), nullif(trim(barcode), ''), 'SIN CODIGO') as codigo")
-                    ->selectRaw("coalesce(origen, '-') as origen")
-                    ->selectRaw("coalesce(ciudad, '-') as destino")
-                    ->get()
-            );
-        }
-
-        return $rows
-            ->sortBy(fn ($row) => sprintf('%s-%s', (string) ($row->tipo ?? ''), (string) ($row->codigo ?? '')))
-            ->values();
-    }
-
     private function modeFeaturePermission(string $action, ?string $mode = null): string
     {
         $modeKey = $mode ?? $this->mode;
@@ -7153,12 +7111,14 @@ class PaquetesEms extends Component
         $searchMeta = $this->searchMeta($q);
         $isEnTransitoCn33Search = $this->isEnTransitoEms && $this->isExactCn33Search($searchMeta);
         $userCity = trim((string) optional(Auth::user())->ciudad);
-        $estadoSolicitudId = $this->findEstadoId('SOLICITUD');
         $estadoAlmacenId = $this->findEstadoId('ALMACEN');
         $estadoRecibidoId = $this->findEstadoId('RECIBIDO');
-        $estadoTransitoId = $this->findEstadoId('TRANSITO');
-        $estadoRecibirRegionalId = $this->resolveRegionalRecepcionEstado()['id'] ?? null;
-        $estadoVentanillaId = $this->resolveVentanillaEstado()['id'] ?? null;
+        $estadoTransitoId = $this->isEnTransitoEms || $this->isTransitoEms
+            ? $this->findEstadoId('TRANSITO') : null;
+        $estadoRecibirRegionalId = $this->isTransitoEms
+            ? ($this->resolveRegionalRecepcionEstado()['id'] ?? null) : null;
+        $estadoVentanillaId = $this->isVentanillaEms || $this->isDevolucionEms
+            ? ($this->resolveVentanillaEstado()['id'] ?? null) : null;
         $isModoDevolucion = $this->isDevolucionEms;
         $isModoEnTransito = $this->isEnTransitoEms;
         $isModoRecibirRegional = $this->isTransitoEms;
@@ -8624,23 +8584,9 @@ class PaquetesEms extends Component
 
     public function updated($name, $value)
     {
-        if (str_starts_with($name, 'selectedPaquetes')) {
-            $this->normalizeSelectionProperty('selectedPaquetes');
-            return;
-        }
-
-        if (str_starts_with($name, 'selectedPaquetesInt')) {
-            $this->normalizeSelectionProperty('selectedPaquetesInt');
-            return;
-        }
-
-        if (str_starts_with($name, 'selectedContratos')) {
-            $this->normalizeSelectionProperty('selectedContratos');
-            return;
-        }
-
-        if (str_starts_with($name, 'selectedSolicitudes')) {
-            $this->normalizeSelectionProperty('selectedSolicitudes');
+        $property = explode('.', $name, 2)[0];
+        if (in_array($property, self::PREVIEW_SELECTIONS, true)) {
+            $this->normalizeSelectionProperty($property);
             return;
         }
 
@@ -8740,9 +8686,8 @@ class PaquetesEms extends Component
     protected function normalizeSelectionProperty(string $property): void
     {
         $values = collect($this->{$property} ?? [])
-            ->filter(fn ($id) => $id !== null && $id !== '')
+            ->filter(fn ($id) => (is_int($id) || is_string($id)) && ctype_digit((string) $id) && (int) $id > 0)
             ->map(fn ($id) => (string) ((int) $id))
-            ->filter(fn ($id) => $id !== '0')
             ->unique()
             ->values()
             ->all();
