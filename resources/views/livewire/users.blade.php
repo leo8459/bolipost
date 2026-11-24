@@ -1202,9 +1202,20 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label>{{ $editingId ? 'Nueva contraseña (opcional)' : 'Contraseña' }}</label>
-                                    <input type="password" wire:model.defer="password" class="form-control" placeholder="Contraseña">
-                                    @error('password') <small class="text-danger">{{ $message }}</small> @enderror
+                                    @if ($empresaMode && ! $editingId)
+                                        @if ($companyInitialPassword !== null)
+                                            <label for="company-initial-password">Contraseña temporal</label>
+                                            <input id="company-initial-password" type="text" class="form-control" value="{{ $companyInitialPassword }}" readonly>
+                                            <small class="text-muted d-block mt-1">El usuario deberá cambiarla al iniciar sesión.</small>
+                                        @elseif ($creatingCompanyUser)
+                                            <p class="text-muted mb-0">Para mostrar la contraseña temporal, configura una clave específica para usuarios de empresa.</p>
+                                        @endif
+                                        @error('initialPassword') <small class="text-danger">{{ $message }}</small> @enderror
+                                    @else
+                                        <label>{{ $editingId ? 'Nueva contraseña (opcional)' : 'Contraseña' }}</label>
+                                        <input type="password" wire:model.defer="password" class="form-control" placeholder="Contraseña">
+                                        @error('password') <small class="text-danger">{{ $message }}</small> @enderror
+                                    @endif
                                 </div>
                             </div>
                             <div class="col-md-6">
@@ -1542,6 +1553,14 @@
 
         window.addEventListener('closeUserModal', () => {
             $('#userModal').modal('hide');
+        });
+
+        $(document).on('hidden.bs.modal', '#userModal', function () {
+            const componentId = this.closest('[wire\\:id]')?.getAttribute('wire:id');
+            const component = componentId && window.Livewire?.find(componentId);
+            if (component?.creatingCompanyUser) {
+                component.closeAllModals();
+            }
         });
 
         window.addEventListener('openPasswordModal', () => {

@@ -163,6 +163,21 @@ class SiopAuthApiTest extends TestCase
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 
+    public function test_login_siop_rechaza_una_cuenta_con_cambio_de_contrasena_pendiente(): void
+    {
+        (require database_path('migrations/2026_11_24_120000_add_must_change_password_to_users_table.php'))->up();
+        $user = User::factory()->create(['alias' => 'empresa.siop', 'password' => 'Temporal.2026']);
+        $user->forceFill(['must_change_password' => true])->save();
+
+        $this->withToken($this->externalToken(['siop:login']))
+            ->postJson('/api/integraciones/siop/login', [
+                'alias' => $user->alias,
+                'password' => 'Temporal.2026',
+            ])->assertForbidden();
+
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+    }
+
     public function test_login_siop_exige_el_permiso_de_integracion_correcto(): void
     {
         $this->withToken($this->externalToken(['paquetes-eventos:read']))

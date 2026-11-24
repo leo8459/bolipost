@@ -18,8 +18,12 @@ class AuthenticatedSessionController extends Controller
     /**
      * Display the login view.
      */
-    public function create(): View
+    public function create(Request $request): View|RedirectResponse
     {
+        if ($request->session()->has(InitialPasswordController::SESSION_KEY)) {
+            return redirect()->route('password.initial');
+        }
+
         if (session()->has('url.intended') && $this->isUnsafeIntendedUrl((string) session('url.intended'))) {
             session()->forget('url.intended');
         }
@@ -40,8 +44,21 @@ class AuthenticatedSessionController extends Controller
 
         Auth::guard('cliente')->logout();
         $user = $request->user();
+        $request->session()->forget(['url.intended', InitialPasswordController::SESSION_KEY]);
+
+        if ($user?->must_change_password) {
+            $guard = Auth::guard('web');
+            $guard->logoutCurrentDevice();
+            $request->session()->regenerate(true);
+            $request->session()->put(InitialPasswordController::SESSION_KEY, [
+                'user_id' => $user->getKey(),
+                'password_fingerprint' => $guard->hashPasswordForCookie($user->getAuthPassword()),
+            ]);
+
+            return redirect()->route('password.initial');
+        }
+
         $redirectUrl = route('home.welcome', absolute: false);
-        $request->session()->forget('url.intended');
 
         Log::info('Login autenticado; preparando redireccion del panel interno.', [
             'user_id' => $user?->id,

@@ -74,7 +74,7 @@ class LoginRequest extends FormRequest
                 : false,
         ]);
 
-        if (! Auth::attempt($credentials, $this->boolean('remember'))) {
+        if (! Auth::attempt($credentials, $this->boolean('remember') && ! $matchedUser?->must_change_password)) {
             RateLimiter::hit($this->throttleKey(), 900);
             RateLimiter::hit($this->ipThrottleKey(), 900);
 

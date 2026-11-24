@@ -39,6 +39,8 @@ class Users extends Component
 
     #[\Livewire\Attributes\Locked]
     public $editingId = null;
+    #[\Livewire\Attributes\Locked]
+    public bool $creatingCompanyUser = false;
     public $name = '';
     public $alias = '';
     public $email = '';
@@ -88,6 +90,7 @@ class Users extends Component
         $this->authorizePermission($this->permissionFor('create'));
         $this->resetUserForm();
         $this->applyEmpresaRoleMode();
+        $this->creatingCompanyUser = $this->empresaMode;
         $this->dispatch('openUserModal');
     }
 
@@ -141,6 +144,7 @@ class Users extends Component
             ->findOrFail($userId);
 
         $this->editingId = $user->id;
+        $this->creatingCompanyUser = false;
         $this->name = (string) $user->name;
         $this->alias = (string) $user->alias;
         $this->email = (string) $user->email;
@@ -229,13 +233,26 @@ class Users extends Component
             $this->validate($this->createRules());
             $this->ensureAliasIsAvailable($this->alias);
 
+            $password = $this->password;
+            if ($this->empresaMode) {
+                $password = config('auth.company_initial_password');
+                if (! is_string($password) || blank($password)) {
+                    throw ValidationException::withMessages([
+                        'initialPassword' => 'La contraseña temporal de empresas no está configurada.',
+                    ]);
+                }
+            }
+
             $user = new User();
             $ciValue = trim((string) $this->ci);
             $regionales = $this->normalizeRegionalesSeleccionadas();
             $user->name = trim($this->name);
             $user->alias = $this->alias;
             $user->email = trim($this->email);
-            $user->password = Hash::make($this->password);
+            $user->password = Hash::make($password);
+            if ($this->empresaMode) {
+                $user->must_change_password = true;
+            }
             $user->ciudad = $regionales[0] ?? '';
             $user->regionales = $regionales;
             $user->provincia_origen = $this->normalizeProvinciaOrigen();
@@ -243,8 +260,10 @@ class Users extends Component
             $user->empresa_id = (int) $this->empresa_id;
             $user->empresa_sucursal_id = filled($this->empresa_sucursal_id) ? (int) $this->empresa_sucursal_id : null;
             $user->sucursal_id = ! $this->empresaMode && filled($this->sucursal_id) ? (int) $this->sucursal_id : null;
-            $user->save();
-            $user->syncRoles($this->resolveRoleNames());
+            DB::transaction(function () use ($user): void {
+                $user->save();
+                $user->syncRoles($this->resolveRoleNames());
+            });
 
             session()->flash('success', 'Usuario creado correctamente.');
         }
@@ -488,6 +507,7 @@ class Users extends Component
 
     public function closeAllModals(): void
     {
+        $this->creatingCompanyUser = false;
         $this->resetValidation();
         $this->newPassword = '';
     }
@@ -563,7 +583,7 @@ class Users extends Component
             'name' => ['required', 'string', 'max:255'],
             'alias' => ['required', 'string', 'max:255', Rule::unique('users', 'alias')],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
-            'password' => ['required', 'string', 'min:8'],
+            ...($this->empresaMode ? [] : ['password' => ['required', 'string', 'min:8']]),
             'regionalesSeleccionadas' => ['required', 'array', 'min:1'],
             'regionalesSeleccionadas.*' => ['required', 'string', Rule::in($regionales)],
             'ci' => ['nullable', 'string', 'max:255'],
@@ -644,6 +664,7 @@ class Users extends Component
     protected function resetUserForm(): void
     {
         $this->editingId = null;
+        $this->creatingCompanyUser = false;
         $this->name = '';
         $this->alias = '';
         $this->email = '';
@@ -719,6 +740,11 @@ class Users extends Component
 
     protected function authorizePermission(string $permission): void
     {
+        abort_unless($this->canPerform($permission), 403, 'No tienes permiso para realizar esta accion.');
+    }
+
+    protected function canPerform(string $permission): bool
+    {
         $user = auth()->user();
 
         $allowed = $user && $user->can($permission);
@@ -736,9 +762,23 @@ class Users extends Component
                 ->contains(fn (string $fallback) => $user?->can($fallback));
         }
 
-        if (! $allowed) {
-            abort(403, 'No tienes permiso para realizar esta accion.');
+        return $allowed;
+    }
+
+    protected function companyInitialPasswordForDisplay(): ?string
+    {
+        if (! $this->creatingCompanyUser || ! $this->canPerform($this->permissionFor('create'))) {
+            return null;
         }
+
+        $password = config('auth.company_initial_password');
+        if (! is_string($password) || blank($password)
+            || $password === DB::connection()->getConfig('password')
+            || $password === config('database.connections.pgsql.password')) {
+            return null;
+        }
+
+        return $password;
     }
 
     protected function empresaPermissionFallbacks(string $permission): array
@@ -951,6 +991,7 @@ class Users extends Component
                 ->whereIn('id', $selectedBulkEmpresaIds)
                 ->sum($this->bulkStatusAction === 'restore' ? 'usuarios_inactivos' : 'usuarios_activos'),
             'selectedEmpresaId' => $selectedEmpresaId,
+            'companyInitialPassword' => $this->companyInitialPasswordForDisplay(),
             'sucursalesEmpresa' => $selectedEmpresaId
                 ? EmpresaSucursal::query()->where('empresa_id', $selectedEmpresaId)->orderBy('nombre')->get()
                 : collect(),

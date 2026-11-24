@@ -74,6 +74,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'must_change_password',
     ];
 
     /**
@@ -84,6 +85,7 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'must_change_password' => 'boolean',
         'regionales' => 'array',
         'auto_baja_empresa_at' => 'datetime',
         'empresa_ubicacion_solicitada_at' => 'datetime',

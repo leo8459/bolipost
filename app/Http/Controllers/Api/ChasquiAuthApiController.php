@@ -37,6 +37,10 @@ class ChasquiAuthApiController extends Controller
             ], 401);
         }
 
+        if ($user->must_change_password) {
+            return response()->json(['message' => 'Cambie su contraseña inicial desde el portal web.'], 403);
+        }
+
         if (! ChasquiCartero::isAllowed($user)) {
             return response()->json([
                 'message' => 'El usuario no tiene un rol de cartero habilitado para ChasquiApp.',

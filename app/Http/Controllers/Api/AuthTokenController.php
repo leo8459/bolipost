@@ -54,6 +54,10 @@ class AuthTokenController extends Controller
             ], 422);
         }
 
+        if ($user->must_change_password) {
+            return response()->json(['message' => 'Cambie su contraseña inicial desde el portal web.'], 403);
+        }
+
         $currentDeviceId = $this->resolveMobileDeviceId($request, $credentials);
         $previousMobileSession = $this->getActiveMobileSession($user->id);
         if ($this->hasAnotherActiveMobileSession($request, $previousMobileSession, $currentDeviceId)) {

@@ -37,6 +37,10 @@ class SiopAuthApiController extends Controller
             ], 401);
         }
 
+        if ($user->must_change_password) {
+            return response()->json(['message' => 'Cambie su contraseña inicial desde el portal web.'], 403);
+        }
+
         $deviceName = trim((string) ($validated['device_name'] ?? ''));
         if ($deviceName === '') {
             $deviceName = 'Aplicacion SIOP';

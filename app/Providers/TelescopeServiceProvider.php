@@ -36,7 +36,10 @@ class TelescopeServiceProvider extends TelescopeApplicationServiceProvider
      */
     protected function hideSensitiveRequestDetails(): void
     {
-        Telescope::hideRequestParameters(['qhantuy_qr_appkey', 'appkey']);
+        Telescope::hideRequestParameters([
+            'qhantuy_qr_appkey', 'appkey', 'current_password', 'password', 'password_confirmation',
+            'initial_password_challenge',
+        ]);
         Telescope::hideRequestHeaders(['authorization']);
 
         if ($this->app->environment('local')) {

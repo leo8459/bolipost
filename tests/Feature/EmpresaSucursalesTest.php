@@ -12,6 +12,8 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
@@ -39,9 +41,12 @@ class EmpresaSucursalesTest extends TestCase
             '2026_03_10_000010_add_alias_to_users_table.php',
             '2026_03_19_100000_create_sucursales_table.php',
             '2026_03_19_100100_add_sucursal_id_to_users_table.php',
+            '2026_05_07_090000_create_app_settings_table.php',
             '2026_06_08_104500_add_regionales_to_users_table.php',
+            '2026_06_17_140500_add_contrato_fields_to_empresa_table.php',
             '2026_07_22_000001_add_provincia_origen_to_users_table.php',
             self::MIGRATION,
+            '2026_11_24_120000_add_must_change_password_to_users_table.php',
         ] as $filename) {
             (require database_path('migrations/'.$filename))->up();
         }
@@ -110,27 +115,99 @@ class EmpresaSucursalesTest extends TestCase
 
     public function test_company_user_can_be_created_without_a_branch(): void
     {
+        config(['auth.company_initial_password' => 'Temporal.2026']);
         $admin = User::factory()->create();
         $admin->givePermissionTo(Permission::create(['name' => 'feature.users.empresas.create']));
         $company = $this->createEmpresa('Andina');
 
         Livewire::actingAs($admin)->test(Users::class, ['empresaMode' => true])
+            ->assertDontSee('Temporal.2026')
+            ->call('openCreateModal')->assertSee('Temporal.2026')
+            ->call('closeAllModals')->assertDontSee('Temporal.2026')
             ->call('openCreateModal')
             ->set('name', 'Usuario de empresa')
             ->set('alias', 'usuario-empresa')
             ->set('email', 'empresa@example.com')
-            ->set('password', 'password')
             ->set('regionalesSeleccionadas', ['LA PAZ'])
             ->call('saveUser')->assertHasErrors(['empresa_id' => 'required'])
             ->set('empresa_id', (string) $company->id)
             ->assertSee('Sin sucursal')
-            ->call('saveUser')->assertHasNoErrors();
+            ->call('saveUser')->assertHasNoErrors()->assertDontSee('Temporal.2026');
 
         $this->assertDatabaseHas('users', [
             'alias' => 'usuario-empresa',
             'empresa_id' => $company->id,
             'empresa_sucursal_id' => null,
         ]);
+        $user = User::query()->where('alias', 'usuario-empresa')->sole();
+        $this->assertTrue($user->must_change_password);
+        $this->assertTrue(Hash::check('Temporal.2026', $user->password));
+    }
+
+    public function test_company_creation_never_displays_the_database_password(): void
+    {
+        config([
+            'auth.company_initial_password' => 'Prueba.2026',
+            'database.connections.pgsql.password' => 'Prueba.2026',
+        ]);
+        $creator = User::factory()->create();
+        $creator->givePermissionTo(Permission::create(['name' => 'feature.users.empresas.create']));
+
+        Livewire::actingAs($creator)->test(Users::class, ['empresaMode' => true])
+            ->call('openCreateModal')
+            ->assertSee('configura una clave específica para usuarios de empresa')
+            ->assertDontSee('Prueba.2026');
+
+        Livewire::actingAs(User::factory()->create())->test(Users::class, ['empresaMode' => true])
+            ->call('openCreateModal')->assertForbidden();
+    }
+
+    public function test_initial_company_password_must_be_replaced_before_the_user_can_sign_in(): void
+    {
+        config(['auth.company_initial_password' => 'Temporal.2026']);
+        $user = User::factory()->create(['alias' => 'usuario-empresa', 'password' => 'Temporal.2026']);
+        $user->forceFill(['must_change_password' => true])->save();
+
+        $this->get(route('password.initial'))->assertRedirect(route('login'));
+        $login = $this->post(route('login'), [
+            'alias' => $user->alias,
+            'password' => 'Temporal.2026',
+            'remember' => true,
+        ])->assertRedirect(route('password.initial'));
+        $this->assertGuest('web');
+        $login->assertCookieMissing(Auth::guard('web')->getRecallerName());
+
+        $sessionCookie = config('session.cookie');
+        $this->withCookie($sessionCookie, $login->getCookie($sessionCookie)->getValue());
+        $this->get(route('profile.edit'))->assertRedirect(route('login'));
+        $this->get(route('login'))->assertRedirect(route('password.initial'));
+        $this->get(route('password.initial'))->assertOk()->assertSee('Cambiar contraseña inicial');
+
+        foreach (['Temporal.2026', 'DEMASIADO1', 'demasiado1', 'SinNumero', 'Abc1'] as $password) {
+            $this->from(route('password.initial'))->post(route('password.initial.store'), [
+                'password' => $password,
+                'password_confirmation' => $password,
+            ])->assertSessionHasErrors('password');
+        }
+        $this->assertTrue($user->refresh()->must_change_password);
+        $this->from(route('password.initial'))->post(route('password.initial.store'), [
+            'password' => 'Valida2026',
+            'password_confirmation' => 'Distinta2026',
+        ])->assertSessionHasErrors('password');
+
+        $this->post(route('password.initial.store'), [
+            'password' => 'Valida2026',
+            'password_confirmation' => 'Valida2026',
+        ])->assertRedirect(route('login'));
+        $this->assertFalse($user->refresh()->must_change_password);
+        $this->assertTrue(Hash::check('Valida2026', $user->password));
+        $this->assertGuest('web');
+
+        $this->post(route('login'), ['alias' => $user->alias, 'password' => 'Temporal.2026'])
+            ->assertSessionHasErrors('alias');
+        $this->post(route('login'), ['alias' => $user->alias, 'password' => 'Valida2026'])
+            ->assertRedirect(route('home.welcome', absolute: false));
+        $this->assertAuthenticatedAs($user, 'web');
     }
 
     public function test_company_user_edit_validates_optional_branch_and_preserves_billing_assignment(): void
