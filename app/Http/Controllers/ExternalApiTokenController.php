@@ -157,8 +157,10 @@ class ExternalApiTokenController extends Controller
                     'query' => (string) ($endpoint['example'] ?? ''),
                     'body' => $endpoint['body'] ?? null,
                     'body_type' => (string) ($endpoint['body_type'] ?? 'json'),
+                    'body_hint' => $endpoint['body_hint'] ?? null,
                     'headers' => $endpoint['headers'] ?? null,
                     'response' => $endpoint['response'] ?? null,
+                    'response_status' => $endpoint['response_status'] ?? null,
                     'created_at' => (string) ($api['created_at'] ?? ''),
                     'catalog_sequence' => $catalogSequence,
                 ]);

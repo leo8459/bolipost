@@ -944,7 +944,7 @@ return [
         ],
         'solicitudes-clientes:create' => [
             'name' => 'Crear solicitud de cliente',
-            'description' => 'Crea una solicitud Delivery Express para el cliente indicado mediante cliente_id.',
+            'description' => 'Crea una solicitud Delivery Express para el cliente indicado mediante cliente_id. Puedes enviar el precio total en bolivianos. Si lo omites, se aplica la tarifa configurada.',
             'access' => 'Escritura',
             'icon' => 'fas fa-plus-square',
             'color' => 'primary',
@@ -959,6 +959,7 @@ return [
                         'origen' => 'LA PAZ',
                         'destino_id' => 2,
                         'cantidad' => 1,
+                        'precio' => 25.75,
                         'contenido' => 'Documentos',
                         'nombre_remitente' => 'Cliente Demo',
                         'carnet' => '1234567',
@@ -968,9 +969,14 @@ return [
                         'direccion_recojo' => 'Zona Central',
                         'direccion_entrega' => 'Avenida Principal',
                     ],
+                    'body_hint' => 'Reemplaza cliente_id, servicio_extra_id, destino_id y origen con datos de tu sistema. precio es opcional. Envía el total en bolivianos desde 0 y con hasta dos decimales, usando punto decimal. Si omites precio o envías null, se aplica la tarifa de la combinación seleccionada.',
+                    'response_status' => '201 Created',
                     'response' => [
                         'message' => 'Solicitud registrada correctamente.',
-                        'solicitud' => ['codigo_solicitud' => 'SL00000001LP'],
+                        'solicitud' => [
+                            'codigo_solicitud' => 'SL00000001LP',
+                            'precio' => '25.75',
+                        ],
                     ],
                 ],
             ],

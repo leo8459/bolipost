@@ -39,7 +39,7 @@ class ClienteSolicitudApiController extends Controller
         return $this->storeForCliente($request, $this->cliente($request));
     }
 
-    public function storeForCliente(Request $request, Cliente $cliente): JsonResponse
+    public function storeForCliente(Request $request, Cliente $cliente, ?string $precio = null): JsonResponse
     {
         if (! ServiceAvailability::isEnabled('solicitud')) {
             return response()->json([
@@ -70,7 +70,7 @@ class ClienteSolicitudApiController extends Controller
         ]);
 
         try {
-            $solicitud = DB::transaction(function () use ($data, $cliente): SolicitudCliente {
+            $solicitud = DB::transaction(function () use ($data, $cliente, $precio): SolicitudCliente {
                 $destino = Destino::query()->findOrFail((int) $data['destino_id']);
                 $servicioExtra = ServicioExtra::query()->findOrFail((int) $data['servicio_extra_id']);
                 $origen = $this->upper($data['origen']);
@@ -101,7 +101,7 @@ class ClienteSolicitudApiController extends Controller
                     'origen' => $origen,
                     'contenido' => trim((string) $data['contenido']),
                     'cantidad' => (int) $data['cantidad'],
-                    'precio' => (float) $tarifario->peso1,
+                    'precio' => $precio ?? (float) $tarifario->peso1,
                     'nombre_remitente' => $this->upper($data['nombre_remitente']),
                     'carnet' => trim((string) $data['carnet']),
                     'telefono_remitente' => $this->nullableTrim($data['telefono_remitente'] ?? null),

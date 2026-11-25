@@ -200,6 +200,11 @@
             font-size: .73rem;
         }
 
+        #apiExampleModal .api-token-value {
+            min-width: 0;
+            font-size: .85rem;
+        }
+
         .api-method-section {
             margin-bottom: 24px;
         }
@@ -451,11 +456,15 @@
                                                             'headers' => $apiRoute['headers'] ?? [
                                                                 'Authorization' => 'Bearer TOKEN_JWT_DE_LA_INTEGRACION',
                                                                 'Accept' => 'application/json',
-                                                                'Content-Type' => 'application/json',
+                                                                ...($apiRoute['body'] !== null && $apiRoute['body_type'] === 'json'
+                                                                    ? ['Content-Type' => 'application/json']
+                                                                    : []),
                                                             ],
                                                             'body' => $apiRoute['body'],
                                                             'body_type' => $apiRoute['body_type'] ?? 'json',
+                                                            'body_hint' => $apiRoute['body_hint'],
                                                             'response' => $apiRoute['response'],
+                                                            'response_status' => $apiRoute['response_status'],
                                                         ];
                                                     @endphp
                                                     <button
@@ -490,38 +499,54 @@
             </form>
 
             <div class="modal fade" id="apiExampleModal" tabindex="-1" role="dialog" aria-labelledby="apiExampleModalTitle" aria-hidden="true">
-                <div class="modal-dialog modal-xl" role="document">
+                <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title font-weight-bold" id="apiExampleModalTitle">Ejemplo para Postman</h5>
+                            <div>
+                                <div class="small text-muted">Ejemplo para Postman</div>
+                                <h5 class="modal-title font-weight-bold" id="apiExampleModalTitle"></h5>
+                            </div>
                             <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>
                         </div>
                         <div class="modal-body">
                             <div class="form-group">
-                                <label>Metodo y URL</label>
+                                <label for="apiExampleUrl">1. Selecciona el método y pega la URL</label>
                                 <div class="input-group">
                                     <div class="input-group-prepend"><span class="input-group-text font-weight-bold" id="apiExampleMethod">GET</span></div>
-                                    <input type="text" class="form-control" id="apiExampleUrl" readonly>
-                                    <div class="input-group-append"><button type="button" class="btn btn-outline-primary js-copy-example" data-target="apiExampleUrl"><i class="fas fa-copy mr-1"></i>Copiar</button></div>
+                                    <input type="text" class="form-control api-token-value" id="apiExampleUrl" readonly>
+                                    <div class="input-group-append"><button type="button" class="btn btn-outline-primary js-copy-example" data-target="apiExampleUrl"><i class="fas fa-copy mr-1" aria-hidden="true"></i><span>Copiar URL</span></button></div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <div class="font-weight-bold mb-1">2. Configura la autorización y los encabezados</div>
+                                <p class="small mb-2" id="apiExampleAuth" hidden>
+                                    En <strong>Authorization &gt; Bearer Token</strong>, sustituye <code id="apiExampleToken"></code> por tu token.
+                                </p>
+                                <div id="apiExampleHeadersGroup">
+                                    <label class="small font-weight-normal mb-1" for="apiExampleHeaders">Agrega estos valores en la pestaña <strong>Headers</strong>.</label>
+                                    <textarea class="form-control api-token-value" id="apiExampleHeaders" rows="2" readonly></textarea>
                                 </div>
                             </div>
                             <div class="row">
-                                <div class="col-lg-6">
-                                    <label>Authorization y Headers</label>
-                                    <textarea class="form-control api-token-value" id="apiExampleHeaders" rows="7" readonly></textarea>
+                                <div class="col-lg-7 form-group" id="apiExampleBodyGroup">
+                                    <div class="d-flex flex-wrap align-items-center justify-content-between mb-2">
+                                        <label class="mb-0" for="apiExampleBody" id="apiExampleBodyLabel">3. Pega el JSON en Body &gt; raw &gt; JSON</label>
+                                        <button type="button" class="btn btn-sm btn-outline-primary js-copy-example" data-target="apiExampleBody"><i class="fas fa-copy mr-1" aria-hidden="true"></i><span id="apiExampleCopyBodyLabel">Copiar JSON</span></button>
+                                    </div>
+                                    <p class="small alert alert-info py-2 mb-2" id="apiExampleBodyHint" hidden></p>
+                                    <textarea class="form-control api-token-value" id="apiExampleBody" rows="5" readonly></textarea>
                                 </div>
-                                <div class="col-lg-6">
-                                    <label id="apiExampleBodyLabel">Body &gt; raw &gt; JSON</label>
-                                    <textarea class="form-control api-token-value" id="apiExampleBody" rows="7" readonly></textarea>
+                                <div class="col form-group">
+                                    <div class="d-flex flex-wrap align-items-center mb-2">
+                                        <label class="mb-0 mr-2" for="apiExampleResponse" id="apiExampleResponseLabel">4. Pulsa Send y revisa la respuesta</label>
+                                        <span class="badge badge-success" id="apiExampleResponseStatus" hidden></span>
+                                    </div>
+                                    <textarea class="form-control api-token-value" id="apiExampleResponse" rows="8" readonly></textarea>
                                 </div>
-                            </div>
-                            <div class="form-group mt-3 mb-0">
-                                <label>Respuesta de ejemplo</label>
-                                <textarea class="form-control api-token-value" id="apiExampleResponse" rows="6" readonly></textarea>
                             </div>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-outline-primary js-copy-example" data-target="apiExampleBody"><i class="fas fa-copy mr-1"></i>Copiar Body</button>
+                            <span class="small mr-auto" id="apiExampleCopyStatus" role="status"></span>
                             <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
                         </div>
                     </div>
@@ -830,24 +855,43 @@
                 button.addEventListener('click', () => {
                     const bytes = Uint8Array.from(atob(button.dataset.example), (character) => character.charCodeAt(0));
                     const example = JSON.parse(new TextDecoder().decode(bytes));
+                    const bearer = example.headers.Authorization?.match(/^Bearer (.+)$/i);
+                    const headers = Object.entries(example.headers).filter(([name]) => ! bearer || name !== 'Authorization');
+                    const headersField = document.getElementById('apiExampleHeaders');
+                    const hasBody = example.body !== null;
+                    const isFormData = example.body_type === 'form-data';
+                    const bodyField = document.getElementById('apiExampleBody');
+                    const bodyHint = document.getElementById('apiExampleBodyHint');
+                    const responseStatus = document.getElementById('apiExampleResponseStatus');
+
                     document.getElementById('apiExampleModalTitle').textContent = example.name;
                     document.getElementById('apiExampleMethod').textContent = example.method;
                     document.getElementById('apiExampleUrl').value = example.url;
-                    document.getElementById('apiExampleHeaders').value = Object.entries(example.headers)
-                        .map(([name, value]) => `${name}: ${value}`)
-                        .join('\n');
-                    const isFormData = example.body_type === 'form-data';
+                    document.getElementById('apiExampleAuth').hidden = ! bearer;
+                    document.getElementById('apiExampleToken').textContent = bearer?.[1] ?? '';
+                    document.getElementById('apiExampleHeadersGroup').hidden = headers.length === 0;
+                    headersField.rows = Math.max(2, headers.length);
+                    headersField.value = headers.map(([name, value]) => `${name}: ${value}`).join('\n');
+                    document.getElementById('apiExampleBodyGroup').hidden = ! hasBody;
                     document.getElementById('apiExampleBodyLabel').textContent = isFormData
-                        ? 'Body > form-data (foto como File)'
-                        : 'Body > raw > JSON';
-                    document.getElementById('apiExampleBody').value = example.body
+                        ? '3. Agrega los campos en Body > form-data (archivos como File)'
+                        : '3. Pega el JSON en Body > raw > JSON';
+                    document.getElementById('apiExampleCopyBodyLabel').textContent = isFormData ? 'Copiar campos' : 'Copiar JSON';
+                    bodyHint.textContent = example.body_hint ?? '';
+                    bodyHint.hidden = ! example.body_hint;
+                    bodyField.value = hasBody
                         ? (isFormData
                             ? Object.entries(example.body).map(([name, value]) => `${name}: ${value}`).join('\n')
                             : JSON.stringify(example.body, null, 2))
-                        : 'Esta solicitud no requiere Body.';
+                        : '';
+                    bodyField.rows = Math.min(16, Math.max(5, bodyField.value.split('\n').length));
+                    document.getElementById('apiExampleResponseLabel').textContent = `${hasBody ? 4 : 3}. Pulsa Send y revisa la respuesta`;
+                    responseStatus.textContent = example.response_status ?? '';
+                    responseStatus.hidden = ! example.response_status;
                     document.getElementById('apiExampleResponse').value = example.response
                         ? JSON.stringify(example.response, null, 2)
                         : 'La API devuelve una respuesta JSON con los datos solicitados.';
+                    document.getElementById('apiExampleCopyStatus').textContent = '';
                     $('#apiExampleModal').modal('show');
                 });
             });
@@ -855,15 +899,21 @@
             document.querySelectorAll('.js-copy-example').forEach((button) => {
                 button.addEventListener('click', async () => {
                     const target = document.getElementById(button.dataset.target);
-                    if (! target) {
-                        return;
-                    }
+                    const status = document.getElementById('apiExampleCopyStatus');
 
-                    target.select();
-                    if (navigator.clipboard && window.isSecureContext) {
-                        await navigator.clipboard.writeText(target.value);
-                    } else {
-                        document.execCommand('copy');
+                    try {
+                        if (navigator.clipboard && window.isSecureContext) {
+                            await navigator.clipboard.writeText(target.value);
+                        } else {
+                            target.select();
+                            if (! document.execCommand('copy')) {
+                                throw new Error('No se pudo copiar.');
+                            }
+                        }
+                        status.textContent = target.id === 'apiExampleUrl' ? 'URL copiada.' : 'Cuerpo de la solicitud copiado.';
+                    } catch (error) {
+                        target.select();
+                        status.textContent = 'Copia el texto seleccionado.';
                     }
                 });
             });

@@ -62,11 +62,16 @@ class ExternalClienteSolicitudApiController extends Controller
     ): JsonResponse {
         $data = $request->validate([
             'cliente_id' => ['required', 'integer', 'exists:clientes,id'],
+            'precio' => ['nullable', 'numeric', 'decimal:0,2', 'min:0', 'max:99999999.99'],
         ]);
 
         $cliente = Cliente::query()->findOrFail((int) $data['cliente_id']);
 
-        return $controller->storeForCliente($request, $cliente);
+        return $controller->storeForCliente(
+            $request,
+            $cliente,
+            isset($data['precio']) ? (string) $data['precio'] : null,
+        );
     }
 
     public function index(Request $request, Cliente $cliente): JsonResponse

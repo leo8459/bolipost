@@ -17,6 +17,9 @@ class ExternalClienteSolicitudGlobalApiTest extends TestCase
     {
         parent::setUp();
 
+        $settingsMigration = require database_path('migrations/2026_05_07_090000_create_app_settings_table.php');
+        $settingsMigration->up();
+
         Schema::create('external_api_tokens', function (Blueprint $table): void {
             $table->id();
             $table->unsignedBigInteger('user_id')->nullable();
@@ -193,22 +196,25 @@ class ExternalClienteSolicitudGlobalApiTest extends TestCase
             'updated_at' => now(),
         ]);
 
+        $url = '/api/integraciones/solicitudes-clientes';
+        $payload = [
+            'cliente_id' => $cliente->id,
+            'servicio_extra_id' => $servicioId,
+            'origen' => 'La Paz',
+            'destino_id' => $destinoId,
+            'cantidad' => 2,
+            'contenido' => 'Documentos',
+            'nombre_remitente' => 'Maria Perez',
+            'carnet' => '1234567',
+            'telefono_remitente' => '70000001',
+            'nombre_destinatario' => 'Juan Lopez',
+            'telefono_destinatario' => '70000002',
+            'direccion_recojo' => 'Av. Siempre Viva 10',
+            'direccion_entrega' => 'Calle Final 20',
+        ];
+
         $this->withToken($this->issueToken(['solicitudes-clientes:create']))
-            ->postJson('/api/integraciones/solicitudes-clientes', [
-                'cliente_id' => $cliente->id,
-                'servicio_extra_id' => $servicioId,
-                'origen' => 'La Paz',
-                'destino_id' => $destinoId,
-                'cantidad' => 2,
-                'contenido' => 'Documentos',
-                'nombre_remitente' => 'Maria Perez',
-                'carnet' => '1234567',
-                'telefono_remitente' => '70000001',
-                'nombre_destinatario' => 'Juan Lopez',
-                'telefono_destinatario' => '70000002',
-                'direccion_recojo' => 'Av. Siempre Viva 10',
-                'direccion_entrega' => 'Calle Final 20',
-            ])
+            ->postJson($url, $payload)
             ->assertCreated()
             ->assertJsonPath('message', 'Solicitud registrada correctamente.')
             ->assertJsonPath('solicitud.cliente_id', $cliente->id)
@@ -226,6 +232,31 @@ class ExternalClienteSolicitudGlobalApiTest extends TestCase
             'codigo' => 'SL00000001LP',
             'cliente_id' => $cliente->id,
         ]);
+
+        foreach ([-1, 25.555, 100000000, 'gratis'] as $precioInvalido) {
+            $this->postJson($url, $payload + ['precio' => $precioInvalido])
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors('precio');
+        }
+        $this->assertDatabaseCount('solicitud_clientes', 1);
+
+        $this->postJson($url, $payload + ['precio' => 25.75])
+            ->assertCreated()
+            ->assertJsonPath('solicitud.tarifario_tiktoker_id', $tarifarioId)
+            ->assertJsonPath('solicitud.precio', '25.75');
+        $this->assertDatabaseHas('solicitud_clientes', [
+            'cliente_id' => $cliente->id,
+            'codigo_solicitud' => 'SL00000002LP',
+            'precio' => 25.75,
+        ]);
+
+        $this->postJson($url, $payload + ['precio' => 0])
+            ->assertCreated()
+            ->assertJsonPath('solicitud.precio', '0.00');
+
+        $this->postJson($url, $payload + ['precio' => null])
+            ->assertCreated()
+            ->assertJsonPath('solicitud.precio', '20.00');
     }
 
     public function test_un_token_sin_el_permiso_requerido_es_rechazado(): void
