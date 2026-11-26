@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\Estado;
 use Carbon\Carbon;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 
 class IndicadorController extends Controller
 {
@@ -52,12 +54,64 @@ class IndicadorController extends Controller
 
     public function contratosEntregados(Request $request)
     {
-        return $this->buildContratos($request, true);
+        return view('indicadores.listado', $this->buildContratos($request, true));
     }
 
     public function contratosInventario(Request $request)
     {
-        return $this->buildContratos($request, false);
+        return view('indicadores.listado', $this->buildContratos($request, false));
+    }
+
+    public function contratosInventarioApi(Request $request): JsonResponse
+    {
+        $params = Validator::make($request->query(), [
+            'q' => ['nullable', 'string', 'max:255'],
+            'origen' => ['nullable', 'string', 'max:255'],
+            'destino' => ['nullable', 'string', 'max:255'],
+            'sla' => ['nullable', 'in:en_plazo,atraso,rezago'],
+            'page' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ])->validate();
+
+        $listado = $this->buildContratos($request, false, (int) ($params['per_page'] ?? 20));
+        $rows = $listado['rows'];
+        $resumen = $listado['slaResumen'];
+
+        return response()->json([
+            'data' => $rows->getCollection()->map(fn (object $row): array => [
+                'codigo' => $row->codigo,
+                'estado' => $row->estado,
+                'origen' => $row->origen,
+                'destino' => $row->destino,
+                'remitente' => $row->remitente,
+                'destinatario' => $row->destinatario,
+                'peso' => (float) $row->peso,
+                'empresa' => $row->empresa,
+                'usuario' => $row->usuario,
+                'fecha_actualizacion' => $row->fecha_actualizacion,
+                'sla_texto' => $row->sla_texto,
+                'sla_estado' => $this->slaKeyFromRow($row),
+                'sla_color' => $row->sla_color,
+                'sla_total_horas' => $row->sla_total_horas ?? null,
+                'sla_es_provincia' => $row->sla_is_provincia,
+            ]),
+            'total' => $rows->total(),
+            'current_page' => $rows->currentPage(),
+            'per_page' => $rows->perPage(),
+            'last_page' => $rows->lastPage(),
+            'next_page_url' => $rows->nextPageUrl(),
+            'prev_page_url' => $rows->previousPageUrl(),
+            'sla_resumen' => [
+                'en_plazo' => $resumen['correcto'],
+                'atraso' => $resumen['retraso'],
+                'rezago' => $resumen['rezago'],
+                'sin_datos' => $resumen['sin_datos'],
+            ],
+            'opciones_filtros' => [
+                'origen' => $listado['origenOptions'],
+                'destino' => $listado['destinoOptions'],
+            ],
+        ]);
     }
 
     public function emsEntregados(Request $request)
@@ -90,7 +144,7 @@ class IndicadorController extends Controller
         return $this->buildOrdinarios($request, false);
     }
 
-    private function buildContratos(Request $request, bool $entregados)
+    private function buildContratos(Request $request, bool $entregados, int $perPage = 20): array
     {
         $search = trim((string) $request->query('q', ''));
         $origen = $this->cleanFilterValue($request->query('origen'));
@@ -170,10 +224,11 @@ class IndicadorController extends Controller
             $entregados,
             $request,
             $sla,
-            'paquetes_contrato.id'
+            'paquetes_contrato.id',
+            $perPage
         );
 
-        return $this->renderListado(
+        return $this->listadoData(
             $rows,
             'Indicador Contratos - ' . ($entregados ? 'Entregados' : 'Inventario'),
             'CONTRATOS',
@@ -270,7 +325,7 @@ class IndicadorController extends Controller
             'paquetes_ems.id'
         );
 
-        return $this->renderListado(
+        return view('indicadores.listado', $this->listadoData(
             $rows,
             'Indicador EMS - ' . ($entregados ? 'Entregados' : 'Inventario'),
             'EMS',
@@ -286,7 +341,7 @@ class IndicadorController extends Controller
             $sla,
             $origenOptions,
             $destinoOptions
-        );
+        ));
     }
 
     private function buildCertificados(Request $request, bool $entregados)
@@ -362,7 +417,7 @@ class IndicadorController extends Controller
             'paquetes_certi.id'
         );
 
-        return $this->renderListado(
+        return view('indicadores.listado', $this->listadoData(
             $rows,
             'Indicador Certificados - ' . ($entregados ? 'Entregados' : 'Inventario'),
             'CERTIFICADOS',
@@ -378,7 +433,7 @@ class IndicadorController extends Controller
             $sla,
             $origenOptions,
             $destinoOptions
-        );
+        ));
     }
 
     private function buildOrdinarios(Request $request, bool $entregados)
@@ -454,7 +509,7 @@ class IndicadorController extends Controller
             'paquetes_ordi.id'
         );
 
-        return $this->renderListado(
+        return view('indicadores.listado', $this->listadoData(
             $rows,
             'Indicador Ordinarios - ' . ($entregados ? 'Entregados' : 'Inventario'),
             'ORDINARIOS',
@@ -470,7 +525,7 @@ class IndicadorController extends Controller
             $sla,
             $origenOptions,
             $destinoOptions
-        );
+        ));
     }
 
     private function applyEstadoScope(Builder $query, string $stateColumn, ?int $estadoEntregadoId, bool $entregados): void
@@ -515,8 +570,8 @@ class IndicadorController extends Controller
         return $resolvedId;
     }
 
-    private function renderListado(
-        $rows,
+    private function listadoData(
+        LengthAwarePaginator $rows,
         string $pageTitle,
         string $modulo,
         string $filtro,
@@ -531,8 +586,8 @@ class IndicadorController extends Controller
         string $filterSla = '',
         array $origenOptions = [],
         array $destinoOptions = []
-    ) {
-        return view('indicadores.listado', [
+    ): array {
+        return [
             'rows' => $rows,
             'pageTitle' => $pageTitle,
             'modulo' => $modulo,
@@ -548,7 +603,7 @@ class IndicadorController extends Controller
             'filterSla' => $filterSla,
             'origenOptions' => $origenOptions,
             'destinoOptions' => $destinoOptions,
-        ]);
+        ];
     }
 
     private function finalizeIndicadorRows(
@@ -557,10 +612,14 @@ class IndicadorController extends Controller
         bool $entregados,
         Request $request,
         string $slaFilter,
-        string $orderColumn
+        string $orderColumn,
+        int $perPage = 20
     ): array {
         $rows = collect();
         $slaResumen = $this->emptySlaResumen();
+        $page = max(1, (int) $request->query('page', 1));
+        $offset = ($page - 1) * $perPage;
+        $total = 0;
 
         foreach ((clone $query)->orderByDesc($orderColumn)->cursor() as $row) {
             $row = $decorateRow($row, $entregados);
@@ -570,16 +629,16 @@ class IndicadorController extends Controller
                 continue;
             }
 
-            $rows->push($row);
+            if ($total >= $offset && $rows->count() < $perPage) {
+                $rows->push($row);
+            }
+
+            $total++;
         }
 
-        $perPage = 20;
-        $page = max(1, (int) $request->query('page', 1));
-        $items = $rows->forPage($page, $perPage)->values();
-
         $paginator = new LengthAwarePaginator(
-            $items,
-            $rows->count(),
+            $rows,
+            $total,
             $perPage,
             $page,
             [
@@ -758,8 +817,9 @@ class IndicadorController extends Controller
         }
 
         $horas = $inicio->diffInHours($fin);
-        $dias = intdiv($horas, 24);
-        $horasResto = $horas % 24;
+        $horasEnteras = (int) $horas;
+        $dias = intdiv($horasEnteras, 24);
+        $horasResto = $horasEnteras % 24;
 
         $row->sla_total_horas = $horas;
         $row->sla_texto = $dias . 'd ' . $horasResto . 'h';

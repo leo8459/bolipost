@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\VehicleLogApiController;
 use App\Http\Controllers\AppConfigController;
 use App\Http\Controllers\BusquedaController;
 use App\Http\Controllers\CarterosController;
+use App\Http\Controllers\IndicadorController;
 use App\Http\Controllers\PreregistroController;
 use App\Http\Controllers\RecojoController;
 use App\Support\ChasquiCartero;
@@ -133,6 +134,10 @@ Route::middleware(['force.json', 'external.api.jwt', 'throttle:120,1'])->group(f
     Route::post('/paquetes-contrato/recoger', [ContratoPickupApiController::class, 'store'])
         ->middleware('external.api.ability:paquetes-contrato:pickup')
         ->name('api.paquetes-contrato.recoger');
+
+    Route::get('/indicadores/contratos/inventario', [IndicadorController::class, 'contratosInventarioApi'])
+        ->middleware('external.api.ability:indicadores:contratos:inventario:read')
+        ->name('api.indicadores.contratos.inventario');
 
     Route::get('/bitacoras', [VehicleLogApiController::class, 'externalIndex'])
         ->middleware('external.api.ability:bitacoras:read')

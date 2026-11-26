@@ -2,6 +2,50 @@
 
 return [
     'catalog' => [
+        'indicadores:contratos:inventario:read' => [
+            'name' => 'INDICADORES CONTRATOS',
+            'description' => 'Consulta los envíos por contrato pendientes de entrega y sus indicadores de SLA. Admite q (búsqueda), origen, destino, sla (en_plazo, atraso o rezago), page y per_page (20 por defecto, máximo 100). El resumen SLA corresponde a la búsqueda y los filtros de origen y destino, antes de aplicar el filtro SLA.',
+            'access' => 'Solo lectura',
+            'icon' => 'fas fa-boxes',
+            'color' => 'info',
+            'created_at' => '2026-11-26',
+            'endpoints' => [
+                [
+                    'method' => 'GET',
+                    'path' => '/api/indicadores/contratos/inventario',
+                    'example' => '?page=1&per_page=20&destino=LA%20PAZ&sla=en_plazo',
+                    'response' => [
+                        'data' => [
+                            [
+                                'codigo' => 'CONTRATO-001',
+                                'estado' => 'ALMACEN',
+                                'origen' => 'LA PAZ',
+                                'destino' => 'COCHABAMBA',
+                                'remitente' => 'Remitente de ejemplo',
+                                'destinatario' => 'Destinatario de ejemplo',
+                                'peso' => 1.5,
+                                'empresa' => 'Empresa de ejemplo',
+                                'usuario' => 'Usuario de ejemplo',
+                                'fecha_actualizacion' => '2026-11-26 10:30:00',
+                                'sla_texto' => '0d 8h',
+                                'sla_estado' => 'en_plazo',
+                                'sla_color' => 'VERDE',
+                                'sla_total_horas' => 8,
+                                'sla_es_provincia' => false,
+                            ],
+                        ],
+                        'total' => 1,
+                        'current_page' => 1,
+                        'per_page' => 20,
+                        'last_page' => 1,
+                        'next_page_url' => null,
+                        'prev_page_url' => null,
+                        'sla_resumen' => ['en_plazo' => 1, 'atraso' => 1, 'rezago' => 0, 'sin_datos' => 0],
+                        'opciones_filtros' => ['origen' => ['LA PAZ'], 'destino' => ['LA PAZ']],
+                    ],
+                ],
+            ],
+        ],
         'tarifario:ems-nacional:read' => [
             'name' => 'TARIFARIO EMS NACIONAL',
             'description' => 'Consulta todo el tarifario EMS Nacional con los datos completos de la tabla y sus relaciones de servicio, peso, destino y origen.',

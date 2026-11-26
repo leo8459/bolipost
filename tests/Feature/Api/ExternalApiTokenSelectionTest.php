@@ -7,6 +7,8 @@ use App\Http\Middleware\EnsureRoutePermission;
 use App\Models\ExternalApiToken;
 use Illuminate\Auth\Middleware\Authenticate;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
@@ -132,7 +134,7 @@ class ExternalApiTokenSelectionTest extends TestCase
             ->assertSee('Crear nueva credencial API');
     }
 
-    public function test_mantenimiento_aparece_una_sola_vez_con_su_metodo_principal_y_primero_por_ser_nuevo(): void
+    public function test_mantenimiento_aparece_una_vez_por_metodo_y_antes_de_los_tarifarios_mas_antiguos(): void
     {
         $html = $this->get('/configuracion/apis?nueva=1')
             ->assertOk()
@@ -150,10 +152,8 @@ class ExternalApiTokenSelectionTest extends TestCase
         $this->assertSame(1, $readRows->length);
         $this->assertStringContainsString('GET', $readRows->item(0)->textContent);
         $this->assertStringContainsString('/api/mantenimientos', $readRows->item(0)->textContent);
-        $this->assertStringContainsString(
-            'VER MANTENIMIENTOS',
-            $xpath->query('//div[@id="api-inventory-get"]//tbody/tr[1]')->item(0)->textContent
-        );
+        $getRows = $xpath->query('//div[@id="api-inventory-get"]//tbody')->item(0)->textContent;
+        $this->assertLessThan(strpos($getRows, 'TARIFARIO EMS NACIONAL'), strpos($getRows, 'VER MANTENIMIENTOS'));
         $this->assertStringContainsString(
             'SOLICITAR MANTENIMIENTOS',
             $xpath->query('//div[@id="api-inventory-post"]//tbody/tr[1]')->item(0)->textContent
@@ -179,6 +179,125 @@ class ExternalApiTokenSelectionTest extends TestCase
         $this->assertSame($abilities, $token->abilities);
         $this->assertNotEmpty($token->token_plain);
         $this->assertTrue($token->isUsable());
+    }
+
+    public function test_la_credencial_del_inventario_consulta_los_mismos_contratos_y_sla_de_la_vista(): void
+    {
+        $ability = 'indicadores:contratos:inventario:read';
+        $endpoint = '/api/indicadores/contratos/inventario';
+        $this->get(route('configuracion.apis.index'))
+            ->assertOk()
+            ->assertSee('Credencial de INDICADORES CONTRATOS');
+
+        $html = $this->get(route('configuracion.apis.index', ['nueva' => 1, 'api' => $ability]))
+            ->assertOk()
+            ->assertSee('INDICADORES CONTRATOS')
+            ->assertSee($endpoint)
+            ->getContent();
+        $document = new \DOMDocument;
+        @$document->loadHTML($html);
+        $checked = (new \DOMXPath($document))->query('//input[@name="abilities[]" and @checked]');
+        $this->assertSame(1, $checked->length);
+        $this->assertSame($ability, $checked->item(0)->getAttribute('value'));
+
+        $this->post(route('configuracion.apis.store'), ['name' => 'Inventario', 'abilities' => [$ability]])
+            ->assertRedirect(route('configuracion.apis.index'));
+        $token = ExternalApiToken::query()->sole();
+        $headers = ['Authorization' => 'Bearer '.$token->token_plain];
+        $this->getJson($endpoint)->assertUnauthorized();
+        $this->getJson($endpoint.'?per_page=101', $headers)->assertUnprocessable()->assertJsonValidationErrors('per_page');
+
+        $this->post(route('configuracion.apis.store'), ['name' => 'Tarifario', 'abilities' => ['tarifario:ems-nacional:read']])
+            ->assertRedirect(route('configuracion.apis.index'));
+        $tarifario = ExternalApiToken::query()->where('name', 'Tarifario')->sole();
+        $this->getJson($endpoint, ['Authorization' => 'Bearer '.$tarifario->token_plain])
+            ->assertForbidden()
+            ->assertJsonPath('permiso_requerido', $ability);
+
+        foreach (['estados' => 'nombre_estado', 'empresa' => 'nombre', 'users' => 'name'] as $name => $column) {
+            Schema::create($name, function (Blueprint $table) use ($column): void {
+                $table->id();
+                $table->string($column);
+            });
+        }
+        Schema::create('paquetes_contrato', function (Blueprint $table): void {
+            $table->id();
+            foreach (['codigo', 'cod_especial', 'origen', 'destino', 'provincia', 'nombre_r', 'nombre_d'] as $column) {
+                $table->string($column)->nullable();
+            }
+            $table->unsignedBigInteger('estados_id')->nullable();
+            $table->unsignedBigInteger('empresa_id');
+            $table->unsignedBigInteger('user_id');
+            $table->decimal('peso', 10, 2);
+            $table->timestamp('fecha_recojo')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('eventos_contrato', function (Blueprint $table): void {
+            $table->string('codigo');
+            $table->unsignedBigInteger('evento_id');
+            $table->timestamp('created_at');
+        });
+
+        $this->travelTo(Carbon::parse('2026-11-26 12:00:00'));
+        DB::table('estados')->insert([['id' => 1, 'nombre_estado' => 'ALMACEN'], ['id' => 2, 'nombre_estado' => 'ENTREGADO']]);
+        DB::table('empresa')->insert(['id' => 1, 'nombre' => 'Empresa de prueba']);
+        DB::table('users')->insert(['id' => 1, 'name' => 'Operador de prueba']);
+
+        $contrato = [
+            'origen' => 'LA PAZ',
+            'destino' => 'COCHABAMBA',
+            'nombre_r' => 'Remitente de prueba',
+            'nombre_d' => 'Destinatario de prueba',
+            'empresa_id' => 1,
+            'user_id' => 1,
+            'peso' => 1.50,
+            'updated_at' => now(),
+        ];
+        DB::table('paquetes_contrato')->insert([
+            ['codigo' => 'CONTRATO-EN-PLAZO', 'estados_id' => 1] + $contrato,
+            ['codigo' => 'CONTRATO-ATRASO', 'estados_id' => 1] + $contrato,
+            ['codigo' => 'CONTRATO-SIN-DATOS', 'estados_id' => null, 'destino' => 'LA PAZ'] + $contrato,
+            ['codigo' => 'CONTRATO-ENTREGADO', 'estados_id' => 2, 'destino' => 'LA PAZ'] + $contrato,
+        ]);
+        DB::table('eventos_contrato')->insert([
+            ['codigo' => 'CONTRATO-EN-PLAZO', 'evento_id' => 295, 'created_at' => now()->subHours(8)],
+            ['codigo' => 'CONTRATO-ATRASO', 'evento_id' => 295, 'created_at' => now()->subDay()->subMinutes(30)],
+        ]);
+
+        $filters = '?q=CONTRATO&origen=LA%20PAZ&destino=LA%20PAZ';
+        $this->get('/indicadores/contratos/inventario'.$filters.'&sla=atraso')
+            ->assertOk()
+            ->assertSeeText('CONTRATO-ATRASO')
+            ->assertDontSeeText('CONTRATO-EN-PLAZO')
+            ->assertDontSeeText('CONTRATO-SIN-DATOS')
+            ->assertDontSeeText('CONTRATO-ENTREGADO');
+
+        $firstPage = $this->getJson($endpoint.$filters.'&per_page=1', $headers)
+            ->assertOk()
+            ->assertJsonPath('total', 3)
+            ->assertJsonPath('last_page', 3)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.codigo', 'CONTRATO-SIN-DATOS')
+            ->assertJsonPath('data.0.sla_estado', 'sin_datos')
+            ->assertJsonPath('opciones_filtros.destino', ['LA PAZ']);
+
+        $this->getJson($firstPage->json('next_page_url'), $headers)
+            ->assertOk()
+            ->assertJsonPath('current_page', 2)
+            ->assertJsonPath('data.0.codigo', 'CONTRATO-ATRASO');
+
+        $this->getJson($endpoint.$filters.'&sla=atraso', $headers)
+            ->assertOk()
+            ->assertJsonPath('total', 1)
+            ->assertJsonPath('data.0.codigo', 'CONTRATO-ATRASO')
+            ->assertJsonPath('data.0.remitente', 'Remitente de prueba')
+            ->assertJsonPath('data.0.destinatario', 'Destinatario de prueba')
+            ->assertJsonPath('data.0.peso', 1.5)
+            ->assertJsonPath('data.0.empresa', 'Empresa de prueba')
+            ->assertJsonPath('data.0.usuario', 'Operador de prueba')
+            ->assertJsonPath('data.0.sla_texto', '1d 0h')
+            ->assertJsonPath('data.0.sla_estado', 'atraso')
+            ->assertJsonPath('sla_resumen', ['en_plazo' => 1, 'atraso' => 1, 'rezago' => 0, 'sin_datos' => 1]);
     }
 
     public function test_la_credencial_del_tarifario_registra_el_endpoint_y_el_origen_de_cada_uso_exitoso(): void

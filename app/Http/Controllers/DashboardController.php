@@ -47,6 +47,7 @@ class DashboardController extends Controller
     private const DASHBOARD_HEAVY_ALERT_CACHE_SECONDS = 300;
     private const DASHBOARD_MAX_EXECUTION_SECONDS = 180;
     private const DASHBOARD_INLINE_DEPARTMENT_MAX_ROWS = 100000;
+    private const DASHBOARD_MIN_YEAR = 2000;
     private const DASHBOARD_MODULE_KEYS = ['ems', 'contrato', 'express'];
     private const COURIER_PENDING_MODULE_KEYS = ['ems', 'certi', 'contrato', 'ordi', 'solicitud'];
     private const ENTREGAS_EXCLUDED_COURIER_NAMES = [
@@ -215,7 +216,7 @@ class DashboardController extends Controller
     public function chartVolumeData(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'anio' => ['required', 'integer', 'between:2000,'.(now()->year + 3)],
+            'anio' => ['required', 'integer', 'between:'.self::DASHBOARD_MIN_YEAR.','.(now()->year + 3)],
             'meses' => ['required', 'array', 'min:1', 'max:12'],
             'meses.*' => ['required', 'integer', 'distinct', 'between:1,12'],
             'departamentos' => ['required', 'array', 'min:1', 'max:9'],
@@ -390,19 +391,20 @@ class DashboardController extends Controller
 
     private function dashboardCacheKey(Request $request): string
     {
+        [$from, $to, , $range] = $this->resolveRangoFechas($request);
         $filters = [
             'modules' => $this->resolveDashboardModulosSeleccionados($request),
-            'range' => strtolower(trim((string) $request->query('range', 'all'))),
-            'from' => trim((string) $request->query('from', '')),
-            'to' => trim((string) $request->query('to', '')),
-            'group' => $this->resolveAgrupacion($request),
+            'range' => $range,
+            'from' => $from?->toDateString(),
+            'to' => $to?->toDateString(),
+            'group' => $this->resolveAgrupacion($request, $range),
             'departamento' => $this->resolveDepartamentoFiltro($request),
             'departamento_origen' => $this->resolveDepartamentoOrigenFiltro($request),
             // Evita reutilizar rangos relativos al cambiar de dia.
             'date' => now()->toDateString(),
         ];
 
-        return 'dashboard:v15:' . sha1(json_encode($filters, JSON_UNESCAPED_UNICODE));
+        return 'dashboard:v17:' . sha1(json_encode($filters, JSON_UNESCAPED_UNICODE));
     }
 
     private function cachedDashboardAlerts($authUser, ?array $moduleKeys = null): array
@@ -577,7 +579,7 @@ class DashboardController extends Controller
     private function buildEntregasData(Request $request): array
     {
         $modulosSeleccionados = $this->resolveModulosSeleccionados($request);
-        [$desde, $hasta, $rangoLabel, $rangoKey] = $this->resolveRangoFechas($request);
+        [$desde, $hasta, $rangoLabel, $rangoKey] = $this->resolveRangoFechas($request, 'all');
         $departamentoCartero = $this->resolveDepartamentoFiltroPorCampo($request, 'cartero_departamento');
         $ordenDepartamentos = $request->query('orden') === 'registrados' ? 'registrados' : 'entregados';
         $finDeHoy = now()->endOfDay();
@@ -933,7 +935,7 @@ class DashboardController extends Controller
     {
         $modulosSeleccionados = $this->resolveDashboardModulosSeleccionados($request);
         [$desde, $hasta, $rangoLabel, $rangoKey] = $this->resolveRangoFechas($request);
-        $agrupacion = $this->resolveAgrupacion($request);
+        $agrupacion = $this->resolveAgrupacion($request, $rangoKey);
         $departamento = $this->resolveDepartamentoFiltro($request);
         $departamentoOrigen = $this->resolveDepartamentoOrigenFiltro($request);
         $authUser = Auth::user();
@@ -1037,11 +1039,18 @@ class DashboardController extends Controller
         $rankingRegistradores = $includeInlineRankings
             ? $this->buildRankingRegistradores($modulosSeleccionados, $desde, $hasta, $departamento, $departamentoOrigen)
             : collect();
+        $hoy = now();
+        $ultimoPeriodo = count($trendLabels) - 1;
+        if ($rangoKey === 'year' && $hasta->gt($hoy)) {
+            [$periodosTranscurridos] = $this->buildBuckets($desde, $hoy, $agrupacion);
+            $ultimoPeriodo = count($periodosTranscurridos) - 1;
+        }
         $insightsEjecutivos = $this->buildExecutiveInsights(
             $totales,
             $resumenPorModulo,
             $trendLabels,
             $trendSeries,
+            $ultimoPeriodo,
             $rankingEntregadores,
             $rankingRegistradores,
             $rankingDepartamentos
@@ -1058,6 +1067,8 @@ class DashboardController extends Controller
             'rangoHasta' => $hasta ? $hasta->toDateString() : null,
             'rangoLabel' => $rangoLabel,
             'rangoKey' => $rangoKey,
+            'rangoAnio' => $rangoKey === 'year' ? $desde->year : null,
+            'aniosDisponibles' => range($hoy->year, self::DASHBOARD_MIN_YEAR),
             'agrupacion' => $agrupacion,
             'departamento' => $departamento,
             'departamentoOrigen' => $departamentoOrigen,
@@ -1801,11 +1812,12 @@ class DashboardController extends Controller
         return ($tableAlias !== '' ? $tableAlias : $config['table']) . '.codigo';
     }
 
-    private function resolveAgrupacion(Request $request): string
+    private function resolveAgrupacion(Request $request, string $rangoKey): string
     {
-        $value = strtolower(trim((string) $request->query('group', 'day')));
+        $default = $rangoKey === 'year' ? 'month' : 'day';
+        $value = strtolower(trim((string) $request->query('group', $default)));
         if (!in_array($value, ['day', 'week', 'month'], true)) {
-            return 'day';
+            return $default;
         }
 
         return $value;
@@ -1832,16 +1844,17 @@ class DashboardController extends Controller
         return in_array($value, self::DESTINOS_BASE, true) ? $value : '';
     }
 
-    private function resolveRangoFechas(Request $request): array
+    private function resolveRangoFechas(Request $request, string $defaultRange = 'year'): array
     {
         $now = now();
-        $range = strtolower((string) $request->query('range', 'all'));
+        $range = strtolower(trim((string) $request->query('range', $defaultRange)));
         $fromInput = trim((string) $request->query('from', ''));
         $toInput = trim((string) $request->query('to', ''));
-
-        if ($range === 'all' && $fromInput === '' && $toInput === '') {
-            return [null, null, 'Todo el historial', 'all'];
-        }
+        $year = filter_var($request->query('anio'), FILTER_VALIDATE_INT, [
+            'options' => ['min_range' => self::DASHBOARD_MIN_YEAR, 'max_range' => $now->year],
+        ]) ?: $now->year;
+        $yearStart = $now->copy()->startOfYear()->setYear($year);
+        $yearEnd = $yearStart->copy()->endOfYear();
 
         if ($fromInput !== '' || $toInput !== '') {
             $from = $this->safeParseDate($fromInput)?->startOfDay();
@@ -1857,9 +1870,15 @@ class DashboardController extends Controller
                 [$from, $to] = [$to->copy()->startOfDay(), $from->copy()->endOfDay()];
             }
 
-            if ($from && $to) {
+            if ($from && $to && ! ($range === 'year' && $from->equalTo($yearStart) && $to->equalTo($yearEnd))) {
                 return [$from, $to, 'Rango personalizado', 'custom'];
             }
+        }
+
+        if ($range === 'year') {
+            $label = $year === $now->year ? "Año actual ({$year})" : "Año {$year}";
+
+            return [$yearStart, $yearEnd, $label, 'year'];
         }
 
         if ($range === 'today') {
@@ -3360,6 +3379,7 @@ class DashboardController extends Controller
         array $resumenPorModulo,
         array $trendLabels,
         array $trendSeries,
+        int $ultimoPeriodo,
         $rankingEntregadores,
         $rankingRegistradores,
         $rankingDepartamentos = null
@@ -3378,10 +3398,10 @@ class DashboardController extends Controller
 
         $registrosTrend = $trendSeries['registros'] ?? [];
         $entregasTrend = $trendSeries['entregados'] ?? [];
-        $ultimoReg = (int) ($registrosTrend[count($registrosTrend) - 1] ?? 0);
-        $anteriorReg = (int) ($registrosTrend[count($registrosTrend) - 2] ?? 0);
-        $ultimoEnt = (int) ($entregasTrend[count($entregasTrend) - 1] ?? 0);
-        $anteriorEnt = (int) ($entregasTrend[count($entregasTrend) - 2] ?? 0);
+        $ultimoReg = (int) ($registrosTrend[$ultimoPeriodo] ?? 0);
+        $anteriorReg = (int) ($registrosTrend[$ultimoPeriodo - 1] ?? 0);
+        $ultimoEnt = (int) ($entregasTrend[$ultimoPeriodo] ?? 0);
+        $anteriorEnt = (int) ($entregasTrend[$ultimoPeriodo - 1] ?? 0);
 
         $varRegPct = $anteriorReg > 0 ? round((($ultimoReg - $anteriorReg) * 100) / $anteriorReg, 1) : null;
         $varEntPct = $anteriorEnt > 0 ? round((($ultimoEnt - $anteriorEnt) * 100) / $anteriorEnt, 1) : null;
@@ -3457,7 +3477,7 @@ class DashboardController extends Controller
                 'departamento' => $topDepartamento?->departamento,
             ],
             'ultimo_periodo' => [
-                'label' => $trendLabels[count($trendLabels) - 1] ?? null,
+                'label' => $trendLabels[$ultimoPeriodo] ?? null,
                 'registros' => $ultimoReg,
                 'entregados' => $ultimoEnt,
             ],

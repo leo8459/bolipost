@@ -15,6 +15,14 @@
                 </button>
             @else
                 <a
+                    href="{{ route('configuracion.apis.index', ['nueva' => 1, 'api' => 'indicadores:contratos:inventario:read']) }}"
+                    class="btn btn-outline-primary mr-1"
+                    target="_blank"
+                    rel="noopener"
+                >
+                    <i class="fas fa-boxes mr-1"></i> Credencial de {{ $apiCatalog['indicadores:contratos:inventario:read']['name'] }}
+                </a>
+                <a
                     href="{{ route('configuracion.apis.index', ['nueva' => 1, 'api' => 'tarifario:delivery-express:read']) }}"
                     class="btn btn-outline-primary mr-1"
                     target="_blank"

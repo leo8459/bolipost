@@ -97,15 +97,26 @@
 
                 <div id="advancedFiltersPanel">
                     <div class="row">
-                        <div class="col-lg-2 mb-3">
+                        <div class="col-sm-6 col-lg-2 mb-3">
+                            <label for="dashboardYear" class="font-weight-bold">Año</label>
+                            <select id="dashboardYear" name="anio" class="form-control">
+                                @if($rangoAnio === null)
+                                    <option value="" selected disabled>Seleccionar año</option>
+                                @endif
+                                @foreach($aniosDisponibles as $anio)
+                                    <option value="{{ $anio }}" @selected($anio === $rangoAnio)>{{ $anio }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-sm-6 col-lg-2 mb-3">
                             <label for="from" class="font-weight-bold">Desde</label>
                             <input type="date" id="from" name="from" class="form-control" value="{{ $rangoDesde }}">
                         </div>
-                        <div class="col-lg-2 mb-3">
+                        <div class="col-sm-6 col-lg-2 mb-3">
                             <label for="to" class="font-weight-bold">Hasta</label>
                             <input type="date" id="to" name="to" class="form-control" value="{{ $rangoHasta }}">
                         </div>
-                        <div class="col-lg-2 mb-3">
+                        <div class="col-sm-6 col-lg-2 mb-3">
                             <label for="group" class="font-weight-bold">Agrupar por</label>
                             <select id="group" name="group" class="form-control">
                                 <option value="day" {{ $agrupacion === 'day' ? 'selected' : '' }}>Dia</option>
@@ -113,7 +124,7 @@
                                 <option value="month" {{ $agrupacion === 'month' ? 'selected' : '' }}>Mes</option>
                             </select>
                         </div>
-                        <div class="col-lg-3 mb-3">
+                        <div class="col-sm-6 col-lg-2 mb-3">
                             <label for="departamento" class="font-weight-bold">Departamento destino</label>
                             <select id="departamento" name="departamento" class="form-control">
                                 <option value="">Todos</option>
@@ -124,7 +135,7 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-lg-3 mb-3">
+                        <div class="col-sm-6 col-lg-2 mb-3">
                             <label for="departamento_origen" class="font-weight-bold">Departamento origen</label>
                             <select id="departamento_origen" name="departamento_origen" class="form-control">
                                 <option value="">Todos</option>
@@ -145,6 +156,7 @@
                     <button type="submit" name="range" value="7d" class="btn btn-outline-secondary mr-2 mb-2" onclick="document.getElementById('from').value='';document.getElementById('to').value='';">7 dias</button>
                     <button type="submit" name="range" value="30d" class="btn btn-outline-secondary mr-2 mb-2" onclick="document.getElementById('from').value='';document.getElementById('to').value='';">30 dias</button>
                     <button type="submit" name="range" value="month" class="btn btn-outline-secondary mr-2 mb-2" onclick="document.getElementById('from').value='';document.getElementById('to').value='';">Mes actual</button>
+                    <button type="submit" name="range" value="year" class="btn btn-outline-secondary mr-2 mb-2" onclick="document.getElementById('dashboardYear').value='{{ $aniosDisponibles[0] }}';document.getElementById('from').value='';document.getElementById('to').value='';">Año actual</button>
                     <button type="submit" name="range" value="all" class="btn btn-outline-secondary mr-2 mb-2" onclick="document.getElementById('from').value='';document.getElementById('to').value='';">Todo historial</button>
                 </div>
                 </div>
@@ -470,13 +482,13 @@
         </div>
         <div id="chartVolumenFilters" class="card-header chart-money-filters">
             <label for="chartVolumenYear" class="chart-type-label mb-0">Año</label>
-            <input type="number" id="chartVolumenYear" class="form-control form-control-sm chart-money-year" min="2000" max="{{ now()->year + 3 }}" value="{{ now()->year }}">
+            <input type="number" id="chartVolumenYear" class="form-control form-control-sm chart-money-year" min="{{ min($aniosDisponibles) }}" max="{{ $aniosDisponibles[0] + 3 }}" value="{{ $rangoAnio ?? $aniosDisponibles[0] }}">
             <details class="chart-filter-details" id="chartVolumenMonths">
-                <summary id="chartVolumenMonthsSummary">Meses: {{ now()->translatedFormat('F') }}</summary>
+                <summary id="chartVolumenMonthsSummary">Meses: Todos (12)</summary>
                 <div class="chart-filter-options">
                     <div class="chart-filter-actions"><button type="button" data-chart-select="months">Todos</button><button type="button" data-chart-clear="months">Limpiar</button></div>
                     @foreach([1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril', 5 => 'Mayo', 6 => 'Junio', 7 => 'Julio', 8 => 'Agosto', 9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre'] as $monthNumber => $monthName)
-                        <label><input type="checkbox" data-chart-month value="{{ $monthNumber }}" {{ now()->month === $monthNumber ? 'checked' : '' }}> {{ $monthName }}</label>
+                        <label><input type="checkbox" data-chart-month value="{{ $monthNumber }}" checked> {{ $monthName }}</label>
                     @endforeach
                 </div>
             </details>
@@ -1448,9 +1460,20 @@
             }, 100);
         };
 
-        const submitFiltersWithMessage = (message = 'Aplicando filtros...') => {
-            executeFilterSubmission(message);
-        };
+        if (dashboardFiltersForm) {
+            const { anio, range, from, to } = dashboardFiltersForm.elements;
+            anio.addEventListener('change', () => {
+                range.value = 'year';
+                from.value = '';
+                to.value = '';
+                dashboardFiltersForm.requestSubmit();
+            });
+
+            dashboardFiltersForm.addEventListener('submit', (event) => {
+                event.preventDefault();
+                executeFilterSubmission('Aplicando filtros...', event.submitter);
+            });
+        }
 
         const getRenderedCharts = () => [chartVersus, chartVolumen, chartTendencia].filter(Boolean);
 
@@ -2229,7 +2252,7 @@
         }
 
         function validChartSelection(selection) {
-            return Number.isInteger(selection.year) && selection.year >= 2000
+            return Number.isInteger(selection.year) && selection.year >= Number(selectVolumenYear.min)
                 && selection.year <= Number(selectVolumenYear.max)
                 && selection.months.length > 0 && selection.departments.length > 0;
         }
@@ -2467,13 +2490,6 @@
                 isTopFiltersCollapsed = false;
                 localStorage.setItem(DASHBOARD_TOP_FILTERS_COLLAPSED_KEY, '0');
                 applyTopFiltersState();
-            });
-        }
-
-        if (dashboardFiltersForm) {
-            dashboardFiltersForm.addEventListener('submit', (event) => {
-                event.preventDefault();
-                executeFilterSubmission('Aplicando filtros...', event.submitter);
             });
         }
 
