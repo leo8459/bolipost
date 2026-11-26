@@ -389,7 +389,7 @@
                             <div class="contrato-preview-grid">
                                 <div>
                                     @if ($contratoImagenUrl)
-                                        <a href="{{ $contratoImagenOpenUrl }}" target="_blank" rel="noopener">
+                                        <a href="{{ $contratoImagenOpenUrl }}" target="_blank" rel="noopener" class="contrato-preview-zoom" data-contrato-foto aria-haspopup="dialog" aria-label="Ampliar foto de entrega">
                                             <img src="{{ $contratoImagenUrl }}" alt="Imagen del paquete contrato" class="contrato-preview-image">
                                         </a>
                                     @else
@@ -456,7 +456,8 @@
 
                                     @if ($contratoImagenUrl)
                                         <div class="contrato-preview-actions">
-                                            <a href="{{ $contratoImagenOpenUrl }}" target="_blank" rel="noopener" class="btn btn-outline-azul">
+                                            <a href="{{ $contratoImagenOpenUrl }}" target="_blank" rel="noopener" class="btn btn-outline-azul" data-contrato-foto aria-haspopup="dialog">
+                                                <i class="fas fa-search-plus mr-1" aria-hidden="true"></i>
                                                 Ver imagen
                                             </a>
                                             <a href="{{ $contratoImagenDownloadUrl }}" class="btn btn-azul">
